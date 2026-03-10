@@ -5,7 +5,7 @@
     "cpus": 4,
     "memory": "16gb"
   },
-  "postCreateCommand": "cd tasm && pip install -q torch transformers accelerate fastapi 'uvicorn[standard]' python-multipart matplotlib numpy scipy aiofiles",
+  "postCreateCommand": "cd tasm && pip install -q torch transformers accelerate fastapi 'uvicorn[standard]' python-multipart matplotlib numpy scipy aiofiles reportlab",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {
