@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TASM — The Alignment Stress Map Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0: #0a0c10;
+  --bg-1: #0d1117;
+  --bg-2: #161b22;
+  --bg-3: #1c2333;
+  --border: #21262d;
+  --border-accent: #30363d;
+  --text-0: #f0f6fc;
+  --text-1: #c9d1d9;
+  --text-2: #8b949e;
+  --text-3: #6e7681;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.header h1 {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: -0.5px;
+}
+.header h1 span { color: var(--accent-blue); }
+.header .subtitle {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+.header .status-pill {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.status-pill.ready { border-color: var(--accent-green); color: var(--accent-green); }
+.status-pill.loading { border-color: var(--accent-orange); color: var(--accent-orange); }
+.status-pill.idle { border-color: var(--text-3); color: var(--text-3); }
+
+/* Layout */
+.main {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: calc(100vh - 57px);
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(100vh - 57px);
+}
+
+.section {
+  margin-bottom: 24px;
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+label {
+  font-size: 12px;
+  color: var(--text-2);
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+select, input[type="text"], textarea {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.custom-model-inputs {
+  display: none;
+  margin-top: 8px;
+}
+.custom-model-inputs.visible { display: block; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--accent-blue);
+}
+.checkbox-row label {
+  margin-bottom: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: center;
+}
+.btn-primary {
+  background: var(--accent-blue);
+  color: var(--bg-0);
+  border-color: var(--accent-blue);
+}
+.btn-primary:hover { background: #79c0ff; }
+.btn-primary:disabled {
+  background: var(--bg-3);
+  border-color: var(--border);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: var(--bg-2);
+  color: var(--text-1);
+}
+.btn-secondary:hover { background: var(--bg-3); border-color: var(--text-3); }
+.btn + .btn { margin-top: 8px; }
+
+.file-input-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+.file-input-wrapper input[type="file"] {
+  width: 100%;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+.file-input-wrapper input[type="file"]::file-selector-button {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-3);
+  color: var(--text-1);
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.progress-log {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+.progress-log .entry { padding: 1px 0; }
+.progress-log .entry.done { color: var(--accent-green); }
+.progress-log .entry.error { color: var(--accent-red); }
+
+/* Content Area */
+.content {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(100vh - 57px);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  color: var(--text-3);
+  text-align: center;
+}
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+.empty-state h2 {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-2);
+}
+.empty-state p {
+  font-size: 13px;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* Results */
+.result-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.result-card-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.result-card-header:hover { background: var(--bg-2); }
+.result-card-header h3 {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0);
+  flex: 1;
+}
+.result-card-header .pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid;
+}
+.pill-benign { border-color: var(--accent-green); color: var(--accent-green); }
+.pill-mild { border-color: var(--accent-orange); color: var(--accent-orange); }
+.pill-harmful { border-color: var(--accent-red); color: var(--accent-red); }
+.pill-jailbreak { border-color: var(--accent-purple); color: var(--accent-purple); }
+
+.result-card-body { padding: 16px; }
+.result-card-body.collapsed { display: none; }
+
+/* Metrics Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.metric-cell {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+.metric-cell .metric-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.metric-cell .metric-value {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+.metric-cell .metric-ln {
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.metric-ln.positive { color: var(--accent-red); }
+.metric-ln.negative { color: var(--accent-green); }
+.metric-ln.neutral { color: var(--text-3); }
+
+.plot-container {
+  margin-bottom: 12px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.plot-container img {
+  width: 100%;
+  display: block;
+}
+
+/* Token Table */
+.token-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-top: 12px;
+}
+.token-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.token-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-1);
+}
+.token-table tr:hover td { background: var(--bg-2); }
+.token-attr-bar {
+  height: 4px;
+  border-radius: 2px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Batch Results */
+.batch-header {
+  margin-bottom: 20px;
+}
+.batch-header h2 {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--text-0);
+  margin-bottom: 4px;
+}
+.batch-header p {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.tab {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text-3);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text-1); }
+.tab.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .sidebar { max-height: none; border-right: none; border-bottom: 1px solid var(--border); }
+  .content { max-height: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>TASM</span> Analyzer</h1>
+  <span class="subtitle">The Alignment Stress Map · Runtime Per-Token Sensitivity Attribution</span>
+  <div class="status-pill idle" id="statusPill">NO MODEL</div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <!-- Model Selection -->
+    <div class="section">
+      <div class="section-title">Model Pair</div>
+      <label>Select model pair</label>
+      <select id="modelSelect">
+        <option value="">— Select —</option>
+        <option value="qwen2.5-0.5b">Qwen 2.5 0.5B (lightweight)</option>
+        <option value="qwen2.5-1.5b">Qwen 2.5 1.5B</option>
+        <option value="qwen2.5-3b">Qwen 2.5 3B</option>
+        <option value="qwen2.5-7b">Qwen 2.5 7B</option>
+        <option value="custom">Custom pair...</option>
+      </select>
+      <div class="custom-model-inputs" id="customInputs">
+        <label>Base model (HuggingFace ID)</label>
+        <input type="text" id="baseModelId" placeholder="e.g. meta-llama/Llama-3-8B">
+        <label>Instruct model (HuggingFace ID)</label>
+        <input type="text" id="instructModelId" placeholder="e.g. meta-llama/Llama-3-8B-Instruct">
+      </div>
+      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+    </div>
+
+    <!-- Single Prompt -->
+    <div class="section">
+      <div class="section-title">Single Prompt Analysis</div>
+      <label>Prompt</label>
+      <textarea id="promptInput" placeholder="Enter a prompt to analyze..."></textarea>
+      <label>Category (optional)</label>
+      <select id="categorySelect">
+        <option value="">Auto-detect</option>
+        <option value="benign">Benign</option>
+        <option value="mild">Mild</option>
+        <option value="harmful">Harmful</option>
+        <option value="jailbreak">Jailbreak</option>
+      </select>
+      <div class="checkbox-row">
+        <input type="checkbox" id="computeKL">
+        <label for="computeKL">Compute KL divergence (loads base model)</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="computeTraj" checked>
+        <label for="computeTraj">Full amplitude trajectory + heatmap</label>
+      </div>
+      <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze</button>
+    </div>
+
+    <!-- Batch Analysis -->
+    <div class="section">
+      <div class="section-title">Batch Analysis (CSV)</div>
+      <label>Prompt CSV (columns: prompt, category)</label>
+      <div class="file-input-wrapper">
+        <input type="file" id="csvFile" accept=".csv">
+      </div>
+      <label>Baseline CSV (optional, benign controls)</label>
+      <div class="file-input-wrapper">
+        <input type="file" id="baselineCsv" accept=".csv">
+      </div>
+      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
+      <button class="btn btn-secondary" id="exportBtn" onclick="exportZip()" style="display:none">Export ZIP</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="section">
+      <div class="section-title">Log</div>
+      <div class="progress-log" id="progressLog">
+        <div class="entry">Ready. Select a model pair to begin.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">◇</div>
+      <h2>No analysis yet</h2>
+      <p>Load a model pair, enter a prompt or upload a CSV, and click Analyze to see the alignment stress map.</p>
+    </div>
+    <div id="resultsArea" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────
+let modelLoaded = false;
+let lastBatchData = null;
+
+// ─── UI Helpers ─────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function setStatus(state, text) {
+  const pill = $('statusPill');
+  pill.className = 'status-pill ' + state;
+  pill.textContent = text || state.toUpperCase();
+}
+
+function log(msg, type = '') {
+  const el = $('progressLog');
+  const div = document.createElement('div');
+  div.className = 'entry ' + type;
+  div.textContent = msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+  $('progressLog').innerHTML = '';
+}
+
+function setLoading(btn, loading) {
+  btn.disabled = loading;
+  if (loading) btn.dataset.origText = btn.textContent;
+  btn.textContent = loading ? 'Processing...' : (btn.dataset.origText || btn.textContent);
+}
+
+// ─── Model Selection ────────────────────────────────────────────
+$('modelSelect').addEventListener('change', function() {
+  $('customInputs').classList.toggle('visible', this.value === 'custom');
+});
+
+async function loadModel() {
+  const btn = $('loadModelBtn');
+  setLoading(btn, true);
+  clearLog();
+  log('Loading model pair...');
+  setStatus('loading', 'LOADING');
+
+  const select = $('modelSelect');
+  const formData = new FormData();
+
+  if (select.value === 'custom') {
+    formData.append('base_id', $('baseModelId').value);
+    formData.append('instruct_id', $('instructModelId').value);
+  } else {
+    formData.append('pair_id', select.value);
+  }
+
+  try {
+    const resp = await fetch('/api/load_model', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.ok) {
+      modelLoaded = true;
+      setStatus('ready', 'READY');
+      log(data.message, 'done');
+      $('analyzeBtn').disabled = false;
+      $('batchBtn').disabled = false;
+
+      // Fetch full progress
+      const prog = await (await fetch('/api/progress')).json();
+      for (const entry of prog.log) {
+        log(`[${entry.stage}] ${entry.message}`);
+      }
+    } else {
+      setStatus('idle', 'ERROR');
+      log('Error: ' + data.error, 'error');
+    }
+  } catch (e) {
+    setStatus('idle', 'ERROR');
+    log('Network error: ' + e.message, 'error');
+  }
+  setLoading(btn, false);
+}
+
+// ─── Single Analysis ────────────────────────────────────────────
+async function analyzeSingle() {
+  const prompt = $('promptInput').value.trim();
+  if (!prompt) return;
+
+  const btn = $('analyzeBtn');
+  setLoading(btn, true);
+  log('Analyzing: ' + prompt.substring(0, 60) + '...');
+
+  const formData = new FormData();
+  formData.append('prompt', prompt);
+  formData.append('category', $('categorySelect').value);
+  formData.append('compute_kl', $('computeKL').checked);
+  formData.append('compute_trajectory', $('computeTraj').checked);
+
+  try {
+    const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.ok) {
+      log('Analysis complete', 'done');
+      renderSingleResult(data.result, data.plots);
+    } else {
+      log('Error: ' + data.error, 'error');
+    }
+  } catch (e) {
+    log('Error: ' + e.message, 'error');
+  }
+  setLoading(btn, false);
+}
+
+// ─── Batch Analysis ─────────────────────────────────────────────
+async function analyzeBatch() {
+  const file = $('csvFile').files[0];
+  if (!file) { log('No CSV file selected', 'error'); return; }
+
+  const btn = $('batchBtn');
+  setLoading(btn, true);
+  clearLog();
+  log('Starting batch analysis...');
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('compute_kl', $('computeKL').checked);
+  formData.append('compute_trajectory', false);
+
+  const blFile = $('baselineCsv').files[0];
+  if (blFile) formData.append('baseline_file', blFile);
+
+  try {
+    const resp = await fetch('/api/analyze_batch', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.ok) {
+      lastBatchData = data;
+      log(`Batch complete: ${data.n_prompts} prompts analyzed`, 'done');
+      renderBatchResults(data);
+      $('exportBtn').style.display = 'block';
+    } else {
+      log('Error: ' + data.error, 'error');
+    }
+  } catch (e) {
+    log('Error: ' + e.message, 'error');
+  }
+  setLoading(btn, false);
+}
+
+// ─── Export ──────────────────────────────────────────────────────
+async function exportZip() {
+  if (!lastBatchData) return;
+  log('Generating ZIP export...');
+
+  try {
+    const resp = await fetch('/api/export_zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastBatchData),
+    });
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tasm_results.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    log('ZIP exported', 'done');
+  } catch (e) {
+    log('Export error: ' + e.message, 'error');
+  }
+}
+
+// ─── Rendering ──────────────────────────────────────────────────
+
+function pillClass(cat) {
+  if (['benign', 'baseline'].includes(cat)) return 'pill-benign';
+  if (cat === 'mild') return 'pill-mild';
+  if (cat === 'harmful') return 'pill-harmful';
+  if (['jailbreak', 'adversarial'].includes(cat)) return 'pill-jailbreak';
+  return '';
+}
+
+function formatLN(val) {
+  if (val === null || val === undefined) return '';
+  const sign = val > 0 ? '+' : '';
+  const cls = val > 0.5 ? 'positive' : (val < -0.5 ? 'negative' : 'neutral');
+  return `<div class="metric-ln ${cls}">${sign}${val.toFixed(2)}σ from baseline</div>`;
+}
+
+function metricCell(label, value, lnValue, fmt) {
+  const fmtVal = fmt ? fmt(value) : (typeof value === 'number' ? value.toFixed(4) : value);
+  return `<div class="metric-cell">
+    <div class="metric-label">${label}</div>
+    <div class="metric-value">${fmtVal}</div>
+    ${formatLN(lnValue)}
+  </div>`;
+}
+
+function renderSingleResult(r, plots) {
+  $('emptyState').style.display = 'none';
+  const area = $('resultsArea');
+  area.style.display = 'block';
+
+  const negNote = r.has_negative_tokens
+    ? `<span style="color:var(--accent-purple)">⚑ ${r.n_negative_tokens} negative attribution tokens detected</span>`
+    : '';
+
+  let html = `
+    <div class="result-card">
+      <div class="result-card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+        <h3>${escHtml(r.prompt)}</h3>
+        ${r.category ? `<span class="pill ${pillClass(r.category)}">${r.category}</span>` : ''}
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3)">${r.seq_len} tokens</span>
+      </div>
+      <div class="result-card-body">
+        <div class="metrics-grid">
+          ${metricCell('Stress Score', r.stress_score, r.stress_score_ln)}
+          ${metricCell('Net Correction', r.net_correction, null)}
+          ${metricCell('Entropy', r.entropy, r.entropy_ln)}
+          ${metricCell('Gini', r.gini, null)}
+          ${metricCell('Boundary Share', r.top2_share, r.top2_share_ln, v => (v*100).toFixed(1)+'%')}
+          ${metricCell('Interior Share', r.middle_share, r.middle_share_ln, v => (v*100).toFixed(1)+'%')}
+          ${metricCell('Interior CV', r.interior_cv, null)}
+          ${r.kl_divergence !== null ? metricCell('KL Divergence', r.kl_divergence, null) : ''}
+        </div>
+        ${negNote ? `<div style="margin-bottom:12px;font-size:12px">${negNote}</div>` : ''}
+        ${plots.signed_attribution ? `<div class="plot-container"><img src="data:image/png;base64,${plots.signed_attribution}"></div>` : ''}
+        ${plots.stress_per_token ? `<div class="plot-container"><img src="data:image/png;base64,${plots.stress_per_token}"></div>` : ''}
+        ${plots.distribution_metrics ? `<div class="plot-container"><img src="data:image/png;base64,${plots.distribution_metrics}"></div>` : ''}
+        ${plots.amplitude_trajectory ? `<div class="plot-container"><img src="data:image/png;base64,${plots.amplitude_trajectory}"></div>` : ''}
+        ${plots.heatmap ? `<div class="plot-container"><img src="data:image/png;base64,${plots.heatmap}"></div>` : ''}
+        ${renderTokenTable(r)}
+      </div>
+    </div>
+  `;
+
+  area.innerHTML = html + area.innerHTML;
+}
+
+function renderTokenTable(r) {
+  if (!r.tokens || !r.signed_attr || !r.signed_attr.length) return '';
+  const maxAttr = Math.max(...r.signed_attr.map(Math.abs));
+  const maxStress = r.per_token_stress ? Math.max(...r.per_token_stress) : 1;
+
+  let rows = '';
+  for (let i = 0; i < r.tokens.length; i++) {
+    const attr = r.signed_attr[i];
+    const stress = r.per_token_stress ? r.per_token_stress[i] : 0;
+    const attrPct = maxAttr > 0 ? (Math.abs(attr) / maxAttr * 100) : 0;
+    const attrColor = attr < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+    const stressPct = maxStress > 0 ? (stress / maxStress * 100) : 0;
+
+    rows += `<tr>
+      <td>${escHtml(r.tokens[i])}</td>
+      <td style="color:${attrColor}">${attr >= 0 ? '+' : ''}${attr.toFixed(4)}</td>
+      <td><span class="token-attr-bar" style="width:${attrPct}%;background:${attrColor}"></span></td>
+      <td>${stress.toFixed(4)}</td>
+      <td><span class="token-attr-bar" style="width:${stressPct}%;background:var(--accent-blue)"></span></td>
+    </tr>`;
+  }
+
+  return `<table class="token-table">
+    <tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>
+    ${rows}
+  </table>`;
+}
+
+function renderBatchResults(data) {
+  $('emptyState').style.display = 'none';
+  const area = $('resultsArea');
+  area.style.display = 'block';
+
+  const agg = data.aggregate;
+  const cats = agg.categories;
+  const sep = agg.separability;
+
+  let html = `
+    <div class="batch-header">
+      <h2>Batch Analysis: ${data.n_prompts} prompts</h2>
+      <p>${Object.keys(cats).map(c => `${c}: ${cats[c].n}`).join(' · ')}</p>
+    </div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab(this, 'tab-overview')">Overview</div>
+      <div class="tab" onclick="switchTab(this, 'tab-separability')">Separability</div>
+      <div class="tab" onclick="switchTab(this, 'tab-prompts')">Per-Prompt</div>
+    </div>
+  `;
+
+  // Overview tab
+  html += `<div class="tab-content active" id="tab-overview">`;
+  if (data.plots.batch_summary) {
+    html += `<div class="plot-container"><img src="data:image/png;base64,${data.plots.batch_summary}"></div>`;
+  }
+  // Category summary table
+  html += `<div class="result-card"><div class="result-card-body">`;
+  html += `<table class="token-table">
+    <tr><th>Category</th><th>N</th><th>Mean Length</th><th>Stress</th><th>Entropy</th>
+    <th>Boundary%</th><th>Interior%</th><th>Net</th><th>Neg. Rate</th></tr>`;
+  for (const [cat, s] of Object.entries(cats)) {
+    const m = s.metrics;
+    html += `<tr>
+      <td><span class="pill ${pillClass(cat)}">${cat}</span></td>
+      <td>${s.n}</td>
+      <td>${s.mean_seq_len.toFixed(1)}</td>
+      <td>${m.stress_score ? m.stress_score.estimate.toFixed(4) : '—'}</td>
+      <td>${m.entropy ? m.entropy.estimate.toFixed(4) : '—'}</td>
+      <td>${m.top2_share ? (m.top2_share.estimate*100).toFixed(1)+'%' : '—'}</td>
+      <td>${m.middle_share ? (m.middle_share.estimate*100).toFixed(1)+'%' : '—'}</td>
+      <td>${m.net_correction ? m.net_correction.estimate.toFixed(4) : '—'}</td>
+      <td>${(s.negative_token_rate*100).toFixed(0)}%</td>
+    </tr>`;
+  }
+  html += `</table></div></div></div>`;
+
+  // Separability tab
+  html += `<div class="tab-content" id="tab-separability">`;
+  if (data.plots.separability) {
+    html += `<div class="plot-container"><img src="data:image/png;base64,${data.plots.separability}"></div>`;
+  }
+  if (sep && Object.keys(sep).length) {
+    html += `<div class="result-card"><div class="result-card-body">`;
+    html += `<table class="token-table">
+      <tr><th>Metric</th><th>Cohen's d</th><th>95% CI</th><th>Best Threshold Acc</th>
+      <th>Benign Mean</th><th>Harmful Mean</th></tr>`;
+    for (const [metric, s] of Object.entries(sep)) {
+      const es = s.effect_size;
+      html += `<tr>
+        <td>${metric}</td>
+        <td style="font-weight:600;color:${es.estimate > 0.8 ? 'var(--accent-green)' : (es.estimate > 0.5 ? 'var(--accent-orange)' : 'var(--accent-red)')}">${es.estimate.toFixed(2)}</td>
+        <td>[${es.ci_low.toFixed(2)}, ${es.ci_high.toFixed(2)}]</td>
+        <td>${(s.threshold.accuracy*100).toFixed(1)}%</td>
+        <td>${s.benign_mean !== undefined ? s.benign_mean.toFixed(4) : '—'}</td>
+        <td>${s.harmful_mean !== undefined ? s.harmful_mean.toFixed(4) : '—'}</td>
+      </tr>`;
+    }
+    html += `</table></div></div>`;
+  }
+  // Correlations
+  if (agg.correlations && agg.correlations.stress_vs_kl) {
+    const c = agg.correlations.stress_vs_kl;
+    html += `<div class="result-card"><div class="result-card-body">
+      <div class="metrics-grid">
+        ${metricCell('Stress↔KL r', c.r, null)}
+        ${metricCell('p-value', c.p, null, v => v < 0.001 ? '<0.001' : v.toFixed(4))}
+        ${metricCell('N pairs', c.n, null, v => v)}
+      </div>
+    </div></div>`;
+  }
+  html += `</div>`;
+
+  // Per-prompt tab
+  html += `<div class="tab-content" id="tab-prompts">`;
+  for (const r of data.per_prompt) {
+    html += `<div class="result-card">
+      <div class="result-card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+        <h3>${escHtml(r.prompt.substring(0, 80))}${r.prompt.length > 80 ? '…' : ''}</h3>
+        ${r.category ? `<span class="pill ${pillClass(r.category)}">${r.category}</span>` : ''}
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3)">
+          stress=${r.stress_score.toFixed(3)} · net=${r.net_correction.toFixed(3)} · ${r.seq_len}tok
+        </span>
+      </div>
+      <div class="result-card-body collapsed">
+        <div class="metrics-grid">
+          ${metricCell('Stress Score', r.stress_score, r.stress_score_ln)}
+          ${metricCell('Net Correction', r.net_correction, null)}
+          ${metricCell('Entropy', r.entropy, r.entropy_ln)}
+          ${metricCell('Boundary%', r.top2_share, r.top2_share_ln, v => (v*100).toFixed(1)+'%')}
+          ${metricCell('Interior%', r.middle_share, r.middle_share_ln, v => (v*100).toFixed(1)+'%')}
+          ${r.kl_divergence !== null ? metricCell('KL Divergence', r.kl_divergence, null) : ''}
+        </div>
+        ${renderTokenTable(r)}
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  area.innerHTML = html;
+}
+
+function switchTab(el, tabId) {
+  el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+}
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ─── Init ───────────────────────────────────────────────────────
+(async function init() {
+  try {
+    const resp = await fetch('/api/status');
+    const data = await resp.json();
+    if (data.model_loaded) {
+      modelLoaded = true;
+      setStatus('ready', 'READY');
+      $('analyzeBtn').disabled = false;
+      $('batchBtn').disabled = false;
+    }
+  } catch(e) {}
+})();
+</script>
+
+</body>
+</html>
