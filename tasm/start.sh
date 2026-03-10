@@ -13,7 +13,7 @@ echo ""
 # Install dependencies
 echo "→ Installing dependencies..."
 pip install -q torch transformers accelerate fastapi "uvicorn[standard]" \
-    python-multipart matplotlib numpy scipy aiofiles 2>/dev/null
+    python-multipart matplotlib numpy scipy aiofiles reportlab 2>/dev/null
 
 echo "→ Starting server on port 8000..."
 echo "  Open http://localhost:8000 in your browser"

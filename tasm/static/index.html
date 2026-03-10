@@ -411,6 +411,56 @@ textarea {
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
+.btn-danger {
+  background: transparent;
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+.btn-danger:hover { background: var(--accent-red); color: var(--bg-0); }
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-row .btn { margin-top: 0; }
+.btn-row .btn:first-child { flex: 1; }
+
+.pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-blue);
+  text-decoration: none;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+.pdf-link:hover { border-color: var(--accent-blue); background: var(--bg-2); }
+
+.reports-list {
+  max-height: 140px;
+  overflow-y: auto;
+}
+.report-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.report-item a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+.report-item a:hover { text-decoration: underline; }
+.report-item .report-meta { color: var(--text-3); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -453,7 +503,10 @@ textarea {
         <label>Instruct model (HuggingFace ID)</label>
         <input type="text" id="instructModelId" placeholder="e.g. meta-llama/Llama-3-8B-Instruct">
       </div>
-      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+        <button class="btn btn-danger" id="resetBtn" onclick="resetAll()" title="Unload model and free memory">Reset</button>
+      </div>
     </div>
 
     <!-- Single Prompt -->
@@ -500,6 +553,14 @@ textarea {
       <div class="section-title">Log</div>
       <div class="progress-log" id="progressLog">
         <div class="entry">Ready. Select a model pair to begin.</div>
+      </div>
+    </div>
+
+    <!-- Reports -->
+    <div class="section">
+      <div class="section-title">Reports</div>
+      <div class="reports-list" id="reportsList">
+        <div class="report-item"><span class="report-meta">No reports yet</span></div>
       </div>
     </div>
   </div>
@@ -596,6 +657,34 @@ async function loadModel() {
   setLoading(btn, false);
 }
 
+// ─── Reset ──────────────────────────────────────────────────────
+async function resetAll() {
+  if (!confirm('Unload model and clear all results?')) return;
+  clearLog();
+  log('Resetting...');
+  setStatus('loading', 'RESETTING');
+
+  try {
+    const resp = await fetch('/api/reset', { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) {
+      modelLoaded = false;
+      lastBatchData = null;
+      setStatus('idle', 'NO MODEL');
+      $('analyzeBtn').disabled = true;
+      $('batchBtn').disabled = true;
+      $('exportBtn').style.display = 'none';
+      $('resultsArea').innerHTML = '';
+      $('resultsArea').style.display = 'none';
+      $('emptyState').style.display = '';
+      $('modelSelect').value = '';
+      log(data.message, 'done');
+    }
+  } catch (e) {
+    log('Reset error: ' + e.message, 'error');
+  }
+}
+
 // ─── Single Analysis ────────────────────────────────────────────
 async function analyzeSingle() {
   const prompt = $('promptInput').value.trim();
@@ -617,7 +706,8 @@ async function analyzeSingle() {
 
     if (data.ok) {
       log('Analysis complete', 'done');
-      renderSingleResult(data.result, data.plots);
+      renderSingleResult(data.result, data.plots, data.pdf_filename);
+      loadReports();
     } else {
       log('Error: ' + data.error, 'error');
     }
@@ -654,6 +744,7 @@ async function analyzeBatch() {
       log(`Batch complete: ${data.n_prompts} prompts analyzed`, 'done');
       renderBatchResults(data);
       $('exportBtn').style.display = 'block';
+      loadReports();
     } else {
       log('Error: ' + data.error, 'error');
     }
@@ -713,13 +804,17 @@ function metricCell(label, value, lnValue, fmt) {
   </div>`;
 }
 
-function renderSingleResult(r, plots) {
+function renderSingleResult(r, plots, pdfFilename) {
   $('emptyState').style.display = 'none';
   const area = $('resultsArea');
   area.style.display = 'block';
 
   const negNote = r.has_negative_tokens
     ? `<span style="color:var(--accent-purple)">⚑ ${r.n_negative_tokens} negative attribution tokens detected</span>`
+    : '';
+
+  const pdfLink = pdfFilename
+    ? `<a class="pdf-link" href="/api/reports/${encodeURIComponent(pdfFilename)}" target="_blank">⬇ PDF Report</a>`
     : '';
 
   let html = `
@@ -730,7 +825,8 @@ function renderSingleResult(r, plots) {
         <span style="font-family:var(--mono);font-size:11px;color:var(--text-3)">${r.seq_len} tokens</span>
       </div>
       <div class="result-card-body">
-        <div class="metrics-grid">
+        ${pdfLink}
+        <div class="metrics-grid" style="margin-top:${pdfLink ? '10px' : '0'}">
           ${metricCell('Stress Score', r.stress_score, r.stress_score_ln)}
           ${metricCell('Net Correction', r.net_correction, null)}
           ${metricCell('Entropy', r.entropy, r.entropy_ln)}
@@ -791,10 +887,15 @@ function renderBatchResults(data) {
   const cats = agg.categories;
   const sep = agg.separability;
 
+  const batchPdfLink = data.pdf_filename
+    ? `<a class="pdf-link" href="/api/reports/${encodeURIComponent(data.pdf_filename)}" target="_blank">⬇ PDF Report</a>`
+    : '';
+
   let html = `
     <div class="batch-header">
       <h2>Batch Analysis: ${data.n_prompts} prompts</h2>
       <p>${Object.keys(cats).map(c => `${c}: ${cats[c].n}`).join(' · ')}</p>
+      ${batchPdfLink}
     </div>
     <div class="tab-bar">
       <div class="tab active" onclick="switchTab(this, 'tab-overview')">Overview</div>
@@ -907,6 +1008,26 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
+// ─── Reports ────────────────────────────────────────────────────
+async function loadReports() {
+  try {
+    const resp = await fetch('/api/reports');
+    const data = await resp.json();
+    const list = $('reportsList');
+    if (!data.reports || data.reports.length === 0) {
+      list.innerHTML = '<div class="report-item"><span class="report-meta">No reports yet</span></div>';
+      return;
+    }
+    list.innerHTML = data.reports.map(r => `
+      <div class="report-item">
+        <a href="/api/reports/${encodeURIComponent(r.filename)}" target="_blank"
+           title="${r.filename}">${r.filename.length > 30 ? r.filename.substring(0, 27) + '...' : r.filename}</a>
+        <span class="report-meta">${r.size_kb} KB</span>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
 // ─── Init ───────────────────────────────────────────────────────
 (async function init() {
   try {
@@ -918,6 +1039,7 @@ function escHtml(str) {
       $('analyzeBtn').disabled = false;
       $('batchBtn').disabled = false;
     }
+    loadReports();
   } catch(e) {}
 })();
 </script>

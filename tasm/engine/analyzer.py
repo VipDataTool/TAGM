@@ -1,12 +1,12 @@
 """
-Core ASM Analyzer: computes amplitude trajectories, signed attribution,
-distribution metrics, and behavioral divergence for a single prompt.
+Core ASM Analyzer: single-pass computation of amplitude trajectories,
+signed attribution, distribution metrics, and behavioral divergence.
 """
 
 import torch
 import numpy as np
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -18,18 +18,18 @@ class PromptResult:
     seq_len: int = 0
 
     # Stage 1: Full amplitude trajectory (all sublayers)
-    amplitude_trajectory: list = field(default_factory=list)  # [n_sublayers]
+    amplitude_trajectory: list = field(default_factory=list)
     amplitude_normalized: list = field(default_factory=list)
 
     # Stage 1d: Per-token per-layer heatmap (normalized)
-    heatmap: Optional[np.ndarray] = None  # [n_sublayers, seq_len]
+    heatmap: Optional[np.ndarray] = None
 
     # Stage 2: Focused stress score (signal layers only)
     stress_score: float = 0.0
-    per_token_stress: Optional[np.ndarray] = None  # [seq_len]
+    per_token_stress: Optional[np.ndarray] = None
 
     # Stage 3: Signed attribution
-    signed_attr: Optional[np.ndarray] = None  # [seq_len] averaged across layers+heads
+    signed_attr: Optional[np.ndarray] = None
     net_correction: float = 0.0
     n_negative_tokens: int = 0
     has_negative_tokens: bool = False
@@ -42,7 +42,7 @@ class PromptResult:
     interior_cv: float = 0.0
 
     # Length-normalized metrics
-    entropy_ln: Optional[float] = None        # deviation from length baseline
+    entropy_ln: Optional[float] = None
     top2_share_ln: Optional[float] = None
     middle_share_ln: Optional[float] = None
     stress_score_ln: Optional[float] = None
@@ -52,7 +52,7 @@ class PromptResult:
 
     # Signal layer breakdown
     signal_layer_indices: list = field(default_factory=list)
-    per_layer_amplitude: dict = field(default_factory=dict)  # layer_idx -> mean amplitude
+    per_layer_amplitude: dict = field(default_factory=dict)
 
 
 class Analyzer:
@@ -62,41 +62,43 @@ class Analyzer:
     def analyze_prompt(self, prompt: str, category: str = "",
                        compute_kl: bool = False,
                        compute_full_trajectory: bool = True) -> PromptResult:
-        """Run the full analysis pipeline on a single prompt."""
+        """
+        Run the full analysis pipeline in a SINGLE forward pass.
+        Installs all required hooks, runs once, extracts everything.
+        """
         state = self.mm.state
         result = PromptResult(prompt=prompt, category=category)
-
-        # --- Stage 3/3b: Signed attribution (primary signal) ---
-        # This gives us tokens, attribution distribution, and net correction
-        self._compute_signed_attribution(result)
-
-        # --- Stage 2: Focused stress score ---
-        self._compute_stress_score(result)
-
-        # --- Stage 1: Full trajectory (optional, heavier) ---
-        if compute_full_trajectory:
-            self._compute_amplitude_trajectory(result)
-
-        # --- KL divergence (optional, requires base model) ---
-        if compute_kl:
-            self._compute_kl_divergence(result)
-
         result.signal_layer_indices = list(state.signal_layers)
-        return result
 
-    def _compute_signed_attribution(self, result: PromptResult):
-        """Stage 3 + 3b: Signed projection attribution and distribution metrics."""
-        state = self.mm.state
-        signal_layers = state.signal_layers
+        # Install all hooks for this analysis, run one forward pass
+        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory)
+        tokens, inputs, _ = self.mm.forward(prompt, output_attentions=True)
 
-        # Install hooks on signal layers and run forward pass
-        self.mm.install_hooks(signal_layers)
-        tokens, inputs, _ = self.mm.forward(result.prompt, output_attentions=True)
-
-        result.tokens = [t.replace("Ġ", " ").replace("Ċ", "\\n") for t in tokens]
+        result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
         result.seq_len = len(tokens)
         seq_len = result.seq_len
 
+        # --- Extract signed attribution from signal layers ---
+        self._extract_signed_attribution(result, seq_len, state)
+
+        # --- Extract stress score from signal layers ---
+        self._extract_stress_score(result, seq_len, state)
+
+        # --- Extract full trajectory if requested ---
+        if compute_full_trajectory:
+            self._extract_amplitude_trajectory(result, seq_len, state)
+
+        # --- Free activation memory ---
+        self.mm.clear_activations()
+
+        # --- KL divergence (separate pass with base model) ---
+        if compute_kl:
+            self._compute_kl_divergence(result, state)
+
+        return result
+
+    def _extract_signed_attribution(self, result, seq_len, state):
+        """Extract signed attribution from already-computed activations."""
         n_kv_heads = state.n_kv_heads
         head_dim = state.head_dim
         n_heads = state.n_heads
@@ -104,16 +106,18 @@ class Analyzer:
 
         layer_attrs = []
 
-        for layer_idx in signal_layers:
+        for layer_idx in state.signal_layers:
             h_key = f"layer_{layer_idx}_h"
             a_key = f"layer_{layer_idx}_attn"
 
             if h_key not in self.mm.activations or a_key not in self.mm.attn_weights:
                 continue
 
-            h = self.mm.activations[h_key][0]        # [seq, hidden]
-            alpha = self.mm.attn_weights[a_key][0]    # [n_heads, seq, seq]
-            dw_v = state.v_deltas[layer_idx]
+            h = self.mm.activations[h_key][0]
+            alpha = self.mm.attn_weights[a_key][0]
+            dw_v = state.v_delta(layer_idx)
+            if dw_v is None:
+                continue
 
             v = torch.matmul(h, dw_v.T)
             v_heads = v.view(seq_len, n_kv_heads, head_dim)
@@ -131,7 +135,7 @@ class Analyzer:
                 u_hat = delta / d_norm
                 proj = torch.matmul(u_hat, v_h.T)
                 signed = a_h * proj
-                head_attrs.append(signed[-1, :])  # last position
+                head_attrs.append(signed[-1, :])
                 layer_amp += d_norm[-1].item()
 
             layer_attr = torch.stack(head_attrs).mean(dim=0)
@@ -150,23 +154,17 @@ class Analyzer:
         # Distribution metrics
         attr_abs = np.abs(avg_attr)
         total = attr_abs.sum()
-        if total > 0:
-            attr_dist = attr_abs / total
-        else:
-            attr_dist = np.ones_like(attr_abs) / len(attr_abs)
+        attr_dist = attr_abs / total if total > 0 else np.ones_like(attr_abs) / len(attr_abs)
 
-        # Entropy
         ent = -np.sum(attr_dist * np.log(attr_dist + 1e-10))
         max_ent = np.log(seq_len) if seq_len > 1 else 1.0
         result.entropy = float(ent / max_ent)
 
-        # Gini
         sorted_d = np.sort(attr_dist)
         n = len(sorted_d)
         cum = np.cumsum(sorted_d)
         result.gini = float(1 - 2 * cum.sum() / (n * sorted_d.sum())) if sorted_d.sum() > 0 else 0.0
 
-        # Boundary vs interior
         if seq_len >= 2:
             result.top2_share = float(attr_dist[0] + attr_dist[-1])
         else:
@@ -181,14 +179,8 @@ class Analyzer:
             result.middle_share = 0.0
             result.interior_cv = 0.0
 
-    def _compute_stress_score(self, result: PromptResult):
-        """Stage 2: Focused stress score using signal layers only."""
-        state = self.mm.state
-
-        self.mm.install_hooks(state.signal_layers)
-        tokens, inputs, _ = self.mm.forward(result.prompt)
-
-        seq_len = inputs["input_ids"].shape[1]
+    def _extract_stress_score(self, result, seq_len, state):
+        """Extract stress score from already-computed signal layer activations."""
         per_token_total = torch.zeros(seq_len)
         n_layers = 0
 
@@ -214,21 +206,15 @@ class Analyzer:
         result.stress_score = float(per_token_total.mean().item())
         result.per_token_stress = per_token_total.numpy()
 
-    def _compute_amplitude_trajectory(self, result: PromptResult):
-        """Stage 1: Full amplitude trajectory across all sublayers."""
-        state = self.mm.state
-
-        self.mm.install_full_hooks()
-        tokens, inputs, _ = self.mm.forward(result.prompt)
-        seq_len = inputs["input_ids"].shape[1]
-
+    def _extract_amplitude_trajectory(self, result, seq_len, state):
+        """Extract full trajectory from already-computed all-layer activations."""
         raw_traj = []
         norm_traj = []
         heatmap_rows = []
 
         for layer_idx in range(state.n_layers):
             for sublayer_type in ["attn", "mlp"]:
-                key = f"layer_{layer_idx}_{sublayer_type}"
+                key = f"layer_{layer_idx}_traj_{sublayer_type}"
                 if key not in self.mm.activations:
                     raw_traj.append(0.0)
                     norm_traj.append(0.0)
@@ -271,9 +257,8 @@ class Analyzer:
         result.amplitude_normalized = norm_traj
         result.heatmap = np.array(heatmap_rows)
 
-    def _compute_kl_divergence(self, result: PromptResult):
+    def _compute_kl_divergence(self, result, state):
         """Compute KL(instruct || base) at last token position."""
-        state = self.mm.state
         if state.model_base is None:
             return
 
@@ -293,7 +278,6 @@ class Analyzer:
 def result_to_dict(r: PromptResult) -> dict:
     """Serialize a PromptResult for JSON transport."""
     def _native(v):
-        """Convert numpy/torch scalars to Python natives."""
         if v is None:
             return None
         if isinstance(v, (np.integer,)):
@@ -302,7 +286,7 @@ def result_to_dict(r: PromptResult) -> dict:
             return float(v)
         if isinstance(v, np.ndarray):
             return v.tolist()
-        if hasattr(v, 'item'):  # torch scalar
+        if hasattr(v, 'item'):
             return v.item()
         return v
 
