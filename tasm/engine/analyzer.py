@@ -88,8 +88,9 @@ class Analyzer:
         if compute_full_trajectory:
             self._extract_amplitude_trajectory(result, seq_len, state)
 
-        # --- Free activation memory ---
+        # --- Free activation memory and remove hooks ---
         self.mm.clear_activations()
+        self.mm._remove_hooks()
 
         # --- KL divergence (separate pass with base model) ---
         if compute_kl:

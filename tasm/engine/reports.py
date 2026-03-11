@@ -93,7 +93,7 @@ def _b64_to_image(b64_str: str, width=None, height=None):
 
 def _fmt(v, fmt=".4f"):
     if v is None:
-        return "—"
+        return "--"
     if isinstance(v, str):
         return v
     try:
@@ -104,7 +104,7 @@ def _fmt(v, fmt=".4f"):
 
 def _pct(v):
     if v is None:
-        return "—"
+        return "--"
     return f"{v*100:.1f}%"
 
 
@@ -112,7 +112,7 @@ def _ln_label(v):
     if v is None:
         return ""
     sign = "+" if v > 0 else ""
-    return f"  ({sign}{v:.2f}\u03c3)"
+    return f"  ({sign}{v:.2f} sd)"
 
 
 def generate_single_report(result_dict: dict, plots: dict,

@@ -425,6 +425,25 @@ textarea {
 .btn-row .btn { margin-top: 0; }
 .btn-row .btn:first-child { flex: 1; }
 
+.prompt-library {
+  margin-bottom: 10px;
+}
+.prompt-library select {
+  margin-bottom: 6px;
+}
+.prompt-lib-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.prompt-lib-row .btn {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  margin-top: 0;
+}
+
 .pdf-link {
   display: inline-flex;
   align-items: center;
@@ -512,8 +531,18 @@ textarea {
     <!-- Single Prompt -->
     <div class="section">
       <div class="section-title">Single Prompt Analysis</div>
+      <div class="prompt-library">
+        <label>Prompt Library</label>
+        <select id="promptLibrary" onchange="loadFromLibrary()">
+          <option value="">— Select a preset prompt —</option>
+        </select>
+        <div class="prompt-lib-row">
+          <button class="btn btn-secondary" onclick="addCurrentToLibrary()" title="Save current prompt to library">+ Save to library</button>
+          <button class="btn btn-secondary" onclick="editLibraryPrompt()" title="Edit selected prompt">Edit</button>
+        </div>
+      </div>
       <label>Prompt</label>
-      <textarea id="promptInput" placeholder="Enter a prompt to analyze..."></textarea>
+      <textarea id="promptInput" placeholder="Enter a prompt or select from library..."></textarea>
       <label>Category (optional)</label>
       <select id="categorySelect">
         <option value="">Auto-detect</option>
@@ -617,7 +646,7 @@ async function loadModel() {
   const btn = $('loadModelBtn');
   setLoading(btn, true);
   clearLog();
-  log('Loading model pair...');
+  log('Starting model load...');
   setStatus('loading', 'LOADING');
 
   const select = $('modelSelect');
@@ -631,30 +660,46 @@ async function loadModel() {
   }
 
   try {
-    const resp = await fetch('/api/load_model', { method: 'POST', body: formData });
-    const data = await resp.json();
-
-    if (data.ok) {
-      modelLoaded = true;
-      setStatus('ready', 'READY');
-      log(data.message, 'done');
-      $('analyzeBtn').disabled = false;
-      $('batchBtn').disabled = false;
-
-      // Fetch full progress
-      const prog = await (await fetch('/api/progress')).json();
-      for (const entry of prog.log) {
-        log(`[${entry.stage}] ${entry.message}`);
-      }
-    } else {
-      setStatus('idle', 'ERROR');
-      log('Error: ' + data.error, 'error');
-    }
+    // Fire and forget — server returns immediately, loads in background
+    await fetch('/api/load_model', { method: 'POST', body: formData });
   } catch (e) {
-    setStatus('idle', 'ERROR');
-    log('Network error: ' + e.message, 'error');
+    // Even a network error here is ok — the server may have started loading
+    log('Request sent, polling for status...', '');
   }
-  setLoading(btn, false);
+
+  // Poll until loading finishes
+  let lastLogLen = 0;
+  const poll = setInterval(async () => {
+    try {
+      // Fetch progress log
+      const prog = await (await fetch('/api/progress')).json();
+      for (let i = lastLogLen; i < prog.log.length; i++) {
+        const entry = prog.log[i];
+        const type = entry.stage === 'error' ? 'error' : (entry.stage === 'ready' ? 'done' : '');
+        log(`[${entry.stage}] ${entry.message}`, type);
+      }
+      lastLogLen = prog.log.length;
+
+      // Check status
+      const status = await (await fetch('/api/status')).json();
+      if (status.model_loaded) {
+        clearInterval(poll);
+        modelLoaded = true;
+        setStatus('ready', 'READY');
+        $('analyzeBtn').disabled = false;
+        $('batchBtn').disabled = false;
+        setLoading(btn, false);
+        loadPromptLibrary();
+      } else if (status.loading_error) {
+        clearInterval(poll);
+        setStatus('idle', 'ERROR');
+        log('Loading failed: ' + status.loading_error, 'error');
+        setLoading(btn, false);
+      }
+    } catch (e) {
+      // Polling fetch failed — server might be busy, keep trying
+    }
+  }, 2000);
 }
 
 // ─── Reset ──────────────────────────────────────────────────────
@@ -1008,6 +1053,86 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
+// ─── Prompt Library ─────────────────────────────────────────────
+let promptLibraryData = [];
+
+async function loadPromptLibrary() {
+  try {
+    const resp = await fetch('/api/prompts');
+    const data = await resp.json();
+    promptLibraryData = data.prompts || [];
+    renderPromptLibrary();
+  } catch(e) {}
+}
+
+function renderPromptLibrary() {
+  const sel = $('promptLibrary');
+  sel.innerHTML = '<option value="">-- Select a preset prompt --</option>';
+
+  // Group by category
+  const groups = {};
+  promptLibraryData.forEach((p, i) => {
+    const cat = p.category || 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push({ ...p, index: i });
+  });
+
+  for (const [cat, prompts] of Object.entries(groups)) {
+    const group = document.createElement('optgroup');
+    group.label = cat.charAt(0).toUpperCase() + cat.slice(1);
+    prompts.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.index;
+      opt.textContent = p.prompt.length > 70 ? p.prompt.substring(0, 67) + '...' : p.prompt;
+      group.appendChild(opt);
+    });
+    sel.appendChild(group);
+  }
+}
+
+function loadFromLibrary() {
+  const sel = $('promptLibrary');
+  if (sel.value === '') return;
+  const idx = parseInt(sel.value);
+  const p = promptLibraryData[idx];
+  if (p) {
+    $('promptInput').value = p.prompt;
+    $('categorySelect').value = p.category || '';
+  }
+}
+
+async function addCurrentToLibrary() {
+  const prompt = $('promptInput').value.trim();
+  if (!prompt) { log('No prompt to save', 'error'); return; }
+  const category = $('categorySelect').value || 'benign';
+
+  try {
+    const formData = new FormData();
+    formData.append('prompt', prompt);
+    formData.append('category', category);
+    const resp = await fetch('/api/prompts', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.ok) {
+      promptLibraryData = data.prompts;
+      renderPromptLibrary();
+      log('Prompt saved to library', 'done');
+    }
+  } catch(e) {
+    log('Failed to save prompt: ' + e.message, 'error');
+  }
+}
+
+function editLibraryPrompt() {
+  const sel = $('promptLibrary');
+  if (sel.value === '') {
+    log('Select a prompt from the library first', '');
+    return;
+  }
+  // Load it into the textarea for editing — user can modify and re-save
+  loadFromLibrary();
+  log('Prompt loaded for editing. Modify and click "Save to library" to save as new.', '');
+}
+
 // ─── Reports ────────────────────────────────────────────────────
 async function loadReports() {
   try {
@@ -1038,7 +1163,42 @@ async function loadReports() {
       setStatus('ready', 'READY');
       $('analyzeBtn').disabled = false;
       $('batchBtn').disabled = false;
+    } else if (data.loading) {
+      setStatus('loading', 'LOADING');
+      // Resume polling if page was refreshed during load
+      $('loadModelBtn').disabled = true;
+      $('loadModelBtn').textContent = 'Processing...';
+      let lastLogLen = 0;
+      const poll = setInterval(async () => {
+        try {
+          const prog = await (await fetch('/api/progress')).json();
+          for (let i = lastLogLen; i < prog.log.length; i++) {
+            const entry = prog.log[i];
+            const type = entry.stage === 'error' ? 'error' : (entry.stage === 'ready' ? 'done' : '');
+            log(`[${entry.stage}] ${entry.message}`, type);
+          }
+          lastLogLen = prog.log.length;
+
+          const status = await (await fetch('/api/status')).json();
+          if (status.model_loaded) {
+            clearInterval(poll);
+            modelLoaded = true;
+            setStatus('ready', 'READY');
+            $('analyzeBtn').disabled = false;
+            $('batchBtn').disabled = false;
+            $('loadModelBtn').disabled = false;
+            $('loadModelBtn').textContent = 'Load Model';
+            loadPromptLibrary();
+          } else if (status.loading_error) {
+            clearInterval(poll);
+            setStatus('idle', 'ERROR');
+            $('loadModelBtn').disabled = false;
+            $('loadModelBtn').textContent = 'Load Model';
+          }
+        } catch(e) {}
+      }, 2000);
     }
+    loadPromptLibrary();
     loadReports();
   } catch(e) {}
 })();
