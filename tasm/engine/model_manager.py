@@ -5,10 +5,14 @@ Supports any HuggingFace transformer pair with identical architecture.
 
 import torch
 import gc
+import os
 import time
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from dataclasses import dataclass, field
 from typing import Optional
+
+# HuggingFace token from environment
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
 # Known model pairs: (base, instruct, display_name)
 KNOWN_PAIRS = {
@@ -97,10 +101,10 @@ class ModelManager:
 
         log("loading", f"Loading instruct model: {instruct_id}")
         state.model_instruct = AutoModelForCausalLM.from_pretrained(
-            instruct_id, torch_dtype=dtype, device_map=device,
-            attn_implementation="eager",
+            instruct_id, dtype=dtype, device_map=device,
+            attn_implementation="eager", token=HF_TOKEN,
         )
-        state.tokenizer = AutoTokenizer.from_pretrained(instruct_id)
+        state.tokenizer = AutoTokenizer.from_pretrained(instruct_id, token=HF_TOKEN)
         if state.tokenizer.pad_token is None:
             state.tokenizer.pad_token = state.tokenizer.eos_token
 
@@ -117,7 +121,7 @@ class ModelManager:
 
         log("loading", f"Loading base model: {base_id}")
         model_base = AutoModelForCausalLM.from_pretrained(
-            base_id, torch_dtype=dtype, device_map=device,
+            base_id, dtype=dtype, device_map=device, token=HF_TOKEN,
         )
 
         log("computing", "Computing weight deltas...")
@@ -153,8 +157,9 @@ class ModelManager:
             callback("loading", "Loading base model for behavioral comparison...")
         self.state.model_base = AutoModelForCausalLM.from_pretrained(
             self.state.base_model_id,
-            torch_dtype=self.state.dtype,
+            dtype=self.state.dtype,
             device_map=self.state.device,
+            token=HF_TOKEN,
         )
 
     def unload_base(self):
