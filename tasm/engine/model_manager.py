@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
-from safetensors.torch import load_file as safe_load_file
+from safetensors.torch import safe_open
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 
@@ -61,35 +61,51 @@ class ModelState:
             f"model.layers.{layer_idx}.self_attn.v_proj.weight")
 
 
-def _load_projection_weights_from_disk(model_id: str, dtype, log_fn=None) -> Dict[str, torch.Tensor]:
+def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None):
     """
-    Load ONLY projection weights directly from safetensors files on disk.
-    Never instantiates the model. Peak memory = just the projection tensors.
+    Compute weight deltas by reading base model projection weights directly
+    from safetensors files on disk, ONE TENSOR AT A TIME.
+
+    Uses safe_open which memory-maps the file and reads individual tensors
+    without loading the entire file. Peak additional memory = accumulated
+    deltas only (~60% of one model copy).
     """
     if log_fn:
         log_fn("loading", f"Downloading/caching base model files: {model_id}")
 
-    # snapshot_download caches files; returns local directory path
     local_dir = snapshot_download(
         model_id, token=HF_TOKEN,
         allow_patterns=["*.safetensors", "*.json"],
     )
     local_path = Path(local_dir)
 
-    # Determine if sharded or single file
     index_path = local_path / "model.safetensors.index.json"
     single_path = local_path / "model.safetensors"
 
-    proj_weights = {}
+    inst_sd = instruct_model.state_dict()
+
+    deltas = {}
+    delta_frob_norms = {}
+
+    def _process_safetensor_file(fpath, keys_to_extract):
+        """Read specific tensors from a safetensors file one at a time."""
+        with safe_open(str(fpath), framework="pt") as f:
+            available = set(f.keys())
+            for key in keys_to_extract:
+                if key in available and key in inst_sd:
+                    base_tensor = f.get_tensor(key).to(dtype=dtype)
+                    d = inst_sd[key] - base_tensor
+                    deltas[key] = d
+                    delta_frob_norms[key] = d.norm().item()
+                    del base_tensor
 
     if index_path.exists():
-        # Sharded model: read index to find which shards contain projection weights
+        # Sharded model
         with open(index_path) as f:
             index = json.load(f)
         weight_map = index["weight_map"]
 
-        # Group needed keys by shard file
-        shards_needed: Dict[str, list] = {}
+        shards_needed = {}
         for key, shard_file in weight_map.items():
             if any(pk in key for pk in PROJ_KEYS):
                 if shard_file not in shards_needed:
@@ -97,40 +113,43 @@ def _load_projection_weights_from_disk(model_id: str, dtype, log_fn=None) -> Dic
                 shards_needed[shard_file].append(key)
 
         if log_fn:
-            log_fn("loading", f"Reading projection weights from "
-                   f"{len(shards_needed)} shard files...")
+            total_keys = sum(len(v) for v in shards_needed.values())
+            log_fn("computing", f"Computing {total_keys} deltas from "
+                   f"{len(shards_needed)} shards...")
 
-        # Load one shard at a time, extract only needed keys
-        for shard_file, keys in shards_needed.items():
-            shard_path = local_path / shard_file
-            shard_data = safe_load_file(str(shard_path))
-            for key in keys:
-                if key in shard_data:
-                    proj_weights[key] = shard_data[key].to(dtype=dtype)
-            del shard_data
-            gc.collect()
+        for i, (shard_file, keys) in enumerate(shards_needed.items()):
+            _process_safetensor_file(local_path / shard_file, keys)
+            if log_fn and (i + 1) % 2 == 0:
+                log_fn("computing",
+                       f"  Processed {i+1}/{len(shards_needed)} shards "
+                       f"({len(deltas)} deltas)")
 
     elif single_path.exists():
-        # Single safetensors file
+        # Single file — still reads one tensor at a time via safe_open
         if log_fn:
-            log_fn("loading", "Reading projection weights from model.safetensors...")
-        all_data = safe_load_file(str(single_path))
-        for key, tensor in all_data.items():
-            if any(pk in key for pk in PROJ_KEYS):
-                proj_weights[key] = tensor.to(dtype=dtype)
-        del all_data
-        gc.collect()
+            log_fn("computing", "Computing deltas from model.safetensors...")
+
+        with safe_open(str(single_path), framework="pt") as f:
+            all_keys = [k for k in f.keys() if any(pk in k for pk in PROJ_KEYS)]
+
+        if log_fn:
+            log_fn("computing", f"  {len(all_keys)} projection weights to process")
+
+        _process_safetensor_file(single_path, all_keys)
 
     else:
         raise FileNotFoundError(
             f"No safetensors files found in {local_path}. "
             f"Model may use pytorch .bin format (not yet supported).")
 
-    if log_fn:
-        total_mb = sum(t.numel() * t.element_size() for t in proj_weights.values()) / 1e6
-        log_fn("loading", f"Loaded {len(proj_weights)} projection weights ({total_mb:.0f} MB)")
+    del inst_sd
+    gc.collect()
 
-    return proj_weights
+    if log_fn:
+        total_mb = sum(t.numel() * t.element_size() for t in deltas.values()) / 1e6
+        log_fn("computing", f"Computed {len(deltas)} deltas ({total_mb:.0f} MB)")
+
+    return deltas, delta_frob_norms
 
 
 class ModelManager:
@@ -203,23 +222,14 @@ class ModelManager:
         mid_end = 2 * state.n_layers // 3
         state.signal_layers = list(range(mid_start, mid_end))
 
-        # Step 2: Load ONLY projection weights from base model files on disk.
-        # The base model is NEVER instantiated as a model object.
-        base_proj = _load_projection_weights_from_disk(
-            base_id, dtype=dtype, log_fn=log)
+        # Step 2: Compute deltas directly from base model safetensors files.
+        # Base model is NEVER loaded as a model object. Deltas computed
+        # one shard at a time to minimize peak memory.
+        deltas, frob_norms = _compute_deltas_from_disk(
+            base_id, state.model_instruct, dtype=dtype, log_fn=log)
 
-        # Step 3: Compute deltas
-        log("computing", "Computing weight deltas...")
-        inst_sd = state.model_instruct.state_dict()
-
-        for name, base_tensor in base_proj.items():
-            if name in inst_sd:
-                d = inst_sd[name] - base_tensor
-                state.deltas[name] = d
-                state.delta_frob_norms[name] = d.norm().item()
-
-        del base_proj, inst_sd
-        gc.collect()
+        state.deltas = deltas
+        state.delta_frob_norms = frob_norms
 
         elapsed = time.time() - t0
         log("ready", f"Loaded {display} in {elapsed:.1f}s "
