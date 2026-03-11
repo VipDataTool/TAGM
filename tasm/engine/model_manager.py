@@ -12,6 +12,8 @@ import gc
 import os
 import json
 import time
+import traceback
+import psutil
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
@@ -21,6 +23,17 @@ from typing import Optional, Dict
 
 # HuggingFace token from environment
 HF_TOKEN = os.environ.get("HF_TOKEN")
+
+
+def _mem_gb():
+    """Current process RSS in GB."""
+    return psutil.Process().memory_info().rss / (1024**3)
+
+
+def _sys_mem():
+    """Return (used_gb, total_gb, pct) for system memory."""
+    m = psutil.virtual_memory()
+    return m.used / (1024**3), m.total / (1024**3), m.percent
 
 # Known model pairs: (base, instruct, display_name)
 KNOWN_PAIRS = {
@@ -53,7 +66,7 @@ class ModelState:
     base_model_id: str = ""
     instruct_model_id: str = ""
     device: str = "cpu"
-    dtype: object = torch.float32
+    dtype: object = torch.float16
     loaded: bool = False
 
     def v_delta(self, layer_idx: int):
@@ -73,11 +86,21 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
     if log_fn:
         log_fn("loading", f"Downloading/caching base model files: {model_id}")
 
-    local_dir = snapshot_download(
-        model_id, token=HF_TOKEN,
-        allow_patterns=["*.safetensors", "*.json"],
-    )
+    try:
+        local_dir = snapshot_download(
+            model_id, token=HF_TOKEN,
+            allow_patterns=["*.safetensors", "*.json"],
+        )
+    except Exception as e:
+        if log_fn:
+            log_fn("error", f"Download failed: {e}")
+        raise
     local_path = Path(local_dir)
+
+    if log_fn:
+        used, total, pct = _sys_mem()
+        log_fn("memory", f"After download: {_mem_gb():.1f} GB process, "
+               f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
 
     index_path = local_path / "model.safetensors.index.json"
     single_path = local_path / "model.safetensors"
@@ -119,10 +142,10 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
 
         for i, (shard_file, keys) in enumerate(shards_needed.items()):
             _process_safetensor_file(local_path / shard_file, keys)
-            if log_fn and (i + 1) % 2 == 0:
+            if log_fn:
                 log_fn("computing",
-                       f"  Processed {i+1}/{len(shards_needed)} shards "
-                       f"({len(deltas)} deltas)")
+                       f"  Shard {i+1}/{len(shards_needed)}: "
+                       f"{len(deltas)} deltas, {_mem_gb():.1f} GB RSS")
 
     elif single_path.exists():
         # Single file — still reads one tensor at a time via safe_open
@@ -147,7 +170,10 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
 
     if log_fn:
         total_mb = sum(t.numel() * t.element_size() for t in deltas.values()) / 1e6
-        log_fn("computing", f"Computed {len(deltas)} deltas ({total_mb:.0f} MB)")
+        used, total, pct = _sys_mem()
+        log_fn("memory", f"After deltas: {_mem_gb():.1f} GB process, "
+               f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%), "
+               f"{len(deltas)} deltas ({total_mb:.0f} MB)")
 
     return deltas, delta_frob_norms
 
@@ -192,7 +218,11 @@ class ModelManager:
         gc.collect()
         gc.collect()
 
-        dtype = torch.float32
+        used, total, pct = _sys_mem()
+        log("memory", f"After unload: {_mem_gb():.1f} GB process, "
+            f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
+
+        dtype = torch.float16
         state = ModelState(
             pair_id=pair_id, display_name=display,
             base_model_id=base_id, instruct_model_id=instruct_id,
@@ -202,14 +232,19 @@ class ModelManager:
         t0 = time.time()
 
         # Step 1: Load instruct model (the only full model we keep in RAM)
-        log("loading", f"Loading instruct model: {instruct_id}")
+        log("loading", f"Loading instruct model ({dtype}): {instruct_id}")
         state.model_instruct = AutoModelForCausalLM.from_pretrained(
             instruct_id, dtype=dtype, device_map=device,
             attn_implementation="eager", token=HF_TOKEN,
+            low_cpu_mem_usage=True,
         )
         state.tokenizer = AutoTokenizer.from_pretrained(instruct_id, token=HF_TOKEN)
         if state.tokenizer.pad_token is None:
             state.tokenizer.pad_token = state.tokenizer.eos_token
+
+        used, total, pct = _sys_mem()
+        log("memory", f"After instruct load: {_mem_gb():.1f} GB process, "
+            f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
 
         state.config = state.model_instruct.config
         state.n_layers = state.config.num_hidden_layers
@@ -250,6 +285,7 @@ class ModelManager:
             dtype=self.state.dtype,
             device_map=self.state.device,
             token=HF_TOKEN,
+            low_cpu_mem_usage=True,
         )
 
     def unload_base(self):

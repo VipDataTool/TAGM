@@ -22,7 +22,7 @@ fi
 echo "→ Installing dependencies..."
 pip install -q torch transformers accelerate fastapi "uvicorn[standard]" \
     python-multipart matplotlib numpy scipy aiofiles reportlab \
-    safetensors huggingface_hub 2>/dev/null
+    safetensors huggingface_hub psutil 2>/dev/null
 
 echo "→ Starting server on port 8000..."
 echo "  Open http://localhost:8000 in your browser"

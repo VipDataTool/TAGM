@@ -89,9 +89,11 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         loading_state["error"] = None
         log_progress("ready", "Model loaded and baselines computed. Ready to analyze.")
     except Exception as e:
+        import traceback
         loading_state["active"] = False
         loading_state["error"] = str(e)
         log_progress("error", f"Loading failed: {e}")
+        log_progress("error", traceback.format_exc())
 
 
 # ─── API Routes ──────────────────────────────────────────────────
