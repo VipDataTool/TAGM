@@ -1,15 +1,23 @@
 """
 Model Manager: loads base/instruct model pairs, computes weight deltas.
 Supports any HuggingFace transformer pair with identical architecture.
+
+Memory-optimized: base model weights are loaded directly from safetensors
+files on disk without ever instantiating the full model. This halves
+peak RAM during delta computation.
 """
 
 import torch
 import gc
 import os
+import json
 import time
+from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from huggingface_hub import snapshot_download
+from safetensors.torch import load_file as safe_load_file
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict
 
 # HuggingFace token from environment
 HF_TOKEN = os.environ.get("HF_TOKEN")
@@ -22,10 +30,12 @@ KNOWN_PAIRS = {
     "qwen2.5-7b": ("Qwen/Qwen2.5-7B", "Qwen/Qwen2.5-7B-Instruct", "Qwen 2.5 7B"),
 }
 
+PROJ_KEYS = ["q_proj.weight", "k_proj.weight", "v_proj.weight",
+             "gate_proj.weight", "up_proj.weight"]
+
 
 @dataclass
 class ModelState:
-    """Holds loaded model, tokenizer, deltas, and metadata."""
     model_instruct: object = None
     model_base: object = None
     tokenizer: object = None
@@ -47,9 +57,80 @@ class ModelState:
     loaded: bool = False
 
     def v_delta(self, layer_idx: int):
-        """Reference into deltas dict - no duplication."""
         return self.deltas.get(
             f"model.layers.{layer_idx}.self_attn.v_proj.weight")
+
+
+def _load_projection_weights_from_disk(model_id: str, dtype, log_fn=None) -> Dict[str, torch.Tensor]:
+    """
+    Load ONLY projection weights directly from safetensors files on disk.
+    Never instantiates the model. Peak memory = just the projection tensors.
+    """
+    if log_fn:
+        log_fn("loading", f"Downloading/caching base model files: {model_id}")
+
+    # snapshot_download caches files; returns local directory path
+    local_dir = snapshot_download(
+        model_id, token=HF_TOKEN,
+        allow_patterns=["*.safetensors", "*.json"],
+    )
+    local_path = Path(local_dir)
+
+    # Determine if sharded or single file
+    index_path = local_path / "model.safetensors.index.json"
+    single_path = local_path / "model.safetensors"
+
+    proj_weights = {}
+
+    if index_path.exists():
+        # Sharded model: read index to find which shards contain projection weights
+        with open(index_path) as f:
+            index = json.load(f)
+        weight_map = index["weight_map"]
+
+        # Group needed keys by shard file
+        shards_needed: Dict[str, list] = {}
+        for key, shard_file in weight_map.items():
+            if any(pk in key for pk in PROJ_KEYS):
+                if shard_file not in shards_needed:
+                    shards_needed[shard_file] = []
+                shards_needed[shard_file].append(key)
+
+        if log_fn:
+            log_fn("loading", f"Reading projection weights from "
+                   f"{len(shards_needed)} shard files...")
+
+        # Load one shard at a time, extract only needed keys
+        for shard_file, keys in shards_needed.items():
+            shard_path = local_path / shard_file
+            shard_data = safe_load_file(str(shard_path))
+            for key in keys:
+                if key in shard_data:
+                    proj_weights[key] = shard_data[key].to(dtype=dtype)
+            del shard_data
+            gc.collect()
+
+    elif single_path.exists():
+        # Single safetensors file
+        if log_fn:
+            log_fn("loading", "Reading projection weights from model.safetensors...")
+        all_data = safe_load_file(str(single_path))
+        for key, tensor in all_data.items():
+            if any(pk in key for pk in PROJ_KEYS):
+                proj_weights[key] = tensor.to(dtype=dtype)
+        del all_data
+        gc.collect()
+
+    else:
+        raise FileNotFoundError(
+            f"No safetensors files found in {local_path}. "
+            f"Model may use pytorch .bin format (not yet supported).")
+
+    if log_fn:
+        total_mb = sum(t.numel() * t.element_size() for t in proj_weights.values()) / 1e6
+        log_fn("loading", f"Loaded {len(proj_weights)} projection weights ({total_mb:.0f} MB)")
+
+    return proj_weights
 
 
 class ModelManager:
@@ -88,10 +169,9 @@ class ModelManager:
             log("ready", f"{display} already loaded")
             return self.state
 
-        # Aggressive unload: free everything before loading new pair
         self._unload()
         gc.collect()
-        gc.collect()  # second pass catches reference cycles
+        gc.collect()
 
         dtype = torch.float32
         state = ModelState(
@@ -102,6 +182,7 @@ class ModelManager:
 
         t0 = time.time()
 
+        # Step 1: Load instruct model (the only full model we keep in RAM)
         log("loading", f"Loading instruct model: {instruct_id}")
         state.model_instruct = AutoModelForCausalLM.from_pretrained(
             instruct_id, dtype=dtype, device_map=device,
@@ -122,42 +203,22 @@ class ModelManager:
         mid_end = 2 * state.n_layers // 3
         state.signal_layers = list(range(mid_start, mid_end))
 
-        # Load base model, extract ONLY projection weights, then free immediately.
-        # This avoids holding two full model objects in RAM simultaneously.
-        log("loading", f"Loading base model weights: {base_id}")
-        model_base = AutoModelForCausalLM.from_pretrained(
-            base_id, dtype=dtype, device_map=device, token=HF_TOKEN,
-        )
+        # Step 2: Load ONLY projection weights from base model files on disk.
+        # The base model is NEVER instantiated as a model object.
+        base_proj = _load_projection_weights_from_disk(
+            base_id, dtype=dtype, log_fn=log)
 
-        proj_keys = [
-            "q_proj.weight", "k_proj.weight", "v_proj.weight",
-            "gate_proj.weight", "up_proj.weight",
-        ]
-
-        # Extract only the projection weights we need, as cloned tensors
-        # so they survive after we delete the model
-        log("computing", "Extracting base projection weights...")
-        base_proj_weights = {}
-        for name, param in model_base.state_dict().items():
-            if any(k in name for k in proj_keys):
-                base_proj_weights[name] = param.clone()
-
-        # Free the entire base model before computing deltas
-        del model_base
-        gc.collect()
-        gc.collect()
-
-        # Compute deltas from instruct model (still loaded) and extracted base weights
+        # Step 3: Compute deltas
         log("computing", "Computing weight deltas...")
         inst_sd = state.model_instruct.state_dict()
 
-        for name in base_proj_weights:
+        for name, base_tensor in base_proj.items():
             if name in inst_sd:
-                d = inst_sd[name] - base_proj_weights[name]
+                d = inst_sd[name] - base_tensor
                 state.deltas[name] = d
                 state.delta_frob_norms[name] = d.norm().item()
 
-        del base_proj_weights, inst_sd
+        del base_proj, inst_sd
         gc.collect()
 
         elapsed = time.time() - t0
@@ -188,12 +249,6 @@ class ModelManager:
             gc.collect()
 
     def install_analysis_hooks(self, full_trajectory: bool = False):
-        """
-        Install all hooks for single-pass analysis.
-
-        Always: signal layer layernorm outputs + attention weights.
-        If full_trajectory: all-layer layernorm outputs for both sublayers.
-        """
         self._remove_hooks()
         self.activations.clear()
         self.attn_weights.clear()
@@ -214,7 +269,6 @@ class ModelManager:
                     self.attn_weights[name] = output[1].detach()
             return hook
 
-        # Signal layers: layernorm output + attention weights
         for layer_idx in self.state.signal_layers:
             layer = model.model.layers[layer_idx]
             self._hooks.append(
@@ -224,7 +278,6 @@ class ModelManager:
                 layer.self_attn.register_forward_hook(
                     make_attn_hook(f"layer_{layer_idx}_attn")))
 
-        # Full trajectory: all layers, both sublayer inputs
         if full_trajectory:
             for layer_idx, layer in enumerate(model.model.layers):
                 self._hooks.append(
@@ -267,4 +320,5 @@ class ModelManager:
             self.state.deltas.clear()
             self.state.delta_frob_norms.clear()
             self.state = None
+        gc.collect()
         gc.collect()
