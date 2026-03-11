@@ -35,6 +35,15 @@ def _sys_mem():
     m = psutil.virtual_memory()
     return m.used / (1024**3), m.total / (1024**3), m.percent
 
+
+def _memlog(msg, log_fn=None):
+    """Print memory status to console AND progress log."""
+    used, total, pct = _sys_mem()
+    line = f"[MEM] {msg} | process={_mem_gb():.1f}GB, system={used:.1f}/{total:.1f}GB ({pct:.0f}%)"
+    print(line, flush=True)
+    if log_fn:
+        log_fn("memory", line)
+
 # Known model pairs: (base, instruct, display_name)
 KNOWN_PAIRS = {
     "qwen2.5-0.5b": ("Qwen/Qwen2.5-0.5B", "Qwen/Qwen2.5-0.5B-Instruct", "Qwen 2.5 0.5B"),
@@ -97,15 +106,14 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
         raise
     local_path = Path(local_dir)
 
-    if log_fn:
-        used, total, pct = _sys_mem()
-        log_fn("memory", f"After download: {_mem_gb():.1f} GB process, "
-               f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
+    _memlog("After base model download", log_fn)
 
     index_path = local_path / "model.safetensors.index.json"
     single_path = local_path / "model.safetensors"
 
     inst_sd = instruct_model.state_dict()
+
+    _memlog("After state_dict()", log_fn)
 
     deltas = {}
     delta_frob_norms = {}
@@ -135,30 +143,21 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
                     shards_needed[shard_file] = []
                 shards_needed[shard_file].append(key)
 
-        if log_fn:
-            total_keys = sum(len(v) for v in shards_needed.values())
-            log_fn("computing", f"Computing {total_keys} deltas from "
-                   f"{len(shards_needed)} shards...")
+        print(f"[DELTA] Computing deltas from {len(shards_needed)} shards...", flush=True)
 
         for i, (shard_file, keys) in enumerate(shards_needed.items()):
             _process_safetensor_file(local_path / shard_file, keys)
-            if log_fn:
-                log_fn("computing",
-                       f"  Shard {i+1}/{len(shards_needed)}: "
-                       f"{len(deltas)} deltas, {_mem_gb():.1f} GB RSS")
+            _memlog(f"Shard {i+1}/{len(shards_needed)}: {len(deltas)} deltas", log_fn)
 
     elif single_path.exists():
-        # Single file — still reads one tensor at a time via safe_open
-        if log_fn:
-            log_fn("computing", "Computing deltas from model.safetensors...")
+        print("[DELTA] Computing deltas from single safetensors file...", flush=True)
 
         with safe_open(str(single_path), framework="pt") as f:
             all_keys = [k for k in f.keys() if any(pk in k for pk in PROJ_KEYS)]
 
-        if log_fn:
-            log_fn("computing", f"  {len(all_keys)} projection weights to process")
-
+        print(f"[DELTA] {len(all_keys)} projection weights to process", flush=True)
         _process_safetensor_file(single_path, all_keys)
+        _memlog(f"After all deltas: {len(deltas)} total", log_fn)
 
     else:
         raise FileNotFoundError(
@@ -168,12 +167,7 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
     del inst_sd
     gc.collect()
 
-    if log_fn:
-        total_mb = sum(t.numel() * t.element_size() for t in deltas.values()) / 1e6
-        used, total, pct = _sys_mem()
-        log_fn("memory", f"After deltas: {_mem_gb():.1f} GB process, "
-               f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%), "
-               f"{len(deltas)} deltas ({total_mb:.0f} MB)")
+    _memlog(f"Final: {len(deltas)} deltas", log_fn)
 
     return deltas, delta_frob_norms
 
@@ -218,9 +212,7 @@ class ModelManager:
         gc.collect()
         gc.collect()
 
-        used, total, pct = _sys_mem()
-        log("memory", f"After unload: {_mem_gb():.1f} GB process, "
-            f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
+        _memlog("After unload", log)
 
         dtype = torch.float16
         state = ModelState(
@@ -232,6 +224,7 @@ class ModelManager:
         t0 = time.time()
 
         # Step 1: Load instruct model (the only full model we keep in RAM)
+        print(f"[LOAD] Loading instruct model ({dtype}): {instruct_id}", flush=True)
         log("loading", f"Loading instruct model ({dtype}): {instruct_id}")
         state.model_instruct = AutoModelForCausalLM.from_pretrained(
             instruct_id, dtype=dtype, device_map=device,
@@ -242,9 +235,7 @@ class ModelManager:
         if state.tokenizer.pad_token is None:
             state.tokenizer.pad_token = state.tokenizer.eos_token
 
-        used, total, pct = _sys_mem()
-        log("memory", f"After instruct load: {_mem_gb():.1f} GB process, "
-            f"{used:.1f}/{total:.1f} GB system ({pct:.0f}%)")
+        _memlog("After instruct model load", log)
 
         state.config = state.model_instruct.config
         state.n_layers = state.config.num_hidden_layers
