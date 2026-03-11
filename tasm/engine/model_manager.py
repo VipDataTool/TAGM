@@ -88,7 +88,10 @@ class ModelManager:
             log("ready", f"{display} already loaded")
             return self.state
 
+        # Aggressive unload: free everything before loading new pair
         self._unload()
+        gc.collect()
+        gc.collect()  # second pass catches reference cycles
 
         dtype = torch.float32
         state = ModelState(
@@ -119,26 +122,42 @@ class ModelManager:
         mid_end = 2 * state.n_layers // 3
         state.signal_layers = list(range(mid_start, mid_end))
 
-        log("loading", f"Loading base model: {base_id}")
+        # Load base model, extract ONLY projection weights, then free immediately.
+        # This avoids holding two full model objects in RAM simultaneously.
+        log("loading", f"Loading base model weights: {base_id}")
         model_base = AutoModelForCausalLM.from_pretrained(
             base_id, dtype=dtype, device_map=device, token=HF_TOKEN,
         )
-
-        log("computing", "Computing weight deltas...")
-        base_sd = model_base.state_dict()
-        inst_sd = state.model_instruct.state_dict()
 
         proj_keys = [
             "q_proj.weight", "k_proj.weight", "v_proj.weight",
             "gate_proj.weight", "up_proj.weight",
         ]
-        for name in base_sd:
+
+        # Extract only the projection weights we need, as cloned tensors
+        # so they survive after we delete the model
+        log("computing", "Extracting base projection weights...")
+        base_proj_weights = {}
+        for name, param in model_base.state_dict().items():
             if any(k in name for k in proj_keys):
-                d = inst_sd[name] - base_sd[name]
+                base_proj_weights[name] = param.clone()
+
+        # Free the entire base model before computing deltas
+        del model_base
+        gc.collect()
+        gc.collect()
+
+        # Compute deltas from instruct model (still loaded) and extracted base weights
+        log("computing", "Computing weight deltas...")
+        inst_sd = state.model_instruct.state_dict()
+
+        for name in base_proj_weights:
+            if name in inst_sd:
+                d = inst_sd[name] - base_proj_weights[name]
                 state.deltas[name] = d
                 state.delta_frob_norms[name] = d.norm().item()
 
-        del model_base, base_sd, inst_sd
+        del base_proj_weights, inst_sd
         gc.collect()
 
         elapsed = time.time() - t0
