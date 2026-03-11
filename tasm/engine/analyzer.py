@@ -70,8 +70,11 @@ class Analyzer:
         result = PromptResult(prompt=prompt, category=category)
         result.signal_layer_indices = list(state.signal_layers)
 
+        # Only compute full trajectory if we have all-layer deltas
+        can_do_trajectory = compute_full_trajectory and getattr(state, 'full_deltas_available', False)
+
         # Install all hooks for this analysis, run one forward pass
-        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory)
+        self.mm.install_analysis_hooks(full_trajectory=can_do_trajectory)
         tokens, inputs, _ = self.mm.forward(prompt, output_attentions=True)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
@@ -84,8 +87,8 @@ class Analyzer:
         # --- Extract stress score from signal layers ---
         self._extract_stress_score(result, seq_len, state)
 
-        # --- Extract full trajectory if requested ---
-        if compute_full_trajectory:
+        # --- Extract full trajectory if requested and available ---
+        if can_do_trajectory:
             self._extract_amplitude_trajectory(result, seq_len, state)
 
         # --- Free activation memory and remove hooks ---

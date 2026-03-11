@@ -112,6 +112,7 @@ async def get_status():
         "loading_error": loading_state["error"],
         "model_pair": mm.state.pair_id if mm.state else None,
         "model_name": mm.state.display_name if mm.state else None,
+        "full_trajectory": mm.state.full_deltas_available if mm.state else False,
         "available_pairs": mm.get_available_pairs(),
         "baseline_summary": baselines.get_summary(),
     }

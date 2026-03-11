@@ -74,23 +74,25 @@ class ModelState:
     display_name: str = ""
     base_model_id: str = ""
     instruct_model_id: str = ""
+    base_safetensors_path: str = ""  # for on-demand delta computation
     device: str = "cpu"
     dtype: object = torch.float16
     loaded: bool = False
+    full_deltas_available: bool = False  # True if deltas for ALL layers are loaded
 
     def v_delta(self, layer_idx: int):
         return self.deltas.get(
             f"model.layers.{layer_idx}.self_attn.v_proj.weight")
 
 
-def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None):
+def _compute_deltas_from_disk(model_id: str, instruct_model, dtype,
+                               layer_filter=None, log_fn=None):
     """
     Compute weight deltas by reading base model projection weights directly
     from safetensors files on disk, ONE TENSOR AT A TIME.
 
-    Uses safe_open which memory-maps the file and reads individual tensors
-    without loading the entire file. Peak additional memory = accumulated
-    deltas only (~60% of one model copy).
+    layer_filter: if set, only compute deltas for these layer indices.
+                  Dramatically reduces memory for large models.
     """
     if log_fn:
         log_fn("loading", f"Downloading/caching base model files: {model_id}")
@@ -118,6 +120,18 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
     deltas = {}
     delta_frob_norms = {}
 
+    def _key_wanted(key):
+        """Check if this weight key should be included."""
+        if not any(pk in key for pk in PROJ_KEYS):
+            return False
+        if layer_filter is not None:
+            # Extract layer index from key like "model.layers.5.self_attn.q_proj.weight"
+            for li in layer_filter:
+                if f"model.layers.{li}." in key:
+                    return True
+            return False
+        return True
+
     def _process_safetensor_file(fpath, keys_to_extract):
         """Read specific tensors from a safetensors file one at a time."""
         with safe_open(str(fpath), framework="pt") as f:
@@ -138,7 +152,7 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
 
         shards_needed = {}
         for key, shard_file in weight_map.items():
-            if any(pk in key for pk in PROJ_KEYS):
+            if _key_wanted(key):
                 if shard_file not in shards_needed:
                     shards_needed[shard_file] = []
                 shards_needed[shard_file].append(key)
@@ -153,7 +167,7 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype, log_fn=None)
         print("[DELTA] Computing deltas from single safetensors file...", flush=True)
 
         with safe_open(str(single_path), framework="pt") as f:
-            all_keys = [k for k in f.keys() if any(pk in k for pk in PROJ_KEYS)]
+            all_keys = [k for k in f.keys() if _key_wanted(k)]
 
         print(f"[DELTA] {len(all_keys)} projection weights to process", flush=True)
         _process_safetensor_file(single_path, all_keys)
@@ -248,14 +262,42 @@ class ModelManager:
         mid_end = 2 * state.n_layers // 3
         state.signal_layers = list(range(mid_start, mid_end))
 
-        # Step 2: Compute deltas directly from base model safetensors files.
-        # Base model is NEVER loaded as a model object. Deltas computed
-        # one shard at a time to minimize peak memory.
+        # Check available memory to decide whether to compute all-layer
+        # or signal-layer-only deltas
+        _, sys_total, sys_pct = _sys_mem()
+        free_gb = sys_total * (1 - sys_pct / 100)
+        # Rough estimate: each layer has ~5 projection deltas, each ~(hidden^2 * 2 bytes)
+        est_all_deltas_gb = state.n_layers * 5 * (state.hidden_size ** 2) * 2 / 1e9
+        est_signal_deltas_gb = len(state.signal_layers) * 5 * (state.hidden_size ** 2) * 2 / 1e9
+
+        if free_gb > est_all_deltas_gb * 1.5:
+            layer_filter = None  # enough RAM for all layers
+            print(f"[LOAD] {free_gb:.1f}GB free, loading ALL layer deltas "
+                  f"(est {est_all_deltas_gb:.1f}GB)", flush=True)
+        else:
+            layer_filter = state.signal_layers
+            print(f"[LOAD] {free_gb:.1f}GB free, loading SIGNAL LAYER deltas only "
+                  f"(est {est_signal_deltas_gb:.1f}GB, layers {state.signal_layers})",
+                  flush=True)
+
+        # Step 2: Compute deltas from base model safetensors files.
         deltas, frob_norms = _compute_deltas_from_disk(
-            base_id, state.model_instruct, dtype=dtype, log_fn=log)
+            base_id, state.model_instruct, dtype=dtype,
+            layer_filter=layer_filter, log_fn=log)
 
         state.deltas = deltas
         state.delta_frob_norms = frob_norms
+        state.full_deltas_available = (layer_filter is None)
+
+        # Save the base path for on-demand delta computation
+        try:
+            state.base_safetensors_path = snapshot_download(
+                base_id, token=HF_TOKEN,
+                allow_patterns=["*.safetensors", "*.json"],
+                local_files_only=True,  # already cached
+            )
+        except Exception:
+            state.base_safetensors_path = ""
 
         elapsed = time.time() - t0
         log("ready", f"Loaded {display} in {elapsed:.1f}s "
