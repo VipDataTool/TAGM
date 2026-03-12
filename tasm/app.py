@@ -7,6 +7,7 @@ import os
 import io
 import csv
 import json
+import math
 import time
 import threading
 import traceback
@@ -30,6 +31,19 @@ from engine.visualizations import (
 from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
+
+
+def sanitize_for_json(obj):
+    """Recursively replace NaN/Inf with None so json.dumps doesn't crash."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_for_json(v) for v in obj]
+    return obj
 
 # ─── Global state ────────────────────────────────────────────────
 mm = ModelManager()
@@ -221,12 +235,12 @@ async def analyze_single(prompt: str = Form(...),
         if compute_kl or capture_responses:
             mm.unload_base()
 
-        return {
+        return sanitize_for_json({
             "ok": True,
             "result": result_dict,
             "plots": plots,
             "session_n": session.n_results if session else 0,
-        }
+        })
     except Exception as e:
         return JSONResponse(status_code=500,
                             content={"error": str(e), "trace": traceback.format_exc()})
@@ -329,18 +343,18 @@ async def get_dashboard():
     session.save_comparative_plots(all_plots)
     session.save_aggregate_json(agg)
 
-    return {
+    return sanitize_for_json({
         "ok": True,
         "aggregate": agg,
         "plots": all_plots,
-        "results": results,  # full dataset for the table
+        "results": results,
         "session_info": {
             "n_results": session.n_results,
             "categories": session.categories,
             "model": session.model_name,
             "timestamp": session.timestamp,
         },
-    }
+    })
 
 
 @app.get("/api/export")

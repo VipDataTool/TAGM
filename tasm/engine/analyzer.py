@@ -317,11 +317,22 @@ def result_to_dict(r: PromptResult) -> dict:
         if isinstance(v, (np.integer,)):
             return int(v)
         if isinstance(v, (np.floating, np.float32, np.float64)):
-            return float(v)
+            v = float(v)
+            if np.isnan(v) or np.isinf(v):
+                return None
+            return v
+        if isinstance(v, float):
+            if np.isnan(v) or np.isinf(v):
+                return None
+            return v
         if isinstance(v, np.ndarray):
-            return v.tolist()
+            return [None if (isinstance(x, float) and (np.isnan(x) or np.isinf(x))) else x
+                    for x in v.tolist()]
         if hasattr(v, 'item'):
-            return v.item()
+            val = v.item()
+            if isinstance(val, float) and (np.isnan(val) or np.isinf(val)):
+                return None
+            return val
         return v
 
     return {
