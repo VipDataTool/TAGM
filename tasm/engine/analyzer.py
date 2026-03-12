@@ -1,12 +1,13 @@
 """
 Core ASM Analyzer: single-pass computation of amplitude trajectories,
-signed attribution, distribution metrics, and behavioral divergence.
+signed attribution, distribution metrics, behavioral divergence,
+and model response capture.
 """
 
 import torch
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List, Tuple
 
 
 @dataclass
@@ -20,8 +21,6 @@ class PromptResult:
     # Stage 1: Full amplitude trajectory (all sublayers)
     amplitude_trajectory: list = field(default_factory=list)
     amplitude_normalized: list = field(default_factory=list)
-
-    # Stage 1d: Per-token per-layer heatmap (normalized)
     heatmap: Optional[np.ndarray] = None
 
     # Stage 2: Focused stress score (signal layers only)
@@ -33,6 +32,9 @@ class PromptResult:
     net_correction: float = 0.0
     n_negative_tokens: int = 0
     has_negative_tokens: bool = False
+
+    # Stage 3 per-layer detail (layer_idx -> np.array of per-token attr)
+    per_layer_signed_attr: dict = field(default_factory=dict)
 
     # Stage 3b: Distribution metrics
     entropy: float = 0.0
@@ -50,6 +52,13 @@ class PromptResult:
     # Behavioral divergence
     kl_divergence: Optional[float] = None
 
+    # Model responses (top-k next token predictions)
+    instruct_topk: list = field(default_factory=list)  # [(token, prob), ...]
+    base_topk: list = field(default_factory=list)
+
+    # Proof 1 exactness checks
+    proof1_checks: list = field(default_factory=list)  # [{layer, head, sum, norm, error}]
+
     # Signal layer breakdown
     signal_layer_indices: list = field(default_factory=list)
     per_layer_amplitude: dict = field(default_factory=dict)
@@ -61,48 +70,53 @@ class Analyzer:
 
     def analyze_prompt(self, prompt: str, category: str = "",
                        compute_kl: bool = False,
-                       compute_full_trajectory: bool = True) -> PromptResult:
-        """
-        Run the full analysis pipeline in a SINGLE forward pass.
-        Installs all required hooks, runs once, extracts everything.
-        """
+                       compute_full_trajectory: bool = True,
+                       capture_responses: bool = False,
+                       response_topk: int = 10) -> PromptResult:
+        """Run the full analysis pipeline in a SINGLE forward pass."""
         state = self.mm.state
         result = PromptResult(prompt=prompt, category=category)
         result.signal_layer_indices = list(state.signal_layers)
 
-        # Only compute full trajectory if we have all-layer deltas
-        can_do_trajectory = compute_full_trajectory and getattr(state, 'full_deltas_available', False)
-
-        # Install all hooks for this analysis, run one forward pass
-        self.mm.install_analysis_hooks(full_trajectory=can_do_trajectory)
-        tokens, inputs, _ = self.mm.forward(prompt, output_attentions=True)
+        # Install all hooks, run one forward pass
+        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory)
+        tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=True)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
         result.seq_len = len(tokens)
         seq_len = result.seq_len
 
-        # --- Extract signed attribution from signal layers ---
+        # Capture instruct model top-k predictions from this forward pass
+        if capture_responses or compute_kl:
+            logits = model_out.logits[0, -1, :]
+            probs = torch.softmax(logits, dim=-1)
+            topk = torch.topk(probs, min(response_topk, probs.shape[0]))
+            result.instruct_topk = [
+                (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
+                for idx, p in zip(topk.indices, topk.values)
+            ]
+
+        # Extract all metrics from cached activations
         self._extract_signed_attribution(result, seq_len, state)
-
-        # --- Extract stress score from signal layers ---
         self._extract_stress_score(result, seq_len, state)
-
-        # --- Extract full trajectory if requested and available ---
-        if can_do_trajectory:
+        if compute_full_trajectory:
             self._extract_amplitude_trajectory(result, seq_len, state)
 
-        # --- Free activation memory and remove hooks ---
+        # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
         self.mm._remove_hooks()
 
-        # --- KL divergence (separate pass with base model) ---
-        if compute_kl:
-            self._compute_kl_divergence(result, state)
+        # KL divergence + base model responses (separate pass)
+        if compute_kl or capture_responses:
+            self._compute_behavioral_comparison(
+                result, state, compute_kl=compute_kl,
+                capture_base=(capture_responses and state.model_base is not None),
+                topk=response_topk)
 
         return result
 
     def _extract_signed_attribution(self, result, seq_len, state):
-        """Extract signed attribution from already-computed activations."""
+        """Extract signed attribution with per-layer detail and proof checks."""
         n_kv_heads = state.n_kv_heads
         head_dim = state.head_dim
         n_heads = state.n_heads
@@ -142,9 +156,22 @@ class Analyzer:
                 head_attrs.append(signed[-1, :])
                 layer_amp += d_norm[-1].item()
 
+                # Proof 1 exactness: sum of signed attr should equal ||delta||
+                attr_sum = signed[-1, :].sum().item()
+                delta_norm_val = d_norm[-1].item()
+                error = abs(attr_sum - delta_norm_val)
+                result.proof1_checks.append({
+                    "layer": layer_idx, "head": kv_head,
+                    "attr_sum": round(attr_sum, 8),
+                    "delta_norm": round(delta_norm_val, 8),
+                    "error": float(f"{error:.2e}"),
+                    "exact": error < 1e-4,
+                })
+
             layer_attr = torch.stack(head_attrs).mean(dim=0)
             layer_attrs.append(layer_attr)
             result.per_layer_amplitude[layer_idx] = layer_amp / n_kv_heads
+            result.per_layer_signed_attr[layer_idx] = layer_attr.numpy().tolist()
 
         if not layer_attrs:
             return
@@ -184,7 +211,6 @@ class Analyzer:
             result.interior_cv = 0.0
 
     def _extract_stress_score(self, result, seq_len, state):
-        """Extract stress score from already-computed signal layer activations."""
         per_token_total = torch.zeros(seq_len)
         n_layers = 0
 
@@ -211,7 +237,6 @@ class Analyzer:
         result.per_token_stress = per_token_total.numpy()
 
     def _extract_amplitude_trajectory(self, result, seq_len, state):
-        """Extract full trajectory from already-computed all-layer activations."""
         raw_traj = []
         norm_traj = []
         heatmap_rows = []
@@ -226,17 +251,12 @@ class Analyzer:
                     continue
 
                 h = self.mm.activations[key]
-
                 if sublayer_type == "attn":
-                    dnames = [
-                        f"model.layers.{layer_idx}.self_attn.{p}_proj.weight"
-                        for p in ["q", "k", "v"]
-                    ]
+                    dnames = [f"model.layers.{layer_idx}.self_attn.{p}_proj.weight"
+                              for p in ["q", "k", "v"]]
                 else:
-                    dnames = [
-                        f"model.layers.{layer_idx}.mlp.{p}_proj.weight"
-                        for p in ["gate", "up"]
-                    ]
+                    dnames = [f"model.layers.{layer_idx}.mlp.{p}_proj.weight"
+                              for p in ["gate", "up"]]
 
                 raw_sum = 0.0
                 norm_sum = 0.0
@@ -261,22 +281,32 @@ class Analyzer:
         result.amplitude_normalized = norm_traj
         result.heatmap = np.array(heatmap_rows)
 
-    def _compute_kl_divergence(self, result, state):
-        """Compute KL(instruct || base) at last token position."""
-        if state.model_base is None:
-            return
-
+    def _compute_behavioral_comparison(self, result, state,
+                                        compute_kl=False,
+                                        capture_base=False,
+                                        topk=10):
+        """KL divergence and base model predictions in a single base-model pass."""
         inputs = state.tokenizer(result.prompt, return_tensors="pt").to(state.device)
         with torch.no_grad():
             logits_inst = state.model_instruct(**inputs).logits[0, -1, :]
-            logits_base = state.model_base(**inputs).logits[0, -1, :]
 
-        log_p_inst = torch.log_softmax(logits_inst, dim=-1)
-        log_p_base = torch.log_softmax(logits_base, dim=-1)
-        p_inst = torch.softmax(logits_inst, dim=-1)
+            if state.model_base is not None:
+                logits_base = state.model_base(**inputs).logits[0, -1, :]
 
-        kl = (p_inst * (log_p_inst - log_p_base)).sum().item()
-        result.kl_divergence = kl
+                if compute_kl:
+                    log_p_inst = torch.log_softmax(logits_inst, dim=-1)
+                    log_p_base = torch.log_softmax(logits_base, dim=-1)
+                    p_inst = torch.softmax(logits_inst, dim=-1)
+                    result.kl_divergence = float(
+                        (p_inst * (log_p_inst - log_p_base)).sum().item())
+
+                if capture_base:
+                    probs_base = torch.softmax(logits_base, dim=-1)
+                    tk = torch.topk(probs_base, min(topk, probs_base.shape[0]))
+                    result.base_topk = [
+                        (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
+                        for idx, p in zip(tk.indices, tk.values)
+                    ]
 
 
 def result_to_dict(r: PromptResult) -> dict:
@@ -315,6 +345,10 @@ def result_to_dict(r: PromptResult) -> dict:
         "middle_share_ln": _native(r.middle_share_ln),
         "stress_score_ln": _native(r.stress_score_ln),
         "kl_divergence": _native(r.kl_divergence),
+        "instruct_topk": r.instruct_topk,
+        "base_topk": r.base_topk,
+        "proof1_checks": r.proof1_checks,
+        "per_layer_signed_attr": {str(k): v for k, v in r.per_layer_signed_attr.items()},
         "amplitude_trajectory": [_native(v) for v in r.amplitude_trajectory],
         "amplitude_normalized": [_native(v) for v in r.amplitude_normalized],
         "heatmap": r.heatmap.tolist() if r.heatmap is not None else [],
