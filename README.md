@@ -101,6 +101,6 @@ The engine auto-detects layer count, attention heads, GQA configuration, and com
 
 GPU is not required but significantly speeds up inference. The tool runs on CPU by default.
 
-## Citation
+## Acknowledgements
 
 Based on: *The Alignment Stress Map: Runtime Per-Token Sensitivity Attribution via Weight Delta Projection in Transformer Language Models* (Ostrander, 2026)
