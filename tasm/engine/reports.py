@@ -113,15 +113,19 @@ class _HeaderFooter:
 def _cover_page(story, title, user_info, model_name, timestamp, usable_width):
     """Generate a cover page."""
     story.append(Spacer(1, 2*inch))
-    story.append(Paragraph("TASM", ParagraphStyle("cover_tasm",
-        fontName="Helvetica-Bold", fontSize=36, textColor=C_ACCENT, alignment=TA_CENTER)))
-    story.append(Paragraph("The Alignment Stress Map", ParagraphStyle("cover_sub",
-        fontName="Helvetica", fontSize=14, textColor=C_DIM, alignment=TA_CENTER, spaceAfter=8)))
+    story.append(Paragraph(
+        '<font size="36"><b>TASM</b></font>'
+        '&nbsp;&nbsp;'
+        '<font size="14" color="#718096">The Alignment Stress Map</font>',
+        ParagraphStyle("cover_line", fontName="Helvetica-Bold",
+                        fontSize=36, textColor=C_ACCENT, alignment=TA_CENTER,
+                        spaceAfter=8)))
     story.append(Spacer(1, 0.3*inch))
     story.append(HRFlowable(width="60%", thickness=1, color=C_ACCENT,
                               spaceAfter=12, hAlign="CENTER"))
     story.append(Paragraph(title, ParagraphStyle("cover_title",
-        fontName="Helvetica-Bold", fontSize=18, textColor=C_BLACK, alignment=TA_CENTER, spaceAfter=24)))
+        fontName="Helvetica-Bold", fontSize=18, textColor=C_BLACK,
+        alignment=TA_CENTER, spaceAfter=24)))
 
     # User info table
     info_data = []
