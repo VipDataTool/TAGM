@@ -39,13 +39,13 @@ S_H1 = ParagraphStyle("s_h1", fontName="Helvetica-Bold", fontSize=14,
                         textColor=C_HEADER_BG, spaceBefore=16, spaceAfter=8)
 S_H2 = ParagraphStyle("s_h2", fontName="Helvetica-Bold", fontSize=11,
                         textColor=C_ACCENT, spaceBefore=10, spaceAfter=4)
-S_BODY = ParagraphStyle("s_body", fontName="Helvetica", fontSize=9,
-                          textColor=C_BLACK, spaceAfter=6, leading=13)
-S_SMALL = ParagraphStyle("s_small", fontName="Helvetica", fontSize=8,
-                           textColor=C_DIM, spaceAfter=4, leading=10)
-S_MONO = ParagraphStyle("s_mono", fontName="Courier", fontSize=8,
-                          textColor=C_BLACK, spaceAfter=4, leading=10)
-S_FOOTER = ParagraphStyle("s_footer", fontName="Helvetica", fontSize=7,
+S_BODY = ParagraphStyle("s_body", fontName="Helvetica", fontSize=10,
+                          textColor=C_BLACK, spaceAfter=6, leading=14)
+S_SMALL = ParagraphStyle("s_small", fontName="Helvetica", fontSize=10,
+                           textColor=C_DIM, spaceAfter=4, leading=13)
+S_MONO = ParagraphStyle("s_mono", fontName="Courier", fontSize=10,
+                          textColor=C_BLACK, spaceAfter=4, leading=13)
+S_FOOTER = ParagraphStyle("s_footer", fontName="Helvetica", fontSize=10,
                             textColor=C_DIM)
 
 
@@ -71,14 +71,15 @@ def _b64_to_image(b64_str, width=None):
 def _table_style():
     return TableStyle([
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
         ("BACKGROUND", (0, 0), (-1, 0), C_LIGHT_BG),
         ("GRID", (0, 0), (-1, -1), 0.4, C_BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("WORDWRAP", (0, 0), (-1, -1), True),
     ])
 
 
@@ -96,17 +97,18 @@ class _HeaderFooter:
         # Header line
         canvas.setStrokeColor(C_ACCENT)
         canvas.setLineWidth(0.5)
-        canvas.line(0.6*inch, h - 0.45*inch, w - 0.6*inch, h - 0.45*inch)
-        canvas.setFont("Helvetica", 7)
+        canvas.line(0.6*inch, h - 0.5*inch, w - 0.6*inch, h - 0.5*inch)
+        canvas.setFont("Helvetica", 10)
         canvas.setFillColor(C_DIM)
-        canvas.drawString(0.6*inch, h - 0.4*inch, f"TASM Report: {self.title}")
-        canvas.drawRightString(w - 0.6*inch, h - 0.4*inch, self.ts)
+        canvas.drawString(0.6*inch, h - 0.45*inch, f"TASM Report: {self.title}")
+        canvas.drawRightString(w - 0.6*inch, h - 0.45*inch, self.ts)
 
         # Footer
-        canvas.line(0.6*inch, 0.5*inch, w - 0.6*inch, 0.5*inch)
-        canvas.drawString(0.6*inch, 0.35*inch,
+        canvas.line(0.6*inch, 0.55*inch, w - 0.6*inch, 0.55*inch)
+        canvas.setFont("Helvetica", 10)
+        canvas.drawString(0.6*inch, 0.38*inch,
                          f"{self.org} | {self.user}" if self.org else self.user or "TASM Analyzer")
-        canvas.drawRightString(w - 0.6*inch, 0.35*inch, f"Page {doc.page}")
+        canvas.drawRightString(w - 0.6*inch, 0.38*inch, f"Page {doc.page}")
         canvas.restoreState()
 
 
@@ -153,8 +155,8 @@ def _cover_page(story, title, user_info, model_name, timestamp, usable_width):
     story.append(Paragraph(
         "Runtime Per-Token Sensitivity Attribution via Weight Delta Projection "
         "in Transformer Language Models",
-        ParagraphStyle("cover_desc", fontName="Helvetica", fontSize=9,
-                        textColor=C_DIM, alignment=TA_CENTER, leading=12)))
+        ParagraphStyle("cover_desc", fontName="Helvetica", fontSize=11,
+                        textColor=C_DIM, alignment=TA_CENTER, leading=14)))
     story.append(PageBreak())
 
 
@@ -411,10 +413,16 @@ def generate_batch_report(aggregate, per_prompt, plots,
             "Individual metrics for each prompt in the dataset. Prompts are listed in analysis order.",
             S_BODY))
 
-        pp_data = [["Prompt", "Cat", "Tok", "Stress", "Ent", "Bnd%", "Int%", "Net"]]
+        pp_data = [["Prompt", "Cat", "Tok", "Stress", "Ent",
+                     "Bnd%", "Int%", "Net"]]
+        wrap_style = ParagraphStyle("pp_wrap", fontName="Courier", fontSize=10,
+                                     textColor=C_BLACK, leading=12, wordWrap="CJK")
         for p in per_prompt:
+            prompt_text = p.get("prompt", "")[:60]
+            if len(p.get("prompt", "")) > 60:
+                prompt_text += "..."
             pp_data.append([
-                p.get("prompt", "")[:42] + ("..." if len(p.get("prompt", "")) > 42 else ""),
+                Paragraph(prompt_text, wrap_style),
                 (p.get("category", "") or "?")[:5],
                 str(p.get("seq_len", "")),
                 _fmt(p.get("stress_score")),
@@ -424,8 +432,8 @@ def generate_batch_report(aggregate, per_prompt, plots,
                 _fmt(p.get("net_correction")),
             ])
         t = Table(pp_data, repeatRows=1,
-                  colWidths=[2.3*inch, 0.4*inch, 0.35*inch,
-                             0.6*inch, 0.6*inch, 0.5*inch, 0.5*inch, 0.6*inch])
+                  colWidths=[2.6*inch, 0.45*inch, 0.35*inch,
+                             0.55*inch, 0.55*inch, 0.45*inch, 0.45*inch, 0.55*inch])
         t.setStyle(_table_style())
         story.append(t)
 
