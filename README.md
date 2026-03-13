@@ -1,5 +1,5 @@
 # TASM Analyzer
-### Token Alignment Stress Map for Runtime Per-Token Sensitivity Attribution
+### Token Alignment Stress Mapping for Runtime Per-Token Sensitivity Attribution
 
 A web-based analytical tool for measuring alignment stress signals in transformer language models. Based on the TASM framework: computes per-token, per-layer sensitivity attribution from the weight delta between base and instruct model pairs.
 
