@@ -7,569 +7,394 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-0: #0a0c10; --bg-1: #0d1117; --bg-2: #161b22; --bg-3: #1c2333;
-  --border: #21262d; --border-accent: #30363d;
-  --text-0: #f0f6fc; --text-1: #c9d1d9; --text-2: #8b949e; --text-3: #6e7681;
-  --blue: #58a6ff; --green: #3fb950; --orange: #d29922;
-  --red: #f85149; --purple: #bc8cff;
-  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  --bg-0:#0a0c10;--bg-1:#0d1117;--bg-2:#161b22;--bg-3:#1c2333;
+  --border:#21262d;--border-accent:#30363d;
+  --text-0:#f0f6fc;--text-1:#c9d1d9;--text-2:#8b949e;--text-3:#6e7681;
+  --blue:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#bc8cff;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:var(--bg-0); color:var(--text-1); font-family:var(--sans); min-height:100vh; }
-
-.header { background:var(--bg-1); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; gap:12px; }
-.header h1 { font-family:var(--mono); font-size:17px; font-weight:600; color:var(--text-0); }
-.header h1 span { color:var(--blue); }
-.header .subtitle { font-size:11px; color:var(--text-3); font-family:var(--mono); }
-.status-pill { margin-left:auto; font-family:var(--mono); font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid var(--border); }
-.status-pill.ready { border-color:var(--green); color:var(--green); }
-.status-pill.loading { border-color:var(--orange); color:var(--orange); }
-.status-pill.idle { border-color:var(--text-3); color:var(--text-3); }
-.session-badge { font-family:var(--mono); font-size:11px; color:var(--text-2); padding:3px 8px; border:1px solid var(--border); border-radius:10px; }
-
-.main { display:grid; grid-template-columns:340px 1fr; min-height:calc(100vh - 49px); }
-.sidebar { background:var(--bg-1); border-right:1px solid var(--border); padding:16px; overflow-y:auto; max-height:calc(100vh - 49px); }
-
-.section { margin-bottom:18px; }
-.section-title { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--text-2); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid var(--border); }
-label { font-size:11px; color:var(--text-2); display:block; margin-bottom:3px; font-weight:500; }
-select,input[type="text"],textarea { width:100%; background:var(--bg-2); border:1px solid var(--border); border-radius:5px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:7px 9px; margin-bottom:8px; }
-select:focus,input:focus,textarea:focus { outline:none; border-color:var(--blue); }
-textarea { resize:vertical; min-height:50px; }
-
-.custom-model-inputs { display:none; margin-top:6px; }
-.custom-model-inputs.visible { display:block; }
-
-.checkbox-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
-.checkbox-row input[type="checkbox"] { accent-color:var(--blue); }
-.checkbox-row label { margin-bottom:0; font-size:11px; cursor:pointer; }
-
-.btn { font-family:var(--mono); font-size:11px; font-weight:600; padding:8px 12px; border:1px solid var(--border); border-radius:5px; cursor:pointer; transition:all .15s; width:100%; text-align:center; }
-.btn-primary { background:var(--blue); color:var(--bg-0); border-color:var(--blue); }
-.btn-primary:hover { background:#79c0ff; }
-.btn-primary:disabled { background:var(--bg-3); border-color:var(--border); color:var(--text-3); cursor:not-allowed; }
-.btn-secondary { background:var(--bg-2); color:var(--text-1); }
-.btn-secondary:hover { background:var(--bg-3); border-color:var(--text-3); }
-.btn-danger { background:transparent; color:var(--red); border-color:var(--red); }
-.btn-danger:hover { background:var(--red); color:var(--bg-0); }
-.btn-export { background:var(--green); color:var(--bg-0); border-color:var(--green); }
-.btn-export:hover { background:#56d364; }
-.btn + .btn { margin-top:6px; }
-
-.btn-row { display:flex; gap:6px; }
-.btn-row .btn { margin-top:0; }
-.btn-row .btn:first-child { flex:1; }
-
-.file-input-wrapper { margin-bottom:8px; }
-.file-input-wrapper input[type="file"] { width:100%; font-size:11px; font-family:var(--mono); color:var(--text-2); }
-.file-input-wrapper input[type="file"]::file-selector-button { font-family:var(--mono); font-size:10px; padding:4px 8px; border:1px solid var(--border); border-radius:3px; background:var(--bg-3); color:var(--text-1); cursor:pointer; margin-right:6px; }
-
-.progress-log { background:var(--bg-0); border:1px solid var(--border); border-radius:5px; padding:6px; max-height:130px; overflow-y:auto; font-family:var(--mono); font-size:10px; line-height:1.5; color:var(--text-3); }
-.progress-log .entry { padding:1px 0; }
-.progress-log .entry.done { color:var(--green); }
-.progress-log .entry.error { color:var(--red); }
-
-/* Main content */
-.content { padding:0; overflow-y:auto; max-height:calc(100vh - 49px); }
-
-.main-tabs { display:flex; background:var(--bg-1); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
-.main-tab { font-family:var(--mono); font-size:12px; padding:10px 20px; cursor:pointer; color:var(--text-3); border-bottom:2px solid transparent; transition:all .15s; }
-.main-tab:hover { color:var(--text-1); }
-.main-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
-.main-tab .badge { font-size:9px; background:var(--bg-3); color:var(--text-2); padding:1px 5px; border-radius:8px; margin-left:4px; }
-.tab-panel { display:none; padding:20px; }
-.tab-panel.active { display:block; }
-
-/* Cards */
-.card { background:var(--bg-1); border:1px solid var(--border); border-radius:7px; margin-bottom:12px; overflow:hidden; }
-.card-header { padding:10px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .12s; }
-.card-header:hover { background:var(--bg-2); }
-.card-header h3 { font-family:var(--mono); font-size:12px; font-weight:500; color:var(--text-0); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card-body { padding:14px; }
-.card-body.collapsed { display:none; }
-
-.pill { font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:9px; border:1px solid; }
-.pill-benign { border-color:var(--green); color:var(--green); }
-.pill-mild { border-color:var(--orange); color:var(--orange); }
-.pill-harmful { border-color:var(--red); color:var(--red); }
-.pill-jailbreak { border-color:var(--purple); color:var(--purple); }
-
-.metrics-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; margin-bottom:12px; }
-.metric-cell { background:var(--bg-2); border:1px solid var(--border); border-radius:5px; padding:8px; }
-.metric-cell .metric-label { font-size:9px; font-family:var(--mono); color:var(--text-3); text-transform:uppercase; letter-spacing:.4px; margin-bottom:3px; }
-.metric-cell .metric-value { font-family:var(--mono); font-size:16px; font-weight:600; color:var(--text-0); }
-.metric-ln { font-family:var(--mono); font-size:9px; margin-top:1px; }
-.metric-ln.positive { color:var(--red); }
-.metric-ln.negative { color:var(--green); }
-.metric-ln.neutral { color:var(--text-3); }
-
-.plot-container { margin-bottom:10px; background:var(--bg-0); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
-.plot-container img { width:100%; display:block; }
-
-.data-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:10px; }
-.data-table th { text-align:left; padding:5px 6px; color:var(--text-3); border-bottom:1px solid var(--border); font-weight:500; text-transform:uppercase; font-size:9px; letter-spacing:.4px; position:sticky; top:0; background:var(--bg-1); }
-.data-table td { padding:4px 6px; border-bottom:1px solid var(--border); color:var(--text-1); }
-.data-table tr:hover td { background:var(--bg-2); }
-
-.topk-table { font-family:var(--mono); font-size:10px; margin-top:6px; }
-.topk-table td { padding:2px 8px; }
-.topk-table .tok-inst { color:var(--blue); }
-.topk-table .tok-base { color:var(--red); }
-
-.token-bar { height:3px; border-radius:2px; display:inline-block; vertical-align:middle; }
-
-.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:50vh; color:var(--text-3); text-align:center; }
-.empty-state h2 { font-family:var(--mono); font-size:15px; font-weight:500; margin-bottom:6px; color:var(--text-2); }
-.empty-state p { font-size:12px; max-width:380px; line-height:1.5; }
-
-::-webkit-scrollbar { width:5px; height:5px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:var(--border-accent); border-radius:3px; }
-
-@media (max-width:900px) {
-  .main { grid-template-columns:1fr; }
-  .sidebar { max-height:none; border-right:none; border-bottom:1px solid var(--border); }
-  .content { max-height:none; }
-}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);min-height:100vh}
+.header{background:var(--bg-1);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px}
+.header h1{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
+.header h1 span{color:var(--blue)}
+.header .subtitle{font-size:10px;color:var(--text-3);font-family:var(--mono)}
+.status-pill{margin-left:auto;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid var(--border)}
+.status-pill.ready{border-color:var(--green);color:var(--green)}
+.status-pill.loading{border-color:var(--orange);color:var(--orange)}
+.status-pill.idle{border-color:var(--text-3);color:var(--text-3)}
+.session-badge{font-family:var(--mono);font-size:10px;color:var(--text-2);padding:2px 7px;border:1px solid var(--border);border-radius:8px}
+.main{display:grid;grid-template-columns:330px 1fr;min-height:calc(100vh - 45px)}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);padding:12px;overflow-y:auto;max-height:calc(100vh - 45px)}
+.section{margin-bottom:14px}
+.section-title{font-family:var(--mono);font-size:9px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+label{font-size:10px;color:var(--text-2);display:block;margin-bottom:2px;font-weight:500}
+select,input[type="text"],textarea{width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;color:var(--text-1);font-family:var(--mono);font-size:11px;padding:6px 8px;margin-bottom:6px}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+textarea{resize:vertical;min-height:44px}
+.checkbox-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.checkbox-row input[type="checkbox"]{accent-color:var(--blue)}
+.checkbox-row label{margin-bottom:0;font-size:10px;cursor:pointer}
+.btn{font-family:var(--mono);font-size:10px;font-weight:600;padding:7px 10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:all .15s;width:100%;text-align:center}
+.btn-primary{background:var(--blue);color:var(--bg-0);border-color:var(--blue)}
+.btn-primary:hover{background:#79c0ff}
+.btn-primary:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-secondary{background:var(--bg-2);color:var(--text-1)}
+.btn-secondary:hover{background:var(--bg-3)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:var(--bg-0)}
+.btn-dashboard{background:var(--green);color:var(--bg-0);border-color:var(--green);font-size:12px;padding:10px;letter-spacing:0.5px}
+.btn-dashboard:hover{background:#56d364}
+.btn-dashboard:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-export{background:transparent;color:var(--green);border-color:var(--green)}
+.btn-export:hover{background:var(--green);color:var(--bg-0)}
+.btn-export:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn+.btn{margin-top:5px}
+.btn-row{display:flex;gap:5px}.btn-row .btn{margin-top:0}.btn-row .btn:first-child{flex:1}
+.btn-sm{font-size:9px;padding:4px 7px;width:auto}
+.file-input-wrapper{margin-bottom:6px}
+.file-input-wrapper input[type="file"]{width:100%;font-size:10px;font-family:var(--mono);color:var(--text-2)}
+.file-input-wrapper input[type="file"]::file-selector-button{font-family:var(--mono);font-size:9px;padding:3px 7px;border:1px solid var(--border);border-radius:3px;background:var(--bg-3);color:var(--text-1);cursor:pointer;margin-right:5px}
+.progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--text-3)}
+.progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
+.error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
+.content{padding:0;overflow-y:auto;max-height:calc(100vh - 45px)}
+.main-tabs{display:flex;background:var(--bg-1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.main-tab{font-family:var(--mono);font-size:11px;padding:9px 16px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:all .15s}
+.main-tab:hover{color:var(--text-1)}.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.main-tab .badge{font-size:8px;background:var(--bg-3);color:var(--text-2);padding:1px 4px;border-radius:6px;margin-left:3px}
+.tab-panel{display:none;padding:16px}.tab-panel.active{display:block}
+.card{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden}
+.card-header{padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.card-header:hover{background:var(--bg-2)}
+.card-header h3{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-body{padding:12px}.card-body.collapsed{display:none}
+.pill{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:8px;border:1px solid}
+.pill-benign{border-color:var(--green);color:var(--green)}.pill-mild{border-color:var(--orange);color:var(--orange)}
+.pill-harmful{border-color:var(--red);color:var(--red)}.pill-jailbreak{border-color:var(--purple);color:var(--purple)}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
+.metric-cell{background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:7px}
+.metric-cell .metric-label{font-size:8px;font-family:var(--mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.metric-cell .metric-value{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text-0)}
+.metric-ln{font-family:var(--mono);font-size:8px;margin-top:1px}
+.metric-ln.positive{color:var(--red)}.metric-ln.negative{color:var(--green)}.metric-ln.neutral{color:var(--text-3)}
+.plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.plot-container img{width:100%;display:block}
+.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px}
+.data-table th{text-align:left;padding:4px 5px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:8px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1)}
+.data-table td{padding:3px 5px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.data-table tr:hover td{background:var(--bg-2)}
+.topk-table{font-family:var(--mono);font-size:9px;margin-top:5px}
+.topk-table td{padding:2px 6px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
+.token-bar{height:3px;border-radius:2px;display:inline-block;vertical-align:middle}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:45vh;color:var(--text-3);text-align:center}
+.empty-state h2{font-family:var(--mono);font-size:14px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
+.empty-state p{font-size:11px;max-width:350px;line-height:1.4}
+.add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
+.add-model-form.visible{display:block}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
+@media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
 </style>
 </head>
 <body>
-
 <div class="header">
   <h1><span>TASM</span> Analyzer</h1>
   <span class="subtitle">Alignment Stress Map</span>
   <span class="session-badge" id="sessionBadge">No session</span>
   <div class="status-pill idle" id="statusPill">NO MODEL</div>
 </div>
-
 <div class="main">
-  <div class="sidebar">
-    <div class="section">
-      <div class="section-title">Model Pair</div>
-      <select id="modelSelect">
-        <option value="">-- Select --</option>
-        <option value="qwen2.5-0.5b">Qwen 2.5 0.5B</option>
-        <option value="qwen2.5-1.5b">Qwen 2.5 1.5B</option>
-        <option value="qwen2.5-3b">Qwen 2.5 3B</option>
-        <option value="qwen2.5-7b">Qwen 2.5 7B</option>
-        <option value="custom">Custom pair...</option>
-      </select>
-      <div class="custom-model-inputs" id="customInputs">
-        <input type="text" id="baseModelId" placeholder="Base model HF ID">
-        <input type="text" id="instructModelId" placeholder="Instruct model HF ID">
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
-        <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
-      </div>
-    </div>
+<div class="sidebar">
 
-    <div class="section">
-      <div class="section-title">Prompt</div>
-      <label>Library</label>
-      <select id="promptLibrary" onchange="loadFromLibrary()">
-        <option value="">-- Presets --</option>
-      </select>
-      <label>Prompt text</label>
-      <textarea id="promptInput" placeholder="Enter or select a prompt..."></textarea>
-      <label>Category</label>
-      <select id="categorySelect">
-        <option value="">Auto</option>
-        <option value="benign">Benign</option>
-        <option value="mild">Mild</option>
-        <option value="harmful">Harmful</option>
-        <option value="jailbreak">Jailbreak</option>
-      </select>
-      <div class="checkbox-row">
-        <input type="checkbox" id="computeKL">
-        <label for="computeKL">KL divergence (loads base model)</label>
-      </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="computeTraj" checked>
-        <label for="computeTraj">Full amplitude trajectory</label>
-      </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="captureResponses">
-        <label for="captureResponses">Capture model responses (top-k)</label>
-      </div>
-      <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
-      <button class="btn btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
-    </div>
+  <!-- User Info -->
+  <div class="section">
+    <div class="section-title">Analyst</div>
+    <input type="text" id="userName" placeholder="Your name" onchange="saveUserInfo()">
+    <input type="text" id="userOrg" placeholder="Organization" onchange="saveUserInfo()">
+  </div>
 
-    <div class="section">
-      <div class="section-title">Batch (CSV)</div>
-      <div class="file-input-wrapper"><input type="file" id="csvFile" accept=".csv"></div>
-      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
+  <!-- Model -->
+  <div class="section">
+    <div class="section-title">Model Pair</div>
+    <select id="modelSelect"><option value="">-- Select --</option></select>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+      <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
     </div>
-
-    <div class="section">
-      <div class="section-title">Session</div>
-      <button class="btn btn-secondary" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
-      <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Log</div>
-      <div class="progress-log" id="progressLog">
-        <div class="entry">Ready. Select a model pair to begin.</div>
-      </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="toggleAddModel()">+ Add model pair</button>
+    <div class="add-model-form" id="addModelForm">
+      <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
+      <input type="text" id="newModelName" placeholder="Display name">
+      <input type="text" id="newModelBase" placeholder="Base HF ID">
+      <input type="text" id="newModelInstruct" placeholder="Instruct HF ID">
+      <button class="btn btn-sm btn-primary" onclick="addModel()">Save</button>
     </div>
   </div>
 
-  <div class="content">
-    <div class="main-tabs">
-      <div class="main-tab active" onclick="switchMainTab(this,'panel-latest')">Latest <span class="badge" id="latestBadge">0</span></div>
-      <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Dashboard</div>
-      <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data Table</div>
-    </div>
-
-    <div class="tab-panel active" id="panel-latest">
-      <div class="empty-state" id="emptyState">
-        <h2>No analysis yet</h2>
-        <p>Load a model, enter a prompt, and click Analyze. Results accumulate in the session dataset.</p>
-      </div>
-      <div id="latestResults"></div>
-    </div>
-
-    <div class="tab-panel" id="panel-dashboard">
-      <div class="empty-state" id="dashEmpty">
-        <h2>Run some prompts first</h2>
-        <p>Analyze prompts to build the dataset, then click "Refresh Dashboard" for comparative analytics.</p>
-      </div>
-      <div id="dashContent" style="display:none"></div>
-    </div>
-
-    <div class="tab-panel" id="panel-data">
-      <div id="dataTableContainer">
-        <p style="color:var(--text-3);font-size:12px">No data yet.</p>
-      </div>
-    </div>
+  <!-- Prompt -->
+  <div class="section">
+    <div class="section-title">Prompt</div>
+    <label>Library</label>
+    <select id="promptLibrary" onchange="loadFromLibrary()"><option value="">-- Presets --</option></select>
+    <label>Prompt text</label>
+    <textarea id="promptInput" placeholder="Enter or select a prompt..."></textarea>
+    <div id="promptError"></div>
+    <label>Category</label>
+    <select id="categorySelect">
+      <option value="">Auto</option><option value="benign">Benign</option>
+      <option value="mild">Mild</option><option value="harmful">Harmful</option>
+      <option value="jailbreak">Jailbreak</option>
+    </select>
+    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeTraj" checked><label for="computeTraj">Full trajectory</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="captureResponses"><label for="captureResponses">Capture model responses</label></div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
+    <button class="btn btn-sm btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
+
+  <!-- Batch -->
+  <div class="section">
+    <div class="section-title">Batch (CSV)</div>
+    <div class="file-input-wrapper"><input type="file" id="csvFile" accept=".csv"></div>
+    <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
+  </div>
+
+  <!-- Session Actions -->
+  <div class="section">
+    <div class="section-title">Session</div>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
+    <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Log <a href="/api/log" target="_blank" style="float:right;font-size:8px;color:var(--blue);text-decoration:none">download</a></div>
+    <div class="progress-log" id="progressLog"><div class="entry">Ready.</div></div>
+  </div>
+
+</div>
+<div class="content">
+  <div class="main-tabs">
+    <div class="main-tab active" onclick="switchMainTab(this,'panel-latest')">Latest <span class="badge" id="latestBadge">0</span></div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Dashboard</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data Table</div>
+  </div>
+  <div class="tab-panel active" id="panel-latest">
+    <div class="empty-state" id="emptyState"><h2>No analysis yet</h2><p>Load a model, enter a prompt, and click Analyze.</p></div>
+    <div id="latestResults"></div>
+  </div>
+  <div class="tab-panel" id="panel-dashboard">
+    <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
+    <div id="dashContent" style="display:none"></div>
+  </div>
+  <div class="tab-panel" id="panel-data">
+    <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
+  </div>
+</div>
 </div>
 
 <script>
-const $ = id => document.getElementById(id);
-let modelLoaded = false;
-let sessionResults = [];
-let promptLibraryData = [];
+const $=id=>document.getElementById(id);
+let modelLoaded=false, sessionResults=[], promptLibraryData=[];
 
-// ─── Helpers ────────────────────────────────────────────────────
-function setStatus(s, t) { const p=$('statusPill'); p.className='status-pill '+s; p.textContent=t||s.toUpperCase(); }
-function log(m, t='') { const el=$('progressLog'), d=document.createElement('div'); d.className='entry '+t; d.textContent=m; el.appendChild(d); el.scrollTop=el.scrollHeight; }
-function clearLog() { $('progressLog').innerHTML=''; }
-function setLoading(b,l) { b.disabled=l; if(l)b.dataset.orig=b.textContent; b.textContent=l?'Processing...':(b.dataset.orig||b.textContent); }
-function pillClass(c) { return ({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''; }
-function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-function fmtLN(v) { if(v==null) return ''; const s=v>0?'+':'', c=v>0.5?'positive':(v<-0.5?'negative':'neutral'); return `<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`; }
-function mc(label,val,ln,fmt) { const fv=fmt?fmt(val):(typeof val==='number'?val.toFixed(4):val); return `<div class="metric-cell"><div class="metric-label">${label}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`; }
+function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
+function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
+function clearLog(){$('progressLog').innerHTML=''}
+function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
+function pillClass(c){return({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''}
+function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-0.5?'negative':'neutral');return`<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`}
+function mc(l,v,ln,fmt){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);return`<div class="metric-cell"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
+function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
+function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
 
-function switchMainTab(el, id) {
-  el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  $(id).classList.add('active');
+function updateSessionBadge(){
+  $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
+  $('latestBadge').textContent=sessionResults.length;
+  $('dashBtn').disabled=sessionResults.length<1;
+  $('exportBtn').disabled=sessionResults.length<1;
 }
 
-function updateSessionBadge() {
-  $('sessionBadge').textContent = sessionResults.length ? `Session: ${sessionResults.length} prompts` : 'No session';
-  $('latestBadge').textContent = sessionResults.length;
-  $('dashBtn').disabled = sessionResults.length < 1;
-  $('exportBtn').disabled = sessionResults.length < 1;
+// ─── User Info ──────────────────────────────────────────────────
+async function saveUserInfo(){
+  const fd=new FormData();fd.append('name',$('userName').value);fd.append('organization',$('userOrg').value);
+  try{await fetch('/api/user_info',{method:'POST',body:fd})}catch(e){}
+}
+
+// ─── Models ─────────────────────────────────────────────────────
+async function loadModelList(){
+  try{
+    const r=await(await fetch('/api/models')).json();
+    const sel=$('modelSelect');sel.innerHTML='<option value="">-- Select --</option>';
+    (r.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=`${m.name}${m.notes?' - '+m.notes:''}`;sel.appendChild(o)});
+    const custom=document.createElement('option');custom.value='custom';custom.textContent='Custom pair...';sel.appendChild(custom);
+  }catch(e){}
+}
+function toggleAddModel(){$('addModelForm').classList.toggle('visible')}
+async function addModel(){
+  const fd=new FormData();
+  fd.append('id',$('newModelId').value);fd.append('name',$('newModelName').value);
+  fd.append('base',$('newModelBase').value);fd.append('instruct',$('newModelInstruct').value);
+  try{
+    const r=await(await fetch('/api/models',{method:'POST',body:fd})).json();
+    if(r.ok){log('Model pair added','done');$('addModelForm').classList.remove('visible');loadModelList();
+      ['newModelId','newModelName','newModelBase','newModelInstruct'].forEach(i=>$(i).value='');}
+    else log('Error: '+(r.error||''),'error');
+  }catch(e){log('Error: '+e.message,'error')}
 }
 
 // ─── Model Loading ──────────────────────────────────────────────
-$('modelSelect').addEventListener('change', function() { $('customInputs').classList.toggle('visible', this.value==='custom'); });
-
-async function loadModel() {
-  const btn=$('loadModelBtn'); setLoading(btn,true); clearLog();
-  log('Starting model load...'); setStatus('loading','LOADING');
-  const sel=$('modelSelect'), fd=new FormData();
-  if(sel.value==='custom'){fd.append('base_id',$('baseModelId').value);fd.append('instruct_id',$('instructModelId').value);}
-  else fd.append('pair_id',sel.value);
-  try{await fetch('/api/load_model',{method:'POST',body:fd});}catch(e){}
-
+async function loadModel(){
+  const sel=$('modelSelect');
+  if(!sel.value){showError('promptError','Select a model pair first.');return}
+  const btn=$('loadModelBtn');setLoading(btn,true);clearLog();log('Starting model load...');setStatus('loading','LOADING');
+  const fd=new FormData();
+  if(sel.value==='custom'){
+    const b=prompt('Base model HF ID:');const i=prompt('Instruct model HF ID:');
+    if(!b||!i){setLoading(btn,false);return}
+    fd.append('base_id',b);fd.append('instruct_id',i);
+  } else fd.append('pair_id',sel.value);
+  try{await fetch('/api/load_model',{method:'POST',body:fd})}catch(e){}
   let lastLen=0;
   const poll=setInterval(async()=>{
     try{
       const prog=await(await fetch('/api/progress')).json();
-      for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''));}
+      for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];updateSessionBadge();loadPromptLibrary();}
-      else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false);}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
 }
 
-async function resetAll() {
-  if(!confirm('Clear session and unload model?')) return;
-  clearLog(); setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:12px">No data yet.</p>';updateSessionBadge();log(r.message,'done');}}catch(e){log('Reset error: '+e.message,'error');}
+async function resetAll(){
+  if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
-// ─── Single Analysis ────────────────────────────────────────────
-async function analyzeSingle() {
-  const prompt=$('promptInput').value.trim(); if(!prompt) return;
-  const btn=$('analyzeBtn'); setLoading(btn,true);
-  log('Analyzing: '+prompt.substring(0,50)+'...');
-  const fd=new FormData();
-  fd.append('prompt',prompt);
-  fd.append('category',$('categorySelect').value);
-  fd.append('compute_kl',$('computeKL').checked);
-  fd.append('compute_trajectory',$('computeTraj').checked);
+// ─── Analysis ───────────────────────────────────────────────────
+async function analyzeSingle(){
+  const prompt=$('promptInput').value.trim();
+  if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
+  if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
+  showError('promptError','');
+  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
+  const fd=new FormData();fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
+  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',$('computeTraj').checked);
   fd.append('capture_responses',$('captureResponses').checked);
   try{
-    const resp=await fetch('/api/analyze',{method:'POST',body:fd});
-    const data=await resp.json();
-    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable();}
-    else log('Error: '+data.error,'error');
-  }catch(e){log('Error: '+e.message,'error');}
+    const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
+    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
+    else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
+  }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
 }
 
-// ─── Batch Analysis ─────────────────────────────────────────────
-async function analyzeBatch() {
-  const file=$('csvFile').files[0]; if(!file){log('No CSV','error');return;}
-  const btn=$('batchBtn'); setLoading(btn,true); clearLog(); log('Starting batch...');
-  const fd=new FormData();
-  fd.append('file',file);
-  fd.append('compute_kl',$('computeKL').checked);
-  fd.append('compute_trajectory',false);
+async function analyzeBatch(){
+  const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
+  const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
+  const fd=new FormData();fd.append('file',file);
+  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',false);
   fd.append('capture_responses',$('captureResponses').checked);
   try{
-    const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});
-    const data=await resp.json();
-    if(data.ok){
-      log(`Batch done: ${data.n_prompts} prompts added`,'done');
-      // Refresh session data from dashboard
-      await loadDashboard();
-    } else log('Error: '+data.error,'error');
-  }catch(e){log('Error: '+e.message,'error');}
+    const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
+    if(data.ok){log(`Batch done: ${data.n_prompts} prompts added`,'done');await loadDashboard()}
+    else log('Error: '+(data.error||''),'error');
+  }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────
-async function loadDashboard() {
+async function loadDashboard(){
   log('Loading dashboard...');
   try{
-    const resp=await fetch('/api/dashboard');
-    const data=await resp.json();
-    if(!data.ok){log('Dashboard: '+data.error,'error');return;}
+    const resp=await fetch('/api/dashboard');const data=await resp.json();
+    if(!data.ok){log('Dashboard: '+(data.error||''),'error');return}
+    sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
+    const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
+    const info=data.session_info||{},agg=data.aggregate||{},plots=data.plots||{},cats=agg.categories||{},sep=agg.separability||{};
 
-    // Update session results from server
-    sessionResults=data.results||sessionResults;
-    updateSessionBadge();
-    renderDataTable();
+    let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
 
-    const dc=$('dashContent'); dc.style.display='block';
-    $('dashEmpty').style.display='none';
-
-    const info=data.session_info||{};
-    const agg=data.aggregate||{};
-    const plots=data.plots||{};
-    const cats=agg.categories||{};
-    const sep=agg.separability||{};
-
-    let h=`<div class="card"><div class="card-body">
-      <div class="metrics-grid">
-        ${mc('Prompts',info.n_results||0,null,v=>v)}
-        ${mc('Model',info.model||'--',null,v=>v)}
-        ${Object.entries(info.categories||{}).map(([c,n])=>`${mc(c,n,null,v=>v)}`).join('')}
-      </div></div></div>`;
-
-    // Category summary table
     if(Object.keys(cats).length){
-      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body">
-        <table class="data-table"><tr><th>Category</th><th>N</th><th>Avg Len</th><th>Stress</th><th>Entropy</th><th>Boundary%</th><th>Interior%</th><th>Net</th><th>Neg Rate</th></tr>`;
-      for(const[cat,s]of Object.entries(cats)){
-        const m=s.metrics||{};
-        h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td>
-        <td>${(s.mean_seq_len||0).toFixed(1)}</td>
-        <td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td>
-        <td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td>
-        <td>${m.top2_share?(m.top2_share.estimate*100).toFixed(1)+'%':'--'}</td>
-        <td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td>
-        <td>${m.net_correction?m.net_correction.estimate.toFixed(4):'--'}</td>
-        <td>${((s.negative_token_rate||0)*100).toFixed(0)}%</td></tr>`;
-      }
+      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body"><table class="data-table"><tr><th>Category</th><th>N</th><th>Len</th><th>Stress</th><th>Entropy</th><th>Bnd%</th><th>Int%</th><th>Net</th><th>Neg</th></tr>`;
+      for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${(s.mean_seq_len||0).toFixed(1)}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.top2_share?(m.top2_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(4):'--'}</td><td>${((s.negative_token_rate||0)*100).toFixed(0)}%</td></tr>`}
       h+=`</table></div></div>`;
     }
-
-    // Separability table
     if(Object.keys(sep).length){
-      h+=`<div class="card"><div class="card-header"><h3>Separability (Benign vs Harmful)</h3></div><div class="card-body">
-        <table class="data-table"><tr><th>Metric</th><th>Cohen's d</th><th>95% CI</th><th>Best Acc</th></tr>`;
-      for(const[metric,s]of Object.entries(sep)){
-        const es=s.effect_size||{};
-        h+=`<tr><td>${metric}</td>
-        <td style="font-weight:600;color:${es.estimate>0.8?'var(--green)':(es.estimate>0.5?'var(--orange)':'var(--red)')}">${(es.estimate||0).toFixed(2)}</td>
-        <td>[${(es.ci_low||0).toFixed(2)}, ${(es.ci_high||0).toFixed(2)}]</td>
-        <td>${((s.threshold||{}).accuracy||0)*100|0}%</td></tr>`;
-      }
+      h+=`<div class="card"><div class="card-header"><h3>Separability (Benign vs Harmful)</h3></div><div class="card-body"><table class="data-table"><tr><th>Metric</th><th>Cohen's d</th><th>95% CI</th><th>Best Acc</th></tr>`;
+      for(const[m,s]of Object.entries(sep)){const es=s.effect_size||{};h+=`<tr><td>${m}</td><td style="font-weight:600;color:${es.estimate>0.8?'var(--green)':(es.estimate>0.5?'var(--orange)':'var(--red)')}">${(es.estimate||0).toFixed(2)}</td><td>[${(es.ci_low||0).toFixed(2)},${(es.ci_high||0).toFixed(2)}]</td><td>${((s.threshold||{}).accuracy||0)*100|0}%</td></tr>`}
       h+=`</table></div></div>`;
     }
+    const plotOrder=[['trajectory_overlay','Amplitude Trajectories'],['difference_from_benign','Difference from Benign'],['discriminative_sublayers','Discriminative Sublayers'],['metric_scatters','Metric Scatter Plots'],['behavioral_comparison','Behavioral Comparison'],['proof1_summary','Proof 1 Exactness'],['batch_summary','Category Distributions'],['separability','Effect Sizes']];
+    for(const[key,title]of plotOrder){if(plots[key])h+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${title}</h3></div><div class="card-body"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`}
 
-    // Comparative plots
-    const plotOrder=[
-      ['trajectory_overlay','Amplitude Trajectories (overlay)'],
-      ['difference_from_benign','Difference from Benign Baseline'],
-      ['discriminative_sublayers','Discriminative Sublayers'],
-      ['metric_scatters','Metric Scatter Plots'],
-      ['behavioral_comparison','Behavioral Comparison (Instruct vs Base)'],
-      ['proof1_summary','Proof 1 Exactness Verification'],
-      ['batch_summary','Category Distributions'],
-      ['separability','Effect Sizes'],
-    ];
-    for(const[key,title]of plotOrder){
-      if(plots[key]){
-        h+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${title}</h3></div>
-        <div class="card-body"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
-      }
-    }
-
-    dc.innerHTML=h;
-    log('Dashboard loaded','done');
-
-    // Switch to dashboard tab
+    dc.innerHTML=h;log('Dashboard loaded','done');
     document.querySelectorAll('.main-tab')[1].click();
-
-  }catch(e){log('Dashboard error: '+e.message,'error');}
+  }catch(e){log('Dashboard error: '+e.message,'error')}
 }
 
-// ─── Export ─────────────────────────────────────────────────────
-async function exportSession() {
-  log('Exporting session...');
-  try{
-    const resp=await fetch('/api/export');
-    const blob=await resp.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='tasm_session.zip'; a.click();
-    URL.revokeObjectURL(url);
-    log('Session exported','done');
-  }catch(e){log('Export error: '+e.message,'error');}
+async function exportSession(){
+  log('Exporting...');try{const r=await fetch('/api/export');const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Exported','done')}catch(e){log('Export error: '+e.message,'error')}
 }
 
-// ─── Render Latest Result ───────────────────────────────────────
-function renderLatest(r,plots) {
-  $('emptyState').style.display='none';
-  const area=$('latestResults');
-
-  const topk_html = renderTopK(r);
-
-  let h=`<div class="card">
-    <div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
-      <h3>${escHtml(r.prompt)}</h3>
-      ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
-      <span style="font-family:var(--mono);font-size:10px;color:var(--text-3)">${r.seq_len} tok</span>
-    </div>
-    <div class="card-body">
-      <div class="metrics-grid">
-        ${mc('Stress',r.stress_score,r.stress_score_ln)}
-        ${mc('Net Correction',r.net_correction,null)}
-        ${mc('Entropy',r.entropy,r.entropy_ln)}
-        ${mc('Gini',r.gini,null)}
-        ${mc('Boundary%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}
-        ${mc('Interior%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}
-        ${mc('Interior CV',r.interior_cv,null)}
-        ${r.kl_divergence!=null?mc('KL Div',r.kl_divergence,null):''}
-      </div>
-      ${r.has_negative_tokens?`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">Negative attribution: ${r.n_negative_tokens}/${r.seq_len} tokens</div>`:''}
-      ${topk_html}
-      ${Object.entries(plots).map(([k,v])=>v?`<div class="plot-container"><img src="data:image/png;base64,${v}"></div>`:'').join('')}
-      ${renderTokenTable(r)}
-    </div></div>`;
-
-  area.innerHTML = h + area.innerHTML;
+// ─── Render ─────────────────────────────────────────────────────
+function renderLatest(r,plots){
+  $('emptyState').style.display='none';const area=$('latestResults');
+  let h=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${escHtml(r.prompt)}</h3>${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}<span style="font-family:var(--mono);font-size:9px;color:var(--text-3)">${r.seq_len}tok</span></div><div class="card-body">`;
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Gini',r.gini,null)}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:6px;font-size:10px;color:var(--purple)">Neg attr: ${r.n_negative_tokens}/${r.seq_len} tokens</div>`;
+  h+=renderTopK(r);
+  for(const[k,v]of Object.entries(plots))if(v)h+=`<div class="plot-container"><img src="data:image/png;base64,${v}"></div>`;
+  h+=renderTokenTable(r)+`</div></div>`;
+  area.innerHTML=h+area.innerHTML;
 }
-
-function renderTopK(r) {
-  if(!r.instruct_topk || !r.instruct_topk.length) return '';
-  const maxN = Math.max(r.instruct_topk.length, (r.base_topk||[]).length);
-  let rows='';
-  for(let i=0;i<maxN;i++){
-    const it=r.instruct_topk[i], bt=(r.base_topk||[])[i];
-    rows+=`<tr>
-      <td>${i+1}</td>
-      <td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td>
-      <td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td>
-    </tr>`;
-  }
-  return `<div class="card" style="margin-bottom:10px;border-color:var(--border-accent)">
-    <div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Model Responses (top-k predictions)</h3></div>
-    <div class="card-body"><table class="topk-table"><tr><th>#</th><th>Instruct</th><th>Prob</th><th>Base</th><th>Prob</th></tr>${rows}</table></div></div>`;
+function renderTopK(r){
+  if(!r.instruct_topk||!r.instruct_topk.length)return'';
+  const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
+  for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
+  return`<div class="card" style="margin-bottom:8px;border-color:var(--border-accent)"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Model Responses</h3></div><div class="card-body"><table class="topk-table"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
 }
-
-function renderTokenTable(r) {
-  if(!r.tokens||!r.signed_attr||!r.signed_attr.length) return '';
-  const mx=Math.max(...r.signed_attr.map(Math.abs)), ms=r.per_token_stress?Math.max(...r.per_token_stress):1;
-  let rows='';
-  for(let i=0;i<r.tokens.length;i++){
-    const a=r.signed_attr[i], s=r.per_token_stress?r.per_token_stress[i]:0;
-    const ap=mx>0?(Math.abs(a)/mx*100):0, ac=a<0?'var(--red)':'var(--green)', sp=ms>0?(s/ms*100):0;
-    rows+=`<tr><td>${escHtml(r.tokens[i])}</td>
-    <td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td>
-    <td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td>
-    <td>${s.toFixed(4)}</td>
-    <td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`;
-  }
-  return `<table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table>`;
+function renderTokenTable(r){
+  if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
+  const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
+  for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
+  return`<table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table>`
 }
-
-// ─── Data Table ─────────────────────────────────────────────────
-function renderDataTable() {
-  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:12px">No data yet.</p>';return;}
-  let h=`<table class="data-table"><tr>
-    <th>#</th><th>Prompt</th><th>Cat</th><th>Tok</th><th>Stress</th><th>Entropy</th>
-    <th>Bnd%</th><th>Int%</th><th>Net</th><th>Neg</th><th>KL</th></tr>`;
-  sessionResults.forEach((r,i)=>{
-    h+=`<tr>
-      <td>${i+1}</td>
-      <td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,40))}${r.prompt.length>40?'...':''}</td>
-      <td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td>
-      <td>${r.seq_len}</td>
-      <td>${(r.stress_score||0).toFixed(3)}</td>
-      <td>${(r.entropy||0).toFixed(3)}</td>
-      <td>${((r.top2_share||0)*100).toFixed(1)}%</td>
-      <td>${((r.middle_share||0)*100).toFixed(1)}%</td>
-      <td>${(r.net_correction||0).toFixed(3)}</td>
-      <td>${r.n_negative_tokens||0}</td>
-      <td>${r.kl_divergence!=null?r.kl_divergence.toFixed(3):'--'}</td>
-    </tr>`;
-  });
-  h+=`</table>`;
-  $('dataTableContainer').innerHTML=h;
+function renderDataTable(){
+  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';return}
+  let h=`<table class="data-table"><tr><th>#</th><th>Prompt</th><th>Cat</th><th>Tok</th><th>Stress</th><th>Ent</th><th>Bnd%</th><th>Int%</th><th>Net</th><th>Neg</th><th>KL</th></tr>`;
+  sessionResults.forEach((r,i)=>{h+=`<tr><td>${i+1}</td><td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,35))}${r.prompt.length>35?'...':''}</td><td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td><td>${r.seq_len}</td><td>${(r.stress_score||0).toFixed(3)}</td><td>${(r.entropy||0).toFixed(3)}</td><td>${((r.top2_share||0)*100).toFixed(1)}%</td><td>${((r.middle_share||0)*100).toFixed(1)}%</td><td>${(r.net_correction||0).toFixed(3)}</td><td>${r.n_negative_tokens||0}</td><td>${r.kl_divergence!=null?r.kl_divergence.toFixed(3):'--'}</td></tr>`});
+  h+=`</table>`;$('dataTableContainer').innerHTML=h;
 }
 
 // ─── Prompt Library ─────────────────────────────────────────────
-async function loadPromptLibrary() {
-  try{const r=await(await fetch('/api/prompts')).json();promptLibraryData=r.prompts||[];renderPromptLibrary();}catch(e){}
+async function loadPromptLibrary(){
+  try{const r=await(await fetch('/api/prompts')).json();promptLibraryData=r.prompts||[];renderPromptLibrary()}catch(e){}
 }
-function renderPromptLibrary() {
-  const s=$('promptLibrary'); s.innerHTML='<option value="">-- Presets --</option>';
-  const g={};
-  promptLibraryData.forEach((p,i)=>{const c=p.category||'other';if(!g[c])g[c]=[];g[c].push({...p,index:i});});
-  for(const[c,ps]of Object.entries(g)){
-    const og=document.createElement('optgroup'); og.label=c[0].toUpperCase()+c.slice(1);
-    ps.forEach(p=>{const o=document.createElement('option');o.value=p.index;o.textContent=p.prompt.length>60?p.prompt.substring(0,57)+'...':p.prompt;og.appendChild(o);});
-    s.appendChild(og);
-  }
+function renderPromptLibrary(){
+  const s=$('promptLibrary');s.innerHTML='<option value="">-- Presets --</option>';
+  const g={};promptLibraryData.forEach((p,i)=>{if(p.baseline)return;const c=p.category||'other';if(!g[c])g[c]=[];g[c].push({...p,index:i})});
+  for(const[c,ps]of Object.entries(g)){const og=document.createElement('optgroup');og.label=c[0].toUpperCase()+c.slice(1);ps.forEach(p=>{const o=document.createElement('option');o.value=p.index;o.textContent=p.prompt.length>55?p.prompt.substring(0,52)+'...':p.prompt;og.appendChild(o)});s.appendChild(og)}
 }
-function loadFromLibrary(){const s=$('promptLibrary');if(s.value==='')return;const p=promptLibraryData[parseInt(s.value)];if(p){$('promptInput').value=p.prompt;$('categorySelect').value=p.category||'';}}
+function loadFromLibrary(){const s=$('promptLibrary');if(s.value==='')return;const p=promptLibraryData[parseInt(s.value)];if(p){$('promptInput').value=p.prompt;$('categorySelect').value=p.category||''}}
 async function addCurrentToLibrary(){
-  const p=$('promptInput').value.trim();if(!p){log('No prompt','error');return;}
-  const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');
-  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done');}}catch(e){}
+  const p=$('promptInput').value.trim();if(!p){showError('promptError','No prompt to save.');return}
+  const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');fd.append('baseline',false);
+  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.error||'Failed')}catch(e){}
 }
 
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
+    loadModelList();loadPromptLibrary();
     const st=await(await fetch('/api/status')).json();
-    if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;}
+    if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
+    if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
-      let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''));}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary();}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';}}catch(e){}},2000);}
-    if(st.session&&st.session.n_results>0) updateSessionBadge();
-    loadPromptLibrary();
+      let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
+    if(st.session&&st.session.n_results>0)updateSessionBadge();
   }catch(e){}
 })();
 </script>

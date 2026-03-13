@@ -44,13 +44,25 @@ def _memlog(msg, log_fn=None):
     if log_fn:
         log_fn("memory", line)
 
-# Known model pairs: (base, instruct, display_name)
-KNOWN_PAIRS = {
-    "qwen2.5-0.5b": ("Qwen/Qwen2.5-0.5B", "Qwen/Qwen2.5-0.5B-Instruct", "Qwen 2.5 0.5B"),
-    "qwen2.5-1.5b": ("Qwen/Qwen2.5-1.5B", "Qwen/Qwen2.5-1.5B-Instruct", "Qwen 2.5 1.5B"),
-    "qwen2.5-3b": ("Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-3B-Instruct", "Qwen 2.5 3B"),
-    "qwen2.5-7b": ("Qwen/Qwen2.5-7B", "Qwen/Qwen2.5-7B-Instruct", "Qwen 2.5 7B"),
-}
+# ─── Model registry (loaded from models.json) ────────────────────
+MODELS_FILE = Path(__file__).parent.parent / "models.json"
+
+def _load_model_registry() -> dict:
+    """Load model pairs from models.json. Returns {id: (base, instruct, name)}."""
+    if not MODELS_FILE.exists():
+        return {}
+    with open(MODELS_FILE) as f:
+        entries = json.load(f)
+    return {e["id"]: (e["base"], e["instruct"], e["name"]) for e in entries}
+
+def _save_model_registry(pairs: dict):
+    """Save model pairs back to models.json."""
+    entries = [{"id": k, "base": v[0], "instruct": v[1], "name": v[2]}
+               for k, v in pairs.items()]
+    with open(MODELS_FILE, "w") as f:
+        json.dump(entries, f, indent=2)
+
+KNOWN_PAIRS = _load_model_registry()
 
 PROJ_KEYS = ["q_proj.weight", "k_proj.weight", "v_proj.weight",
              "gate_proj.weight", "up_proj.weight"]

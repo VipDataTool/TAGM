@@ -1,9 +1,8 @@
 """
 PDF Report Generator for TASM analysis results.
-Generates a self-contained report with metrics and embedded plots.
+Professional template with user info, descriptions, and proper layout.
 """
 
-import os
 import io
 import base64
 import time
@@ -15,290 +14,320 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    Image, PageBreak, HRFlowable,
+    Image, PageBreak, HRFlowable, KeepTogether,
 )
 from reportlab.lib import colors
+from functools import partial
 
 # ─── Colors ──────────────────────────────────────────────────────
-C_BG = HexColor("#0d1117")
-C_DARK = HexColor("#161b22")
-C_BORDER = HexColor("#30363d")
-C_TEXT = HexColor("#c9d1d9")
-C_HEAD = HexColor("#f0f6fc")
-C_DIM = HexColor("#8b949e")
-C_GREEN = HexColor("#2d936c")
-C_RED = HexColor("#c44536")
-C_BLUE = HexColor("#4a6fa5")
-C_PURPLE = HexColor("#7b2d8b")
-C_ORANGE = HexColor("#e0a458")
-C_WHITE = HexColor("#ffffff")
-C_BLACK = HexColor("#000000")
-
-# ─── Styles ──────────────────────────────────────────────────────
-STYLES = {
-    "title": ParagraphStyle(
-        "title", fontName="Helvetica-Bold", fontSize=18,
-        textColor=C_BLACK, spaceAfter=4, alignment=TA_LEFT,
-    ),
-    "subtitle": ParagraphStyle(
-        "subtitle", fontName="Helvetica", fontSize=9,
-        textColor=C_DIM, spaceAfter=16, alignment=TA_LEFT,
-    ),
-    "heading": ParagraphStyle(
-        "heading", fontName="Helvetica-Bold", fontSize=12,
-        textColor=C_BLACK, spaceBefore=14, spaceAfter=6,
-    ),
-    "body": ParagraphStyle(
-        "body", fontName="Helvetica", fontSize=9,
-        textColor=C_BLACK, spaceAfter=6, leading=13,
-    ),
-    "mono": ParagraphStyle(
-        "mono", fontName="Courier", fontSize=8,
-        textColor=C_BLACK, spaceAfter=4, leading=11,
-    ),
-    "label": ParagraphStyle(
-        "label", fontName="Helvetica", fontSize=7,
-        textColor=C_DIM, spaceAfter=1,
-    ),
-    "value": ParagraphStyle(
-        "value", fontName="Helvetica-Bold", fontSize=14,
-        textColor=C_BLACK, spaceAfter=2,
-    ),
-}
+C_BORDER = HexColor("#cccccc")
+C_HEADER_BG = HexColor("#1a365d")
+C_HEADER_TEXT = HexColor("#ffffff")
+C_ACCENT = HexColor("#2b6cb0")
+C_LIGHT_BG = HexColor("#f7fafc")
+C_DIM = HexColor("#718096")
+C_BLACK = HexColor("#1a202c")
 
 REPORTS_DIR = Path("reports")
+
+# ─── Styles ──────────────────────────────────────────────────────
+S_TITLE = ParagraphStyle("s_title", fontName="Helvetica-Bold", fontSize=22,
+                          textColor=C_HEADER_BG, spaceAfter=4)
+S_SUBTITLE = ParagraphStyle("s_subtitle", fontName="Helvetica", fontSize=11,
+                             textColor=C_DIM, spaceAfter=2)
+S_H1 = ParagraphStyle("s_h1", fontName="Helvetica-Bold", fontSize=14,
+                        textColor=C_HEADER_BG, spaceBefore=16, spaceAfter=8)
+S_H2 = ParagraphStyle("s_h2", fontName="Helvetica-Bold", fontSize=11,
+                        textColor=C_ACCENT, spaceBefore=10, spaceAfter=4)
+S_BODY = ParagraphStyle("s_body", fontName="Helvetica", fontSize=9,
+                          textColor=C_BLACK, spaceAfter=6, leading=13)
+S_SMALL = ParagraphStyle("s_small", fontName="Helvetica", fontSize=8,
+                           textColor=C_DIM, spaceAfter=4, leading=10)
+S_MONO = ParagraphStyle("s_mono", fontName="Courier", fontSize=8,
+                          textColor=C_BLACK, spaceAfter=4, leading=10)
+S_FOOTER = ParagraphStyle("s_footer", fontName="Helvetica", fontSize=7,
+                            textColor=C_DIM)
+
+
+def _fmt(v, fmt=".4f"):
+    if v is None: return "--"
+    try: return format(v, fmt)
+    except: return str(v)
+
+def _pct(v):
+    if v is None: return "--"
+    return f"{v*100:.1f}%"
+
+def _b64_to_image(b64_str, width=None):
+    if not b64_str: return None
+    buf = io.BytesIO(base64.b64decode(b64_str))
+    img = Image(buf)
+    if width:
+        ratio = img.imageHeight / img.imageWidth
+        img.drawWidth = width
+        img.drawHeight = width * ratio
+    return img
+
+def _table_style():
+    return TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
+        ("BACKGROUND", (0, 0), (-1, 0), C_LIGHT_BG),
+        ("GRID", (0, 0), (-1, -1), 0.4, C_BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ])
+
+
+class _HeaderFooter:
+    """Draws header and footer on every page."""
+    def __init__(self, title, user_name="", org="", timestamp=""):
+        self.title = title
+        self.user = user_name
+        self.org = org
+        self.ts = timestamp
+
+    def __call__(self, canvas, doc):
+        canvas.saveState()
+        w, h = letter
+        # Header line
+        canvas.setStrokeColor(C_ACCENT)
+        canvas.setLineWidth(0.5)
+        canvas.line(0.6*inch, h - 0.45*inch, w - 0.6*inch, h - 0.45*inch)
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(C_DIM)
+        canvas.drawString(0.6*inch, h - 0.4*inch, f"TASM Report: {self.title}")
+        canvas.drawRightString(w - 0.6*inch, h - 0.4*inch, self.ts)
+
+        # Footer
+        canvas.line(0.6*inch, 0.5*inch, w - 0.6*inch, 0.5*inch)
+        canvas.drawString(0.6*inch, 0.35*inch,
+                         f"{self.org} | {self.user}" if self.org else self.user or "TASM Analyzer")
+        canvas.drawRightString(w - 0.6*inch, 0.35*inch, f"Page {doc.page}")
+        canvas.restoreState()
+
+
+def _cover_page(story, title, user_info, model_name, timestamp, usable_width):
+    """Generate a cover page."""
+    story.append(Spacer(1, 2*inch))
+    story.append(Paragraph("TASM", ParagraphStyle("cover_tasm",
+        fontName="Helvetica-Bold", fontSize=36, textColor=C_ACCENT, alignment=TA_CENTER)))
+    story.append(Paragraph("The Alignment Stress Map", ParagraphStyle("cover_sub",
+        fontName="Helvetica", fontSize=14, textColor=C_DIM, alignment=TA_CENTER, spaceAfter=8)))
+    story.append(Spacer(1, 0.3*inch))
+    story.append(HRFlowable(width="60%", thickness=1, color=C_ACCENT,
+                              spaceAfter=12, hAlign="CENTER"))
+    story.append(Paragraph(title, ParagraphStyle("cover_title",
+        fontName="Helvetica-Bold", fontSize=18, textColor=C_BLACK, alignment=TA_CENTER, spaceAfter=24)))
+
+    # User info table
+    info_data = []
+    if user_info.get("name"):
+        info_data.append(["Analyst", user_info["name"]])
+    if user_info.get("organization"):
+        info_data.append(["Organization", user_info["organization"]])
+    info_data.append(["Model", model_name or "--"])
+    info_data.append(["Generated", timestamp])
+
+    if info_data:
+        t = Table(info_data, colWidths=[1.5*inch, 3.5*inch], hAlign="CENTER")
+        t.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("ALIGN", (0, 0), (0, -1), "RIGHT"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(t)
+
+    story.append(Spacer(1, 1*inch))
+    story.append(Paragraph(
+        "Runtime Per-Token Sensitivity Attribution via Weight Delta Projection "
+        "in Transformer Language Models",
+        ParagraphStyle("cover_desc", fontName="Helvetica", fontSize=9,
+                        textColor=C_DIM, alignment=TA_CENTER, leading=12)))
+    story.append(PageBreak())
+
+
+def _apparatus_section(story):
+    """Describe the TASM apparatus for context."""
+    story.append(Paragraph("About This Analysis", S_H1))
+    story.append(Paragraph(
+        "This report was generated by TASM (The Alignment Stress Map), a runtime monitoring "
+        "tool that measures alignment tension in transformer language models. TASM computes "
+        "the weight delta between a base model and its alignment-tuned counterpart, then "
+        "projects inference-time activations through this delta to quantify where and how "
+        "strongly alignment training corrects the base model's behavior.",
+        S_BODY))
+    story.append(Paragraph(
+        "Key metrics include the stress score (how hard alignment correction pushes at "
+        "signal layers), signed attribution (per-token decomposition of correction direction), "
+        "and distribution metrics (entropy, boundary/interior concentration) that characterize "
+        "the shape of the correction signal across token positions. Length-normalized metrics "
+        "report deviation from benign baselines at matched token lengths, addressing the "
+        "token-length confound.",
+        S_BODY))
+    story.append(Spacer(1, 6))
 
 
 def ensure_reports_dir():
     REPORTS_DIR.mkdir(exist_ok=True)
 
 
-def _b64_to_image(b64_str: str, width=None, height=None):
-    """Convert a base64-encoded PNG to a reportlab Image."""
-    if not b64_str:
-        return None
-    img_data = base64.b64decode(b64_str)
-    buf = io.BytesIO(img_data)
-    img = Image(buf)
-    if width:
-        ratio = img.imageHeight / img.imageWidth
-        img.drawWidth = width
-        img.drawHeight = width * ratio
-    elif height:
-        ratio = img.imageWidth / img.imageHeight
-        img.drawHeight = height
-        img.drawWidth = height * ratio
-    return img
-
-
-def _fmt(v, fmt=".4f"):
-    if v is None:
-        return "--"
-    if isinstance(v, str):
-        return v
-    try:
-        return format(v, fmt)
-    except (TypeError, ValueError):
-        return str(v)
-
-
-def _pct(v):
-    if v is None:
-        return "--"
-    return f"{v*100:.1f}%"
-
-
-def _ln_label(v):
-    if v is None:
-        return ""
-    sign = "+" if v > 0 else ""
-    return f"  ({sign}{v:.2f} sd)"
-
-
-def generate_single_report(result_dict: dict, plots: dict,
-                           model_name: str = "") -> str:
-    """
-    Generate a PDF report for a single prompt analysis.
-    Returns the file path.
-    """
+def generate_single_report(result_dict, plots, model_name="",
+                            user_info=None) -> str:
     ensure_reports_dir()
+    user_info = user_info or {}
     r = result_dict
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Filename: sanitized prompt + timestamp
     safe_prompt = "".join(c if c.isalnum() or c in " -_" else "" for c in r["prompt"][:40]).strip()
     safe_prompt = safe_prompt.replace(" ", "_") or "analysis"
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"{safe_prompt}_{timestamp}.pdf"
+    filename = f"{safe_prompt}_{time.strftime('%Y%m%d_%H%M%S')}.pdf"
     filepath = REPORTS_DIR / filename
 
-    doc = SimpleDocTemplate(
-        str(filepath), pagesize=letter,
-        leftMargin=0.6*inch, rightMargin=0.6*inch,
-        topMargin=0.6*inch, bottomMargin=0.6*inch,
-    )
-    story = []
     usable_width = letter[0] - 1.2*inch
+    hf = _HeaderFooter("Single Prompt Analysis",
+                         user_info.get("name", ""), user_info.get("organization", ""),
+                         timestamp)
 
-    # ─── Header ──────────────────────────────────────────────
-    story.append(Paragraph("TASM Analysis Report", STYLES["title"]))
-    meta = f"Model: {model_name}" if model_name else ""
-    meta += f"  |  Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-    story.append(Paragraph(meta, STYLES["subtitle"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=C_BORDER))
+    doc = SimpleDocTemplate(str(filepath), pagesize=letter,
+        leftMargin=0.6*inch, rightMargin=0.6*inch,
+        topMargin=0.6*inch, bottomMargin=0.6*inch)
+    story = []
+
+    _cover_page(story, "Single Prompt Analysis", user_info, model_name, timestamp, usable_width)
+    _apparatus_section(story)
+
+    # Prompt section
+    story.append(Paragraph("Prompt Under Analysis", S_H1))
+    story.append(Paragraph(r["prompt"], S_MONO))
+    parts = [f"Tokens: {r['seq_len']}"]
+    if r.get("category"): parts.append(f"Category: {r['category']}")
+    story.append(Paragraph(" | ".join(parts), S_SMALL))
     story.append(Spacer(1, 8))
 
-    # ─── Prompt ──────────────────────────────────────────────
-    story.append(Paragraph("Prompt", STYLES["heading"]))
-    story.append(Paragraph(r["prompt"], STYLES["mono"]))
-    info_parts = [f"Tokens: {r['seq_len']}"]
-    if r.get("category"):
-        info_parts.append(f"Category: {r['category']}")
-    story.append(Paragraph(" | ".join(info_parts), STYLES["label"]))
-    story.append(Spacer(1, 8))
+    # Metrics
+    story.append(Paragraph("Distribution Metrics", S_H1))
+    story.append(Paragraph(
+        "These metrics quantify the shape and strength of the alignment correction signal. "
+        "The stress score measures overall correction pressure at discriminative layers. "
+        "Entropy and boundary/interior share characterize how the correction distributes "
+        "across token positions -- benign prompts typically show boundary-concentrated "
+        "attribution while adversarial prompts show interior-distributed patterns.",
+        S_BODY))
 
-    # ─── Metrics Table ───────────────────────────────────────
-    story.append(Paragraph("Distribution Metrics", STYLES["heading"]))
-
-    metrics_data = [
-        ["Metric", "Value", "Length-Normalized"],
-        ["Stress Score", _fmt(r["stress_score"]),
-         _ln_label(r.get("stress_score_ln"))],
-        ["Net Correction", _fmt(r["net_correction"]), ""],
-        ["Entropy", _fmt(r["entropy"]),
-         _ln_label(r.get("entropy_ln"))],
-        ["Gini", _fmt(r["gini"]), ""],
-        ["Boundary Share", _pct(r["top2_share"]),
-         _ln_label(r.get("top2_share_ln"))],
-        ["Interior Share", _pct(r["middle_share"]),
-         _ln_label(r.get("middle_share_ln"))],
-        ["Interior CV", _fmt(r["interior_cv"]), ""],
-    ]
+    data = [["Metric", "Value", "Length-Norm"],
+            ["Stress Score", _fmt(r["stress_score"]), ""],
+            ["Net Correction", _fmt(r["net_correction"]), ""],
+            ["Entropy", _fmt(r["entropy"]), ""],
+            ["Gini", _fmt(r["gini"]), ""],
+            ["Boundary Share", _pct(r["top2_share"]), ""],
+            ["Interior Share", _pct(r["middle_share"]), ""],
+            ["Interior CV", _fmt(r["interior_cv"]), ""]]
     if r.get("kl_divergence") is not None:
-        metrics_data.append(
-            ["KL Divergence", _fmt(r["kl_divergence"]), ""])
+        data.append(["KL Divergence", _fmt(r["kl_divergence"]), ""])
+    data.append(["Negative Tokens", f"{r['n_negative_tokens']}/{r['seq_len']}",
+                  "detected" if r["has_negative_tokens"] else "none"])
 
-    neg_row = [
-        "Negative Tokens",
-        f"{r['n_negative_tokens']}/{r['seq_len']}",
-        "detected" if r["has_negative_tokens"] else "none",
-    ]
-    metrics_data.append(neg_row)
-
-    t = Table(metrics_data, colWidths=[1.8*inch, 1.4*inch, 1.6*inch])
-    t.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
-        ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8ecf0")),
-        ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    t = Table(data, colWidths=[1.8*inch, 1.4*inch, 1.4*inch])
+    t.setStyle(_table_style())
     story.append(t)
     story.append(Spacer(1, 10))
 
-    # ─── Per-Token Table ─────────────────────────────────────
+    # Token table
     if r.get("tokens") and r.get("signed_attr"):
-        story.append(Paragraph("Per-Token Attribution", STYLES["heading"]))
-
+        story.append(Paragraph("Per-Token Attribution", S_H1))
+        story.append(Paragraph(
+            "Each token's signed attribution indicates whether it pushes with (+) or against (-) "
+            "the alignment correction at the last position. The stress column shows the total "
+            "correction pressure through that token's representation at signal layers.",
+            S_BODY))
         tok_data = [["Token", "Signed Attr", "Stress"]]
-        attrs = r["signed_attr"]
-        stresses = r.get("per_token_stress", [])
         for i, tok in enumerate(r["tokens"]):
-            attr_val = attrs[i] if i < len(attrs) else 0
-            stress_val = stresses[i] if i < len(stresses) else 0
-            tok_data.append([
-                tok.strip(),
-                f"{attr_val:+.4f}",
-                _fmt(stress_val),
-            ])
-
-        col_w = [2.0*inch, 1.2*inch, 1.2*inch]
-        tt = Table(tok_data, colWidths=col_w, repeatRows=1)
-        tt.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Courier"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
-            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8ecf0")),
-            ("GRID", (0, 0), (-1, -1), 0.4, C_BORDER),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ]))
+            a = r["signed_attr"][i] if i < len(r["signed_attr"]) else 0
+            s = r["per_token_stress"][i] if i < len(r.get("per_token_stress", [])) else 0
+            tok_data.append([tok.strip(), f"{a:+.4f}", _fmt(s)])
+        tt = Table(tok_data, colWidths=[2.0*inch, 1.2*inch, 1.2*inch], repeatRows=1)
+        tt.setStyle(_table_style())
         story.append(tt)
         story.append(Spacer(1, 8))
 
-    # ─── Plots ───────────────────────────────────────────────
-    plot_order = [
-        ("signed_attribution", "Signed Attribution"),
-        ("stress_per_token", "Focused Stress Score"),
-        ("distribution_metrics", "Distribution Metrics"),
-        ("amplitude_trajectory", "Amplitude Trajectory"),
-        ("heatmap", "Sensitivity Heatmap"),
-    ]
-
-    for key, label in plot_order:
+    # Plots
+    plot_descs = {
+        "signed_attribution": ("Signed Attribution Chart",
+            "Per-token signed attribution to the last position, averaged across signal layers and heads. "
+            "Green bars push with the alignment correction; red bars push against it."),
+        "stress_per_token": ("Focused Stress Score",
+            "Per-token stress at discriminative middle layers (normalized by delta Frobenius norm). "
+            "Higher values indicate stronger correction pressure through that token's representation."),
+        "distribution_metrics": ("Distribution Metrics Summary",
+            "Overview of the four key distribution metrics for this prompt."),
+        "amplitude_trajectory": ("Full Amplitude Trajectory",
+            "Normalized sensitivity across all sublayers (alternating attention/MLP). "
+            "The shape reveals where in the model's depth the alignment correction is most active."),
+        "heatmap": ("Sensitivity Heatmap",
+            "Per-token, per-layer normalized sensitivity. Bright regions indicate where specific "
+            "tokens drive strong correction at specific depths."),
+    }
+    for key, (title, desc) in plot_descs.items():
         b64 = plots.get(key)
         if b64:
-            story.append(Paragraph(label, STYLES["heading"]))
+            story.append(Paragraph(title, S_H2))
+            story.append(Paragraph(desc, S_SMALL))
             img = _b64_to_image(b64, width=usable_width)
-            if img:
-                story.append(img)
+            if img: story.append(img)
             story.append(Spacer(1, 6))
 
-    # Build
-    doc.build(story)
+    doc.build(story, onFirstPage=hf, onLaterPages=hf)
     return str(filepath)
 
 
-def generate_batch_report(aggregate: dict, per_prompt: list,
-                          plots: dict, model_name: str = "",
-                          n_prompts: int = 0) -> str:
-    """
-    Generate a PDF report for batch analysis.
-    Returns the file path.
-    """
+def generate_batch_report(aggregate, per_prompt, plots,
+                           model_name="", n_prompts=0,
+                           user_info=None) -> str:
     ensure_reports_dir()
+    user_info = user_info or {}
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"batch_{n_prompts}prompts_{timestamp}.pdf"
+    filename = f"batch_{n_prompts}prompts_{time.strftime('%Y%m%d_%H%M%S')}.pdf"
     filepath = REPORTS_DIR / filename
 
-    doc = SimpleDocTemplate(
-        str(filepath), pagesize=letter,
-        leftMargin=0.6*inch, rightMargin=0.6*inch,
-        topMargin=0.6*inch, bottomMargin=0.6*inch,
-    )
-    story = []
     usable_width = letter[0] - 1.2*inch
+    hf = _HeaderFooter(f"Batch Analysis ({n_prompts} prompts)",
+                         user_info.get("name", ""), user_info.get("organization", ""),
+                         timestamp)
 
-    # ─── Header ──────────────────────────────────────────────
-    story.append(Paragraph("TASM Batch Analysis Report", STYLES["title"]))
-    meta = f"{n_prompts} prompts"
-    if model_name:
-        meta += f"  |  Model: {model_name}"
-    meta += f"  |  {time.strftime('%Y-%m-%d %H:%M:%S')}"
-    story.append(Paragraph(meta, STYLES["subtitle"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=C_BORDER))
-    story.append(Spacer(1, 8))
+    doc = SimpleDocTemplate(str(filepath), pagesize=letter,
+        leftMargin=0.6*inch, rightMargin=0.6*inch,
+        topMargin=0.6*inch, bottomMargin=0.6*inch)
+    story = []
 
-    # ─── Category Summary Table ──────────────────────────────
+    _cover_page(story, f"Batch Analysis: {n_prompts} Prompts", user_info,
+                model_name, timestamp, usable_width)
+    _apparatus_section(story)
+
+    # Category summary
     cats = aggregate.get("categories", {})
     if cats:
-        story.append(Paragraph("Category Summary", STYLES["heading"]))
+        story.append(Paragraph("Category Summary", S_H1))
+        story.append(Paragraph(
+            "Prompts grouped by category with bootstrapped mean estimates (5000 resamples, 95% CI). "
+            "The negative token rate indicates how often correction-suppressing tokens are observed.",
+            S_BODY))
 
-        cat_data = [["Category", "N", "Avg Length", "Stress", "Entropy",
-                      "Boundary%", "Interior%", "Net", "Neg Rate"]]
+        cat_data = [["Category", "N", "Avg Len", "Stress", "Entropy",
+                      "Bnd%", "Int%", "Net", "Neg Rate"]]
         for cat_name in ["benign", "mild", "harmful", "jailbreak"]:
-            if cat_name not in cats:
-                continue
-            s = cats[cat_name]
-            m = s.get("metrics", {})
+            if cat_name not in cats: continue
+            s = cats[cat_name]; m = s.get("metrics", {})
             cat_data.append([
-                cat_name.title(),
-                str(s["n"]),
+                cat_name.title(), str(s["n"]),
                 _fmt(s.get("mean_seq_len"), ".1f"),
                 _fmt(m.get("stress_score", {}).get("estimate")),
                 _fmt(m.get("entropy", {}).get("estimate")),
@@ -307,107 +336,94 @@ def generate_batch_report(aggregate: dict, per_prompt: list,
                 _fmt(m.get("net_correction", {}).get("estimate")),
                 _pct(s.get("negative_token_rate")),
             ])
-
         t = Table(cat_data, repeatRows=1)
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
-            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8ecf0")),
-            ("GRID", (0, 0), (-1, -1), 0.4, C_BORDER),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ]))
+        t.setStyle(_table_style())
         story.append(t)
         story.append(Spacer(1, 10))
 
-    # ─── Separability Table ──────────────────────────────────
+    # Separability
     sep = aggregate.get("separability", {})
     if sep:
-        story.append(Paragraph("Separability: Benign vs Harmful", STYLES["heading"]))
+        story.append(Paragraph("Separability Analysis", S_H1))
+        story.append(Paragraph(
+            "Effect sizes (Cohen's d) with bootstrap 95% confidence intervals comparing benign "
+            "prompts against harmful/jailbreak prompts. Values above 0.8 indicate large effects. "
+            "Best threshold accuracy shows the optimal single-threshold classification performance.",
+            S_BODY))
 
         sep_data = [["Metric", "Cohen's d", "95% CI", "Best Acc"]]
         for metric, s in sep.items():
             es = s.get("effect_size", {})
-            thr = s.get("threshold", {})
             sep_data.append([
                 metric.replace("_", " ").title(),
                 _fmt(es.get("estimate"), ".2f"),
                 f"[{_fmt(es.get('ci_low'), '.2f')}, {_fmt(es.get('ci_high'), '.2f')}]",
-                _pct(thr.get("accuracy")),
+                _pct(s.get("threshold", {}).get("accuracy")),
             ])
-
         t = Table(sep_data, repeatRows=1)
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
-            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8ecf0")),
-            ("GRID", (0, 0), (-1, -1), 0.4, C_BORDER),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ]))
+        t.setStyle(_table_style())
         story.append(t)
         story.append(Spacer(1, 10))
 
-    # ─── Correlations ────────────────────────────────────────
-    corr = aggregate.get("correlations", {})
-    if corr.get("stress_vs_kl"):
-        c = corr["stress_vs_kl"]
-        story.append(Paragraph(
-            f"Stress vs KL correlation: r = {c['r']:.3f}, "
-            f"p = {c['p']:.4f}, n = {c['n']}",
-            STYLES["body"]))
-        story.append(Spacer(1, 6))
-
-    # ─── Batch Plots ─────────────────────────────────────────
-    for key, label in [("batch_summary", "Category Distributions"),
-                        ("separability", "Effect Sizes")]:
+    # Comparative plots
+    comp_descs = {
+        "trajectory_overlay": ("Amplitude Trajectories (Overlay)",
+            "All prompts' normalized amplitude trajectories overlaid, colored by category. "
+            "Divergence between categories indicates where alignment correction differentiates."),
+        "difference_from_benign": ("Difference from Benign Baseline",
+            "Per-category mean trajectory minus the benign mean. Positive regions show where "
+            "adversarial prompts trigger stronger correction than benign inputs."),
+        "discriminative_sublayers": ("Discriminative Sublayers",
+            "Sublayers ranked by their ability to distinguish adversarial from benign prompts. "
+            "Middle-layer attention sublayers are predicted to dominate."),
+        "metric_scatters": ("Metric Scatter Plots",
+            "Pairwise scatter plots of key metrics, colored by category. Clustering indicates "
+            "separability; overlap indicates confounded metrics."),
+        "behavioral_comparison": ("Behavioral Comparison",
+            "Instruct vs base model top-1 next-token probabilities per prompt. Larger gaps "
+            "indicate stronger behavioral divergence from alignment training."),
+        "proof1_summary": ("Proof 1 Exactness Verification",
+            "Verification that the sum of signed attributions equals the correction norm, "
+            "confirming mathematical correctness of the decomposition."),
+        "batch_summary": ("Category Distributions",
+            "Box plots of key metrics across categories."),
+        "separability": ("Effect Size Visualization",
+            "Cohen's d with 95% bootstrap confidence intervals for each metric."),
+    }
+    for key, (title, desc) in comp_descs.items():
         b64 = plots.get(key)
         if b64:
-            story.append(Paragraph(label, STYLES["heading"]))
+            story.append(Paragraph(title, S_H2))
+            story.append(Paragraph(desc, S_SMALL))
             img = _b64_to_image(b64, width=usable_width)
-            if img:
-                story.append(img)
+            if img: story.append(img)
             story.append(Spacer(1, 6))
 
-    # ─── Per-Prompt Summary Table ────────────────────────────
+    # Per-prompt table
     if per_prompt:
         story.append(PageBreak())
-        story.append(Paragraph("Per-Prompt Results", STYLES["heading"]))
+        story.append(Paragraph("Per-Prompt Results", S_H1))
+        story.append(Paragraph(
+            "Individual metrics for each prompt in the dataset. Prompts are listed in analysis order.",
+            S_BODY))
 
-        pp_data = [["Prompt", "Cat", "Tok", "Stress", "Entropy",
-                     "Bnd%", "Int%", "Net"]]
+        pp_data = [["Prompt", "Cat", "Tok", "Stress", "Ent", "Bnd%", "Int%", "Net"]]
         for p in per_prompt:
             pp_data.append([
-                p["prompt"][:45] + ("..." if len(p["prompt"]) > 45 else ""),
-                p.get("category", "")[:4],
-                str(p["seq_len"]),
-                _fmt(p["stress_score"]),
-                _fmt(p["entropy"]),
-                _pct(p["top2_share"]),
-                _pct(p["middle_share"]),
-                _fmt(p["net_correction"]),
+                p.get("prompt", "")[:42] + ("..." if len(p.get("prompt", "")) > 42 else ""),
+                (p.get("category", "") or "?")[:5],
+                str(p.get("seq_len", "")),
+                _fmt(p.get("stress_score")),
+                _fmt(p.get("entropy")),
+                _pct(p.get("top2_share")),
+                _pct(p.get("middle_share")),
+                _fmt(p.get("net_correction")),
             ])
-
         t = Table(pp_data, repeatRows=1,
-                  colWidths=[2.5*inch, 0.4*inch, 0.35*inch,
-                             0.65*inch, 0.65*inch, 0.55*inch, 0.55*inch, 0.65*inch])
-        t.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Courier"),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-            ("TEXTCOLOR", (0, 0), (-1, -1), C_BLACK),
-            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8ecf0")),
-            ("GRID", (0, 0), (-1, -1), 0.3, C_BORDER),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("LEFTPADDING", (0, 0), (-1, -1), 3),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ]))
+                  colWidths=[2.3*inch, 0.4*inch, 0.35*inch,
+                             0.6*inch, 0.6*inch, 0.5*inch, 0.5*inch, 0.6*inch])
+        t.setStyle(_table_style())
         story.append(t)
 
-    doc.build(story)
+    doc.build(story, onFirstPage=hf, onLaterPages=hf)
     return str(filepath)

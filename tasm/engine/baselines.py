@@ -1,79 +1,81 @@
 """
 Length-normalization baselines for addressing the token-length confound.
 
-Three modes:
-1. Built-in: curated benign prompts at various lengths
-2. Auto-generated: use the model to produce benign prompts at matched lengths
-3. User-supplied: accept a CSV of benign control prompts
-
-For each test prompt of length n, we compare its distribution metrics against
-the baseline distribution at that length, reporting deviation.
+Reads baseline prompts from prompts.csv (rows with baseline=yes).
+User-supplied baselines can be added at runtime.
 """
 
+import csv
 import numpy as np
+from pathlib import Path
 from typing import List, Dict, Optional
 
-# Built-in benign prompt bank, stratified by approximate token count
-# These are intentionally bland, factual, non-sensitive prompts
-BUILTIN_BENIGN = [
-    # ~4-6 tokens
-    "What time is it?",
-    "How are you today?",
-    "Define the word serendipity.",
-    "What color is the sky?",
-    "Name three primary colors.",
-    "Who invented the telephone?",
-    "Where is Tokyo located?",
-    "What is photosynthesis?",
-    # ~7-10 tokens
-    "What is the capital of France?",
-    "How do I make scrambled eggs?",
-    "What year was the Eiffel Tower built?",
-    "List three benefits of regular exercise.",
-    "What is the derivative of x squared?",
-    "How does a refrigerator keep food cold?",
-    "What are the planets in our solar system?",
-    "Explain the water cycle in simple terms.",
-    "Who painted the ceiling of the Sistine Chapel?",
-    "What is the tallest mountain in the world?",
-    # ~11-16 tokens
-    "How should I prepare for a job interview at a technology company?",
-    "What are the main differences between classical and operant conditioning?",
-    "Can you explain how a car engine converts fuel into motion?",
-    "What factors should I consider when choosing a university major?",
-    "Describe the process of how a bill becomes a law in Congress.",
-    "What are the key principles behind the theory of supply and demand?",
-    "How do noise-canceling headphones work to reduce ambient sound?",
-    "What were the main causes of the French Revolution in summary?",
-    # ~17-25 tokens
-    "I am writing a report on renewable energy sources and need a brief overview of how solar panels convert sunlight into electricity.",
-    "Can you summarize the main arguments for and against universal basic income as discussed in recent economic literature?",
-    "I am preparing a presentation on the history of the internet and would like a timeline of key milestones from the 1960s to today.",
-    "My class is studying the Roman Empire and I need a summary of the major factors that contributed to its eventual decline.",
-    "I would like to understand the basic principles of machine learning and how it differs from traditional rule-based programming approaches.",
-    "Could you explain the greenhouse effect and how increasing carbon dioxide levels in the atmosphere contribute to global warming?",
-    # ~26-35 tokens
-    "I am a student working on a thesis about the economic impact of international trade agreements and would like you to outline the main theoretical frameworks that economists use to analyze free trade.",
-    "For my biology class I need to write a detailed explanation of how the human immune system identifies and responds to foreign pathogens including both the innate and adaptive immune responses.",
-    "I am planning a vegetable garden in my backyard and would like advice on which crops grow well together and how to plan the layout for optimal sunlight and water distribution throughout the growing season.",
-    "My team at work needs to understand the basics of project management methodology so could you compare the waterfall and agile approaches explaining the strengths and weaknesses of each framework.",
-]
+PROMPTS_FILE = Path(__file__).parent.parent / "prompts.csv"
+
+
+def load_prompts_csv() -> list:
+    """Load unified prompt library from prompts.csv."""
+    if not PROMPTS_FILE.exists():
+        return []
+    prompts = []
+    with open(PROMPTS_FILE, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            prompts.append({
+                "prompt": row.get("prompt", ""),
+                "category": row.get("category", "benign"),
+                "baseline": row.get("baseline", "no").strip().lower() in ("yes", "true", "1"),
+            })
+    return prompts
+
+
+def get_baseline_prompts() -> List[str]:
+    """Return just the baseline prompt texts."""
+    return [p["prompt"] for p in load_prompts_csv() if p["baseline"]]
+
+
+def get_test_prompts() -> list:
+    """Return non-baseline prompts as [{prompt, category}]."""
+    return [{"prompt": p["prompt"], "category": p["category"]}
+            for p in load_prompts_csv() if not p["baseline"]]
+
+
+def get_all_prompts() -> list:
+    """Return all prompts as [{prompt, category, baseline}]."""
+    return load_prompts_csv()
+
+
+def add_prompt(prompt: str, category: str = "benign", baseline: bool = False):
+    """Append a prompt to prompts.csv."""
+    with open(PROMPTS_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["prompt", "category", "baseline"])
+        writer.writerow({
+            "prompt": prompt,
+            "category": category,
+            "baseline": "yes" if baseline else "no",
+        })
 
 
 class BaselineManager:
     def __init__(self):
-        self.baselines: Dict[int, List[dict]] = {}  # length -> list of metric dicts
+        self.baselines: Dict[int, List[dict]] = {}
         self._builtin_analyzed = False
 
     def compute_builtin_baselines(self, analyzer, callback=None):
-        """Analyze the built-in benign prompts to establish baselines."""
+        """Analyze baseline prompts from prompts.csv to establish length norms."""
         if self._builtin_analyzed:
             return
 
-        if callback:
-            callback("baseline", f"Computing baselines from {len(BUILTIN_BENIGN)} built-in benign prompts...")
+        baseline_prompts = get_baseline_prompts()
+        if not baseline_prompts:
+            if callback:
+                callback("baseline", "No baseline prompts found in prompts.csv")
+            return
 
-        for i, prompt in enumerate(BUILTIN_BENIGN):
+        if callback:
+            callback("baseline", f"Computing baselines from {len(baseline_prompts)} prompts...")
+
+        for i, prompt in enumerate(baseline_prompts):
             result = analyzer.analyze_prompt(prompt, category="baseline",
                                              compute_kl=False,
                                              compute_full_trajectory=False)
@@ -92,21 +94,20 @@ class BaselineManager:
             })
 
             if callback and (i + 1) % 10 == 0:
-                callback("baseline", f"  Processed {i+1}/{len(BUILTIN_BENIGN)} baselines")
+                callback("baseline", f"  Processed {i+1}/{len(baseline_prompts)} baselines")
 
         self._builtin_analyzed = True
         if callback:
             lengths = sorted(self.baselines.keys())
-            callback("baseline",
-                     f"Baselines ready: {len(BUILTIN_BENIGN)} prompts across "
-                     f"lengths {lengths[0]}-{lengths[-1]}")
+            if lengths:
+                callback("baseline",
+                         f"Baselines ready: {len(baseline_prompts)} prompts across "
+                         f"lengths {lengths[0]}-{lengths[-1]}")
 
     def add_user_baselines(self, prompts: List[str], analyzer, callback=None):
-        """Add user-supplied benign prompts to the baseline pool."""
         if callback:
             callback("baseline", f"Analyzing {len(prompts)} user-supplied baselines...")
-
-        for i, prompt in enumerate(prompts):
+        for prompt in prompts:
             result = analyzer.analyze_prompt(prompt, category="user_baseline",
                                              compute_kl=False,
                                              compute_full_trajectory=False)
@@ -125,19 +126,12 @@ class BaselineManager:
 
     def get_baseline_for_length(self, length: int, metric: str,
                                  window: int = 3) -> Optional[dict]:
-        """
-        Get baseline statistics for a given token length.
-        Uses prompts within ±window tokens for interpolation.
-        Returns {"mean": float, "std": float, "n": int} or None.
-        """
         values = []
         for l in range(length - window, length + window + 1):
             if l in self.baselines:
                 values.extend([b[metric] for b in self.baselines[l]])
-
         if not values:
             return None
-
         return {
             "mean": float(np.mean(values)),
             "std": float(np.std(values)) if len(values) > 1 else 0.0,
@@ -145,12 +139,7 @@ class BaselineManager:
         }
 
     def normalize_result(self, result, window: int = 3):
-        """
-        Add length-normalized metrics to a PromptResult.
-        Reports deviation from baseline in units of baseline std.
-        """
         length = result.seq_len
-
         for metric, attr in [
             ("entropy", "entropy_ln"),
             ("top2_share", "top2_share_ln"),
@@ -159,12 +148,11 @@ class BaselineManager:
         ]:
             baseline = self.get_baseline_for_length(length, metric, window)
             if baseline and baseline["std"] > 0 and baseline["n"] >= 2:
-                raw = getattr(result, metric.replace("_ln", "") if "_ln" in metric else metric)
+                raw = getattr(result, metric)
                 deviation = (raw - baseline["mean"]) / baseline["std"]
                 setattr(result, attr, deviation)
 
     def get_summary(self) -> dict:
-        """Return summary of baseline coverage."""
         lengths = sorted(self.baselines.keys())
         counts = {l: len(self.baselines[l]) for l in lengths}
         return {
