@@ -460,71 +460,22 @@ async def analyze_batch(file: UploadFile = File(...),
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
 
     try:
+        # Read file data while still on the event loop (async I/O)
         content = (await file.read()).decode("utf-8")
-        reader = csv.DictReader(io.StringIO(content))
-        prompts = []
-        for row in reader:
-            p = (row.get("prompt") or row.get("Prompt") or "").strip()
-            c = (row.get("category") or row.get("Category") or "unknown").strip()
-            if p:
-                prompts.append({"prompt": p, "category": _validate_category(c)})
-
-        if not prompts:
-            return JSONResponse(status_code=400,
-                                content={"error": "No valid prompts found in CSV."})
-
-        logger.info(f"Batch: {len(prompts)} prompts from {file.filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
-        log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
-
+        bl_content = None
         if baseline_file:
             bl_content = (await baseline_file.read()).decode("utf-8")
-            bl_reader = csv.DictReader(io.StringIO(bl_content))
-            bl_prompts = [(row.get("prompt") or row.get("Prompt") or "").strip()
-                          for row in bl_reader]
-            bl_prompts = [p for p in bl_prompts if p]
-            if bl_prompts:
-                baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
 
-        if compute_kl or capture_responses:
-            mm.load_base_for_kl(callback=log_progress)
+        filename = file.filename
 
-        for i, p in enumerate(prompts):
-            log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
-            try:
-                _analyze_and_record(
-                    p["prompt"], p["category"],
-                    compute_kl, compute_trajectory, capture_responses,
-                    compute_ltp=compute_ltp, ltp_k=ltp_k,
-                    ltp_layer_strategy=ltp_layer_strategy,
-                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
-                    skip_plots=True)
-            except Exception as prompt_err:
-                logger.error(f"Prompt {i+1} failed: {prompt_err}")
-                log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
-
-            # Free memory between prompts
-            if (i + 1) % 10 == 0:
-                import gc as _gc
-                _gc.collect()
-                try:
-                    import torch as _torch
-                    if _torch.cuda.is_available():
-                        _torch.cuda.empty_cache()
-                except ImportError:
-                    pass
-                try:
-                    import resource
-                    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Peak RSS: {mem_mb:.0f}MB")
-                except Exception:
-                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
-
-        if compute_kl or capture_responses:
-            mm.unload_base()
-
-        log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
-        return {"ok": True, "n_prompts": len(prompts),
-                "session_n": session.n_results if session else 0}
+        # Run all heavy computation in a thread so the event loop stays alive
+        import asyncio
+        result = await asyncio.to_thread(
+            _run_batch_sync, content, bl_content, filename,
+            compute_kl, compute_trajectory, capture_responses,
+            compute_ltp, ltp_k, ltp_layer_strategy,
+            ltp_svd_rank, ltp_tuned_lens)
+        return result
 
     except Exception as e:
         logger.error(f"Batch failed: {traceback.format_exc()}")
@@ -532,82 +483,156 @@ async def analyze_batch(file: UploadFile = File(...),
                             content={"error": str(e), "trace": traceback.format_exc()})
 
 
+def _run_batch_sync(content, bl_content, filename,
+                    compute_kl, compute_trajectory, capture_responses,
+                    compute_ltp, ltp_k, ltp_layer_strategy,
+                    ltp_svd_rank, ltp_tuned_lens):
+    """Synchronous batch processing — runs in a thread to avoid blocking the event loop."""
+    reader = csv.DictReader(io.StringIO(content))
+    prompts = []
+    for row in reader:
+        p = (row.get("prompt") or row.get("Prompt") or "").strip()
+        c = (row.get("category") or row.get("Category") or "unknown").strip()
+        if p:
+            prompts.append({"prompt": p, "category": _validate_category(c)})
+
+    if not prompts:
+        return JSONResponse(status_code=400,
+                            content={"error": "No valid prompts found in CSV."})
+
+    logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+    log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
+
+    if bl_content:
+        bl_reader = csv.DictReader(io.StringIO(bl_content))
+        bl_prompts = [(row.get("prompt") or row.get("Prompt") or "").strip()
+                      for row in bl_reader]
+        bl_prompts = [p for p in bl_prompts if p]
+        if bl_prompts:
+            baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
+
+    if compute_kl or capture_responses:
+        mm.load_base_for_kl(callback=log_progress)
+
+    for i, p in enumerate(prompts):
+        log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
+        try:
+            _analyze_and_record(
+                p["prompt"], p["category"],
+                compute_kl, compute_trajectory, capture_responses,
+                compute_ltp=compute_ltp, ltp_k=ltp_k,
+                ltp_layer_strategy=ltp_layer_strategy,
+                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                skip_plots=True)
+        except Exception as prompt_err:
+            logger.error(f"Prompt {i+1} failed: {prompt_err}")
+            log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
+
+        # Free memory between prompts
+        if (i + 1) % 10 == 0:
+            import gc as _gc
+            _gc.collect()
+            try:
+                import torch as _torch
+                if _torch.cuda.is_available():
+                    _torch.cuda.empty_cache()
+            except ImportError:
+                pass
+            try:
+                import resource
+                mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Peak RSS: {mem_mb:.0f}MB")
+            except Exception:
+                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
+
+    if compute_kl or capture_responses:
+        mm.unload_base()
+
+    log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
+    return {"ok": True, "n_prompts": len(prompts),
+            "session_n": session.n_results if session else 0}
+
+
 @app.get("/api/dashboard")
 async def get_dashboard():
     if not session or session.n_results == 0:
         return {"ok": False, "error": "No data in session."}
 
+    import asyncio
     try:
-        logger.info(f"Dashboard request: {session.n_results} prompts in session")
-        results = session.results
-        from engine.analyzer import PromptResult
-        pr_list = []
-        for r in results:
-            pr = PromptResult()
-            for key in ["stress_score", "net_correction", "entropy", "gini",
-                         "top2_share", "middle_share", "interior_cv",
-                         "kl_divergence", "entropy_ln", "top2_share_ln",
-                         "middle_share_ln", "stress_score_ln",
-                         "n_negative_tokens", "has_negative_tokens",
-                         "category", "seq_len"]:
-                val = r.get(key)
-                if val is not None:
-                    setattr(pr, key, val)
-
-            # Reconstitute LTP data for aggregation
-            ltp_data = r.get("ltp")
-            if ltp_data:
-                from engine.ltp import LTPResult
-                ltp_r = LTPResult()
-                ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
-                ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
-                ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
-                ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
-                pr.ltp = ltp_r
-
-            pr_list.append(pr)
-
-        agg = aggregate_batch(pr_list)
-        agg_plots = {"batch_summary": plot_batch_summary(agg),
-                     "separability": plot_separability(agg)}
-        comp_plots = generate_all_comparative(results)
-        all_plots = {**agg_plots, **comp_plots}
-
-        session.save_comparative_plots(all_plots)
-        session.save_aggregate_json(agg)
-        session.save_results_json()
-
-        logger.info(f"Dashboard generated: {session.n_results} prompts")
-
-        # Return slimmed results for the UI — scalar metrics only, not per-token arrays
-        slim_results = []
-        for r in results:
-            slim = {k: r.get(k) for k in [
-                "prompt", "category", "seq_len", "stress_score", "net_correction",
-                "entropy", "gini", "top2_share", "middle_share", "interior_cv",
-                "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
-                "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
-                "instruct_topk", "base_topk",
-            ]}
-            ltp = r.get("ltp")
-            if ltp:
-                slim["ltp"] = {k: ltp.get(k) for k in [
-                    "mean_M", "mean_C", "mean_V", "mean_L",
-                    "layer_strategy", "k", "svd_rank", "tuned_lens",
-                ]}
-            slim_results.append(slim)
-
-        return sanitize_for_json({
-            "ok": True, "aggregate": agg, "plots": all_plots, "results": slim_results,
-            "session_info": {
-                "n_results": session.n_results, "categories": session.categories,
-                "model": session.model_name, "timestamp": session.timestamp,
-            },
-        })
+        return await asyncio.to_thread(_run_dashboard_sync)
     except Exception as e:
         logger.error(f"Dashboard failed: {traceback.format_exc()}")
         return JSONResponse(status_code=500,
                             content={"error": str(e), "trace": traceback.format_exc()})
+
+
+def _run_dashboard_sync():
+    """Synchronous dashboard generation — runs in a thread."""
+    logger.info(f"Dashboard request: {session.n_results} prompts in session")
+    results = session.results
+    from engine.analyzer import PromptResult
+    pr_list = []
+    for r in results:
+        pr = PromptResult()
+        for key in ["stress_score", "net_correction", "entropy", "gini",
+                     "top2_share", "middle_share", "interior_cv",
+                     "kl_divergence", "entropy_ln", "top2_share_ln",
+                     "middle_share_ln", "stress_score_ln",
+                     "n_negative_tokens", "has_negative_tokens",
+                     "category", "seq_len"]:
+            val = r.get(key)
+            if val is not None:
+                setattr(pr, key, val)
+
+        ltp_data = r.get("ltp")
+        if ltp_data:
+            from engine.ltp import LTPResult
+            ltp_r = LTPResult()
+            ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
+            ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
+            ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
+            ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
+            pr.ltp = ltp_r
+
+        pr_list.append(pr)
+
+    agg = aggregate_batch(pr_list)
+    agg_plots = {"batch_summary": plot_batch_summary(agg),
+                 "separability": plot_separability(agg)}
+    comp_plots = generate_all_comparative(results)
+    all_plots = {**agg_plots, **comp_plots}
+
+    session.save_comparative_plots(all_plots)
+    session.save_aggregate_json(agg)
+    session.save_results_json()
+
+    logger.info(f"Dashboard generated: {session.n_results} prompts")
+
+    slim_results = []
+    for r in results:
+        slim = {k: r.get(k) for k in [
+            "prompt", "category", "seq_len", "stress_score", "net_correction",
+            "entropy", "gini", "top2_share", "middle_share", "interior_cv",
+            "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
+            "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
+            "instruct_topk", "base_topk",
+        ]}
+        ltp = r.get("ltp")
+        if ltp:
+            slim["ltp"] = {k: ltp.get(k) for k in [
+                "mean_M", "mean_C", "mean_V", "mean_L",
+                "layer_strategy", "k", "svd_rank", "tuned_lens",
+            ]}
+        slim_results.append(slim)
+
+    return sanitize_for_json({
+        "ok": True, "aggregate": agg, "plots": all_plots, "results": slim_results,
+        "session_info": {
+            "n_results": session.n_results, "categories": session.categories,
+            "model": session.model_name, "timestamp": session.timestamp,
+        },
+    })
 
 
 @app.get("/api/export")
@@ -615,6 +640,17 @@ async def export_session():
     if not session or session.n_results == 0:
         return JSONResponse(status_code=400, content={"error": "No data to export."})
 
+    import asyncio
+    try:
+        result = await asyncio.to_thread(_run_export_sync)
+        return result
+    except Exception as e:
+        logger.error(f"Export failed: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+def _run_export_sync():
+    """Synchronous export — runs in a thread."""
     try:
         results = session.results
         from engine.analyzer import PromptResult
@@ -655,14 +691,12 @@ async def export_session():
     except Exception as e:
         logger.error(f"Export PDF failed: {e}")
 
-    # Save full per-prompt results JSON (all per-token arrays, LTP profiles, etc.)
     try:
         session.save_results_json()
         logger.info(f"Full results JSON saved: {session.n_results} prompts")
     except Exception as e:
         logger.error(f"Export results JSON failed: {e}")
 
-    # Generate missing per-prompt plots (deferred from batch mode)
     try:
         _generate_deferred_plots(session)
     except Exception as e:
@@ -675,6 +709,9 @@ async def export_session():
             io.BytesIO(zip_bytes), media_type="application/zip",
             headers={"Content-Disposition":
                      f"attachment; filename=tasm_session_{session.timestamp}.zip"})
+    except Exception as e:
+        logger.error(f"Export ZIP failed: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
     except Exception as e:
         logger.error(f"Export failed: {traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": str(e)})
