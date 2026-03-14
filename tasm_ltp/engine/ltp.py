@@ -197,8 +197,12 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 # Counterfactual direction: d_ic = W_u[c] - W_u[chosen]
                 d_ic = W_u[alt_id] - W_u[chosen_id]
 
-                # Project through weight delta: ΔW_V · d_ic
-                delta_proj = torch.matmul(dw_v, d_ic)
+                # Project through weight delta and map back to hidden_size.
+                # dw_v has shape (value_dim, hidden_size); dw_v @ d_ic lives
+                # in value space.  Mapping back via dw_v.T keeps the result
+                # in the residual-stream space where tau is defined.
+                delta_val = torch.matmul(dw_v, d_ic)          # (value_dim,)
+                delta_proj = torch.matmul(dw_v.T, delta_val)  # (hidden_size,)
 
                 # Project onto normal plane (remove forward component)
                 forward_component = torch.dot(delta_proj, tau) * tau
