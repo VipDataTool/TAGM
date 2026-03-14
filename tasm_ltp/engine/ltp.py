@@ -161,6 +161,18 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         if dw_v is None:
             continue
 
+        # Get the aligned model's output projection for this layer.
+        # This maps from concatenated head outputs (n_heads * head_dim)
+        # back to residual stream space (hidden_size).
+        W_O = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
+        # W_O shape: (hidden_size, n_heads * head_dim)
+
+        # GQA parameters
+        n_kv_heads = state.n_kv_heads
+        n_heads = state.n_heads
+        head_dim = state.head_dim
+        heads_per_kv = n_heads // n_kv_heads
+
         for i in range(seq_len):
             alts = per_position_alts[i]
             chosen_id = per_position_chosen[i]
@@ -197,12 +209,22 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 # Counterfactual direction: d_ic = W_u[c] - W_u[chosen]
                 d_ic = W_u[alt_id] - W_u[chosen_id]
 
-                # Project through weight delta and map back to hidden_size.
-                # dw_v has shape (value_dim, hidden_size); dw_v @ d_ic lives
-                # in value space.  Mapping back via dw_v.T keeps the result
-                # in the residual-stream space where tau is defined.
-                delta_val = torch.matmul(dw_v, d_ic)          # (value_dim,)
-                delta_proj = torch.matmul(dw_v.T, delta_val)  # (hidden_size,)
+                # Project through the actual attention sublayer pathway:
+                # 1. ΔW_V maps d_ic from hidden_size to value space
+                # 2. GQA expansion replicates each KV head for its attention head group
+                # 3. W_O maps back from concatenated head space to residual stream
+                #
+                # dw_v shape: (n_kv_heads * head_dim, hidden_size)
+                # W_O shape:  (hidden_size, n_heads * head_dim)
+                delta_val = torch.matmul(dw_v, d_ic)  # (n_kv_heads * head_dim,)
+
+                # GQA expand: repeat each KV head's head_dim slice for its group
+                expanded = delta_val.view(n_kv_heads, head_dim) \
+                    .repeat_interleave(heads_per_kv, dim=0) \
+                    .reshape(-1)  # (n_heads * head_dim,)
+
+                # Map back to residual stream through output projection
+                delta_proj = torch.matmul(W_O, expanded)  # (hidden_size,)
 
                 # Project onto normal plane (remove forward component)
                 forward_component = torch.dot(delta_proj, tau) * tau
