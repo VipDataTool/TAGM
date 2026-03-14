@@ -1,0 +1,34 @@
+[
+  {
+    "id": "qwen2.5-0.5b",
+    "name": "Qwen 2.5 0.5B",
+    "base": "Qwen/Qwen2.5-0.5B",
+    "instruct": "Qwen/Qwen2.5-0.5B-Instruct",
+    "ram_gb": 4,
+    "notes": "Lightweight, fast. Good for pipeline validation."
+  },
+  {
+    "id": "qwen2.5-1.5b",
+    "name": "Qwen 2.5 1.5B",
+    "base": "Qwen/Qwen2.5-1.5B",
+    "instruct": "Qwen/Qwen2.5-1.5B-Instruct",
+    "ram_gb": 8,
+    "notes": "Mid-range. Stronger alignment signal than 0.5B."
+  },
+  {
+    "id": "qwen2.5-3b",
+    "name": "Qwen 2.5 3B",
+    "base": "Qwen/Qwen2.5-3B",
+    "instruct": "Qwen/Qwen2.5-3B-Instruct",
+    "ram_gb": 12,
+    "notes": "Requires 16GB+ RAM."
+  },
+  {
+    "id": "qwen2.5-7b",
+    "name": "Qwen 2.5 7B",
+    "base": "Qwen/Qwen2.5-7B",
+    "instruct": "Qwen/Qwen2.5-7B-Instruct",
+    "ram_gb": 24,
+    "notes": "Requires 32GB RAM or GPU."
+  }
+]
