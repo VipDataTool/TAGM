@@ -411,7 +411,37 @@ async function loadDashboard(){
 }
 
 async function exportSession(){
-  log('Exporting...');try{const r=await fetch('/api/export');const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Exported','done')}catch(e){log('Export error: '+e.message,'error')}
+  log('Exporting...');
+  try{
+    const r=await fetch('/api/export');const data=await r.json();
+    if(!data.ok){log('Export error: '+(data.error||''),'error');return}
+    log('Export started. Generating plots, PDF, and ZIP...');
+    // Poll progress until export is done
+    let lastLen=0;
+    const poll=setInterval(async()=>{
+      try{
+        const p=await(await fetch('/api/progress')).json();
+        for(let i=lastLen;i<p.log.length;i++){
+          const e=p.log[i];
+          if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
+            log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
+          }
+          if(e.stage==='done'&&e.message.includes('Export ready')){
+            clearInterval(poll);
+            // Trigger download
+            log('Downloading ZIP...');
+            try{
+              const dr=await fetch('/api/export/download');
+              if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
+              else{log('Download failed: HTTP '+dr.status,'error')}
+            }catch(de){log('Download error: '+de.message,'error')}
+          }
+          if(e.stage==='error'&&e.message.includes('Export')){clearInterval(poll)}
+        }
+        lastLen=p.log.length;
+      }catch(pe){}
+    },2000);
+  }catch(e){log('Export error: '+e.message,'error')}
 }
 
 // ─── Render ─────────────────────────────────────────────────────

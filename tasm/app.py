@@ -576,7 +576,7 @@ async def get_dashboard():
     except Exception as e:
         logger.error(f"Dashboard failed: {traceback.format_exc()}")
         return JSONResponse(status_code=500,
-                            content={"error": str(e), "trace": traceback.format_exc()})
+                            content={"ok": False, "error": str(e)})
 
 
 def _run_dashboard_sync():
@@ -652,17 +652,27 @@ async def export_session():
     if not session or session.n_results == 0:
         return JSONResponse(status_code=400, content={"error": "No data to export."})
 
-    import asyncio
-    try:
-        result = await asyncio.to_thread(_run_export_sync)
-        return result
-    except Exception as e:
-        logger.error(f"Export failed: {traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    # Run export in background thread
+    threading.Thread(target=_run_export_sync, daemon=True).start()
+    return {"ok": True, "message": "Export started. Watch progress log."}
+
+
+@app.get("/api/export/download")
+async def download_export():
+    """Serve the prepared ZIP file after export completes."""
+    if not session:
+        return JSONResponse(status_code=400, content={"error": "No session."})
+    zip_path = session.session_dir / "tasm_session.zip"
+    if not zip_path.exists():
+        return JSONResponse(status_code=404, content={"error": "Export not ready yet."})
+    return FileResponse(
+        str(zip_path), media_type="application/zip",
+        filename=f"tasm_session_{session.timestamp}.zip")
 
 
 def _run_export_sync():
-    """Synchronous export — runs in a thread."""
+    """Synchronous export — runs in a background thread."""
+    log_progress("exporting", "Generating aggregate statistics...")
     try:
         results = session.results
         from engine.analyzer import PromptResult
@@ -688,42 +698,50 @@ def _run_export_sync():
 
             pr_list.append(pr)
 
+        log_progress("exporting", "Computing separability and comparative plots...")
         agg = aggregate_batch(pr_list)
         agg_plots = {"batch_summary": plot_batch_summary(agg),
                      "separability": plot_separability(agg)}
         comp_plots = generate_all_comparative(results)
         all_plots = {**agg_plots, **comp_plots}
 
+        log_progress("exporting", "Generating PDF report...")
         pdf_path = generate_batch_report(
             agg, results, all_plots,
             model_name=session.model_name, n_prompts=session.n_results,
             user_info=user_info)
         import shutil
         shutil.copy2(pdf_path, session.session_dir / "report.pdf")
+        session.save_comparative_plots(all_plots)
+        session.save_aggregate_json(agg)
     except Exception as e:
-        logger.error(f"Export PDF failed: {e}")
+        logger.error(f"Export PDF/stats failed: {e}")
+        log_progress("warning", f"PDF generation failed: {str(e)[:80]}")
 
     try:
+        log_progress("exporting", "Saving full results JSON...")
         session.save_results_json()
-        logger.info(f"Full results JSON saved: {session.n_results} prompts")
     except Exception as e:
         logger.error(f"Export results JSON failed: {e}")
 
     try:
+        n = session.n_results
+        log_progress("exporting", f"Generating per-prompt plots ({n} prompts)...")
         _generate_deferred_plots(session)
     except Exception as e:
         logger.error(f"Deferred plot generation failed: {e}")
 
     try:
+        log_progress("exporting", "Packaging ZIP...")
         zip_bytes = session.export_zip()
-        logger.info(f"Session exported: {session.n_results} prompts")
-        return StreamingResponse(
-            io.BytesIO(zip_bytes), media_type="application/zip",
-            headers={"Content-Disposition":
-                     f"attachment; filename=tasm_session_{session.timestamp}.zip"})
+        # Save to disk for download endpoint
+        zip_path = session.session_dir / "tasm_session.zip"
+        zip_path.write_bytes(zip_bytes)
+        logger.info(f"Session exported: {session.n_results} prompts, {len(zip_bytes)/1024/1024:.1f}MB")
+        log_progress("done", f"Export ready: {session.n_results} prompts. Click Download.")
     except Exception as e:
         logger.error(f"Export ZIP failed: {traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        log_progress("error", f"Export ZIP failed: {str(e)[:80]}")
     except Exception as e:
         logger.error(f"Export failed: {traceback.format_exc()}")
         return JSONResponse(status_code=500, content={"error": str(e)})
