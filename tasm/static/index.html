@@ -341,16 +341,29 @@ async function analyzeBatch(){
   fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){
-      log(`Batch done: ${data.n_prompts} prompts added`,'done');
-      // Enable buttons immediately — don't wait for dashboard
-      if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
-      updateSessionBadge();
-      try{await loadDashboard()}catch(de){log('Dashboard generation: '+de.message,'error')}
-    }
-    else log('Error: '+(data.error||''),'error');
-  }catch(e){log('Error: '+e.message,'error')}
-  setLoading(btn,false);
+    if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
+    log(`Batch started: ${data.n_prompts} prompts. Polling progress...`);
+    // Poll progress until we see "done"
+    let lastLen=0;
+    const poll=setInterval(async()=>{
+      try{
+        const p=await(await fetch('/api/progress')).json();
+        for(let i=lastLen;i<p.log.length;i++){
+          const e=p.log[i];
+          log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':(e.stage==='warning'?'error':'')));
+          if(e.stage==='done'&&e.message.includes('Batch complete')){
+            clearInterval(poll);
+            if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
+            updateSessionBadge();
+            setLoading(btn,false);
+            log('Loading dashboard...');
+            try{await loadDashboard()}catch(de){log('Dashboard: '+de.message,'error')}
+          }
+        }
+        lastLen=p.log.length;
+      }catch(pe){}
+    },2000);
+  }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────

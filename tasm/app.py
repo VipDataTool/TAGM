@@ -459,35 +459,14 @@ async def analyze_batch(file: UploadFile = File(...),
     if not analyzer:
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
 
-    try:
-        # Read file data while still on the event loop (async I/O)
-        content = (await file.read()).decode("utf-8")
-        bl_content = None
-        if baseline_file:
-            bl_content = (await baseline_file.read()).decode("utf-8")
+    # Read files on the event loop (fast async I/O)
+    content = (await file.read()).decode("utf-8")
+    bl_content = None
+    if baseline_file:
+        bl_content = (await baseline_file.read()).decode("utf-8")
+    filename = file.filename
 
-        filename = file.filename
-
-        # Run all heavy computation in a thread so the event loop stays alive
-        import asyncio
-        result = await asyncio.to_thread(
-            _run_batch_sync, content, bl_content, filename,
-            compute_kl, compute_trajectory, capture_responses,
-            compute_ltp, ltp_k, ltp_layer_strategy,
-            ltp_svd_rank, ltp_tuned_lens)
-        return result
-
-    except Exception as e:
-        logger.error(f"Batch failed: {traceback.format_exc()}")
-        return JSONResponse(status_code=500,
-                            content={"error": str(e), "trace": traceback.format_exc()})
-
-
-def _run_batch_sync(content, bl_content, filename,
-                    compute_kl, compute_trajectory, capture_responses,
-                    compute_ltp, ltp_k, ltp_layer_strategy,
-                    ltp_svd_rank, ltp_tuned_lens):
-    """Synchronous batch processing — runs in a thread to avoid blocking the event loop."""
+    # Parse prompts synchronously (fast)
     reader = csv.DictReader(io.StringIO(content))
     prompts = []
     for row in reader:
@@ -500,57 +479,90 @@ def _run_batch_sync(content, bl_content, filename,
         return JSONResponse(status_code=400,
                             content={"error": "No valid prompts found in CSV."})
 
-    logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
-    log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
+    # Fire off the heavy work in a background thread and return immediately
+    threading.Thread(
+        target=_run_batch_sync,
+        args=(content, bl_content, filename,
+              compute_kl, compute_trajectory, capture_responses,
+              compute_ltp, ltp_k, ltp_layer_strategy,
+              ltp_svd_rank, ltp_tuned_lens),
+        daemon=True).start()
 
-    if bl_content:
-        bl_reader = csv.DictReader(io.StringIO(bl_content))
-        bl_prompts = [(row.get("prompt") or row.get("Prompt") or "").strip()
-                      for row in bl_reader]
-        bl_prompts = [p for p in bl_prompts if p]
-        if bl_prompts:
-            baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
+    return {"ok": True, "started": True, "n_prompts": len(prompts),
+            "message": f"Batch started: {len(prompts)} prompts. Watch progress log."}
 
-    if compute_kl or capture_responses:
-        mm.load_base_for_kl(callback=log_progress)
 
-    for i, p in enumerate(prompts):
-        log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
-        try:
-            _analyze_and_record(
-                p["prompt"], p["category"],
-                compute_kl, compute_trajectory, capture_responses,
-                compute_ltp=compute_ltp, ltp_k=ltp_k,
-                ltp_layer_strategy=ltp_layer_strategy,
-                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
-                skip_plots=True)
-        except Exception as prompt_err:
-            logger.error(f"Prompt {i+1} failed: {prompt_err}")
-            log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
+def _run_batch_sync(content, bl_content, filename,
+                    compute_kl, compute_trajectory, capture_responses,
+                    compute_ltp, ltp_k, ltp_layer_strategy,
+                    ltp_svd_rank, ltp_tuned_lens):
+    """Synchronous batch processing — runs in a background thread."""
+    try:
+        reader = csv.DictReader(io.StringIO(content))
+        prompts = []
+        for row in reader:
+            p = (row.get("prompt") or row.get("Prompt") or "").strip()
+            c = (row.get("category") or row.get("Category") or "unknown").strip()
+            if p:
+                prompts.append({"prompt": p, "category": _validate_category(c)})
 
-        # Free memory between prompts
-        if (i + 1) % 10 == 0:
-            import gc as _gc
-            _gc.collect()
+        if not prompts:
+            log_progress("error", "No valid prompts found in CSV.")
+            return
+
+        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
+
+        if bl_content:
+            bl_reader = csv.DictReader(io.StringIO(bl_content))
+            bl_prompts = [(row.get("prompt") or row.get("Prompt") or "").strip()
+                          for row in bl_reader]
+            bl_prompts = [p for p in bl_prompts if p]
+            if bl_prompts:
+                baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
+
+        if compute_kl or capture_responses:
+            mm.load_base_for_kl(callback=log_progress)
+
+        for i, p in enumerate(prompts):
+            log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
             try:
-                import torch as _torch
-                if _torch.cuda.is_available():
-                    _torch.cuda.empty_cache()
-            except ImportError:
-                pass
-            try:
-                import resource
-                mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
-                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Peak RSS: {mem_mb:.0f}MB")
-            except Exception:
-                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
+                _analyze_and_record(
+                    p["prompt"], p["category"],
+                    compute_kl, compute_trajectory, capture_responses,
+                    compute_ltp=compute_ltp, ltp_k=ltp_k,
+                    ltp_layer_strategy=ltp_layer_strategy,
+                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                    skip_plots=True)
+            except Exception as prompt_err:
+                logger.error(f"Prompt {i+1} failed: {prompt_err}")
+                log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
 
-    if compute_kl or capture_responses:
-        mm.unload_base()
+            # Free memory between prompts
+            if (i + 1) % 10 == 0:
+                import gc as _gc
+                _gc.collect()
+                try:
+                    import torch as _torch
+                    if _torch.cuda.is_available():
+                        _torch.cuda.empty_cache()
+                except ImportError:
+                    pass
+                try:
+                    import resource
+                    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Peak RSS: {mem_mb:.0f}MB")
+                except Exception:
+                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
-    log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
-    return {"ok": True, "n_prompts": len(prompts),
-            "session_n": session.n_results if session else 0}
+        if compute_kl or capture_responses:
+            mm.unload_base()
+
+        log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
+
+    except Exception as e:
+        logger.error(f"Batch failed: {traceback.format_exc()}")
+        log_progress("error", f"Batch failed: {str(e)[:100]}")
 
 
 @app.get("/api/dashboard")
