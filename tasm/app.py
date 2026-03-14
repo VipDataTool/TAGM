@@ -6,7 +6,6 @@ Session-based data collection platform for alignment signal analysis.
 import os
 import io
 import csv
-import gc
 import json
 import math
 import time
@@ -65,13 +64,6 @@ user_info = {"name": "", "organization": ""}
 def log_progress(stage, message):
     progress_log.append({"stage": stage, "message": message, "time": time.time()})
     logger.info(f"[{stage}] {message}")
-    # Write to crash log (survives OOM kills)
-    try:
-        with open("tasm_crash.log", "a") as f:
-            f.write(f"{time.strftime('%H:%M:%S')} [{stage}] {message}\n")
-            f.flush()
-    except Exception:
-        pass
 
 
 def sanitize_for_json(obj):
@@ -267,7 +259,8 @@ def _generate_deferred_plots(sess):
 
             # GC every 10 plots batches
             if generated % 10 == 0:
-                gc.collect()
+                import gc as _gc
+                _gc.collect()
 
         except Exception as e:
             logger.warning(f"Deferred plot {idx} failed: {e}")
@@ -511,11 +504,12 @@ async def analyze_batch(file: UploadFile = File(...),
 
             # Free memory between prompts
             if (i + 1) % 10 == 0:
-                gc.collect()
+                import gc as _gc
+                _gc.collect()
                 try:
-                    import torch
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    import torch as _torch
+                    if _torch.cuda.is_available():
+                        _torch.cuda.empty_cache()
                 except ImportError:
                     pass
                 try:
