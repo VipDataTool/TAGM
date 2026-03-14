@@ -18,6 +18,9 @@ else
   echo "-> No HF_TOKEN set (optional: export HF_TOKEN=hf_... for faster downloads)"
 fi
 
+# Clean bytecode cache (ensures code changes take effect)
+find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
+
 # Install dependencies
 echo "→ Installing dependencies..."
 pip install -q torch transformers accelerate fastapi "uvicorn[standard]" \

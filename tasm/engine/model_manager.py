@@ -339,7 +339,8 @@ class ModelManager:
             self.state.model_base = None
             gc.collect()
 
-    def install_analysis_hooks(self, full_trajectory: bool = False):
+    def install_analysis_hooks(self, full_trajectory: bool = False,
+                               ltp_layers: list = None):
         self._remove_hooks()
         self.activations.clear()
         self.attn_weights.clear()
@@ -360,6 +361,8 @@ class ModelManager:
                     self.attn_weights[name] = output[1].detach()
             return hook
 
+        # Always hook signal layers
+        hooked = set()
         for layer_idx in self.state.signal_layers:
             layer = model.model.layers[layer_idx]
             self._hooks.append(
@@ -368,6 +371,21 @@ class ModelManager:
             self._hooks.append(
                 layer.self_attn.register_forward_hook(
                     make_attn_hook(f"layer_{layer_idx}_attn")))
+            hooked.add(layer_idx)
+
+        # Hook additional LTP layers (e.g. late layers) if requested
+        if ltp_layers:
+            for layer_idx in ltp_layers:
+                if layer_idx not in hooked and layer_idx < len(model.model.layers):
+                    layer = model.model.layers[layer_idx]
+                    self._hooks.append(
+                        layer.input_layernorm.register_forward_hook(
+                            make_output_hook(f"layer_{layer_idx}_h")))
+                    hooked.add(layer_idx)
+            print(f"[HOOKS] LTP late-layer hooks installed: {sorted(ltp_layers)} "
+                  f"(total hooked: {len(hooked)})", flush=True)
+        else:
+            print(f"[HOOKS] Signal-only hooks: {sorted(hooked)} (no LTP layers)", flush=True)
 
         if full_trajectory:
             for layer_idx, layer in enumerate(model.model.layers):

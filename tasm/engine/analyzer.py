@@ -117,7 +117,13 @@ class Analyzer:
         result.signal_layer_indices = list(state.signal_layers)
 
         # Install all hooks, run one forward pass
-        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory)
+        # Determine which extra layers LTP needs (if any)
+        ltp_layers = None
+        if compute_ltp and ltp_layer_strategy == "late":
+            late_start = 2 * state.n_layers // 3
+            ltp_layers = list(range(late_start, state.n_layers))
+        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory,
+                                       ltp_layers=ltp_layers)
         tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=True)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]

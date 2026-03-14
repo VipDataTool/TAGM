@@ -213,6 +213,14 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
     all_layer_tension_points = {l: [] for l in monitored}
     all_layer_profiles = {l: [] for l in monitored}
 
+    # Log which activation keys are available for LTP layers
+    avail_keys = [k for k in model_manager.activations.keys() if 'layer_' in k]
+    ltp_keys = [f"layer_{l}_h" for l in monitored]
+    found = [k for k in ltp_keys if k in model_manager.activations]
+    if not found:
+        logger.warning(f"[LTP] No activations found for monitored layers {monitored}. "
+                      f"Available keys: {avail_keys[:10]}...")
+
     for layer_idx in monitored:
         h_key = f"layer_{layer_idx}_h"
         if h_key not in model_manager.activations:
