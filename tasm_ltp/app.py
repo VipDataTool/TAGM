@@ -67,6 +67,13 @@ user_info = {"name": "", "organization": ""}
 def log_progress(stage, message):
     progress_log.append({"stage": stage, "message": message, "time": time.time()})
     logger.info(f"[{stage}] {message}")
+    # Write to crash log (survives OOM kills)
+    try:
+        with open("tasm_crash.log", "a") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} [{stage}] {message}\n")
+            f.flush()
+    except Exception:
+        pass
 
 
 def sanitize_for_json(obj):
@@ -136,7 +143,8 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         capture_responses, compute_ltp=False,
                         ltp_k=8, ltp_layer_strategy="signal",
-                        ltp_svd_rank=0, ltp_tuned_lens=False):
+                        ltp_svd_rank=0, ltp_tuned_lens=False,
+                        skip_plots=False):
     result = analyzer.analyze_prompt(
         prompt, category=category,
         compute_kl=compute_kl,
@@ -150,28 +158,124 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
 
     baselines.normalize_result(result)
 
-    plots = {
-        "signed_attribution": plot_signed_attribution(result),
-        "stress_per_token": plot_stress_per_token(result),
-        "distribution_metrics": plot_distribution_metrics(result),
-    }
-    if compute_trajectory:
-        plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
-        plots["heatmap"] = plot_heatmap(result)
+    plots = {}
+    if not skip_plots:
+        plots = {
+            "signed_attribution": plot_signed_attribution(result),
+            "stress_per_token": plot_stress_per_token(result),
+            "distribution_metrics": plot_distribution_metrics(result),
+        }
+        if compute_trajectory:
+            plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
+            plots["heatmap"] = plot_heatmap(result)
 
-    # LTP plots
-    if compute_ltp and result.ltp is not None:
-        plots["ltp_profiles"] = plot_ltp_profiles(result.ltp, result.tokens)
-        plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(result.ltp, result.tokens)
-        plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(result.ltp)
-        plots["ltp_summary_stats"] = plot_ltp_summary_stats(result.ltp)
-        plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(result.ltp, result.tokens)
+        # LTP plots
+        if compute_ltp and result.ltp is not None:
+            plots["ltp_profiles"] = plot_ltp_profiles(result.ltp, result.tokens)
+            plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(result.ltp, result.tokens)
+            plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(result.ltp)
+            plots["ltp_summary_stats"] = plot_ltp_summary_stats(result.ltp)
+            plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(result.ltp, result.tokens)
 
     result_dict = result_to_dict(result)
     if session:
         session.add_result(result_dict, plots)
 
     return result_dict, plots
+
+
+def _generate_deferred_plots(sess):
+    """Generate per-prompt plots for results that were analyzed in batch mode
+    (skip_plots=True). Reconstitutes minimal PromptResult objects from stored
+    dicts and generates plots one at a time to control memory."""
+    from engine.analyzer import PromptResult
+    from engine.ltp import LTPResult
+    import numpy as np
+
+    plot_dir = sess.session_dir / "plots" / "individual"
+    generated = 0
+
+    for idx, r in enumerate(sess.results):
+        # Check if plots already exist for this prompt
+        marker = plot_dir / f"{idx:04d}_stress_per_token.png"
+        if marker.exists():
+            continue
+
+        try:
+            # Reconstitute a minimal PromptResult for the plot functions
+            pr = PromptResult()
+            pr.tokens = r.get("tokens", [])
+            pr.seq_len = r.get("seq_len", len(pr.tokens))
+            pr.signed_attr = r.get("signed_attr", [])
+            pr.per_token_stress = r.get("per_token_stress", [])
+            pr.stress_score = r.get("stress_score", 0)
+            pr.net_correction = r.get("net_correction", 0)
+            pr.entropy = r.get("entropy", 0)
+            pr.gini = r.get("gini", 0)
+            pr.top2_share = r.get("top2_share", 0)
+            pr.middle_share = r.get("middle_share", 0)
+            pr.interior_cv = r.get("interior_cv", 0)
+            pr.amplitude_trajectory = r.get("amplitude_trajectory", [])
+            pr.amplitude_normalized = r.get("amplitude_normalized", [])
+            pr.heatmap = r.get("heatmap", [])
+            pr.signal_layer_indices = r.get("signal_layer_indices", [])
+
+            plots = {
+                "signed_attribution": plot_signed_attribution(pr),
+                "stress_per_token": plot_stress_per_token(pr),
+                "distribution_metrics": plot_distribution_metrics(pr),
+            }
+            if pr.amplitude_trajectory:
+                plots["amplitude_trajectory"] = plot_amplitude_trajectory(pr)
+            if pr.heatmap:
+                plots["heatmap"] = plot_heatmap(pr)
+
+            # LTP plots
+            ltp_data = r.get("ltp")
+            if ltp_data and ltp_data.get("profiles"):
+                ltp_r = LTPResult()
+                ltp_r.profiles = [np.array(p) for p in ltp_data.get("profiles", [])]
+                ltp_r.tension_magnitudes = ltp_data.get("tension_magnitudes", [])
+                ltp_r.profile_shapes = ltp_data.get("profile_shapes", [])
+                ltp_r.counterfactual_tokens = ltp_data.get("counterfactual_tokens", [])
+                ltp_r.mean_M = ltp_data.get("mean_M", 0)
+                ltp_r.mean_C = ltp_data.get("mean_C", 0)
+                ltp_r.mean_V = ltp_data.get("mean_V", 0)
+                ltp_r.mean_L = ltp_data.get("mean_L", 0)
+                ltp_r.k = ltp_data.get("k", 8)
+                ltp_r.offset_magnitude = {int(k): v for k, v in ltp_data.get("offset_magnitude", {}).items()}
+                ltp_r.offset_consistency = {int(k): v for k, v in ltp_data.get("offset_consistency", {}).items()}
+                sem = ltp_data.get("semantic_trajectory_2d", [])
+                ten = ltp_data.get("tension_trajectory_2d", [])
+                if sem:
+                    ltp_r.semantic_trajectory = np.array(sem)
+                if ten:
+                    ltp_r.tension_trajectory = np.array(ten)
+
+                plots["ltp_profiles"] = plot_ltp_profiles(ltp_r, pr.tokens)
+                plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(ltp_r, pr.tokens)
+                plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(ltp_r)
+                plots["ltp_summary_stats"] = plot_ltp_summary_stats(ltp_r)
+                plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(ltp_r, pr.tokens)
+
+            # Write to disk
+            import base64 as b64mod
+            for name, b64_str in plots.items():
+                if b64_str:
+                    path = plot_dir / f"{idx:04d}_{name}.png"
+                    path.write_bytes(b64mod.b64decode(b64_str))
+
+            generated += 1
+
+            # GC every 10 plots batches
+            if generated % 10 == 0:
+                gc.collect()
+
+        except Exception as e:
+            logger.warning(f"Deferred plot {idx} failed: {e}")
+
+    if generated > 0:
+        logger.info(f"Generated deferred plots for {generated} prompts")
 
 
 # ─── API Routes ──────────────────────────────────────────────────
@@ -401,7 +505,8 @@ async def analyze_batch(file: UploadFile = File(...),
                     compute_kl, compute_trajectory, capture_responses,
                     compute_ltp=compute_ltp, ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
-                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
+                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                    skip_plots=True)
             except Exception as prompt_err:
                 logger.error(f"Prompt {i+1} failed: {prompt_err}")
                 log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
@@ -411,7 +516,12 @@ async def analyze_batch(file: UploadFile = File(...),
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
+                try:
+                    import resource
+                    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Peak RSS: {mem_mb:.0f}MB")
+                except Exception:
+                    log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
         if compute_kl or capture_responses:
             mm.unload_base()
@@ -536,6 +646,12 @@ async def export_session():
         logger.info(f"Full results JSON saved: {session.n_results} prompts")
     except Exception as e:
         logger.error(f"Export results JSON failed: {e}")
+
+    # Generate missing per-prompt plots (deferred from batch mode)
+    try:
+        _generate_deferred_plots(session)
+    except Exception as e:
+        logger.error(f"Deferred plot generation failed: {e}")
 
     try:
         zip_bytes = session.export_zip()
