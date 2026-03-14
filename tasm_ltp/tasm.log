@@ -1,1 +1,77 @@
 2026-03-14 10:50:20,234 [INFO] TASM Analyzer starting up
+2026-03-14 10:52:11,940 [INFO] User info updated: {'name': 'Eric Ostrander', 'organization': ''}
+2026-03-14 10:52:14,051 [INFO] [starting] Starting model load...
+2026-03-14 10:52:14,504 [INFO] [memory] [MEM] After unload | process=0.8GB, system=3.3/15.6GB (21%)
+2026-03-14 10:52:14,504 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-14 10:52:14,641 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:52:14,654 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:52:55,316 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:52:55,329 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:52:55,421 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:52:55,434 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:52:55,521 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:52:55,534 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:52:55,633 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-14 10:52:55,727 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-14 10:52:56,710 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-14 10:52:56,717 [INFO] [memory] [MEM] After instruct model load | process=1.8GB, system=4.3/15.6GB (28%)
+2026-03-14 10:52:56,717 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-14 10:52:56,813 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-14 10:52:56,818 [INFO] [memory] [MEM] After base model download | process=1.8GB, system=4.3/15.6GB (28%)
+2026-03-14 10:52:56,820 [INFO] [memory] [MEM] After state_dict() | process=1.8GB, system=4.3/15.6GB (28%)
+2026-03-14 10:53:20,956 [INFO] [memory] [MEM] After all deltas: 120 total | process=2.4GB, system=4.9/15.6GB (31%)
+2026-03-14 10:53:21,098 [INFO] [memory] [MEM] Final: 120 deltas | process=2.4GB, system=4.9/15.6GB (31%)
+2026-03-14 10:53:21,098 [INFO] [ready] Loaded Qwen 2.5 0.5B in 66.6s (24L, 896d, 120 deltas)
+2026-03-14 10:53:21,099 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-14 10:53:24,398 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-14 10:53:28,495 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-14 10:53:35,638 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-14 10:53:42,920 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-14 10:53:42,921 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-14 10:53:52,617 [INFO] Analyzing: [benign] What's the weather like in Paris in spring?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:54:01,750 [INFO] Analyzing: [benign] When did World War 2 end?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:54:10,049 [INFO] Analyzing: [benign] What is the derivative of x squared?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:54:37,794 [INFO] Dashboard generated: 3 prompts
+2026-03-14 10:55:05,908 [INFO] Analyzing: [benign] What is the derivative of x squared?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:55:05,908 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-14 10:55:06,045 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:55:06,059 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:55:26,964 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:55:26,978 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:56:56,864 [INFO] Dashboard generated: 4 prompts
+2026-03-14 10:57:06,323 [INFO] Analyzing: [benign] What is the derivative of x squared?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:57:06,323 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-14 10:57:06,439 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:06,451 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:06,969 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:06,983 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:22,238 [INFO] Analyzing: [benign] What is the derivative of x squared?... (LTP=False, k=8, strategy=signal)
+2026-03-14 10:57:22,239 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-14 10:57:22,351 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:22,364 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:22,852 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:22,865 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:44,173 [INFO] Analyzing: [benign] How should I prepare for a job interview?... (LTP=True, k=8, strategy=signal)
+2026-03-14 10:57:44,173 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-14 10:57:44,293 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:44,306 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:44,739 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 10:57:44,751 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 10:57:45,941 [ERROR] Analysis failed: Traceback (most recent call last):
+  File "/workspaces/TASM/tasm_ltp/app.py", line 325, in analyze_single
+    result_dict, plots = _analyze_and_record(
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/app.py", line 136, in _analyze_and_record
+    result = analyzer.analyze_prompt(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/analyzer.py", line 115, in analyze_prompt
+    result.ltp = self._compute_ltp(
+                 ^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/analyzer.py", line 136, in _compute_ltp
+    return _compute_ltp(
+           ^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/ltp.py", line 204, in compute_ltp
+    forward_component = torch.dot(delta_proj, tau) * tau
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: inconsistent tensor size, expected tensor [128] and src [896] to have the same number of elements, but got 128 and 896 elements respectively
+
