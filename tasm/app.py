@@ -538,6 +538,7 @@ async def get_dashboard():
         return {"ok": False, "error": "No data in session."}
 
     try:
+        logger.info(f"Dashboard request: {session.n_results} prompts in session")
         results = session.results
         from engine.analyzer import PromptResult
         pr_list = []
@@ -578,8 +579,26 @@ async def get_dashboard():
 
         logger.info(f"Dashboard generated: {session.n_results} prompts")
 
+        # Return slimmed results for the UI — scalar metrics only, not per-token arrays
+        slim_results = []
+        for r in results:
+            slim = {k: r.get(k) for k in [
+                "prompt", "category", "seq_len", "stress_score", "net_correction",
+                "entropy", "gini", "top2_share", "middle_share", "interior_cv",
+                "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
+                "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
+                "instruct_topk", "base_topk",
+            ]}
+            ltp = r.get("ltp")
+            if ltp:
+                slim["ltp"] = {k: ltp.get(k) for k in [
+                    "mean_M", "mean_C", "mean_V", "mean_L",
+                    "layer_strategy", "k", "svd_rank", "tuned_lens",
+                ]}
+            slim_results.append(slim)
+
         return sanitize_for_json({
-            "ok": True, "aggregate": agg, "plots": all_plots, "results": results,
+            "ok": True, "aggregate": agg, "plots": all_plots, "results": slim_results,
             "session_info": {
                 "n_results": session.n_results, "categories": session.categories,
                 "model": session.model_name, "timestamp": session.timestamp,

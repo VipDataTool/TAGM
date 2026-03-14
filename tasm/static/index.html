@@ -341,7 +341,13 @@ async function analyzeBatch(){
   fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){log(`Batch done: ${data.n_prompts} prompts added`,'done');await loadDashboard()}
+    if(data.ok){
+      log(`Batch done: ${data.n_prompts} prompts added`,'done');
+      // Enable buttons immediately — don't wait for dashboard
+      if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
+      updateSessionBadge();
+      try{await loadDashboard()}catch(de){log('Dashboard generation: '+de.message,'error')}
+    }
     else log('Error: '+(data.error||''),'error');
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -351,8 +357,10 @@ async function analyzeBatch(){
 async function loadDashboard(){
   log('Loading dashboard...');
   try{
-    const resp=await fetch('/api/dashboard');const data=await resp.json();
-    if(!data.ok){log('Dashboard: '+(data.error||''),'error');return}
+    const resp=await fetch('/api/dashboard');
+    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');return}
+    const data=await resp.json();
+    if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
     sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
     const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
     const info=data.session_info||{},agg=data.aggregate||{},plots=data.plots||{},cats=agg.categories||{},sep=agg.separability||{};
