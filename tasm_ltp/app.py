@@ -6,6 +6,7 @@ Session-based data collection platform for alignment signal analysis.
 import os
 import io
 import csv
+import gc
 import json
 import math
 import time
@@ -14,6 +15,8 @@ import threading
 import traceback
 from pathlib import Path
 from typing import Optional
+
+import torch
 
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
@@ -392,12 +395,23 @@ async def analyze_batch(file: UploadFile = File(...),
 
         for i, p in enumerate(prompts):
             log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
-            _analyze_and_record(
-                p["prompt"], p["category"],
-                compute_kl, compute_trajectory, capture_responses,
-                compute_ltp=compute_ltp, ltp_k=ltp_k,
-                ltp_layer_strategy=ltp_layer_strategy,
-                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
+            try:
+                _analyze_and_record(
+                    p["prompt"], p["category"],
+                    compute_kl, compute_trajectory, capture_responses,
+                    compute_ltp=compute_ltp, ltp_k=ltp_k,
+                    ltp_layer_strategy=ltp_layer_strategy,
+                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
+            except Exception as prompt_err:
+                logger.error(f"Prompt {i+1} failed: {prompt_err}")
+                log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
+
+            # Free memory between prompts
+            if (i + 1) % 10 == 0:
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
         if compute_kl or capture_responses:
             mm.unload_base()
