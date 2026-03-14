@@ -150,7 +150,7 @@ class DatasetSession:
             "base_top1", "base_top1_prob",
             # LTP summary statistics
             "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
-            "ltp_layer_strategy", "ltp_k",
+            "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
         ]
 
         row = {
@@ -193,6 +193,8 @@ class DatasetSession:
             row["ltp_mean_L"] = ltp.get("mean_L", "")
             row["ltp_layer_strategy"] = ltp.get("layer_strategy", "")
             row["ltp_k"] = ltp.get("k", "")
+            row["ltp_svd_rank"] = ltp.get("svd_rank", "")
+            row["ltp_tuned_lens"] = ltp.get("tuned_lens", "")
 
         mode = "a" if self._csv_initialized else "w"
         with open(self.csv_path, mode, newline="") as f:

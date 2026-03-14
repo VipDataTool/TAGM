@@ -9,7 +9,8 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 
-from engine.ltp import LTPResult, compute_ltp, ltp_result_to_dict
+from engine.ltp import (LTPResult, compute_ltp, ltp_result_to_dict,
+                        precompute_svd_cache, precompute_tuned_lens_cache)
 
 
 @dataclass
@@ -72,6 +73,33 @@ class PromptResult:
 class Analyzer:
     def __init__(self, model_manager):
         self.mm = model_manager
+        # LTP enhancement caches (lazily initialized, persist for model lifetime)
+        self._svd_caches = {}    # {rank: {layer_idx: tensor}}
+        self._tuned_lens_cache = None  # {layer_idx: tensor} or None
+
+    def _get_svd_cache(self, rank: int):
+        """Get or build SVD cache for the given rank."""
+        if rank not in self._svd_caches:
+            self._svd_caches[rank] = precompute_svd_cache(self.mm.state, rank=rank)
+        return self._svd_caches[rank]
+
+    def _get_tuned_lens_cache(self, layer_indices=None):
+        """Get or build tuned-lens cache (calibrated once, reused)."""
+        if self._tuned_lens_cache is None:
+            from engine.baselines import get_baseline_prompts
+            cal_prompts = get_baseline_prompts()
+            if not cal_prompts:
+                cal_prompts = ["The quick brown fox jumps over the lazy dog.",
+                               "What is the capital of France?",
+                               "How does photosynthesis work?"]
+            self._tuned_lens_cache = precompute_tuned_lens_cache(
+                self.mm, cal_prompts, layer_indices=layer_indices)
+        return self._tuned_lens_cache
+
+    def clear_ltp_caches(self):
+        """Clear LTP caches (e.g. on model reload)."""
+        self._svd_caches.clear()
+        self._tuned_lens_cache = None
 
     def analyze_prompt(self, prompt: str, category: str = "",
                        compute_kl: bool = False,
@@ -80,6 +108,8 @@ class Analyzer:
                        compute_ltp: bool = False,
                        ltp_k: int = 8,
                        ltp_layer_strategy: str = "signal",
+                       ltp_svd_rank: int = 0,
+                       ltp_tuned_lens: bool = False,
                        response_topk: int = 10) -> PromptResult:
         """Run the full analysis pipeline in a SINGLE forward pass."""
         state = self.mm.state
@@ -114,7 +144,8 @@ class Analyzer:
         if compute_ltp:
             result.ltp = self._compute_ltp(
                 model_out.logits, tokens, inputs["input_ids"],
-                k=ltp_k, layer_strategy=ltp_layer_strategy)
+                k=ltp_k, layer_strategy=ltp_layer_strategy,
+                svd_rank=ltp_svd_rank, use_tuned_lens=ltp_tuned_lens)
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -130,12 +161,20 @@ class Analyzer:
         return result
 
     def _compute_ltp(self, logits, tokens, input_ids,
-                     k: int = 8, layer_strategy: str = "signal") -> LTPResult:
+                     k: int = 8, layer_strategy: str = "signal",
+                     svd_rank: int = 0, use_tuned_lens: bool = False) -> LTPResult:
         """Compute LTP using cached activations from the forward pass."""
         from engine.ltp import compute_ltp as _compute_ltp
+
+        # Build caches on demand (lazy, persist for model lifetime)
+        svd_cache = self._get_svd_cache(svd_rank) if svd_rank > 0 else None
+        tl_cache = self._get_tuned_lens_cache() if use_tuned_lens else None
+
         return _compute_ltp(
             self.mm, logits, tokens, input_ids,
-            k=k, layer_strategy=layer_strategy)
+            k=k, layer_strategy=layer_strategy,
+            svd_cache=svd_cache, svd_rank=svd_rank,
+            tuned_lens_cache=tl_cache)
 
     def _extract_signed_attribution(self, result, seq_len, state):
         """Extract signed attribution with per-layer detail and proof checks."""

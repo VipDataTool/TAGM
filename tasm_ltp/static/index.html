@@ -170,6 +170,14 @@ textarea{resize:vertical;min-height:44px}
         <option value="6">k=6 (balanced)</option>
         <option value="8" selected>k=8 (rich)</option>
       </select>
+      <label>SVD truncation</label>
+      <select id="ltpSvdRank">
+        <option value="0" selected>Off (full delta)</option>
+        <option value="3">Rank 3</option>
+        <option value="5">Rank 5</option>
+        <option value="8">Rank 8</option>
+      </select>
+      <div class="checkbox-row"><input type="checkbox" id="ltpTunedLens"><label for="ltpTunedLens">Tuned-lens correction</label></div>
     </div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
     <button class="btn btn-sm btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
@@ -310,6 +318,8 @@ async function analyzeSingle(){
   fd.append('compute_ltp',$('computeLTP').checked);
   fd.append('ltp_k',$('ltpK').value);
   fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
+  fd.append('ltp_svd_rank',$('ltpSvdRank').value);
+  fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
     if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
@@ -327,6 +337,8 @@ async function analyzeBatch(){
   fd.append('compute_ltp',$('computeLTP').checked);
   fd.append('ltp_k',$('ltpK').value);
   fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
+  fd.append('ltp_svd_rank',$('ltpSvdRank').value);
+  fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(data.ok){log(`Batch done: ${data.n_prompts} prompts added`,'done');await loadDashboard()}

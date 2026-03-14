@@ -132,7 +132,8 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         capture_responses, compute_ltp=False,
-                        ltp_k=8, ltp_layer_strategy="signal"):
+                        ltp_k=8, ltp_layer_strategy="signal",
+                        ltp_svd_rank=0, ltp_tuned_lens=False):
     result = analyzer.analyze_prompt(
         prompt, category=category,
         compute_kl=compute_kl,
@@ -140,7 +141,9 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
         capture_responses=capture_responses,
         compute_ltp=compute_ltp,
         ltp_k=ltp_k,
-        ltp_layer_strategy=ltp_layer_strategy)
+        ltp_layer_strategy=ltp_layer_strategy,
+        ltp_svd_rank=ltp_svd_rank,
+        ltp_tuned_lens=ltp_tuned_lens)
 
     baselines.normalize_result(result)
 
@@ -307,7 +310,9 @@ async def analyze_single(prompt: str = Form(...),
                          capture_responses: bool = Form(False),
                          compute_ltp: bool = Form(False),
                          ltp_k: int = Form(8),
-                         ltp_layer_strategy: str = Form("signal")):
+                         ltp_layer_strategy: str = Form("signal"),
+                         ltp_svd_rank: int = Form(0),
+                         ltp_tuned_lens: bool = Form(False)):
     # Validation
     err = _validate_prompt(prompt)
     if err:
@@ -318,13 +323,14 @@ async def analyze_single(prompt: str = Form(...),
     category = _validate_category(category)
 
     try:
-        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, k={ltp_k}, strategy={ltp_layer_strategy})")
+        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         if compute_kl or capture_responses:
             mm.load_base_for_kl(callback=log_progress)
 
         result_dict, plots = _analyze_and_record(
             prompt, category, compute_kl, compute_trajectory, capture_responses,
-            compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy)
+            compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
+            ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 
         if compute_kl or capture_responses:
             mm.unload_base()
@@ -349,6 +355,8 @@ async def analyze_batch(file: UploadFile = File(...),
                         compute_ltp: bool = Form(False),
                         ltp_k: int = Form(8),
                         ltp_layer_strategy: str = Form("signal"),
+                        ltp_svd_rank: int = Form(0),
+                        ltp_tuned_lens: bool = Form(False),
                         baseline_file: Optional[UploadFile] = File(None)):
     if not analyzer:
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
@@ -367,7 +375,7 @@ async def analyze_batch(file: UploadFile = File(...),
             return JSONResponse(status_code=400,
                                 content={"error": "No valid prompts found in CSV."})
 
-        logger.info(f"Batch: {len(prompts)} prompts from {file.filename} (LTP={compute_ltp})")
+        logger.info(f"Batch: {len(prompts)} prompts from {file.filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
 
         if baseline_file:
@@ -388,7 +396,8 @@ async def analyze_batch(file: UploadFile = File(...),
                 p["prompt"], p["category"],
                 compute_kl, compute_trajectory, capture_responses,
                 compute_ltp=compute_ltp, ltp_k=ltp_k,
-                ltp_layer_strategy=ltp_layer_strategy)
+                ltp_layer_strategy=ltp_layer_strategy,
+                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 
         if compute_kl or capture_responses:
             mm.unload_base()

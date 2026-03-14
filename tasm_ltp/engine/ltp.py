@@ -5,6 +5,10 @@ Extends the ASM framework with directional information from the alignment field
 surrounding the generation path. Computes per-token lateral tension profiles,
 tension trajectories, and summary statistics (M, C, V, L).
 
+Two optional signal-sharpening enhancements (independently togglable):
+  - SVD truncation: projects through the dominant safety subspace of dW_V
+  - Tuned-lens correction: calibrates unembedding probe directions per layer
+
 Reference: "Geometric Alignment Signals in Language Model Representations:
 The Lateral Tension Profile" (Ostrander, 2026)
 """
@@ -13,165 +17,229 @@ import torch
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple, Dict
+import logging
 
+logger = logging.getLogger("tasm")
+
+
+# ─── Precomputation: SVD truncation ─────────────────────────────
+
+def precompute_svd_cache(state, rank: int = 5) -> Dict[int, torch.Tensor]:
+    """SVD-truncate dW_V at each layer, retaining only the top-k singular
+    directions where alignment corrections concentrate. Returns dict mapping
+    layer_idx -> truncated dW_V tensor (same shape as original, rank <= k)."""
+    cache = {}
+    for layer_idx in range(state.n_layers):
+        dw_v = state.v_delta(layer_idx)
+        if dw_v is None:
+            continue
+        U, S, Vt = torch.linalg.svd(dw_v.float(), full_matrices=False)
+        k = min(rank, len(S))
+        truncated = (U[:, :k] @ torch.diag(S[:k]) @ Vt[:k, :]).to(state.dtype)
+        cache[layer_idx] = truncated
+        total_energy = (S ** 2).sum().item()
+        kept_energy = (S[:k] ** 2).sum().item()
+        frac = kept_energy / total_energy if total_energy > 0 else 0
+        logger.info(f"[SVD] Layer {layer_idx}: rank-{k} captures {frac:.1%} of energy")
+    logger.info(f"[SVD] Cache built: {len(cache)} layers, rank={rank}")
+    return cache
+
+
+# ─── Precomputation: tuned-lens calibration ──────────────────────
+
+def precompute_tuned_lens_cache(model_manager, calibration_prompts: List[str],
+                                 layer_indices: List[int] = None
+                                 ) -> Dict[int, torch.Tensor]:
+    """Fit per-layer affine transforms mapping intermediate hidden states to
+    final hidden states. Returns dict mapping layer_idx -> A_l (d x d).
+    To correct unembedding direction d for layer l: d_corrected = A_l @ d."""
+    state = model_manager.state
+    model = state.model_instruct
+    device = state.device
+    dtype = state.dtype
+    if layer_indices is None:
+        layer_indices = list(state.signal_layers)
+
+    collected = {}
+    hooks = []
+
+    def make_hook(key):
+        def hook(module, inp, output):
+            if isinstance(output, tuple):
+                collected.setdefault(key, []).append(output[0].detach())
+            else:
+                collected.setdefault(key, []).append(output.detach())
+        return hook
+
+    for layer_idx in layer_indices:
+        layer = model.model.layers[layer_idx]
+        hooks.append(layer.input_layernorm.register_forward_hook(
+            make_hook(f"h_{layer_idx}")))
+    hooks.append(model.model.norm.register_forward_hook(make_hook("h_final")))
+
+    logger.info(f"[TunedLens] Calibrating with {len(calibration_prompts)} prompts "
+                f"across {len(layer_indices)} layers...")
+    with torch.no_grad():
+        for prompt in calibration_prompts:
+            inputs = state.tokenizer(prompt, return_tensors="pt").to(device)
+            model(**inputs)
+
+    for h in hooks:
+        h.remove()
+
+    H_final = torch.cat(collected.get("h_final", []), dim=1).squeeze(0).float()
+    cache = {}
+    for layer_idx in layer_indices:
+        key = f"h_{layer_idx}"
+        if key not in collected:
+            continue
+        H_l = torch.cat(collected[key], dim=1).squeeze(0).float()
+        if H_l.shape[0] != H_final.shape[0]:
+            logger.warning(f"[TunedLens] Shape mismatch at layer {layer_idx}, skipping")
+            continue
+        try:
+            result = torch.linalg.lstsq(H_l, H_final)
+            A_l = result.solution.to(dtype)
+            cache[layer_idx] = A_l
+            pred = H_l @ A_l.float()
+            residual = (pred - H_final).norm() / H_final.norm()
+            logger.info(f"[TunedLens] Layer {layer_idx}: residual = {residual:.4f}")
+        except Exception as e:
+            logger.warning(f"[TunedLens] Layer {layer_idx} fit failed: {e}")
+
+    del collected
+    import gc; gc.collect()
+    logger.info(f"[TunedLens] Cache built: {len(cache)} layers, "
+                f"{H_final.shape[0]} tokens")
+    return cache
+
+
+# ─── LTP Result ──────────────────────────────────────────────────
 
 @dataclass
 class LTPResult:
     """Per-prompt LTP computation results."""
-    # Per-token ordered scalar profiles: list of k-dim vectors, one per token
     profiles: List[np.ndarray] = field(default_factory=list)
-
-    # Per-token tension point vectors (d-dimensional, in normal plane)
     tension_points: List[np.ndarray] = field(default_factory=list)
-
-    # Per-token tension point magnitudes
     tension_magnitudes: List[float] = field(default_factory=list)
-
-    # Per-token profile shape classification: "steep", "flat", "inverted"
     profile_shapes: List[str] = field(default_factory=list)
-
-    # Counterfactual tokens at each position: list of [(token_str, logit_prob)]
     counterfactual_tokens: List[List[Tuple[str, float]]] = field(default_factory=list)
-
-    # Summary statistics (per monitored layer, keyed by layer index)
-    offset_magnitude: Dict[int, float] = field(default_factory=dict)   # M
-    offset_consistency: Dict[int, float] = field(default_factory=dict)  # C
-    offset_variance: Dict[int, float] = field(default_factory=dict)    # V
-    lateral_coverage: Dict[int, float] = field(default_factory=dict)   # L
-
-    # Aggregate summary (averaged across monitored layers)
+    offset_magnitude: Dict[int, float] = field(default_factory=dict)
+    offset_consistency: Dict[int, float] = field(default_factory=dict)
+    offset_variance: Dict[int, float] = field(default_factory=dict)
+    lateral_coverage: Dict[int, float] = field(default_factory=dict)
     mean_M: float = 0.0
     mean_C: float = 0.0
     mean_V: float = 0.0
     mean_L: float = 0.0
-
-    # Dual trajectory offset vectors (for visualization)
-    semantic_trajectory: Optional[np.ndarray] = None  # (n, d) or (n, 2) after PCA
+    semantic_trajectory: Optional[np.ndarray] = None
     tension_trajectory: Optional[np.ndarray] = None
-
-    # Layer strategy used
-    layer_strategy: str = "signal"  # "signal" or "late"
+    layer_strategy: str = "signal"
     monitored_layers: List[int] = field(default_factory=list)
     k: int = 8
+    svd_rank: int = 0
+    tuned_lens: bool = False
 
+
+# ─── Core computation ────────────────────────────────────────────
 
 def compute_ltp(model_manager, logits, tokens, input_ids,
-                k: int = 8, layer_strategy: str = "signal") -> LTPResult:
-    """
-    Compute the Lateral Tension Profile for a completed forward pass.
-
-    Args:
-        model_manager: ModelManager with loaded state, activations, and deltas
-        logits: model output logits tensor (1, seq_len, vocab_size)
-        tokens: list of token strings
-        input_ids: token ID tensor (1, seq_len)
-        k: counterfactual neighborhood size
-        layer_strategy: "signal" (middle third) or "late" (final third)
-
-    Returns:
-        LTPResult with per-token profiles, tension points, and summary stats
-    """
+                k: int = 8, layer_strategy: str = "signal",
+                svd_cache: Dict[int, torch.Tensor] = None,
+                svd_rank: int = 0,
+                tuned_lens_cache: Dict[int, torch.Tensor] = None) -> LTPResult:
+    """Compute the Lateral Tension Profile for a completed forward pass.
+    svd_cache: precomputed truncated dW_V per layer (None = use raw delta).
+    svd_rank: the truncation rank used (for recording in results).
+    tuned_lens_cache: precomputed per-layer affine transforms (None = raw probes)."""
     state = model_manager.state
-    result = LTPResult(k=k, layer_strategy=layer_strategy)
+    result = LTPResult(
+        k=k, layer_strategy=layer_strategy,
+        svd_rank=svd_rank,
+        tuned_lens=tuned_lens_cache is not None and len(tuned_lens_cache) > 0,
+    )
     seq_len = len(tokens)
     device = state.device
     dtype = state.dtype
 
-    # Determine monitored layers
     if layer_strategy == "late":
         late_start = 2 * state.n_layers // 3
         monitored = list(range(late_start, state.n_layers))
     else:
         monitored = list(state.signal_layers)
 
-    # Filter to layers with available deltas
     monitored = [l for l in monitored
                  if f"model.layers.{l}.self_attn.v_proj.weight" in state.deltas]
     result.monitored_layers = monitored
-
     if not monitored:
         return result
 
-    # Get the unembedding matrix
     model = state.model_instruct
     if hasattr(model, 'lm_head'):
-        W_u = model.lm_head.weight.detach()  # (vocab_size, hidden_dim)
+        W_u = model.lm_head.weight.detach()
     elif hasattr(model.model, 'embed_tokens'):
-        # Tied embeddings
         W_u = model.model.embed_tokens.weight.detach()
     else:
         return result
 
-    # Extract top-k+1 alternatives at each position from logits
-    # logits shape: (1, seq_len, vocab_size)
-    log_probs = logits[0]  # (seq_len, vocab_size)
-    token_ids = input_ids[0]  # (seq_len,)
+    log_probs = logits[0]
+    token_ids = input_ids[0]
 
-    # For each position, get the chosen token and top-k alternatives
-    per_position_alts = []   # list of [(alt_id, alt_prob), ...]
-    per_position_chosen = []  # list of chosen token id
+    per_position_alts = []
+    per_position_chosen = []
 
     for i in range(seq_len):
         chosen_id = token_ids[i].item()
         per_position_chosen.append(chosen_id)
-
-        # Get top-(k+1) tokens by logit
         topk_result = torch.topk(log_probs[i], k + 1)
         topk_ids = topk_result.indices.tolist()
         topk_logits = topk_result.values
-
-        # Exclude the chosen token, keep top-k alternatives
         alts = []
         probs = torch.softmax(topk_logits, dim=-1)
         for j, tid in enumerate(topk_ids):
             if tid != chosen_id and len(alts) < k:
                 alts.append((tid, probs[j].item()))
-
-        # If chosen wasn't in top-k+1, we already have k; otherwise pad
         if len(alts) < k:
-            # Get more alternatives
             topk2 = torch.topk(log_probs[i], k + 5)
             probs2 = torch.softmax(topk2.values, dim=-1)
             existing_ids = {a[0] for a in alts}
             for j, tid in enumerate(topk2.indices.tolist()):
                 if tid != chosen_id and tid not in existing_ids and len(alts) < k:
                     alts.append((tid, probs2[j].item()))
-
         per_position_alts.append(alts)
-
-        # Store counterfactual token strings
-        cf_tokens = [(state.tokenizer.decode(aid).strip(), prob)
-                     for aid, prob in alts]
+        cf_tokens = [(state.tokenizer.decode(aid).strip(), prob) for aid, prob in alts]
         result.counterfactual_tokens.append(cf_tokens)
 
-    # Compute LTP across monitored layers, accumulate
     all_layer_tension_points = {l: [] for l in monitored}
     all_layer_profiles = {l: [] for l in monitored}
 
     for layer_idx in monitored:
         h_key = f"layer_{layer_idx}_h"
         if h_key not in model_manager.activations:
-            # Try trajectory hook key
             h_key = f"layer_{layer_idx}_traj_attn"
             if h_key not in model_manager.activations:
                 continue
 
-        h = model_manager.activations[h_key][0]  # (seq_len, hidden_dim)
-        dw_v = state.v_delta(layer_idx)
+        h = model_manager.activations[h_key][0]
+
+        # ── Select dW_V: SVD-truncated or raw ──
+        if svd_cache is not None and layer_idx in svd_cache:
+            dw_v = svd_cache[layer_idx]
+        else:
+            dw_v = state.v_delta(layer_idx)
         if dw_v is None:
             continue
 
-        # Get the aligned model's output projection for this layer.
-        # This maps from concatenated head outputs (n_heads * head_dim)
-        # back to residual stream space (hidden_size).
         W_O = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
-        # W_O shape: (hidden_size, n_heads * head_dim)
-
-        # GQA parameters
         n_kv_heads = state.n_kv_heads
         n_heads = state.n_heads
         head_dim = state.head_dim
         heads_per_kv = n_heads // n_kv_heads
+
+        # ── Check if tuned-lens correction is available for this layer ──
+        has_tl = (tuned_lens_cache is not None and layer_idx in tuned_lens_cache)
+        if has_tl:
+            A_l = tuned_lens_cache[layer_idx]
 
         for i in range(seq_len):
             alts = per_position_alts[i]
@@ -180,18 +248,13 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
             if not alts:
                 all_layer_tension_points[layer_idx].append(
                     torch.zeros(state.hidden_size, device=device, dtype=dtype))
-                all_layer_profiles[layer_idx].append(
-                    np.zeros(k))
+                all_layer_profiles[layer_idx].append(np.zeros(k))
                 continue
 
-            # Compute semantic trajectory direction τ
             if i > 0:
                 diff = h[i] - h[i - 1]
                 diff_norm = diff.norm()
-                if diff_norm > 1e-8:
-                    tau = diff / diff_norm
-                else:
-                    tau = torch.zeros_like(h[i])
+                tau = diff / diff_norm if diff_norm > 1e-8 else torch.zeros_like(h[i])
             else:
                 if seq_len > 1:
                     diff = h[1] - h[0]
@@ -200,60 +263,42 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 else:
                     tau = torch.zeros_like(h[0])
 
-            # Compute counterfactual directions and lateral tensions
             profile_magnitudes = []
             weighted_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
             prob_sum = 0.0
 
             for alt_id, alt_prob in alts:
-                # Counterfactual direction: d_ic = W_u[c] - W_u[chosen]
                 d_ic = W_u[alt_id] - W_u[chosen_id]
 
-                # Project through the actual attention sublayer pathway:
-                # 1. ΔW_V maps d_ic from hidden_size to value space
-                # 2. GQA expansion replicates each KV head for its attention head group
-                # 3. W_O maps back from concatenated head space to residual stream
-                #
-                # dw_v shape: (n_kv_heads * head_dim, hidden_size)
-                # W_O shape:  (hidden_size, n_heads * head_dim)
-                delta_val = torch.matmul(dw_v, d_ic)  # (n_kv_heads * head_dim,)
+                # ── Tuned-lens: correct probe direction for this layer ──
+                if has_tl:
+                    d_ic = torch.matmul(A_l, d_ic)
 
-                # GQA expand: repeat each KV head's head_dim slice for its group
+                # ── Project through attention sublayer pathway ──
+                delta_val = torch.matmul(dw_v, d_ic)
                 expanded = delta_val.view(n_kv_heads, head_dim) \
-                    .repeat_interleave(heads_per_kv, dim=0) \
-                    .reshape(-1)  # (n_heads * head_dim,)
+                    .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
+                delta_proj = torch.matmul(W_O, expanded)
 
-                # Map back to residual stream through output projection
-                delta_proj = torch.matmul(W_O, expanded)  # (hidden_size,)
-
-                # Project onto normal plane (remove forward component)
                 forward_component = torch.dot(delta_proj, tau) * tau
                 lateral = delta_proj - forward_component
 
                 lat_mag = lateral.norm().item()
                 profile_magnitudes.append(lat_mag)
-
-                # Accumulate weighted tension point
                 weighted_tension += alt_prob * lateral
                 prob_sum += alt_prob
 
-            # Normalize weights
             if prob_sum > 0:
                 weighted_tension /= prob_sum
-
-            # Pad profile if fewer than k alternatives
             while len(profile_magnitudes) < k:
                 profile_magnitudes.append(0.0)
 
             all_layer_tension_points[layer_idx].append(weighted_tension)
-            all_layer_profiles[layer_idx].append(
-                np.array(profile_magnitudes[:k]))
+            all_layer_profiles[layer_idx].append(np.array(profile_magnitudes[:k]))
 
-    # Aggregate across layers
     if not monitored:
         return result
 
-    # Average profiles and tension points across monitored layers
     for i in range(seq_len):
         layer_profiles = []
         layer_tensions = []
@@ -262,111 +307,72 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 layer_profiles.append(all_layer_profiles[l][i])
             if i < len(all_layer_tension_points[l]):
                 layer_tensions.append(all_layer_tension_points[l][i])
-
-        if layer_profiles:
-            avg_profile = np.mean(layer_profiles, axis=0)
-        else:
-            avg_profile = np.zeros(k)
+        avg_profile = np.mean(layer_profiles, axis=0) if layer_profiles else np.zeros(k)
         result.profiles.append(avg_profile)
-
         if layer_tensions:
             avg_tension = torch.stack(layer_tensions).mean(dim=0)
         else:
             avg_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
         result.tension_points.append(avg_tension.cpu().numpy())
         result.tension_magnitudes.append(float(avg_tension.norm().item()))
-
-        # Classify profile shape
         result.profile_shapes.append(_classify_profile(avg_profile))
 
-    # Compute summary statistics per layer
     for layer_idx in monitored:
         points = all_layer_tension_points.get(layer_idx, [])
         if not points:
             continue
-
         magnitudes = [p.norm().item() for p in points]
         non_zero = [i for i, m in enumerate(magnitudes) if m > 1e-10]
-
-        # L: lateral coverage
         result.lateral_coverage[layer_idx] = len(non_zero) / seq_len if seq_len > 0 else 0.0
-
         if not non_zero:
             result.offset_magnitude[layer_idx] = 0.0
             result.offset_consistency[layer_idx] = 0.0
             result.offset_variance[layer_idx] = 0.0
             continue
-
-        # Mean offset vector
         active_points = torch.stack([points[i] for i in non_zero])
         mean_offset = active_points.mean(dim=0)
-
-        # M: offset magnitude
         M = mean_offset.norm().item()
         result.offset_magnitude[layer_idx] = M
-
-        # C: offset consistency
         mean_mag = np.mean([magnitudes[i] for i in non_zero])
         result.offset_consistency[layer_idx] = M / mean_mag if mean_mag > 0 else 0.0
+        result.offset_variance[layer_idx] = float(np.var([magnitudes[i] for i in non_zero]))
 
-        # V: offset magnitude variance
-        active_mags = [magnitudes[i] for i in non_zero]
-        result.offset_variance[layer_idx] = float(np.var(active_mags))
-
-    # Aggregate summary stats across layers
     if monitored:
         result.mean_M = np.mean([result.offset_magnitude.get(l, 0.0) for l in monitored])
         result.mean_C = np.mean([result.offset_consistency.get(l, 0.0) for l in monitored])
         result.mean_V = np.mean([result.offset_variance.get(l, 0.0) for l in monitored])
         result.mean_L = np.mean([result.lateral_coverage.get(l, 0.0) for l in monitored])
 
-    # Build dual trajectory for visualization (PCA to 2D)
     _compute_dual_trajectory(result, model_manager, monitored, seq_len)
-
     return result
 
 
 def _classify_profile(profile: np.ndarray) -> str:
-    """Classify a lateral tension profile as steep, flat, or inverted."""
     if len(profile) < 2 or np.sum(profile) < 1e-10:
         return "flat"
-
-    # Normalize
     total = np.sum(profile)
     if total <= 0:
         return "flat"
     normed = profile / total
-
-    # Steep: first entry dominates (> 40% of total and > 2x second)
     if normed[0] > 0.4 and (len(normed) < 2 or normed[0] > 2 * normed[1]):
         return "steep"
-
-    # Inverted: later entries larger than earlier ones
     first_half = np.mean(normed[:len(normed)//2]) if len(normed) >= 2 else normed[0]
     second_half = np.mean(normed[len(normed)//2:]) if len(normed) >= 2 else 0
     if second_half > first_half * 1.3:
         return "inverted"
-
     return "flat"
 
 
-def _compute_dual_trajectory(result: LTPResult, model_manager, monitored, seq_len):
-    """Compute 2D projections of semantic and tension trajectories for visualization."""
+def _compute_dual_trajectory(result, model_manager, monitored, seq_len):
     if seq_len < 2 or not monitored:
         return
-
-    # Use the first monitored layer's activations
     layer_idx = monitored[0]
     h_key = f"layer_{layer_idx}_h"
     if h_key not in model_manager.activations:
         h_key = f"layer_{layer_idx}_traj_attn"
         if h_key not in model_manager.activations:
             return
-
-    h = model_manager.activations[h_key][0].cpu().float().numpy()  # (seq_len, hidden_dim) as float32
-
-    # Semantic trajectory: raw positions
-    # Tension trajectory: positions displaced by tension points
+    h = model_manager.activations[h_key][0].cpu().float().numpy()
     tension_traj = np.zeros_like(h)
     for i in range(seq_len):
         if i < len(result.tension_points):
@@ -377,16 +383,12 @@ def _compute_dual_trajectory(result: LTPResult, model_manager, monitored, seq_le
                 tension_traj[i] = h[i]
         else:
             tension_traj[i] = h[i]
-
-    # PCA to 2D for visualization
-    combined = np.vstack([h, tension_traj])  # (2*seq_len, hidden_dim)
+    combined = np.vstack([h, tension_traj])
     mean = combined.mean(axis=0)
     centered = combined - mean
-
-    # Truncated SVD for efficiency
     try:
         U, S, Vt = np.linalg.svd(centered, full_matrices=False)
-        proj = centered @ Vt[:2].T  # (2*seq_len, 2)
+        proj = centered @ Vt[:2].T
         result.semantic_trajectory = proj[:seq_len]
         result.tension_trajectory = proj[seq_len:]
     except (np.linalg.LinAlgError, TypeError, ValueError):
@@ -394,7 +396,6 @@ def _compute_dual_trajectory(result: LTPResult, model_manager, monitored, seq_le
 
 
 def ltp_result_to_dict(r: LTPResult) -> dict:
-    """Serialize an LTPResult for JSON transport."""
     def _safe(v):
         if isinstance(v, (np.floating, np.float32, np.float64)):
             v = float(v)
@@ -419,13 +420,11 @@ def ltp_result_to_dict(r: LTPResult) -> dict:
         "offset_consistency": {str(k): _safe(v) for k, v in r.offset_consistency.items()},
         "offset_variance": {str(k): _safe(v) for k, v in r.offset_variance.items()},
         "lateral_coverage": {str(k): _safe(v) for k, v in r.lateral_coverage.items()},
-        "mean_M": _safe(r.mean_M),
-        "mean_C": _safe(r.mean_C),
-        "mean_V": _safe(r.mean_V),
-        "mean_L": _safe(r.mean_L),
+        "mean_M": _safe(r.mean_M), "mean_C": _safe(r.mean_C),
+        "mean_V": _safe(r.mean_V), "mean_L": _safe(r.mean_L),
         "layer_strategy": r.layer_strategy,
         "monitored_layers": r.monitored_layers,
-        "k": r.k,
+        "k": r.k, "svd_rank": r.svd_rank, "tuned_lens": r.tuned_lens,
         "semantic_trajectory_2d": r.semantic_trajectory.tolist() if r.semantic_trajectory is not None else [],
         "tension_trajectory_2d": r.tension_trajectory.tolist() if r.tension_trajectory is not None else [],
     }
