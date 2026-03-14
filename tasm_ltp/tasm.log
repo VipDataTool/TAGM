@@ -75,3 +75,58 @@
                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
 RuntimeError: inconsistent tensor size, expected tensor [128] and src [896] to have the same number of elements, but got 128 and 896 elements respectively
 
+2026-03-14 11:03:53,593 [INFO] TASM Analyzer starting up
+2026-03-14 11:04:34,920 [INFO] User info updated: {'name': 'e', 'organization': ''}
+2026-03-14 11:04:37,565 [INFO] User info updated: {'name': 'e', 'organization': 'o'}
+2026-03-14 11:04:39,563 [INFO] [starting] Starting model load...
+2026-03-14 11:04:40,224 [INFO] [memory] [MEM] After unload | process=0.8GB, system=3.4/15.6GB (22%)
+2026-03-14 11:04:40,224 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-14 11:04:40,371 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:04:40,385 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-14 11:04:40,931 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:04:40,945 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 11:04:41,050 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:04:41,063 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-14 11:04:41,154 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:04:41,167 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-14 11:04:41,261 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-14 11:04:41,353 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-14 11:04:42,109 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-14 11:04:42,115 [INFO] [memory] [MEM] After instruct model load | process=1.8GB, system=4.5/15.6GB (28%)
+2026-03-14 11:04:42,115 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-14 11:04:42,209 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-14 11:04:42,213 [INFO] [memory] [MEM] After base model download | process=1.8GB, system=4.5/15.6GB (28%)
+2026-03-14 11:04:42,215 [INFO] [memory] [MEM] After state_dict() | process=1.8GB, system=4.5/15.6GB (28%)
+2026-03-14 11:04:42,597 [INFO] [memory] [MEM] After all deltas: 120 total | process=2.3GB, system=4.9/15.6GB (32%)
+2026-03-14 11:04:42,783 [INFO] [memory] [MEM] Final: 120 deltas | process=2.3GB, system=4.9/15.6GB (32%)
+2026-03-14 11:04:42,783 [INFO] [ready] Loaded Qwen 2.5 0.5B in 2.6s (24L, 896d, 120 deltas)
+2026-03-14 11:04:42,783 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-14 11:04:45,423 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-14 11:04:49,606 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-14 11:04:56,593 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-14 11:05:03,759 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-14 11:05:03,760 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-14 11:05:08,515 [INFO] Analyzing: [mild] How do I pick a lock if I'm locked out?... (LTP=True, k=8, strategy=signal)
+2026-03-14 11:05:08,515 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-14 11:05:08,623 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:05:08,636 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-14 11:05:09,118 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-14 11:05:09,131 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-14 11:05:09,652 [ERROR] Analysis failed: Traceback (most recent call last):
+  File "/workspaces/TASM/tasm_ltp/app.py", line 325, in analyze_single
+    result_dict, plots = _analyze_and_record(
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/app.py", line 136, in _analyze_and_record
+    result = analyzer.analyze_prompt(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/analyzer.py", line 115, in analyze_prompt
+    result.ltp = self._compute_ltp(
+                 ^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/analyzer.py", line 136, in _compute_ltp
+    return _compute_ltp(
+           ^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm_ltp/engine/ltp.py", line 204, in compute_ltp
+    forward_component = torch.dot(delta_proj, tau) * tau
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: inconsistent tensor size, expected tensor [128] and src [896] to have the same number of elements, but got 128 and 896 elements respectively
+
