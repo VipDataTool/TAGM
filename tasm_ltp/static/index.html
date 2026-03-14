@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TASM -- The Alignment Stress Map Analyzer</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0:#0a0c10;--bg-1:#0d1117;--bg-2:#161b22;--bg-3:#1c2333;
+  --border:#21262d;--border-accent:#30363d;
+  --text-0:#f0f6fc;--text-1:#c9d1d9;--text-2:#8b949e;--text-3:#6e7681;
+  --blue:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;--purple:#bc8cff;
+  --cyan:#7db8c9;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);min-height:100vh}
+.header{background:var(--bg-1);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px}
+.header h1{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
+.header h1 span{color:var(--blue)}
+.header .subtitle{font-size:10px;color:var(--text-3);font-family:var(--mono)}
+.status-pill{margin-left:auto;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid var(--border)}
+.status-pill.ready{border-color:var(--green);color:var(--green)}
+.status-pill.loading{border-color:var(--orange);color:var(--orange)}
+.status-pill.idle{border-color:var(--text-3);color:var(--text-3)}
+.session-badge{font-family:var(--mono);font-size:10px;color:var(--text-2);padding:2px 7px;border:1px solid var(--border);border-radius:8px}
+.main{display:grid;grid-template-columns:330px 1fr;min-height:calc(100vh - 45px)}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);padding:12px;overflow-y:auto;max-height:calc(100vh - 45px)}
+.section{margin-bottom:14px}
+.section-title{font-family:var(--mono);font-size:9px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+label{font-size:10px;color:var(--text-2);display:block;margin-bottom:2px;font-weight:500}
+select,input[type="text"],textarea{width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;color:var(--text-1);font-family:var(--mono);font-size:11px;padding:6px 8px;margin-bottom:6px}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+textarea{resize:vertical;min-height:44px}
+.checkbox-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.checkbox-row input[type="checkbox"]{accent-color:var(--blue)}
+.checkbox-row label{margin-bottom:0;font-size:10px;cursor:pointer}
+.btn{font-family:var(--mono);font-size:10px;font-weight:600;padding:7px 10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:all .15s;width:100%;text-align:center}
+.btn-primary{background:var(--blue);color:var(--bg-0);border-color:var(--blue)}
+.btn-primary:hover{background:#79c0ff}
+.btn-primary:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-secondary{background:var(--bg-2);color:var(--text-1)}
+.btn-secondary:hover{background:var(--bg-3)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:var(--bg-0)}
+.btn-dashboard{background:var(--green);color:var(--bg-0);border-color:var(--green);font-size:12px;padding:10px;letter-spacing:0.5px}
+.btn-dashboard:hover{background:#56d364}
+.btn-dashboard:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-export{background:transparent;color:var(--green);border-color:var(--green)}
+.btn-export:hover{background:var(--green);color:var(--bg-0)}
+.btn-export:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn+.btn{margin-top:5px}
+.btn-row{display:flex;gap:5px}.btn-row .btn{margin-top:0}.btn-row .btn:first-child{flex:1}
+.btn-sm{font-size:9px;padding:4px 7px;width:auto}
+.file-input-wrapper{margin-bottom:6px}
+.file-input-wrapper input[type="file"]{width:100%;font-size:10px;font-family:var(--mono);color:var(--text-2)}
+.file-input-wrapper input[type="file"]::file-selector-button{font-family:var(--mono);font-size:9px;padding:3px 7px;border:1px solid var(--border);border-radius:3px;background:var(--bg-3);color:var(--text-1);cursor:pointer;margin-right:5px}
+.progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--text-3)}
+.progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
+.error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
+.content{padding:0;overflow-y:auto;max-height:calc(100vh - 45px)}
+.main-tabs{display:flex;background:var(--bg-1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.main-tab{font-family:var(--mono);font-size:11px;padding:9px 16px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:all .15s}
+.main-tab:hover{color:var(--text-1)}.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.main-tab .badge{font-size:8px;background:var(--bg-3);color:var(--text-2);padding:1px 4px;border-radius:6px;margin-left:3px}
+.main-tab.ltp-active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-panel{display:none;padding:16px}.tab-panel.active{display:block}
+.card{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden}
+.card-header{padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.card-header:hover{background:var(--bg-2)}
+.card-header h3{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-body{padding:12px}.card-body.collapsed{display:none}
+.pill{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:8px;border:1px solid}
+.pill-benign{border-color:var(--green);color:var(--green)}.pill-mild{border-color:var(--orange);color:var(--orange)}
+.pill-harmful{border-color:var(--red);color:var(--red)}.pill-jailbreak{border-color:var(--purple);color:var(--purple)}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
+.metric-cell{background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:7px}
+.metric-cell .metric-label{font-size:10px;font-family:var(--mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.metric-cell .metric-value{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text-0)}
+.metric-cell.ltp-metric{border-color:var(--cyan);border-style:dashed}
+.metric-cell.ltp-metric .metric-label{color:var(--cyan)}
+.metric-ln{font-family:var(--mono);font-size:10px;margin-top:1px}
+.metric-ln.positive{color:var(--red)}.metric-ln.negative{color:var(--green)}.metric-ln.neutral{color:var(--text-3)}
+.plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.plot-container img{width:100%;display:block}
+.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px}
+.data-table th{text-align:left;padding:4px 5px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:8px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1)}
+.data-table td{padding:3px 5px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.data-table tr:hover td{background:var(--bg-2)}
+.topk-table{font-family:var(--mono);font-size:9px;margin-top:5px}
+.topk-table td{padding:2px 6px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
+.token-bar{height:3px;border-radius:2px;display:inline-block;vertical-align:middle}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:45vh;color:var(--text-3);text-align:center}
+.empty-state h2{font-family:var(--mono);font-size:14px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
+.empty-state p{font-size:11px;max-width:350px;line-height:1.4}
+.add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
+.add-model-form.visible{display:block}
+.ltp-options{display:none;margin-top:4px;padding:6px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
+.ltp-options.visible{display:block}
+.ltp-options label{font-size:10px;color:var(--cyan)}
+.ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
+@media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>TASM</span> Analyzer</h1>
+  <span class="subtitle">Alignment Stress Map + Lateral Tension Profile</span>
+  <span class="session-badge" id="sessionBadge">No session</span>
+  <div class="status-pill idle" id="statusPill">NO MODEL</div>
+</div>
+<div class="main">
+<div class="sidebar">
+
+  <!-- User Info -->
+  <div class="section">
+    <div class="section-title">Analyst</div>
+    <input type="text" id="userName" placeholder="Your name" onchange="saveUserInfo()">
+    <input type="text" id="userOrg" placeholder="Organization" onchange="saveUserInfo()">
+  </div>
+
+  <!-- Model -->
+  <div class="section">
+    <div class="section-title">Model Pair</div>
+    <select id="modelSelect"><option value="">-- Select --</option></select>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+      <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="toggleAddModel()">+ Add model pair</button>
+    <div class="add-model-form" id="addModelForm">
+      <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
+      <input type="text" id="newModelName" placeholder="Display name">
+      <input type="text" id="newModelBase" placeholder="Base HF ID">
+      <input type="text" id="newModelInstruct" placeholder="Instruct HF ID">
+      <button class="btn btn-sm btn-primary" onclick="addModel()">Save</button>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="section">
+    <div class="section-title">Prompt</div>
+    <label>Library</label>
+    <select id="promptLibrary" onchange="loadFromLibrary()"><option value="">-- Presets --</option></select>
+    <label>Prompt text</label>
+    <textarea id="promptInput" placeholder="Enter or select a prompt..."></textarea>
+    <div id="promptError"></div>
+    <label>Category</label>
+    <select id="categorySelect">
+      <option value="">Auto</option><option value="benign">Benign</option>
+      <option value="mild">Mild</option><option value="harmful">Harmful</option>
+      <option value="jailbreak">Jailbreak</option>
+    </select>
+    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeTraj" checked><label for="computeTraj">Full trajectory</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="captureResponses"><label for="captureResponses">Capture model responses</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeLTP" onchange="toggleLTPOptions()"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
+    <div class="ltp-options" id="ltpOptions">
+      <label>Layer strategy</label>
+      <select id="ltpLayerStrategy">
+        <option value="signal">Signal layers (middle third)</option>
+        <option value="late">Late layers (final third)</option>
+      </select>
+      <label>Counterfactual k</label>
+      <select id="ltpK">
+        <option value="4">k=4 (lean)</option>
+        <option value="6">k=6 (balanced)</option>
+        <option value="8" selected>k=8 (rich)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
+    <button class="btn btn-sm btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
+  </div>
+
+  <!-- Batch -->
+  <div class="section">
+    <div class="section-title">Batch (CSV)</div>
+    <div class="file-input-wrapper"><input type="file" id="csvFile" accept=".csv"></div>
+    <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
+  </div>
+
+  <!-- Session Actions -->
+  <div class="section">
+    <div class="section-title">Session</div>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
+    <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Log <a href="/api/log" target="_blank" style="float:right;font-size:10px;color:var(--blue);text-decoration:none">download</a></div>
+    <div class="progress-log" id="progressLog"><div class="entry">Ready.</div></div>
+  </div>
+
+</div>
+<div class="content">
+  <div class="main-tabs">
+    <div class="main-tab active" onclick="switchMainTab(this,'panel-latest')">Latest <span class="badge" id="latestBadge">0</span></div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Dashboard</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data Table</div>
+  </div>
+  <div class="tab-panel active" id="panel-latest">
+    <div class="empty-state" id="emptyState"><h2>No analysis yet</h2><p>Load a model, enter a prompt, and click Analyze.</p></div>
+    <div id="latestResults"></div>
+  </div>
+  <div class="tab-panel" id="panel-dashboard">
+    <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
+    <div id="dashContent" style="display:none"></div>
+  </div>
+  <div class="tab-panel" id="panel-data">
+    <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
+  </div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let modelLoaded=false, sessionResults=[], promptLibraryData=[];
+
+function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
+function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
+function clearLog(){$('progressLog').innerHTML=''}
+function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
+function pillClass(c){return({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''}
+function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-0.5?'negative':'neutral');return`<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`}
+function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
+function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
+function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
+function toggleLTPOptions(){$('ltpOptions').classList.toggle('visible',$('computeLTP').checked)}
+
+function updateSessionBadge(){
+  $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
+  $('latestBadge').textContent=sessionResults.length;
+  $('dashBtn').disabled=sessionResults.length<1;
+  $('exportBtn').disabled=sessionResults.length<1;
+}
+
+// ─── User Info ──────────────────────────────────────────────────
+async function saveUserInfo(){
+  const fd=new FormData();fd.append('name',$('userName').value);fd.append('organization',$('userOrg').value);
+  try{await fetch('/api/user_info',{method:'POST',body:fd})}catch(e){}
+}
+
+// ─── Models ─────────────────────────────────────────────────────
+async function loadModelList(){
+  try{
+    const r=await(await fetch('/api/models')).json();
+    const sel=$('modelSelect');sel.innerHTML='<option value="">-- Select --</option>';
+    (r.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=`${m.name}${m.notes?' - '+m.notes:''}`;sel.appendChild(o)});
+    const custom=document.createElement('option');custom.value='custom';custom.textContent='Custom pair...';sel.appendChild(custom);
+  }catch(e){}
+}
+function toggleAddModel(){$('addModelForm').classList.toggle('visible')}
+async function addModel(){
+  const fd=new FormData();
+  fd.append('id',$('newModelId').value);fd.append('name',$('newModelName').value);
+  fd.append('base',$('newModelBase').value);fd.append('instruct',$('newModelInstruct').value);
+  try{
+    const r=await(await fetch('/api/models',{method:'POST',body:fd})).json();
+    if(r.ok){log('Model pair added','done');$('addModelForm').classList.remove('visible');loadModelList();
+      ['newModelId','newModelName','newModelBase','newModelInstruct'].forEach(i=>$(i).value='');}
+    else log('Error: '+(r.error||''),'error');
+  }catch(e){log('Error: '+e.message,'error')}
+}
+
+// ─── Model Loading ──────────────────────────────────────────────
+async function loadModel(){
+  const sel=$('modelSelect');
+  if(!sel.value){showError('promptError','Select a model pair first.');return}
+  const btn=$('loadModelBtn');setLoading(btn,true);clearLog();log('Starting model load...');setStatus('loading','LOADING');
+  const fd=new FormData();
+  if(sel.value==='custom'){
+    const b=prompt('Base model HF ID:');const i=prompt('Instruct model HF ID:');
+    if(!b||!i){setLoading(btn,false);return}
+    fd.append('base_id',b);fd.append('instruct_id',i);
+  } else fd.append('pair_id',sel.value);
+  try{await fetch('/api/load_model',{method:'POST',body:fd})}catch(e){}
+  let lastLen=0;
+  const poll=setInterval(async()=>{
+    try{
+      const prog=await(await fetch('/api/progress')).json();
+      for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
+      lastLen=prog.log.length;
+      const st=await(await fetch('/api/status')).json();
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
+    }catch(e){}
+  },2000);
+}
+
+async function resetAll(){
+  if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+}
+
+// ─── Analysis ───────────────────────────────────────────────────
+async function analyzeSingle(){
+  const prompt=$('promptInput').value.trim();
+  if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
+  if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
+  showError('promptError','');
+  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
+  const fd=new FormData();fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
+  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',$('computeTraj').checked);
+  fd.append('capture_responses',$('captureResponses').checked);
+  fd.append('compute_ltp',$('computeLTP').checked);
+  fd.append('ltp_k',$('ltpK').value);
+  fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
+  try{
+    const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
+    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
+    else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
+  }catch(e){log('Error: '+e.message,'error')}
+  setLoading(btn,false);
+}
+
+async function analyzeBatch(){
+  const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
+  const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
+  const fd=new FormData();fd.append('file',file);
+  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',false);
+  fd.append('capture_responses',$('captureResponses').checked);
+  fd.append('compute_ltp',$('computeLTP').checked);
+  fd.append('ltp_k',$('ltpK').value);
+  fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
+  try{
+    const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
+    if(data.ok){log(`Batch done: ${data.n_prompts} prompts added`,'done');await loadDashboard()}
+    else log('Error: '+(data.error||''),'error');
+  }catch(e){log('Error: '+e.message,'error')}
+  setLoading(btn,false);
+}
+
+// ─── Dashboard ──────────────────────────────────────────────────
+async function loadDashboard(){
+  log('Loading dashboard...');
+  try{
+    const resp=await fetch('/api/dashboard');const data=await resp.json();
+    if(!data.ok){log('Dashboard: '+(data.error||''),'error');return}
+    sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
+    const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
+    const info=data.session_info||{},agg=data.aggregate||{},plots=data.plots||{},cats=agg.categories||{},sep=agg.separability||{};
+
+    let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
+
+    if(Object.keys(cats).length){
+      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Bootstrapped mean estimates (5000 resamples, 95% CI) for each metric by prompt category. The framework predicts stress and interior share should increase monotonically from benign through jailbreak, reflecting escalating alignment tension. LTP columns (M, C) show lateral tension geometry when available.</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Len</th><th>Stress</th><th>Entropy</th><th>Bnd%</th><th>Int%</th><th>Net</th><th>Neg</th><th style="color:var(--cyan)">M</th><th style="color:var(--cyan)">C</th></tr>`;
+      for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${(s.mean_seq_len||0).toFixed(1)}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.top2_share?(m.top2_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(4):'--'}</td><td>${((s.negative_token_rate||0)*100).toFixed(0)}%</td><td style="color:var(--cyan)">${m.ltp_mean_M?m.ltp_mean_M.estimate.toFixed(4):'--'}</td><td style="color:var(--cyan)">${m.ltp_mean_C?m.ltp_mean_C.estimate.toFixed(4):'--'}</td></tr>`}
+      h+=`</table></div></div>`;
+    }
+    if(Object.keys(sep).length){
+      h+=`<div class="card"><div class="card-header"><h3>Separability (Benign vs Harmful)</h3></div><div class="card-body"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Effect sizes (Cohen's d) comparing benign prompts against harmful/jailbreak. Green (d > 0.8) indicates large, reliable separation. Bootstrap 95% CIs account for small-sample uncertainty. LTP metrics (prefixed ltp_) test Hypotheses 1 and 3 from the LTP framework.</div><table class="data-table"><tr><th>Metric</th><th>Cohen's d</th><th>95% CI</th><th>Best Acc</th></tr>`;
+      for(const[m,s]of Object.entries(sep)){const es=s.effect_size||{};const isLtp=m.startsWith('ltp_');h+=`<tr><td${isLtp?' style="color:var(--cyan)"':''}>${m}</td><td style="font-weight:600;color:${es.estimate>0.8?'var(--green)':(es.estimate>0.5?'var(--orange)':'var(--red)')}">${(es.estimate||0).toFixed(2)}</td><td>[${(es.ci_low||0).toFixed(2)},${(es.ci_high||0).toFixed(2)}]</td><td>${((s.threshold||{}).accuracy||0)*100|0}%</td></tr>`}
+      h+=`</table></div></div>`;
+    }
+    const plotOrder=[
+      ['trajectory_overlay','Amplitude Trajectories','All prompts overlaid across sublayer depth, colored by category. Separation between categories reveals where in the model alignment correction differentiates benign from adversarial inputs. Consistent divergence at middle layers supports the framework prediction.'],
+      ['difference_from_benign','Difference from Benign Baseline','Per-category mean trajectory minus the benign mean. Positive values indicate stronger correction than benign prompts at that sublayer. The peaks identify which specific sublayers carry the discriminative signal.'],
+      ['discriminative_sublayers','Discriminative Sublayers','Sublayers ranked by their adversarial-vs-benign difference. The framework predicts middle-layer attention sublayers will dominate. Purple bars indicate middle layers; blue indicates late layers.'],
+      ['metric_scatters','Metric Scatter Plots','Pairwise scatter plots of key metrics. Clean clustering by category indicates the metric pair provides separability. Overlap indicates confounded dimensions. The stress-vs-KL plot validates the behavioral prediction (Proof 2).'],
+      ['behavioral_comparison','Behavioral Comparison','Side-by-side instruct vs base model top-1 probabilities. Larger gaps indicate stronger behavioral divergence. Prompts where both models agree (small gap) are in regions of structural safety.'],
+      ['proof1_summary','Proof 1 Exactness','Mathematical verification that signed attribution sums equal the correction norm. Errors near machine precision (< 1e-4) confirm correct implementation of the decomposition.'],
+      ['batch_summary','Category Distributions','Box plots of key metrics across prompt categories. Monotonic progression from benign through jailbreak supports the alignment tension interpretation.'],
+      ['separability','Effect Sizes','Cohen\'s d with 95% bootstrap confidence intervals. Values above 0.8 (green) indicate large, reliable effects. The confidence interval width reflects measurement uncertainty at the current sample size.'],
+      ['ltp_category_comparison','LTP Summary by Category','Box plots of the four LTP summary statistics (M, C, V, L) across prompt categories. Hypothesis 1 predicts adversarial prompts show higher offset magnitude (M). Hypothesis 2 predicts successful attacks show higher offset consistency (C).'],
+      ['ltp_m_vs_stress','LTP Offset Magnitude vs Stress','Scatter of LTP offset magnitude (M) against ASM stress score. Prompts separable by M but not by stress validate Hypothesis 3: lateral structure captures information that amplitude alone does not.'],
+      ['ltp_profile_shapes','Profile Shape Distribution','Distribution of steep, flat, and inverted lateral tension profiles across categories. Steep profiles indicate concentrated alignment boundaries; inverted profiles suggest anomalous geometric configurations. Hypothesis 5 predicts that shape distributions differ systematically between categories.'],
+    ];
+    for(const[key,title,desc]of plotOrder){if(plots[key])h+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${title}${key.startsWith('ltp_')?' <span class="ltp-badge">LTP</span>':''}</h3></div><div class="card-body"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">${desc}</div><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`}
+
+    dc.innerHTML=h;log('Dashboard loaded','done');
+    document.querySelectorAll('.main-tab')[1].click();
+  }catch(e){log('Dashboard error: '+e.message,'error')}
+}
+
+async function exportSession(){
+  log('Exporting...');try{const r=await fetch('/api/export');const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Exported','done')}catch(e){log('Export error: '+e.message,'error')}
+}
+
+// ─── Render ─────────────────────────────────────────────────────
+function renderLatest(r,plots){
+  $('emptyState').style.display='none';const area=$('latestResults');
+  let h=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${escHtml(r.prompt)}</h3>${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}<span style="font-family:var(--mono);font-size:10px;color:var(--text-3)">${r.seq_len}tok</span>${r.ltp?'<span class="ltp-badge">LTP</span>':''}</div><div class="card-body">`;
+  h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Stress measures overall correction pressure. Net Correction is the total signed attribution sum. Entropy and boundary/interior share characterize how correction distributes across tokens -- benign prompts typically concentrate at boundaries (first/last tokens) while adversarial prompts distribute across interior framing tokens.</div>`;
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Gini',r.gini,null)}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
+  // LTP summary metrics
+  if(r.ltp){
+    h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');
+    h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');
+    h+=mc('V',r.ltp.mean_V,null,null,'ltp-metric');
+    h+=mc('L',r.ltp.mean_L,null,v=>(v*100).toFixed(1)+'%','ltp-metric');
+  }
+  h+=`</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:6px;font-size:10px;color:var(--purple)">Neg attr: ${r.n_negative_tokens}/${r.seq_len} tokens</div>`;
+  h+=renderTopK(r);
+
+  // ASM plots
+  const plotDescs={
+    signed_attribution:['Signed Attribution','Per-token contribution to the alignment correction at the last position. Green bars push with the correction; red bars push against it. Tokens with high attribution in the interior (rather than at boundaries) suggest the model is responding to semantic framing rather than positional structure.'],
+    stress_per_token:['Focused Stress Score','Per-token correction pressure at discriminative middle layers, normalized by delta Frobenius norm. The relative ordering reveals which tokens drive the strongest alignment response -- framing tokens typically score higher than content tokens.'],
+    distribution_metrics:['Distribution Metrics','Summary of entropy, Gini coefficient, and boundary/interior share. Benign prompts typically show low entropy (concentrated at boundaries) while adversarial prompts show higher entropy (distributed across interior tokens).'],
+    amplitude_trajectory:['Amplitude Trajectory','Normalized sensitivity across all sublayers (alternating attention/MLP through the model depth). The shape reveals where alignment correction is most active -- middle-layer attention sublayers are predicted to carry the safety-relevant signal.'],
+    heatmap:['Sensitivity Heatmap','Token-by-layer view of where correction pressure concentrates. Bright regions show specific tokens driving strong correction at specific depths. Look for whether activation is boundary-concentrated (benign pattern) or interior-distributed (adversarial pattern).'],
+  };
+  for(const[k,v]of Object.entries(plots)){if(!v||k.startsWith('ltp_'))continue;const d=plotDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
+
+  // LTP plots section
+  if(r.ltp){
+    h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--cyan)"><div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
+    h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">The LTP extends the ASM with directional information. It probes how the alignment field varies perpendicular to the generation path using counterfactual token directions (the top-k alternatives the model considered but did not select). The offset magnitude (M) measures mean lateral displacement; consistency (C) measures directional coherence; variance (V) measures concentration; coverage (L) measures density of the lateral signal.</div>`;
+
+    const ltpDescs={
+      ltp_profiles:['Lateral Tension Profiles','Per-token lateral tension across counterfactual rank positions (rank 1 = strongest unchosen alternative). Each stacked segment shows how much alignment correction the weight delta applies toward that alternative. Steep profiles (first rank dominates) indicate concentrated correction boundaries; flat profiles indicate broad, uniform correction; inverted profiles (lower ranks dominate) are potentially anomalous.'],
+      ltp_tension_magnitudes:['Lateral Tension Magnitudes','Per-token net tension point magnitude, colored by profile shape (orange = steep, blue = flat, red = inverted). The dashed line shows the mean. Tokens with high magnitude and inverted profiles are the most geometrically anomalous -- the alignment field is oriented away from the nearest semantic alternatives.'],
+      ltp_dual_trajectory:['Dual Trajectory','PCA projection of the semantic trajectory (blue, where the model\'s representations actually go) and the tension trajectory (orange, where the alignment field displaces them). Red offset lines connect corresponding tokens. Large, consistent offsets indicate the generation path runs along a systematic alignment boundary.'],
+      ltp_summary_stats:['LTP Summary Statistics','The four summary scalars: offset magnitude (M, mean lateral displacement), consistency (C, directional coherence 0-1), variance (V, concentration across tokens), and coverage (L, fraction of tokens with lateral signal). High M with high C is the boundary-threading signature predicted by Hypothesis 4.'],
+      ltp_profile_heatmap:['Profile Heatmap','Token-by-rank heatmap. Rows are tokens; columns are counterfactual alternatives ranked by logit score. Bright cells show high lateral tension toward that alternative. The pattern of brightness across ranks characterizes the local alignment landscape shape at each token.'],
+    };
+    for(const[k,v]of Object.entries(plots)){if(!k.startsWith('ltp_')||!v)continue;const d=ltpDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
+
+    // Counterfactual tokens table
+    if(r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
+      h+=`<div style="margin-top:8px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">Counterfactual Neighborhood</div>`;
+      h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">The top-k alternative tokens the model considered at each position. These define the probing directions for the lateral tension profile -- the paths not taken. The probability column shows how seriously the model considered each alternative.</div>`;
+      h+=`<table class="data-table"><tr><th>Token</th><th>Shape</th>`;
+      const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)h+=`<th>Alt ${i+1}</th>`;
+      h+=`</tr>`;
+      for(let i=0;i<Math.min(r.tokens.length,r.ltp.counterfactual_tokens.length);i++){
+        const cf=r.ltp.counterfactual_tokens[i];
+        const shape=r.ltp.profile_shapes?r.ltp.profile_shapes[i]:'';
+        const shapeColor=shape==='steep'?'var(--orange)':(shape==='inverted'?'var(--red)':'var(--blue)');
+        h+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
+        for(let j=0;j<Math.min(kVal,4);j++){
+          if(cf&&j<cf.length)h+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
+          else h+=`<td>--</td>`;
+        }
+        h+=`</tr>`;
+      }
+      h+=`</table></div>`;
+    }
+    h+=`</div>`;
+  }
+
+  h+=renderTokenTable(r)+`</div></div>`;
+  area.innerHTML=h+area.innerHTML;
+}
+function renderTopK(r){
+  if(!r.instruct_topk||!r.instruct_topk.length)return'';
+  const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
+  for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
+  return`<div class="card" style="margin-bottom:8px;border-color:var(--border-accent)"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Model Responses</h3></div><div class="card-body"><table class="topk-table"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+}
+function renderTokenTable(r){
+  if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
+  const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
+  for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
+  return`<table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table>`
+}
+function renderDataTable(){
+  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';return}
+  let h=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">All prompts analyzed in this session. Stress = correction pressure at signal layers. Ent = normalized entropy. Bnd%/Int% = boundary vs interior attribution share. Net = total signed correction. Neg = count of correction-suppressing tokens. KL = KL divergence between instruct and base output distributions. M/C = LTP offset magnitude and consistency.</div>`;
+  h+=`<table class="data-table"><tr><th>#</th><th>Prompt</th><th>Cat</th><th>Tok</th><th>Stress</th><th>Ent</th><th>Bnd%</th><th>Int%</th><th>Net</th><th>Neg</th><th>KL</th><th style="color:var(--cyan)">M</th><th style="color:var(--cyan)">C</th></tr>`;
+  sessionResults.forEach((r,i)=>{
+    const ltp=r.ltp;
+    h+=`<tr><td>${i+1}</td><td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,35))}${r.prompt.length>35?'...':''}</td><td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td><td>${r.seq_len}</td><td>${(r.stress_score||0).toFixed(3)}</td><td>${(r.entropy||0).toFixed(3)}</td><td>${((r.top2_share||0)*100).toFixed(1)}%</td><td>${((r.middle_share||0)*100).toFixed(1)}%</td><td>${(r.net_correction||0).toFixed(3)}</td><td>${r.n_negative_tokens||0}</td><td>${r.kl_divergence!=null?r.kl_divergence.toFixed(3):'--'}</td><td style="color:var(--cyan)">${ltp?ltp.mean_M.toFixed(3):'--'}</td><td style="color:var(--cyan)">${ltp?ltp.mean_C.toFixed(3):'--'}</td></tr>`});
+  h+=`</table>`;$('dataTableContainer').innerHTML=h;
+}
+
+// ─── Prompt Library ─────────────────────────────────────────────
+async function loadPromptLibrary(){
+  try{const r=await(await fetch('/api/prompts')).json();promptLibraryData=r.prompts||[];renderPromptLibrary()}catch(e){}
+}
+function renderPromptLibrary(){
+  const s=$('promptLibrary');s.innerHTML='<option value="">-- Presets --</option>';
+  const g={};promptLibraryData.forEach((p,i)=>{if(p.baseline)return;const c=p.category||'other';if(!g[c])g[c]=[];g[c].push({...p,index:i})});
+  for(const[c,ps]of Object.entries(g)){const og=document.createElement('optgroup');og.label=c[0].toUpperCase()+c.slice(1);ps.forEach(p=>{const o=document.createElement('option');o.value=p.index;o.textContent=p.prompt.length>55?p.prompt.substring(0,52)+'...':p.prompt;og.appendChild(o)});s.appendChild(og)}
+}
+function loadFromLibrary(){const s=$('promptLibrary');if(s.value==='')return;const p=promptLibraryData[parseInt(s.value)];if(p){$('promptInput').value=p.prompt;$('categorySelect').value=p.category||''}}
+async function addCurrentToLibrary(){
+  const p=$('promptInput').value.trim();if(!p){showError('promptError','No prompt to save.');return}
+  const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');fd.append('baseline',false);
+  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.error||'Failed')}catch(e){}
+}
+
+// ─── Init ───────────────────────────────────────────────────────
+(async function(){
+  try{
+    loadModelList();loadPromptLibrary();
+    const st=await(await fetch('/api/status')).json();
+    if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
+    if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
+    else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
+      let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
+    if(st.session&&st.session.n_results>0)updateSessionBadge();
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
