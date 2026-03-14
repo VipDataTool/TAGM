@@ -352,11 +352,12 @@ def generate_batch_report(aggregate, per_prompt, plots,
         story.append(Paragraph("Category Summary", S_H1))
         story.append(Paragraph(
             "Prompts grouped by category with bootstrapped mean estimates (5000 resamples, 95% CI). "
-            "The negative token rate indicates how often correction-suppressing tokens are observed.",
+            "The negative token rate indicates how often correction-suppressing tokens are observed. "
+            "M and C are LTP offset magnitude and consistency.",
             S_BODY))
 
         cat_data = [["Category", "N", "Avg Len", "Stress", "Entropy",
-                      "Bnd%", "Int%", "Net", "Neg Rate"]]
+                      "Bnd%", "Int%", "Net", "Neg Rate", "M", "C"]]
         for cat_name in ["benign", "mild", "harmful", "jailbreak"]:
             if cat_name not in cats: continue
             s = cats[cat_name]; m = s.get("metrics", {})
@@ -369,6 +370,8 @@ def generate_batch_report(aggregate, per_prompt, plots,
                 _pct(m.get("middle_share", {}).get("estimate")),
                 _fmt(m.get("net_correction", {}).get("estimate")),
                 _pct(s.get("negative_token_rate")),
+                _fmt(m.get("ltp_mean_M", {}).get("estimate")),
+                _fmt(m.get("ltp_mean_C", {}).get("estimate")),
             ])
         t = Table(cat_data, repeatRows=1)
         t.setStyle(_table_style())
@@ -449,17 +452,19 @@ def generate_batch_report(aggregate, per_prompt, plots,
         story.append(PageBreak())
         story.append(Paragraph("Per-Prompt Results", S_H1))
         story.append(Paragraph(
-            "Individual metrics for each prompt in the dataset. Prompts are listed in analysis order.",
+            "Individual metrics for each prompt in the dataset. Prompts are listed in analysis order. "
+            "M and C are the LTP offset magnitude and consistency when available.",
             S_BODY))
 
         pp_data = [["Prompt", "Cat", "Tok", "Stress", "Ent",
-                     "Bnd%", "Int%", "Net"]]
+                     "Bnd%", "Int%", "Net", "M", "C"]]
         wrap_style = ParagraphStyle("pp_wrap", fontName="Courier", fontSize=10,
                                      textColor=C_BLACK, leading=12, wordWrap="CJK")
         for p in per_prompt:
             prompt_text = p.get("prompt", "")[:60]
             if len(p.get("prompt", "")) > 60:
                 prompt_text += "..."
+            ltp = p.get("ltp")
             pp_data.append([
                 Paragraph(prompt_text, wrap_style),
                 (p.get("category", "") or "?")[:5],
@@ -469,10 +474,13 @@ def generate_batch_report(aggregate, per_prompt, plots,
                 _pct(p.get("top2_share")),
                 _pct(p.get("middle_share")),
                 _fmt(p.get("net_correction")),
+                _fmt(ltp.get("mean_M") if ltp else None),
+                _fmt(ltp.get("mean_C") if ltp else None),
             ])
         t = Table(pp_data, repeatRows=1,
-                  colWidths=[2.6*inch, 0.45*inch, 0.35*inch,
-                             0.55*inch, 0.55*inch, 0.45*inch, 0.45*inch, 0.55*inch])
+                  colWidths=[2.2*inch, 0.4*inch, 0.35*inch,
+                             0.55*inch, 0.5*inch, 0.45*inch, 0.45*inch,
+                             0.5*inch, 0.5*inch, 0.5*inch])
         t.setStyle(_table_style())
         story.append(t)
 

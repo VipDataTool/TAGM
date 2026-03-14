@@ -86,6 +86,35 @@ class DatasetSession:
         with open(path, "w") as f:
             json.dump(agg, f, indent=2, default=str)
 
+    def save_results_json(self):
+        """Save the full per-prompt result dicts (including per-token arrays,
+        LTP profiles, counterfactual tokens, heatmaps, trajectories, etc.).
+        This preserves all data the analyzer produces, not just scalar summaries."""
+        path = self.session_dir / "results.json"
+
+        def _sanitize(obj):
+            """Make numpy types JSON-serializable."""
+            if isinstance(obj, (np.integer,)):
+                return int(obj)
+            if isinstance(obj, (np.floating,)):
+                v = float(obj)
+                if np.isnan(v) or np.isinf(v):
+                    return None
+                return v
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            if isinstance(obj, dict):
+                return {str(k): _sanitize(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_sanitize(v) for v in obj]
+            if isinstance(obj, float):
+                if np.isnan(obj) or np.isinf(obj):
+                    return None
+            return obj
+
+        with open(path, "w") as f:
+            json.dump(_sanitize(self.results), f, indent=1, default=str)
+
     def get_results_by_category(self):
         """Group results by category."""
         groups = {}

@@ -445,6 +445,7 @@ async def get_dashboard():
 
         session.save_comparative_plots(all_plots)
         session.save_aggregate_json(agg)
+        session.save_results_json()
 
         logger.info(f"Dashboard generated: {session.n_results} prompts")
 
@@ -505,6 +506,13 @@ async def export_session():
         shutil.copy2(pdf_path, session.session_dir / "report.pdf")
     except Exception as e:
         logger.error(f"Export PDF failed: {e}")
+
+    # Save full per-prompt results JSON (all per-token arrays, LTP profiles, etc.)
+    try:
+        session.save_results_json()
+        logger.info(f"Full results JSON saved: {session.n_results} prompts")
+    except Exception as e:
+        logger.error(f"Export results JSON failed: {e}")
 
     try:
         zip_bytes = session.export_zip()
