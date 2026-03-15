@@ -21,7 +21,7 @@ CAT_COLORS = {
 
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=140, bbox_inches="tight",
+    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
                 facecolor="#121212", edgecolor="none")
     plt.close(fig)
     buf.seek(0)
@@ -29,12 +29,12 @@ def _fig_to_base64(fig) -> str:
 
 def _style_ax(ax, title=""):
     ax.set_facecolor("#1E1E1E")
-    ax.tick_params(colors="#9CA3AF", labelsize=10)
+    ax.tick_params(colors="#9CA3AF", labelsize=13)
     ax.xaxis.label.set_color("#9CA3AF")
     ax.yaxis.label.set_color("#9CA3AF")
     ax.title.set_color("#DEE2E6")
     if title:
-        ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=12)
     for spine in ax.spines.values():
         spine.set_color("#404040")
     ax.grid(True, alpha=0.2, color="#333333")
@@ -51,7 +51,7 @@ def _cat_legend(ax, results):
         if c not in used:
             used.add(c)
             handles.append(Patch(facecolor=CAT_COLORS.get(c, "#888"), label=c.title()))
-    ax.legend(handles=handles, fontsize=10, loc="best")
+    ax.legend(handles=handles, fontsize=12, loc="best")
 
 
 def plot_trajectory_overlay(results: list) -> str:
@@ -70,10 +70,10 @@ def plot_trajectory_overlay(results: list) -> str:
     n = len(has_traj[0]["amplitude_normalized"])
     for b, t in [(n // 3, "Early -> Mid"), (2 * n // 3, "Mid -> Late")]:
         ax.axvline(x=b, color="#404040", linestyle="--", alpha=0.5)
-        ax.text(b + 1, ax.get_ylim()[1] * 0.92, t, fontsize=10, color="#6B7280")
+        ax.text(b + 1, ax.get_ylim()[1] * 0.92, t, fontsize=12, color="#6B7280")
 
-    ax.set_xlabel("Sublayer index", fontsize=11)
-    ax.set_ylabel("Normalized sensitivity", fontsize=11)
+    ax.set_xlabel("Sublayer index", fontsize=13)
+    ax.set_ylabel("Normalized sensitivity", fontsize=13)
     _cat_legend(ax, has_traj)
 
     plt.tight_layout()
@@ -113,9 +113,9 @@ def plot_difference_from_benign(results: list) -> str:
         ax.fill_between(range(len(diff)), diff, alpha=0.1, color=color)
 
     ax.axhline(y=0, color="#404040", linewidth=1)
-    ax.set_xlabel("Sublayer index", fontsize=11)
-    ax.set_ylabel("Delta normalized sensitivity", fontsize=11)
-    ax.legend(fontsize=10)
+    ax.set_xlabel("Sublayer index", fontsize=13)
+    ax.set_ylabel("Delta normalized sensitivity", fontsize=13)
+    ax.legend(fontsize=12)
 
     n = len(baseline)
     for b, t in [(n // 3, "Early -> Mid"), (2 * n // 3, "Mid -> Late")]:
@@ -166,14 +166,14 @@ def plot_discriminative_sublayers(results: list, top_n: int = 15) -> str:
     y_pos = range(len(labels))
     ax.barh(y_pos, values, color=colors, height=0.65, edgecolor="#1a1a1a")
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(labels, fontsize=10, color="#9CA3AF")
-    ax.set_xlabel("Delta sensitivity", fontsize=11)
+    ax.set_yticklabels(labels, fontsize=12, color="#9CA3AF")
+    ax.set_xlabel("Delta sensitivity", fontsize=13)
     ax.invert_yaxis()
 
     handles = [Patch(facecolor="#009E73", label="Early"),
                Patch(facecolor="#CC79A7", label="Middle"),
                Patch(facecolor="#56B4E9", label="Late")]
-    ax.legend(handles=handles, fontsize=10, loc="lower right")
+    ax.legend(handles=handles, fontsize=12, loc="lower right")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -207,8 +207,8 @@ def plot_metric_scatters(results: list) -> str:
             ax.scatter(xv, yv, c=color, s=60, alpha=0.8,
                        edgecolors="#1E1E1E", linewidth=0.5)
 
-        ax.set_xlabel(x_label, fontsize=11)
-        ax.set_ylabel(y_label, fontsize=11)
+        ax.set_xlabel(x_label, fontsize=13)
+        ax.set_ylabel(y_label, fontsize=13)
 
     _cat_legend(axes[0, 0], results)
 
@@ -237,9 +237,9 @@ def plot_behavioral_comparison(results: list) -> str:
     ax.bar(x + w/2, base_probs, w, label="Base", color="#D55E00", alpha=0.85)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=10, color="#9CA3AF")
-    ax.set_ylabel("Top-1 probability", fontsize=11)
-    ax.legend(fontsize=11)
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Top-1 probability", fontsize=13)
+    ax.legend(fontsize=13)
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -264,18 +264,18 @@ def plot_proof1_summary(results: list) -> str:
     _style_ax(ax, "Proof 1 Exactness Errors\n(log scale)")
     ax.hist(np.log10(np.array(errors) + 1e-15), bins=30, color="#56B4E9", alpha=0.8,
             edgecolor="#1E1E1E")
-    ax.set_xlabel("log10(error)", fontsize=11)
-    ax.set_ylabel("Count", fontsize=11)
+    ax.set_xlabel("log10(error)", fontsize=13)
+    ax.set_ylabel("Count", fontsize=13)
 
     ax = axes[1]
     _style_ax(ax, f"Exactness Rate: {exact_rate:.1%}")
     bars = ax.bar(["Exact\n(< 1e-4)", "Inexact"], [exact_rate, 1 - exact_rate],
                   color=["#009E73", "#D55E00"], alpha=0.85, width=0.5)
     ax.set_ylim(0, 1)
-    ax.set_ylabel("Fraction", fontsize=11)
+    ax.set_ylabel("Fraction", fontsize=13)
     for bar, val in zip(bars, [exact_rate, 1 - exact_rate]):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
-                f"{val:.1%}", ha="center", fontsize=11, color="#DEE2E6")
+                f"{val:.1%}", ha="center", fontsize=13, color="#DEE2E6")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -328,7 +328,7 @@ def plot_ltp_category_comparison(results: list) -> str:
                     item.set_color("#9CA3AF")
             for item in bp["fliers"]:
                 item.set_markeredgecolor("#9CA3AF")
-            ax.tick_params(axis="x", labelsize=10, colors="#9CA3AF")
+            ax.tick_params(axis="x", labelsize=13, colors="#9CA3AF")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -349,8 +349,8 @@ def plot_ltp_m_vs_stress(results: list) -> str:
         ax.scatter(r.get("stress_score", 0), r["ltp"]["mean_M"],
                    c=color, s=60, alpha=0.8, edgecolors="#1E1E1E", linewidth=0.5)
 
-    ax.set_xlabel("Stress Score (ASM)", fontsize=11)
-    ax.set_ylabel("Offset Magnitude M (LTP)", fontsize=11)
+    ax.set_xlabel("Stress Score (ASM)", fontsize=13)
+    ax.set_ylabel("Offset Magnitude M (LTP)", fontsize=13)
     _cat_legend(ax, has_ltp)
 
     plt.tight_layout()
@@ -391,10 +391,10 @@ def plot_ltp_profile_shape_distribution(results: list) -> str:
                color=shape_colors[shape], alpha=0.85)
 
     ax.set_xticks(x + width)
-    ax.set_xticklabels([c.title() for c in available], fontsize=11)
-    ax.set_ylabel("Fraction of tokens", fontsize=11)
+    ax.set_xticklabels([c.title() for c in available], fontsize=13)
+    ax.set_ylabel("Fraction of tokens", fontsize=13)
     ax.set_ylim(0, 1)
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=12)
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -456,7 +456,7 @@ def plot_key_scatters(results: list) -> str:
                 except Exception:
                     pass  # Skip ellipse on numerical issues
 
-        ax.legend(fontsize=9, loc="best", framealpha=0.85)
+        ax.legend(fontsize=12, loc="best", framealpha=0.85)
 
     plt.tight_layout(pad=1.5)
     return fig_to_base64(fig)

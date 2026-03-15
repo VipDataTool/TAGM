@@ -29,7 +29,7 @@ SHAPE_COLORS = {"steep": "#E69F00", "flat": "#56B4E9", "inverted": "#D55E00"}
 
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=140, bbox_inches="tight",
+    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
                 facecolor="#121212", edgecolor="none")
     plt.close(fig)
     buf.seek(0)
@@ -38,12 +38,12 @@ def _fig_to_base64(fig) -> str:
 
 def _style_ax(ax, title=""):
     ax.set_facecolor("#1E1E1E")
-    ax.tick_params(colors="#9CA3AF", labelsize=10)
+    ax.tick_params(colors="#9CA3AF", labelsize=13)
     ax.xaxis.label.set_color("#9CA3AF")
     ax.yaxis.label.set_color("#9CA3AF")
     ax.title.set_color("#DEE2E6")
     if title:
-        ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=12)
     for spine in ax.spines.values():
         spine.set_color("#404040")
     ax.grid(True, alpha=0.2, color="#333333")
@@ -71,13 +71,13 @@ def plot_signed_attribution(result) -> str:
            edgecolor="#1E1E1E", linewidth=0.5)
     ax.set_xticks(range(len(result.tokens)))
     ax.set_xticklabels(result.tokens, rotation=50, ha="right",
-                       fontsize=10, color="#9CA3AF")
+                       fontsize=12, color="#9CA3AF")
     ax.axhline(y=0, color="#404040", linewidth=0.8)
-    ax.set_ylabel("Signed attribution", fontsize=11)
+    ax.set_ylabel("Signed attribution", fontsize=13)
 
     info = f"Net: {result.net_correction:.4f}  |  Negative: {result.n_negative_tokens}/{result.seq_len}"
     ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",
-            fontsize=10, color="#9CA3AF",
+            fontsize=12, color="#9CA3AF",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
 
     plt.tight_layout()
@@ -94,11 +94,11 @@ def plot_stress_per_token(result) -> str:
            edgecolor="#1E1E1E", linewidth=0.5)
     ax.set_xticks(range(len(result.tokens)))
     ax.set_xticklabels(result.tokens, rotation=50, ha="right",
-                       fontsize=10, color="#9CA3AF")
-    ax.set_ylabel("Stress score", fontsize=11)
+                       fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Stress score", fontsize=13)
 
     ax.text(0.99, 0.95, f"Mean: {result.stress_score:.4f}",
-            transform=ax.transAxes, ha="right", va="top", fontsize=10,
+            transform=ax.transAxes, ha="right", va="top", fontsize=14,
             color="#9CA3AF",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
 
@@ -117,13 +117,13 @@ def plot_amplitude_trajectory(result) -> str:
     traj = result.amplitude_normalized
     ax.plot(traj, color="#7db8c9", linewidth=1.5, alpha=0.9)
     ax.fill_between(range(len(traj)), traj, alpha=0.15, color="#7db8c9")
-    ax.set_xlabel("Sublayer index", fontsize=11)
-    ax.set_ylabel("||dW . h|| / ||dW||_F", fontsize=11)
+    ax.set_xlabel("Sublayer index", fontsize=13)
+    ax.set_ylabel("||dW . h|| / ||dW||_F", fontsize=13)
 
     n = len(traj)
     for b, label in [(n // 3, "Early -> Mid"), (2 * n // 3, "Mid -> Late")]:
         ax.axvline(x=b, color="#404040", linestyle="--", alpha=0.6)
-        ax.text(b + 1, ax.get_ylim()[1] * 0.92, label, fontsize=10, color="#6B7280")
+        ax.text(b + 1, ax.get_ylim()[1] * 0.92, label, fontsize=12, color="#6B7280")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -141,16 +141,16 @@ def plot_heatmap(result) -> str:
                    interpolation="nearest")
     ax.set_xticks(range(len(result.tokens)))
     ax.set_xticklabels(result.tokens, rotation=50, ha="right",
-                       fontsize=10, color="#9CA3AF")
+                       fontsize=12, color="#9CA3AF")
 
     n_sub = result.heatmap.shape[0]
     ax.set_yticks([0, n_sub // 3, 2 * n_sub // 3, n_sub - 1])
-    ax.set_yticklabels(["Early", "Mid", "Late", "Final"], fontsize=10)
-    ax.set_ylabel("Sublayer depth", fontsize=11)
+    ax.set_yticklabels(["Early", "Mid", "Late", "Final"], fontsize=12)
+    ax.set_ylabel("Sublayer depth", fontsize=13)
 
     cb = plt.colorbar(im, ax=ax, fraction=0.02, pad=0.02)
-    cb.ax.tick_params(colors="#9CA3AF", labelsize=10)
-    cb.set_label("Normalized sensitivity", color="#9CA3AF", fontsize=11)
+    cb.ax.tick_params(colors="#9CA3AF", labelsize=13)
+    cb.set_label("Normalized sensitivity", color="#9CA3AF", fontsize=13)
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -172,8 +172,8 @@ def plot_distribution_metrics(result) -> str:
         ax.barh([0], [val], color=color, height=0.5, alpha=0.85)
         ax.set_xlim(0, 1)
         ax.set_yticks([])
-        ax.set_title(label, fontsize=12, color="#DEE2E6", fontweight="bold")
-        ax.text(val + 0.02, 0, f"{val:.3f}", va="center", fontsize=12,
+        ax.set_title(label, fontsize=14, color="#DEE2E6", fontweight="bold")
+        ax.text(val + 0.02, 0, f"{val:.3f}", va="center", fontsize=14,
                 color="#DEE2E6", fontweight="bold")
 
     plt.tight_layout()
@@ -239,7 +239,7 @@ def plot_batch_summary(agg: dict) -> str:
                     linewidth=2.5, solid_capstyle="round", zorder=3, alpha=0.8)
 
         ax.set_xticks(range(len(available)))
-        ax.set_xticklabels([c.capitalize() for c in available], fontsize=10)
+        ax.set_xticklabels([c.capitalize() for c in available], fontsize=12)
         ax.tick_params(axis="x", length=0)
 
     plt.tight_layout(pad=1.5)
@@ -304,7 +304,7 @@ def plot_separability(agg: dict) -> str:
         # Accuracy label on right
         ax.text(max(ci_hi, d_val) + 0.12, i,
                 f"d = {d_val:.2f}   {acc:.0%}",
-                va="center", fontsize=10, color=TEXT_PRIMARY, fontweight="500")
+                va="center", fontsize=12, color=TEXT_PRIMARY, fontweight="500")
 
     # Reference lines
     for threshold, label, ls in [
@@ -313,7 +313,7 @@ def plot_separability(agg: dict) -> str:
     ]:
         ax.axvline(x=threshold, color=TEXT_MUTED, linestyle=ls,
                    alpha=0.5, linewidth=1)
-        ax.text(threshold, len(metrics) - 0.3, label, fontsize=8,
+        ax.text(threshold, len(metrics) - 0.3, label, fontsize=11,
                 color=TEXT_MUTED, ha="center")
 
     # Zero reference
@@ -321,7 +321,7 @@ def plot_separability(agg: dict) -> str:
 
     ax.set_yticks(range(len(metrics)))
     ax.set_yticklabels([nice_names.get(m, m.replace("_", " ").title())
-                        for m in metrics], fontsize=11)
+                        for m in metrics], fontsize=13)
     ax.invert_yaxis()  # Largest effect at top
     style_ax(ax, title="Effect Size: Benign+Mild vs Harmful+Jailbreak",
              xlabel="Cohen's d (95% CI)")
@@ -364,9 +364,9 @@ def plot_ltp_profiles(ltp_result, tokens) -> str:
         bottoms += vals
 
     ax.set_xticks(x)
-    ax.set_xticklabels(tokens, rotation=50, ha="right", fontsize=10, color="#9CA3AF")
-    ax.set_ylabel("Lateral tension magnitude", fontsize=11)
-    ax.legend(fontsize=10, loc="upper right", ncol=min(k, 4))
+    ax.set_xticklabels(tokens, rotation=50, ha="right", fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Lateral tension magnitude", fontsize=13)
+    ax.legend(fontsize=12, loc="upper right", ncol=min(k, 4))
 
     # Annotate profile shapes
     for i, shape in enumerate(ltp_result.profile_shapes):
@@ -394,13 +394,13 @@ def plot_ltp_tension_magnitudes(ltp_result, tokens) -> str:
     ax.bar(range(len(tokens)), mags, color=colors, width=0.75,
            edgecolor="#1E1E1E", linewidth=0.5)
     ax.set_xticks(range(len(tokens)))
-    ax.set_xticklabels(tokens, rotation=50, ha="right", fontsize=10, color="#9CA3AF")
-    ax.set_ylabel("||p_i|| (tension point magnitude)", fontsize=11)
+    ax.set_xticklabels(tokens, rotation=50, ha="right", fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("||p_i|| (tension point magnitude)", fontsize=13)
 
     mean_mag = np.mean(mags)
     ax.axhline(y=mean_mag, color="#E69F00", linestyle="--", alpha=0.7, linewidth=1)
     ax.text(0.99, 0.95, f"Mean: {mean_mag:.4f}",
-            transform=ax.transAxes, ha="right", va="top", fontsize=10,
+            transform=ax.transAxes, ha="right", va="top", fontsize=14,
             color="#9CA3AF",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
 
@@ -408,7 +408,7 @@ def plot_ltp_tension_magnitudes(ltp_result, tokens) -> str:
     handles = [Patch(facecolor=SHAPE_COLORS["steep"], label="Steep"),
                Patch(facecolor=SHAPE_COLORS["flat"], label="Flat"),
                Patch(facecolor=SHAPE_COLORS["inverted"], label="Inverted")]
-    ax.legend(handles=handles, fontsize=10, loc="upper left")
+    ax.legend(handles=handles, fontsize=12, loc="upper left")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -447,13 +447,13 @@ def plot_ltp_dual_trajectory(ltp_result) -> str:
     ax.scatter(sem[-1, 0], sem[-1, 1], c="#D55E00", s=80, marker="s",
                zorder=4, edgecolors="#DEE2E6", linewidth=1)
     ax.text(sem[0, 0], sem[0, 1] + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.03,
-            "Start", fontsize=10, color="#009E73", ha="center")
+            "Start", fontsize=12, color="#009E73", ha="center")
     ax.text(sem[-1, 0], sem[-1, 1] + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.03,
-            "End", fontsize=10, color="#D55E00", ha="center")
+            "End", fontsize=12, color="#D55E00", ha="center")
 
-    ax.set_xlabel("PC1", fontsize=11)
-    ax.set_ylabel("PC2", fontsize=11)
-    ax.legend(fontsize=10, loc="best")
+    ax.set_xlabel("PC1", fontsize=13)
+    ax.set_ylabel("PC2", fontsize=13)
+    ax.legend(fontsize=12, loc="best")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -480,9 +480,9 @@ def plot_ltp_summary_stats(ltp_result) -> str:
         else:
             ax.barh([0], [val], color=color, height=0.5, alpha=0.85)
         ax.set_yticks([])
-        ax.set_title(label, fontsize=12, color="#DEE2E6", fontweight="bold")
+        ax.set_title(label, fontsize=14, color="#DEE2E6", fontweight="bold")
         ax.text(val + ax.get_xlim()[1] * 0.02, 0,
-                f"{val:.4f}", va="center", fontsize=12,
+                f"{val:.4f}", va="center", fontsize=14,
                 color="#DEE2E6", fontweight="bold")
 
     plt.tight_layout()
@@ -505,16 +505,16 @@ def plot_ltp_profile_heatmap(ltp_result, tokens) -> str:
 
     im = ax.imshow(matrix, aspect="auto", cmap=TASM_CMAP, interpolation="nearest")
     ax.set_xticks(range(k))
-    ax.set_xticklabels([f"R{i+1}" for i in range(k)], fontsize=10)
-    ax.set_xlabel("Counterfactual rank", fontsize=11)
+    ax.set_xticklabels([f"R{i+1}" for i in range(k)], fontsize=12)
+    ax.set_xlabel("Counterfactual rank", fontsize=13)
 
     ax.set_yticks(range(n_tokens))
-    ax.set_yticklabels(tokens, fontsize=10, color="#9CA3AF")
-    ax.set_ylabel("Token", fontsize=11)
+    ax.set_yticklabels(tokens, fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Token", fontsize=13)
 
     cb = plt.colorbar(im, ax=ax, fraction=0.02, pad=0.02)
-    cb.ax.tick_params(colors="#9CA3AF", labelsize=10)
-    cb.set_label("Lateral tension", color="#9CA3AF", fontsize=11)
+    cb.ax.tick_params(colors="#9CA3AF", labelsize=13)
+    cb.set_label("Lateral tension", color="#9CA3AF", fontsize=13)
 
     plt.tight_layout()
     return _fig_to_base64(fig)

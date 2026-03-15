@@ -76,22 +76,22 @@ TASM_RC = {
     "grid.linewidth": 0.5,
     "xtick.color": TEXT_SECONDARY,
     "ytick.color": TEXT_SECONDARY,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 10,
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
     "text.color": TEXT_PRIMARY,
     "font.family": "sans-serif",
     "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
-    "font.size": 11,
+    "font.size": 14,
     "axes.spines.top": False,
     "axes.spines.right": False,
-    "figure.dpi": 150,
-    "savefig.dpi": 150,
+    "figure.dpi": 200,
+    "savefig.dpi": 200,
     "savefig.facecolor": BG_DARK,
     "savefig.edgecolor": "none",
     "savefig.bbox": "tight",
     "legend.facecolor": BG_CARD,
     "legend.edgecolor": SPINE_COLOR,
-    "legend.fontsize": 10,
+    "legend.fontsize": 12,
     "legend.framealpha": 0.9,
 }
 
@@ -113,12 +113,12 @@ def fig_to_base64(fig) -> str:
 def style_ax(ax, title="", xlabel="", ylabel=""):
     """Apply clean Tufte-inspired styling to an axes object."""
     if title:
-        ax.set_title(title, fontsize=13, fontweight="600", pad=10,
+        ax.set_title(title, fontsize=16, fontweight="600", pad=10,
                      color=TEXT_PRIMARY)
     if xlabel:
-        ax.set_xlabel(xlabel, fontsize=11, color=TEXT_SECONDARY)
+        ax.set_xlabel(xlabel, fontsize=13, color=TEXT_SECONDARY)
     if ylabel:
-        ax.set_ylabel(ylabel, fontsize=11, color=TEXT_SECONDARY)
+        ax.set_ylabel(ylabel, fontsize=13, color=TEXT_SECONDARY)
 
 
 def cat_legend(ax, cats=None, loc="upper right", **kwargs):
@@ -128,7 +128,7 @@ def cat_legend(ax, cats=None, loc="upper right", **kwargs):
     handles = [Patch(facecolor=CAT_COLORS.get(c, "#888"),
                      edgecolor="none", label=c.capitalize())
                for c in cats]
-    ax.legend(handles=handles, loc=loc, fontsize=9, framealpha=0.85, **kwargs)
+    ax.legend(handles=handles, loc=loc, fontsize=11, framealpha=0.85, **kwargs)
 
 
 def wrap_label(text, width=20):
