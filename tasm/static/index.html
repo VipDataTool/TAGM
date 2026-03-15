@@ -309,7 +309,7 @@ const VIZ_REGISTRY = {
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', type:'plot', desc:'Per-token contribution to alignment correction'},
   stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', type:'plot', desc:'Correction pressure at discriminative middle layers'},
   heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', type:'plot', desc:'2D correction intensity by token and sublayer'},
-  amplitude_trajectory:{cat:'ASM Core',   title:'Layer Trajectory',           on:true, scope:'prompt', type:'plot', desc:'Single-prompt correction through model depth'},
+  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch_exp', type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
   distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
@@ -331,7 +331,7 @@ const VIZ_REGISTRY = {
   proof1_summary:      {cat:'Batch Analysis',title:'Proof 1 Verification',    on:true,  scope:'batch', type:'plot', desc:'Mathematical exactness of the decomposition'},
 
   // ── Batch: Experimental ──
-  exp_trajectory_overlay:{cat:'Batch Experimental',title:'Amplitude Trajectories',on:true,scope:'batch_exp',type:'plot',desc:'All prompts overlaid across sublayer depth'},
+  exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch',type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
   exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch_exp',type:'plot',desc:'Per-category trajectory minus benign mean'},
   exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch_exp',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
   exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch_exp',type:'plot',desc:'Instruct vs base probabilities and KL'},
@@ -357,9 +357,9 @@ function vizRenderConfig(){
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:10px;font-family:var(--mono);color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:400px">
-      <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option></select></div>
-      <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
-      <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
     </div>
   </div>`;
   // Viz toggles by category
@@ -610,8 +610,13 @@ async function loadDashboard(force){
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
     let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Experimental metrics.</strong> These showed weak or inconsistent discriminative power at n=${info.n_results||'?'} on ${info.model||'this model'}. Toggle them in the Configuration tab.</div></div></div>`;
 
+    // Experimental tab: enabled batch_exp + disabled batch plots (all collapsed)
     for(const[key,v]of Object.entries(VIZ_REGISTRY)){
-      if(v.scope!=='batch_exp'||!v.on||!plots[key])continue;
+      if(!plots[key])continue;
+      // Show if: scope is batch_exp and enabled, OR scope is batch and disabled
+      const isExpEnabled=(v.scope==='batch_exp'&&v.on);
+      const isBatchDisabled=(v.scope==='batch'&&!v.on);
+      if(!isExpEnabled&&!isBatchDisabled)continue;
       eh+=plotCard(key,v.title,v.desc,plots,true);
     }
 
@@ -984,6 +989,7 @@ function renderLatest(r,plots){
   for(const[k,v]of Object.entries(plots)){
     if(!v||k.startsWith('ltp_'))continue;
     if(!vizIsEnabled(k))continue;
+    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
     const f=featureMeta[k];
     h+=`<div class="feature">
       <div class="feature-header">
@@ -1073,6 +1079,51 @@ function renderLatest(r,plots){
   if(vizIsEnabled('token_table')) h+=renderTokenTable(r);
 
   h+=`</div></div>`;
+
+  // ═══ DISABLED PROMPT VIZS → EXPERIMENTAL CARD ═══
+  // Collect disabled prompt-scope visualizations and render them collapsed
+  let expH='';
+  // Disabled ASM plots
+  for(const[k,v]of Object.entries(plots)){
+    if(!v||k.startsWith('ltp_'))continue;
+    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
+      const f=featureMeta[k];
+      expH+=`<div class="feature"><div class="feature-header" onclick="this.parentElement.querySelector('.feature-body').classList.toggle('collapsed')" style="cursor:pointer"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+    }
+  }
+  // Disabled LTP plots
+  if(r.ltp){
+    for(const[k,v]of Object.entries(plots)){
+      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+      if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
+        const f=ltpMeta[k];
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="this.parentElement.querySelector('.feature-body').classList.toggle('collapsed')" style="cursor:pointer"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+      }
+    }
+    // Disabled JS vizs that have LTP data
+    if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Alignment Tunnel (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    }
+    if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Counterfactual Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    }
+  }
+  if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
+    expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">Model Predictions (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+  }
+  if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
+    expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">Attribution Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+  }
+
+  // Append disabled items to experimental tab
+  if(expH){
+    const ec=$('expContent');
+    if(ec){
+      ec.style.display='block';$('expEmpty').style.display='none';
+      ec.innerHTML+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Disabled Prompt Visualizations</h3></div><div class="card-body">${expH}</div></div>`;
+    }
+  }
+
   area.innerHTML=h+area.innerHTML;
   if(_tunnelState) _tunnelDraw();
 }
