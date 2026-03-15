@@ -216,7 +216,7 @@ textarea{resize:vertical;min-height:44px}
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-experimental">
-    <div class="empty-state" id="expEmpty"><h2>Experimental metrics</h2><p>Speculative or unproven visualizations appear here after a batch run.</p></div>
+    <div class="empty-state" id="expEmpty"><h2>No disabled visualizations</h2><p>Visualizations you disable in the Configuration tab will appear here.</p></div>
     <div id="expContent" style="display:none"></div>
   </div>
   <div class="tab-panel" id="panel-config">
@@ -309,7 +309,7 @@ const VIZ_REGISTRY = {
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', type:'plot', desc:'Per-token contribution to alignment correction'},
   stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', type:'plot', desc:'Correction pressure at discriminative middle layers'},
   heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', type:'plot', desc:'2D correction intensity by token and sublayer'},
-  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch_exp', type:'plot', desc:'Single-prompt correction through model depth'},
+  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
   distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
@@ -332,12 +332,12 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Experimental ──
   exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch',type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
-  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch_exp',type:'plot',desc:'Per-category trajectory minus benign mean'},
-  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch_exp',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
-  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch_exp',type:'plot',desc:'Instruct vs base probabilities and KL'},
-  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch_exp',type:'plot',desc:'LTP M,C,V,L box plots across categories'},
-  exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch_exp',type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
-  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch_exp',type:'plot',desc:'Shape distribution across categories'},
+  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch',type:'plot',desc:'Per-category trajectory minus benign mean'},
+  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
+  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch',type:'plot',desc:'Instruct vs base probabilities and KL'},
+  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch',type:'plot',desc:'LTP M,C,V,L box plots across categories'},
+  exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch',type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
+  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch',type:'plot',desc:'Shape distribution across categories'},
 };
 
 function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
@@ -608,19 +608,15 @@ async function loadDashboard(force){
 
     // ═══ EXPERIMENTAL TAB ═══
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
-    let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Experimental metrics.</strong> These showed weak or inconsistent discriminative power at n=${info.n_results||'?'} on ${info.model||'this model'}. Toggle them in the Configuration tab.</div></div></div>`;
+    let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
 
-    // Experimental tab: enabled batch_exp + disabled batch plots (all collapsed)
+    // Experimental tab: ONLY disabled batch items (collapsed)
     for(const[key,v]of Object.entries(VIZ_REGISTRY)){
-      if(!plots[key])continue;
-      // Show if: scope is batch_exp and enabled, OR scope is batch and disabled
-      const isExpEnabled=(v.scope==='batch_exp'&&v.on);
-      const isBatchDisabled=(v.scope==='batch'&&!v.on);
-      if(!isExpEnabled&&!isBatchDisabled)continue;
+      if(v.scope!=='batch'||v.on||!plots[key])continue;
       eh+=plotCard(key,v.title,v.desc,plots,true);
     }
 
-    ec.innerHTML=eh;
+    if(eh.indexOf('feature')>-1){ec.innerHTML=eh}else{ec.style.display='none';$('expEmpty').style.display=''}
     log('Dashboard loaded','done');
     _busy=false;
     document.querySelectorAll('.main-tab')[1].click();
