@@ -227,14 +227,14 @@ textarea{resize:vertical;min-height:44px}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
           <div>
             <label style="font-size:10px;color:var(--cyan)">Layer strategy</label>
-            <select id="cfgLtpLayerStrategy">
+            <select id="cfgLtpLayerStrategy" onchange="saveConfig()">
               <option value="late" selected>Late layers (final third)</option>
               <option value="signal">Signal layers (middle third)</option>
             </select>
           </div>
           <div>
             <label style="font-size:10px;color:var(--cyan)">Counterfactual k</label>
-            <select id="cfgLtpK">
+            <select id="cfgLtpK" onchange="saveConfig()">
               <option value="4">k=4</option>
               <option value="6">k=6</option>
               <option value="8" selected>k=8</option>
@@ -242,7 +242,7 @@ textarea{resize:vertical;min-height:44px}
           </div>
           <div>
             <label style="font-size:10px;color:var(--cyan)">SVD truncation</label>
-            <select id="cfgLtpSvdRank">
+            <select id="cfgLtpSvdRank" onchange="saveConfig()">
               <option value="0" selected>Off (full delta)</option>
               <option value="3">Rank 3</option>
               <option value="5">Rank 5</option>
@@ -251,7 +251,7 @@ textarea{resize:vertical;min-height:44px}
           </div>
           <div>
             <label style="font-size:10px;color:var(--cyan)">Tuned-lens</label>
-            <select id="cfgLtpTunedLens">
+            <select id="cfgLtpTunedLens" onchange="saveConfig()">
               <option value="false" selected>Off</option>
               <option value="true">On</option>
             </select>
@@ -265,8 +265,8 @@ textarea{resize:vertical;min-height:44px}
       <div class="card-body">
         <div style="font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
         <div style="max-width:400px">
-          <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
-          <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
         </div>
       </div>
     </div>
@@ -309,18 +309,18 @@ const VIZ_REGISTRY = {
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', type:'plot', desc:'Per-token contribution to alignment correction'},
   stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', type:'plot', desc:'Correction pressure at discriminative middle layers'},
   heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', type:'plot', desc:'2D correction intensity by token and sublayer'},
-  amplitude_trajectory:{cat:'ASM Core',   title:'Layer Trajectory',           on:false, scope:'prompt', type:'plot', desc:'Single-prompt correction through model depth'},
+  amplitude_trajectory:{cat:'ASM Core',   title:'Layer Trajectory',           on:true, scope:'prompt', type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
-  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:false, scope:'prompt', type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
+  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
   token_table:         {cat:'ASM Detail', title:'Attribution Table',          on:true,  scope:'prompt', type:'js',   desc:'Raw per-token values with inline bars'},
   model_predictions:   {cat:'ASM Detail', title:'Model Predictions',          on:true,  scope:'prompt', type:'js',   desc:'Instruct vs base top-k tokens'},
 
   // ── Per-Prompt: LTP ──
   ltp_tension_magnitudes:{cat:'LTP',      title:'Tension Magnitudes',         on:true,  scope:'prompt', type:'plot', needs:'ltp', desc:'Per-token lateral tension colored by profile shape'},
-  ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:false, scope:'prompt', type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
-  ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:false, scope:'prompt', type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
-  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:false, scope:'prompt', type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
+  ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
+  ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
+  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
   counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
 
   // ── Batch: Analysis tab ──
@@ -332,18 +332,18 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Experimental ──
   exp_trajectory_overlay:{cat:'Batch Experimental',title:'Amplitude Trajectories',on:true,scope:'batch_exp',type:'plot',desc:'All prompts overlaid across sublayer depth'},
-  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:false,scope:'batch_exp',type:'plot',desc:'Per-category trajectory minus benign mean'},
-  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:false, scope:'batch_exp',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
-  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:false,scope:'batch_exp',type:'plot',desc:'Instruct vs base probabilities and KL'},
+  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch_exp',type:'plot',desc:'Per-category trajectory minus benign mean'},
+  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch_exp',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
+  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch_exp',type:'plot',desc:'Instruct vs base probabilities and KL'},
   exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch_exp',type:'plot',desc:'LTP M,C,V,L box plots across categories'},
   exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch_exp',type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
-  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:false, scope:'batch_exp',type:'plot',desc:'Shape distribution across categories'},
+  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch_exp',type:'plot',desc:'Shape distribution across categories'},
 };
 
 function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
-function vizResetDefaults(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v.on=v._default} vizRenderConfig(); }
-function vizEnableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=true} vizRenderConfig(); }
-function vizDisableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=false} vizRenderConfig(); }
+function vizResetDefaults(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v.on=v._default} vizRenderConfig();saveConfig(); }
+function vizEnableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=true} vizRenderConfig();saveConfig(); }
+function vizDisableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=false} vizRenderConfig();saveConfig(); }
 
 function vizRenderConfig(){
   const panel=$('vizConfigPanel'); if(!panel) return;
@@ -357,9 +357,9 @@ function vizRenderConfig(){
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:10px;font-family:var(--mono);color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:400px">
-      <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig()"><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option></select></div>
-      <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
-      <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option></select></div>
     </div>
   </div>`;
   // Viz toggles by category
@@ -369,7 +369,7 @@ function vizRenderConfig(){
     const scopeLabel=scope==='prompt'?'per-prompt':(scope==='batch'?'analysis tab':'experimental tab');
     h+=`<div style="margin-bottom:14px"><div style="font-size:10px;font-family:var(--mono);color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${cat} <span style="color:var(--text-3);text-transform:none;letter-spacing:0">(${scopeLabel})</span></div>`;
     for(const item of items){
-      h+=`<div class="checkbox-row"><input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked"><label for="viz_${item.key}"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-3);font-size:10px">— ${item.desc}</span></label></div>`;
+      h+=`<div class="checkbox-row"><input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()"><label for="viz_${item.key}"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-3);font-size:10px">— ${item.desc}</span></label></div>`;
     }
     h+=`</div>`;
   }
@@ -388,7 +388,64 @@ function applyFontConfig(){
 // Store defaults for reset
 (function(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v._default=v.on} })();
 
-function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';log('LTP config reset to defaults','done')}
+// ─── Config Persistence ─────────────────────────────────────────
+async function saveConfig(){
+  try{
+    const vizState={};
+    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]=v.on;
+    const config={
+      viz: vizState,
+      fonts:{
+        desc: $('cfgFontDesc')?$('cfgFontDesc').value:'13',
+        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'11',
+        table: $('cfgFontTable')?$('cfgFontTable').value:'11',
+      },
+      ltp:{
+        layerStrategy: $('cfgLtpLayerStrategy')?$('cfgLtpLayerStrategy').value:'late',
+        k: $('cfgLtpK')?$('cfgLtpK').value:'8',
+        svdRank: $('cfgLtpSvdRank')?$('cfgLtpSvdRank').value:'0',
+        tunedLens: $('cfgLtpTunedLens')?$('cfgLtpTunedLens').value:'false',
+      },
+      analysis:{
+        computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
+        captureResponses: $('cfgCaptureResponses')?$('cfgCaptureResponses').checked:false,
+      }
+    };
+    await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
+  }catch(e){}
+}
+
+async function loadConfig(){
+  try{
+    const resp=await fetch('/api/config');
+    const data=await resp.json();
+    if(!data.ok||!data.config||!Object.keys(data.config).length) return;
+    const c=data.config;
+    // Viz toggles
+    if(c.viz){for(const[k,on]of Object.entries(c.viz)){if(VIZ_REGISTRY[k])VIZ_REGISTRY[k].on=!!on}}
+    // Font sizes
+    if(c.fonts){
+      if(c.fonts.desc&&$('cfgFontDesc')){$('cfgFontDesc').value=c.fonts.desc;document.documentElement.style.setProperty('--font-desc',c.fonts.desc+'px')}
+      if(c.fonts.legend&&$('cfgFontLegend')){$('cfgFontLegend').value=c.fonts.legend;document.documentElement.style.setProperty('--font-legend',c.fonts.legend+'px')}
+      if(c.fonts.table&&$('cfgFontTable')){$('cfgFontTable').value=c.fonts.table;document.documentElement.style.setProperty('--font-table',c.fonts.table+'px')}
+    }
+    // LTP settings
+    if(c.ltp){
+      if(c.ltp.layerStrategy&&$('cfgLtpLayerStrategy'))$('cfgLtpLayerStrategy').value=c.ltp.layerStrategy;
+      if(c.ltp.k&&$('cfgLtpK'))$('cfgLtpK').value=c.ltp.k;
+      if(c.ltp.svdRank&&$('cfgLtpSvdRank'))$('cfgLtpSvdRank').value=c.ltp.svdRank;
+      if(c.ltp.tunedLens&&$('cfgLtpTunedLens'))$('cfgLtpTunedLens').value=c.ltp.tunedLens;
+    }
+    // Analysis options
+    if(c.analysis){
+      if($('cfgComputeTraj'))$('cfgComputeTraj').checked=c.analysis.computeTraj!==false;
+      if($('cfgCaptureResponses'))$('cfgCaptureResponses').checked=!!c.analysis.captureResponses;
+    }
+    vizRenderConfig();
+  }catch(e){}
+}
+
+function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
 
 function updateSessionBadge(){
   $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
@@ -704,12 +761,11 @@ function _tunnelGo(idx){
 function _tunnelMode(mode){
   const s=_tunnelState; if(!s) return;
   s.mode=mode;
-  // Update button styles
   for(const m of ['shape','deviation','absolute']){
     const btn=document.getElementById(s.id+'_mode_'+m);
     if(btn){
-      if(m===mode){btn.style.background='var(--cyan)';btn.style.color='var(--bg-0)';btn.style.borderColor='var(--cyan)'}
-      else{btn.style.background='var(--bg-3)';btn.style.color='var(--text-1)';btn.style.borderColor='var(--border)'}
+      if(m===mode){btn.style.background='#56B4E9';btn.style.color='#121212';btn.style.borderColor='#56B4E9'}
+      else{btn.style.background='#2d2d2d';btn.style.color='#9CA3AF';btn.style.borderColor='#333333'}
     }
   }
   _tunnelDraw();
@@ -1089,7 +1145,7 @@ document.addEventListener('keydown',e=>{
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
-    loadModelList();loadPromptLibrary();vizRenderConfig();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}

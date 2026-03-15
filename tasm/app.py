@@ -755,6 +755,32 @@ async def get_log():
     return JSONResponse(status_code=404, content={"error": "No log file."})
 
 
+CONFIG_FILE = BASE_DIR / "ui_config.json"
+
+@app.get("/api/config")
+async def get_config():
+    """Load saved UI configuration."""
+    if CONFIG_FILE.exists():
+        import json
+        try:
+            data = json.loads(CONFIG_FILE.read_text())
+            return JSONResponse(content={"ok": True, "config": data})
+        except Exception:
+            pass
+    return JSONResponse(content={"ok": True, "config": {}})
+
+@app.post("/api/config")
+async def save_config(request: Request):
+    """Save UI configuration to disk."""
+    import json
+    try:
+        data = await request.json()
+        CONFIG_FILE.write_text(json.dumps(data, indent=2))
+        return JSONResponse(content={"ok": True})
+    except Exception as e:
+        return JSONResponse(content={"ok": False, "error": str(e)})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
