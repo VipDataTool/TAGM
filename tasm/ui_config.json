@@ -1,0 +1,44 @@
+{
+  "viz": {
+    "tunnel_viewer": true,
+    "signed_attribution": true,
+    "stress_per_token": true,
+    "heatmap": true,
+    "amplitude_trajectory": true,
+    "distribution_metrics": true,
+    "token_table": true,
+    "model_predictions": true,
+    "ltp_tension_magnitudes": true,
+    "ltp_profiles": true,
+    "ltp_profile_heatmap": true,
+    "ltp_summary_stats": true,
+    "counterfactual_table": true,
+    "separability": true,
+    "batch_summary": true,
+    "key_scatters": true,
+    "discriminative_sublayers": true,
+    "proof1_summary": true,
+    "exp_trajectory_overlay": true,
+    "exp_difference_from_benign": true,
+    "exp_metric_scatters": true,
+    "exp_behavioral_comparison": true,
+    "exp_ltp_category_comparison": true,
+    "exp_ltp_m_vs_stress": true,
+    "exp_ltp_profile_shapes": true
+  },
+  "fonts": {
+    "desc": "13",
+    "legend": "11",
+    "table": "11"
+  },
+  "ltp": {
+    "layerStrategy": "late",
+    "k": "8",
+    "svdRank": "0",
+    "tunedLens": "false"
+  },
+  "analysis": {
+    "computeTraj": true,
+    "captureResponses": true
+  }
+}

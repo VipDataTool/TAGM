@@ -755,7 +755,7 @@ async def get_log():
     return JSONResponse(status_code=404, content={"error": "No log file."})
 
 
-CONFIG_FILE = BASE_DIR / "ui_config.json"
+CONFIG_FILE = Path(__file__).parent / "ui_config.json"
 
 @app.get("/api/config")
 async def get_config():
