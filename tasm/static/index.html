@@ -98,9 +98,7 @@ textarea{resize:vertical;min-height:44px}
 .empty-state p{font-size:11px;max-width:350px;line-height:1.4}
 .add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
 .add-model-form.visible{display:block}
-.ltp-options{display:none;margin-top:4px;padding:6px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
-.ltp-options.visible{display:block}
-.ltp-options label{font-size:10px;color:var(--cyan)}
+/* LTP config moved to Configuration tab */
 .ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
 @media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
@@ -155,31 +153,8 @@ textarea{resize:vertical;min-height:44px}
       <option value="mild">Mild</option><option value="harmful">Harmful</option>
       <option value="jailbreak">Jailbreak</option>
     </select>
-    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeTraj" checked><label for="computeTraj">Full trajectory</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="captureResponses"><label for="captureResponses">Capture model responses</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeLTP" onchange="toggleLTPOptions()"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
-    <div class="ltp-options" id="ltpOptions">
-      <label>Layer strategy</label>
-      <select id="ltpLayerStrategy">
-        <option value="signal">Signal layers (middle third)</option>
-        <option value="late">Late layers (final third)</option>
-      </select>
-      <label>Counterfactual k</label>
-      <select id="ltpK">
-        <option value="4">k=4 (lean)</option>
-        <option value="6">k=6 (balanced)</option>
-        <option value="8" selected>k=8 (rich)</option>
-      </select>
-      <label>SVD truncation</label>
-      <select id="ltpSvdRank">
-        <option value="0" selected>Off (full delta)</option>
-        <option value="3">Rank 3</option>
-        <option value="5">Rank 5</option>
-        <option value="8">Rank 8</option>
-      </select>
-      <div class="checkbox-row"><input type="checkbox" id="ltpTunedLens"><label for="ltpTunedLens">Tuned-lens correction</label></div>
-    </div>
+    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
     <button class="btn btn-sm btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
@@ -211,6 +186,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Analysis</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-experimental')">Experimental</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
   </div>
   <div class="tab-panel active" id="panel-latest">
     <div class="empty-state" id="emptyState"><h2>No analysis yet</h2><p>Load a model, enter a prompt, and click Analyze.</p></div>
@@ -226,6 +202,58 @@ textarea{resize:vertical;min-height:44px}
   <div class="tab-panel" id="panel-experimental">
     <div class="empty-state" id="expEmpty"><h2>Experimental metrics</h2><p>Speculative or unproven visualizations appear here after a batch run.</p></div>
     <div id="expContent" style="display:none"></div>
+  </div>
+  <div class="tab-panel" id="panel-config">
+    <div class="card">
+      <div class="card-header"><h3>LTP Configuration</h3></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5">Fine-tuning for the Lateral Tension Profile measurement. Default settings (late layers, k=8, no SVD, no tuned-lens) are optimal for Qwen 2.5 0.5B based on A/B testing across 8 configurations. Change these only for research exploration on different model architectures.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Layer strategy</label>
+            <select id="cfgLtpLayerStrategy">
+              <option value="late" selected>Late layers (final third)</option>
+              <option value="signal">Signal layers (middle third)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Counterfactual k</label>
+            <select id="cfgLtpK">
+              <option value="4">k=4</option>
+              <option value="6">k=6</option>
+              <option value="8" selected>k=8</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">SVD truncation</label>
+            <select id="cfgLtpSvdRank">
+              <option value="0" selected>Off (full delta)</option>
+              <option value="3">Rank 3</option>
+              <option value="5">Rank 5</option>
+              <option value="8">Rank 8</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Tuned-lens</label>
+            <select id="cfgLtpTunedLens">
+              <option value="false" selected>Off</option>
+              <option value="true">On</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="resetLtpConfig()">Reset to defaults</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Analysis Options</h3></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">These settings apply to single-prompt analysis. Batch mode always skips trajectory computation and per-prompt plots to conserve memory.</div>
+        <div style="max-width:400px">
+          <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked><label for="cfgComputeTraj">Full trajectory (per-prompt sublayer heatmaps)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 </div>
@@ -244,11 +272,10 @@ function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-
 function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
 function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
-function toggleLTPOptions(){$('ltpOptions').classList.toggle('visible',$('computeLTP').checked)}
+function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';log('LTP config reset to defaults','done')}
 
 function updateSessionBadge(){
   $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
-  if($('latestBadge'))$('latestBadge').textContent=sessionResults.length;
   $('dashBtn').disabled=sessionResults.length<1;
   $('exportBtn').disabled=sessionResults.length<1;
 }
@@ -308,7 +335,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -319,13 +346,14 @@ async function analyzeSingle(){
   showError('promptError','');
   const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
   const fd=new FormData();fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
-  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',$('computeTraj').checked);
-  fd.append('capture_responses',$('captureResponses').checked);
+  fd.append('compute_kl',$('computeKL').checked);
+  fd.append('compute_trajectory',$('cfgComputeTraj').checked);
+  fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
-  fd.append('ltp_k',$('ltpK').value);
-  fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
-  fd.append('ltp_svd_rank',$('ltpSvdRank').value);
-  fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
+  fd.append('ltp_k',$('cfgLtpK').value);
+  fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
+  fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
+  fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
     if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
@@ -339,12 +367,12 @@ async function analyzeBatch(){
   const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
   const fd=new FormData();fd.append('file',file);
   fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',false);
-  fd.append('capture_responses',$('captureResponses').checked);
+  fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
-  fd.append('ltp_k',$('ltpK').value);
-  fd.append('ltp_layer_strategy',$('ltpLayerStrategy').value);
-  fd.append('ltp_svd_rank',$('ltpSvdRank').value);
-  fd.append('ltp_tuned_lens',$('ltpTunedLens').checked);
+  fd.append('ltp_k',$('cfgLtpK').value);
+  fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
+  fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
+  fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
