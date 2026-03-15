@@ -43,36 +43,36 @@ class ClassificationResult:
     caveats: list           # known limitations relevant to this classification
 
 
-# Empirical class distributions (mean, std) calibrated on n=22
-# These are the priors — updated as more data is collected
+# Empirical class distributions (mean, std) calibrated on n=100 (25 per class)
+# Qwen 2.5 0.5B, late layers, SVD=0, TL=off
 CLASS_PARAMS = {
     'benign': {
-        'net_correction': (0.07139, 0.00110),
-        'middle_share':   (0.37114, 0.03575),
-        'stress_score':   (3.18015, 0.04706),
-        'entropy':        (0.78232, 0.04647),
-        'interior_cv':    (0.69727, 0.16681),
+        'net_correction': (0.07143, 0.00315),
+        'middle_share':   (0.40417, 0.07035),
+        'stress_score':   (3.19678, 0.11754),
+        'entropy':        (0.79168, 0.03887),
+        'interior_cv':    (0.64226, 0.17614),
     },
     'mild': {
-        'net_correction': (0.07042, 0.00076),
-        'middle_share':   (0.35962, 0.02111),
-        'stress_score':   (3.13339, 0.08268),
-        'entropy':        (0.79152, 0.04001),
-        'interior_cv':    (0.52168, 0.16253),
+        'net_correction': (0.07077, 0.00226),
+        'middle_share':   (0.40128, 0.08137),
+        'stress_score':   (3.23068, 0.09752),
+        'entropy':        (0.76768, 0.04575),
+        'interior_cv':    (0.56812, 0.16832),
     },
     'harmful': {
-        'net_correction': (0.07739, 0.00409),
-        'middle_share':   (0.48356, 0.07853),
-        'stress_score':   (3.22414, 0.06146),
-        'entropy':        (0.84315, 0.02623),
-        'interior_cv':    (0.52389, 0.17080),
+        'net_correction': (0.07674, 0.00388),
+        'middle_share':   (0.48606, 0.08752),
+        'stress_score':   (3.26334, 0.08571),
+        'entropy':        (0.81512, 0.03732),
+        'interior_cv':    (0.63225, 0.15201),
     },
     'jailbreak': {
-        'net_correction': (0.08145, 0.00448),
-        'middle_share':   (0.57511, 0.05074),
-        'stress_score':   (3.46891, 0.13728),
-        'entropy':        (0.80765, 0.03865),
-        'interior_cv':    (0.90340, 0.18920),
+        'net_correction': (0.08102, 0.00590),
+        'middle_share':   (0.56594, 0.07811),
+        'stress_score':   (3.43222, 0.11762),
+        'entropy':        (0.79790, 0.05785),
+        'interior_cv':    (1.02096, 0.40240),
     },
 }
 
@@ -231,20 +231,23 @@ def classify(metrics: dict, params: dict = None, priors: dict = None) -> Classif
     # Normalize to 0-1 (max margin is ~1.0)
     confidence = min(1.0, confidence)
 
-    # Caveats
+    # Caveats based on n=100 calibration findings
     caveats = []
     if probabilities[predicted] < 0.4:
         caveats.append("Low confidence — this prompt doesn't clearly match any single category")
     if predicted in ('benign', 'mild') and probabilities['benign'] > 0.2 and probabilities['mild'] > 0.2:
-        caveats.append("Benign and mild are nearly indistinguishable at this model scale (0.5B)")
+        caveats.append("Benign and mild are nearly indistinguishable at 0.5B — distributions overlap almost completely")
     if predicted == 'harmful':
-        harm_p = probabilities['harmful']
         jb_p = probabilities['jailbreak']
         ben_p = probabilities['benign'] + probabilities['mild']
-        if abs(harm_p - jb_p) < 0.15:
-            caveats.append("Borderline harmful/jailbreak — prompt uses some adversarial framing")
-        if abs(harm_p - ben_p) < 0.15:
-            caveats.append("Borderline harmful/safe — blunt harmful content without adversarial framing")
+        if jb_p > 0.2:
+            caveats.append("Borderline harmful/jailbreak — prompt uses instruction-based framing similar to jailbreak patterns")
+        if ben_p > 0.2:
+            caveats.append("Borderline harmful/safe — blunt harmful request without adversarial framing looks geometrically benign")
+    if predicted in ('benign', 'mild') and (probabilities['harmful'] > 0.15 or probabilities['jailbreak'] > 0.15):
+        caveats.append("Some adversarial features detected despite safe classification — prompt may contain subtle framing")
+    if predicted == 'jailbreak' and probabilities['harmful'] > 0.2:
+        caveats.append("Strong framing-based instruction pattern — harmful prompts using 'write me...' / 'create...' patterns often score here")
 
     # Summary
     strong_feats = [c for c in contributions if c.strength == 'strong']
@@ -294,7 +297,7 @@ def update_params(results: list) -> dict:
     Recalibrate class parameters from a batch of labeled results.
     Returns updated params dict (does not modify CLASS_PARAMS).
     """
-    import numpy as np
+    import statistics
     cats = {}
     for r in results:
         cat = r.get('category', '')
@@ -308,7 +311,9 @@ def update_params(results: list) -> dict:
         for feat in FEATURES:
             vals = [r[feat] for r in items if r.get(feat) is not None]
             if len(vals) >= 2:
-                new_params[cls][feat] = (float(np.mean(vals)), max(float(np.std(vals, ddof=1)), 1e-6))
+                mu = sum(vals) / len(vals)
+                std = statistics.stdev(vals)  # ddof=1 by default
+                new_params[cls][feat] = (mu, max(std, 1e-6))
             else:
                 # Fall back to default
                 new_params[cls][feat] = CLASS_PARAMS[cls][feat]
