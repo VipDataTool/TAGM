@@ -99,6 +99,9 @@ textarea{resize:vertical;min-height:44px}
 .add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
 .add-model-form.visible{display:block}
 /* LTP config moved to Configuration tab */
+.tv-tok{display:inline-block;padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--text-2);background:var(--bg-2);border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all 0.15s}
+.tv-tok:hover{color:var(--text-0);border-color:var(--cyan)}
+.tv-tok-active{color:var(--cyan);background:var(--bg-3);border-color:var(--cyan);font-weight:600}
 .ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
 @media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
@@ -492,6 +495,138 @@ async function exportSession(){
   }catch(e){log('Export error: '+e.message,'error')}
 }
 
+// ─── Tunnel Cross-Section Viewer ─────────────────────────────────
+let _tunnelState = null;
+function renderTunnelViewer(r){
+  if(!r.ltp||!r.ltp.profiles||!r.ltp.profiles.length) return '';
+  const profiles=r.ltp.profiles, tokens=r.tokens, shapes=r.ltp.profile_shapes||[];
+  const cfs=r.ltp.counterfactual_tokens||[], mags=r.ltp.tension_magnitudes||[];
+  const n=Math.min(tokens.length, profiles.length);
+  if(n===0) return '';
+  const k=profiles[0].length;
+  // Find global max for consistent scaling
+  let gmax=0;
+  for(let i=0;i<n;i++) for(let j=0;j<k;j++) gmax=Math.max(gmax,profiles[i][j]||0);
+  if(gmax===0) gmax=1;
+
+  const id='tunnel_'+Date.now();
+  _tunnelState={profiles,tokens,shapes,cfs,mags,n,k,gmax,id,idx:0};
+
+  // Token timeline strip
+  let timeline='';
+  for(let i=0;i<n;i++){
+    const t=tokens[i].trim()||'·';
+    timeline+=`<span class="tv-tok" id="${id}_tok${i}" onclick="_tunnelGo(${i})" title="${escHtml(tokens[i])}">${escHtml(t.length>6?t.slice(0,5)+'…':t)}</span>`;
+  }
+
+  return `<div class="card" style="border-color:var(--cyan);margin-bottom:12px">
+    <div class="card-header"><h3>Alignment Tunnel Cross-Section</h3></div>
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:40px">◀</button>
+        <div style="flex:1;text-align:center">
+          <span style="font-family:var(--mono);font-size:16px;color:var(--text-0)" id="${id}_label"></span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px" id="${id}_meta"></span>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:40px">▶</button>
+      </div>
+      <div style="display:flex;justify-content:center">
+        <svg id="${id}_svg" viewBox="0 0 400 400" width="380" height="380" style="max-width:100%"></svg>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
+      <div style="font-size:10px;color:var(--text-2);text-align:center;margin-top:6px">Click a token or use ◀ ▶ to step through the prompt. Each spoke = tension toward a counterfactual alternative.</div>
+    </div></div>`;
+}
+
+function _tunnelGo(idx){
+  const s=_tunnelState; if(!s) return;
+  s.idx=Math.max(0,Math.min(s.n-1,idx));
+  _tunnelDraw();
+}
+
+function _tunnelDraw(){
+  const s=_tunnelState; if(!s) return;
+  const {profiles,tokens,shapes,cfs,mags,n,k,gmax,id,idx}=s;
+  const svg=document.getElementById(id+'_svg'); if(!svg) return;
+
+  const cx=200, cy=200, R=150;
+  const profile=profiles[idx]||[];
+  const cf=cfs[idx]||[];
+  const shape=shapes[idx]||'flat';
+  const mag=mags[idx]||0;
+  const token=tokens[idx]||'';
+
+  // Shape colors (Okabe-Ito)
+  const fillColor=shape==='steep'?'rgba(230,159,0,0.2)':
+                   shape==='inverted'?'rgba(213,94,0,0.2)':'rgba(86,180,233,0.15)';
+  const strokeColor=shape==='steep'?'#E69F00':
+                    shape==='inverted'?'#D55E00':'#56B4E9';
+
+  let svg_h='';
+
+  // Grid rings (3 concentric)
+  for(let ring=1;ring<=3;ring++){
+    const r=R*ring/3;
+    svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+  }
+
+  // Spokes and labels
+  const points=[];
+  for(let j=0;j<k;j++){
+    const angle=(2*Math.PI*j/k)-Math.PI/2; // Start from top
+    const endX=cx+R*Math.cos(angle), endY=cy+R*Math.sin(angle);
+    svg_h+=`<line x1="${cx}" y1="${cy}" x2="${endX}" y2="${endY}" stroke="#404040" stroke-width="0.5"/>`;
+
+    // Data point on this spoke
+    const val=(profile[j]||0)/gmax;
+    const px=cx+R*val*Math.cos(angle), py=cy+R*val*Math.sin(angle);
+    points.push([px,py]);
+
+    // Label: counterfactual token + probability
+    const labelR=R+22;
+    const lx=cx+labelR*Math.cos(angle), ly=cy+labelR*Math.sin(angle);
+    const cfTok=cf[j]?cf[j][0]:'?';
+    const cfProb=cf[j]?cf[j][1]:0;
+    const anchor=Math.abs(Math.cos(angle))<0.1?'middle':(Math.cos(angle)>0?'start':'end');
+    const displayTok=cfTok.trim().length>8?cfTok.trim().slice(0,7)+'…':cfTok.trim();
+    svg_h+=`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="#9CA3AF" font-size="10" font-family="monospace">${escHtml(displayTok)}</text>`;
+    svg_h+=`<text x="${lx}" y="${ly+12}" text-anchor="${anchor}" dominant-baseline="middle" fill="#6B7280" font-size="8" font-family="monospace">${(cfProb*100).toFixed(1)}%</text>`;
+
+    // Dot at data point
+    svg_h+=`<circle cx="${px}" cy="${py}" r="3.5" fill="${strokeColor}" stroke="white" stroke-width="0.8"/>`;
+  }
+
+  // Filled polygon
+  if(points.length>=3){
+    const poly=points.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+    svg_h=`<polygon points="${poly}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.5" stroke-linejoin="round"/>`+svg_h;
+  }
+
+  // Center dot
+  svg_h+=`<circle cx="${cx}" cy="${cy}" r="4" fill="${strokeColor}" opacity="0.6"/>`;
+
+  // Rank number labels inside
+  for(let j=0;j<k;j++){
+    const angle=(2*Math.PI*j/k)-Math.PI/2;
+    const rx=cx+18*Math.cos(angle), ry=cy+18*Math.sin(angle);
+    svg_h+=`<text x="${rx}" y="${ry}" text-anchor="middle" dominant-baseline="middle" fill="#6B7280" font-size="8" font-family="sans-serif">${j+1}</text>`;
+  }
+
+  svg.innerHTML=svg_h;
+
+  // Update label
+  const label=document.getElementById(id+'_label');
+  if(label) label.innerHTML=`<span style="color:var(--cyan)">"${escHtml(token.trim())}"</span> <span style="color:var(--text-2);font-size:12px">[${idx+1}/${n}]</span>`;
+  const meta=document.getElementById(id+'_meta');
+  if(meta) meta.textContent=`M=${mag.toFixed(5)}  shape=${shape}`;
+
+  // Update timeline highlights
+  for(let i=0;i<n;i++){
+    const el=document.getElementById(id+'_tok'+i);
+    if(el) el.className='tv-tok'+(i===idx?' tv-tok-active':'');
+  }
+}
+
 // ─── Render ─────────────────────────────────────────────────────
 function renderLatest(r,plots){
   $('emptyState').style.display='none';const area=$('latestResults');
@@ -522,16 +657,18 @@ function renderLatest(r,plots){
   // LTP plots section
   if(r.ltp){
     h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--cyan)"><div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
-    h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">The LTP extends the ASM with directional information. It probes how the alignment field varies perpendicular to the generation path using counterfactual token directions (the top-k alternatives the model considered but did not select). The offset magnitude (M) measures mean lateral displacement; consistency (C) measures directional coherence; variance (V) measures concentration; coverage (L) measures density of the lateral signal.</div>`;
+    h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">The alignment tunnel: each token is a step through the model's correction field. The radial chart shows the cross-section at each position — how strongly the alignment delta pushes toward each counterfactual alternative. Uniform circles = flat correction. Spikes = directional boundaries.</div>`;
+
+    // ═══ TUNNEL CROSS-SECTION VIEWER ═══
+    h+=renderTunnelViewer(r);
 
     const ltpDescs={
-      ltp_profiles:['Lateral Tension Profiles','Per-token lateral tension across counterfactual rank positions (rank 1 = strongest unchosen alternative). Each stacked segment shows how much alignment correction the weight delta applies toward that alternative. Steep profiles (first rank dominates) indicate concentrated correction boundaries; flat profiles indicate broad, uniform correction; inverted profiles (lower ranks dominate) are potentially anomalous.'],
-      ltp_tension_magnitudes:['Lateral Tension Magnitudes','Per-token net tension point magnitude, colored by profile shape (orange = steep, blue = flat, red = inverted). The dashed line shows the mean. Tokens with high magnitude and inverted profiles are the most geometrically anomalous -- the alignment field is oriented away from the nearest semantic alternatives.'],
-      ltp_dual_trajectory:['Dual Trajectory','PCA projection of the semantic trajectory (blue, where the model\'s representations actually go) and the tension trajectory (orange, where the alignment field displaces them). Red offset lines connect corresponding tokens. Large, consistent offsets indicate the generation path runs along a systematic alignment boundary.'],
-      ltp_summary_stats:['LTP Summary Statistics','The four summary scalars: offset magnitude (M, mean lateral displacement), consistency (C, directional coherence 0-1), variance (V, concentration across tokens), and coverage (L, fraction of tokens with lateral signal). High M with high C is the boundary-threading signature predicted by Hypothesis 4.'],
-      ltp_profile_heatmap:['Profile Heatmap','Token-by-rank heatmap. Rows are tokens; columns are counterfactual alternatives ranked by logit score. Bright cells show high lateral tension toward that alternative. The pattern of brightness across ranks characterizes the local alignment landscape shape at each token.'],
+      ltp_profiles:['Lateral Tension Profiles','Per-token lateral tension across counterfactual rank positions. Each stacked segment shows alignment correction toward that alternative.'],
+      ltp_tension_magnitudes:['Lateral Tension Magnitudes','Per-token net tension magnitude, colored by profile shape.'],
+      ltp_summary_stats:['LTP Summary Statistics','Offset magnitude (M), consistency (C), variance (V), and coverage (L).'],
+      ltp_profile_heatmap:['Profile Heatmap','Token-by-rank heatmap of lateral tension.'],
     };
-    for(const[k,v]of Object.entries(plots)){if(!k.startsWith('ltp_')||!v)continue;const d=ltpDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
+    for(const[k,v]of Object.entries(plots)){if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;const d=ltpDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
 
     // Counterfactual tokens table
     if(r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
@@ -558,6 +695,8 @@ function renderLatest(r,plots){
 
   h+=renderTokenTable(r)+`</div></div>`;
   area.innerHTML=h+area.innerHTML;
+  // Initialize tunnel viewer if LTP data present
+  if(_tunnelState) _tunnelDraw();
 }
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
@@ -616,6 +755,14 @@ async function addCurrentToLibrary(){
   const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');fd.append('baseline',false);
   try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.error||'Failed')}catch(e){}
 }
+
+// ─── Keyboard Navigation ────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(!_tunnelState) return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
+  if(e.key==='ArrowLeft'){e.preventDefault();_tunnelGo(_tunnelState.idx-1)}
+  if(e.key==='ArrowRight'){e.preventDefault();_tunnelGo(_tunnelState.idx+1)}
+});
 
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
