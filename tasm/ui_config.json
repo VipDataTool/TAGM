@@ -1,30 +1,130 @@
 {
   "viz": {
-    "tunnel_viewer": true,
-    "signed_attribution": true,
-    "stress_per_token": true,
-    "heatmap": true,
-    "amplitude_trajectory": true,
-    "distribution_metrics": true,
-    "token_table": true,
-    "model_predictions": true,
-    "ltp_tension_magnitudes": true,
-    "ltp_profiles": true,
-    "ltp_profile_heatmap": true,
-    "ltp_summary_stats": true,
-    "counterfactual_table": true,
-    "separability": true,
-    "batch_summary": true,
-    "key_scatters": true,
-    "discriminative_sublayers": true,
-    "proof1_summary": true,
-    "exp_trajectory_overlay": true,
-    "exp_difference_from_benign": true,
-    "exp_metric_scatters": true,
-    "exp_behavioral_comparison": false,
-    "exp_ltp_category_comparison": true,
-    "exp_ltp_m_vs_stress": true,
-    "exp_ltp_profile_shapes": true
+    "tunnel_viewer": {
+      "on": true,
+      "scope": "prompt",
+      "order": 10
+    },
+    "signed_attribution": {
+      "on": true,
+      "scope": "prompt",
+      "order": 20
+    },
+    "stress_per_token": {
+      "on": true,
+      "scope": "prompt",
+      "order": 30
+    },
+    "heatmap": {
+      "on": true,
+      "scope": "prompt",
+      "order": 40
+    },
+    "amplitude_trajectory": {
+      "on": true,
+      "scope": "batch",
+      "order": 10
+    },
+    "distribution_metrics": {
+      "on": true,
+      "scope": "prompt",
+      "order": 50
+    },
+    "token_table": {
+      "on": true,
+      "scope": "prompt",
+      "order": 60
+    },
+    "model_predictions": {
+      "on": true,
+      "scope": "prompt",
+      "order": 70
+    },
+    "ltp_tension_magnitudes": {
+      "on": true,
+      "scope": "prompt",
+      "order": 80
+    },
+    "ltp_profiles": {
+      "on": true,
+      "scope": "prompt",
+      "order": 90
+    },
+    "ltp_profile_heatmap": {
+      "on": true,
+      "scope": "prompt",
+      "order": 100
+    },
+    "ltp_summary_stats": {
+      "on": true,
+      "scope": "prompt",
+      "order": 110
+    },
+    "counterfactual_table": {
+      "on": true,
+      "scope": "prompt",
+      "order": 120
+    },
+    "separability": {
+      "on": true,
+      "scope": "batch",
+      "order": 20
+    },
+    "batch_summary": {
+      "on": true,
+      "scope": "batch",
+      "order": 30
+    },
+    "key_scatters": {
+      "on": true,
+      "scope": "batch",
+      "order": 40
+    },
+    "discriminative_sublayers": {
+      "on": true,
+      "scope": "batch",
+      "order": 50
+    },
+    "proof1_summary": {
+      "on": true,
+      "scope": "batch",
+      "order": 60
+    },
+    "exp_trajectory_overlay": {
+      "on": true,
+      "scope": "batch",
+      "order": 70
+    },
+    "exp_difference_from_benign": {
+      "on": true,
+      "scope": "batch",
+      "order": 80
+    },
+    "exp_metric_scatters": {
+      "on": true,
+      "scope": "batch",
+      "order": 90
+    },
+    "exp_behavioral_comparison": {
+      "on": true,
+      "scope": "batch",
+      "order": 100
+    },
+    "exp_ltp_category_comparison": {
+      "on": true,
+      "scope": "batch",
+      "order": 110
+    },
+    "exp_ltp_m_vs_stress": {
+      "on": true,
+      "scope": "batch",
+      "order": 120
+    },
+    "exp_ltp_profile_shapes": {
+      "on": true,
+      "scope": "batch",
+      "order": 130
+    }
   },
   "fonts": {
     "desc": "13",

@@ -29,11 +29,11 @@ body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);min-heig
 .status-pill.idle{border-color:var(--text-3);color:var(--text-3)}
 .session-badge{font-family:var(--mono);font-size:10px;color:var(--text-2);padding:2px 7px;border:1px solid var(--border);border-radius:8px}
 .main{display:grid;grid-template-columns:330px 1fr;min-height:calc(100vh - 45px)}
-.sidebar{background:var(--bg-1);border-right:1px solid var(--border);padding:12px;overflow-y:auto;max-height:calc(100vh - 45px)}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);padding:12px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 45px);min-width:0}
 .section{margin-bottom:14px}
 .section-title{font-family:var(--mono);font-size:9px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
 label{font-size:10px;color:var(--text-2);display:block;margin-bottom:2px;font-weight:500}
-select,input[type="text"],textarea{width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;color:var(--text-1);font-family:var(--mono);font-size:11px;padding:6px 8px;margin-bottom:6px}
+select,input[type="text"],textarea{width:100%;max-width:100%;box-sizing:border-box;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;color:var(--text-1);font-family:var(--mono);font-size:11px;padding:6px 8px;margin-bottom:6px}
 select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
 textarea{resize:vertical;min-height:44px}
 .checkbox-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
@@ -112,6 +112,9 @@ textarea{resize:vertical;min-height:44px}
 .add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
 .add-model-form.visible{display:block}
 /* LTP config moved to Configuration tab */
+.viz-config-row{display:flex;align-items:center;gap:6px;padding:2px 0}
+.viz-config-row input[type="checkbox"]{flex-shrink:0}
+.viz-config-row select,.viz-config-row input[type="number"]{background:var(--bg-2);border:1px solid var(--border);border-radius:3px;color:var(--text-1);font-family:var(--mono)}
 .tv-tok{display:inline-block;padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--text-2);background:var(--bg-2);border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all 0.15s}
 .tv-tok:hover{color:var(--text-0);border-color:var(--cyan)}
 .tv-tok-active{color:var(--cyan);background:var(--bg-3);border-color:var(--cyan);font-weight:600}
@@ -303,41 +306,41 @@ function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="
 // ─── Visualization Registry ──────────────────────────────────────
 const VIZ_REGISTRY = {
   // ── Per-Prompt: ASM + LTP Fusion ──
-  tunnel_viewer:       {cat:'Fusion',     title:'Alignment Tunnel',           on:true,  scope:'prompt', type:'js',   needs:'ltp', desc:'Temperature-mapped radial cross-section per token'},
+  tunnel_viewer:       {cat:'Fusion',     title:'Alignment Tunnel',           on:true,  scope:'prompt', order:10, type:'js',   needs:'ltp', desc:'Temperature-mapped radial cross-section per token'},
 
   // ── Per-Prompt: ASM Core ──
-  signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', type:'plot', desc:'Per-token contribution to alignment correction'},
-  stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', type:'plot', desc:'Correction pressure at discriminative middle layers'},
-  heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', type:'plot', desc:'2D correction intensity by token and sublayer'},
-  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', type:'plot', desc:'Single-prompt correction through model depth'},
+  signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', order:20, type:'plot', desc:'Per-token contribution to alignment correction'},
+  stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', order:30, type:'plot', desc:'Correction pressure at discriminative middle layers'},
+  heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', order:40, type:'plot', desc:'2D correction intensity by token and sublayer'},
+  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', order:10, type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
-  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
-  token_table:         {cat:'ASM Detail', title:'Attribution Table',          on:true,  scope:'prompt', type:'js',   desc:'Raw per-token values with inline bars'},
-  model_predictions:   {cat:'ASM Detail', title:'Model Predictions',          on:true,  scope:'prompt', type:'js',   desc:'Instruct vs base top-k tokens'},
+  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', order:50, type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
+  token_table:         {cat:'ASM Detail', title:'Attribution Table',          on:true,  scope:'prompt', order:60, type:'js',   desc:'Raw per-token values with inline bars'},
+  model_predictions:   {cat:'ASM Detail', title:'Model Predictions',          on:true,  scope:'prompt', order:70, type:'js',   desc:'Instruct vs base top-k tokens'},
 
   // ── Per-Prompt: LTP ──
-  ltp_tension_magnitudes:{cat:'LTP',      title:'Tension Magnitudes',         on:true,  scope:'prompt', type:'plot', needs:'ltp', desc:'Per-token lateral tension colored by profile shape'},
-  ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
-  ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
-  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
-  counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
+  ltp_tension_magnitudes:{cat:'LTP',      title:'Tension Magnitudes',         on:true,  scope:'prompt', order:80, type:'plot', needs:'ltp', desc:'Per-token lateral tension colored by profile shape'},
+  ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:true, scope:'prompt', order:90, type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
+  ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:true, scope:'prompt', order:100, type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
+  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', order:110, type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
+  counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', order:120, type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
 
   // ── Batch: Analysis tab ──
-  separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
-  batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
-  key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', type:'plot', desc:'2-panel scatter with confidence ellipses'},
-  discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch',type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
-  proof1_summary:      {cat:'Batch Analysis',title:'Proof 1 Verification',    on:true,  scope:'batch', type:'plot', desc:'Mathematical exactness of the decomposition'},
+  separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
+  batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
+  key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
+  discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
+  proof1_summary:      {cat:'Batch Analysis',title:'Proof 1 Verification',    on:true,  scope:'batch', order:60, type:'plot', desc:'Mathematical exactness of the decomposition'},
 
   // ── Batch: Experimental ──
-  exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch',type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
-  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch',type:'plot',desc:'Per-category trajectory minus benign mean'},
-  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch',type:'plot',desc:'All pairwise metric scatters including weak metrics'},
-  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch',type:'plot',desc:'Instruct vs base probabilities and KL'},
-  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch',type:'plot',desc:'LTP M,C,V,L box plots across categories'},
-  exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch',type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
-  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch',type:'plot',desc:'Shape distribution across categories'},
+  exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch', order:70,type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
+  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch', order:80,type:'plot',desc:'Per-category trajectory minus benign mean'},
+  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch', order:90,type:'plot',desc:'All pairwise metric scatters including weak metrics'},
+  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch', order:100,type:'plot',desc:'Instruct vs base probabilities and KL'},
+  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch', order:110,type:'plot',desc:'LTP M,C,V,L box plots across categories'},
+  exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch', order:120,type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
+  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch', order:130,type:'plot',desc:'Shape distribution across categories'},
 };
 
 function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
@@ -369,7 +372,15 @@ function vizRenderConfig(){
     const scopeLabel=scope==='prompt'?'per-prompt':(scope==='batch'?'analysis tab':'experimental tab');
     h+=`<div style="margin-bottom:14px"><div style="font-size:10px;font-family:var(--mono);color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${cat} <span style="color:var(--text-3);text-transform:none;letter-spacing:0">(${scopeLabel})</span></div>`;
     for(const item of items){
-      h+=`<div class="checkbox-row"><input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()"><label for="viz_${item.key}"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-3);font-size:10px">— ${item.desc}</span></label></div>`;
+      h+=`<div class="viz-config-row">
+        <input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()">
+        <label for="viz_${item.key}" style="flex:1"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-3);font-size:10px">— ${item.desc}</span></label>
+        <select style="width:60px;font-size:9px;padding:2px" onchange="VIZ_REGISTRY['${item.key}'].scope=this.value;saveConfig();vizRenderConfig()">
+          <option value="prompt" ${item.scope==='prompt'?'selected':''}>Prompt</option>
+          <option value="batch" ${item.scope==='batch'?'selected':''}>Batch</option>
+        </select>
+        <input type="number" value="${item.order}" min="1" max="999" style="width:42px;font-size:9px;padding:2px;text-align:center" onchange="VIZ_REGISTRY['${item.key}'].order=parseInt(this.value)||0;saveConfig()">
+      </div>`;
     }
     h+=`</div>`;
   }
@@ -392,7 +403,7 @@ function applyFontConfig(){
 async function saveConfig(){
   try{
     const vizState={};
-    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]=v.on;
+    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]={on:v.on,scope:v.scope,order:v.order};
     const config={
       viz: vizState,
       fonts:{
@@ -422,7 +433,10 @@ async function loadConfig(){
     if(!data.ok||!data.config||!Object.keys(data.config).length) return;
     const c=data.config;
     // Viz toggles
-    if(c.viz){for(const[k,on]of Object.entries(c.viz)){if(VIZ_REGISTRY[k])VIZ_REGISTRY[k].on=!!on}}
+    if(c.viz){for(const[k,cfg]of Object.entries(c.viz)){if(VIZ_REGISTRY[k]){
+      if(typeof cfg==='object'){VIZ_REGISTRY[k].on=!!cfg.on;if(cfg.scope)VIZ_REGISTRY[k].scope=cfg.scope;if(cfg.order!=null)VIZ_REGISTRY[k].order=cfg.order}
+      else{VIZ_REGISTRY[k].on=!!cfg} // backward compat: old format was just bool
+    }}}
     // Font sizes
     if(c.fonts){
       if(c.fonts.desc&&$('cfgFontDesc')){$('cfgFontDesc').value=c.fonts.desc;document.documentElement.style.setProperty('--font-desc',c.fonts.desc+'px')}
@@ -598,11 +612,9 @@ async function loadDashboard(force){
       h+=`</table></div></div>`;
     }
 
-    // Proven plots — from registry, scope='batch'
-    for(const[key,v]of Object.entries(VIZ_REGISTRY)){
-      if(v.scope!=='batch'||!v.on||!plots[key])continue;
-      h+=plotCard(key,v.title,v.desc,plots);
-    }
+    // Batch plots — sorted by registry order
+    const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of batchItems) h+=plotCard(key,v.title,v.desc,plots);
 
     dc.innerHTML=h;
 
@@ -610,11 +622,9 @@ async function loadDashboard(force){
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
     let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
 
-    // Experimental tab: ONLY disabled batch items (collapsed)
-    for(const[key,v]of Object.entries(VIZ_REGISTRY)){
-      if(v.scope!=='batch'||v.on||!plots[key])continue;
-      eh+=plotCard(key,v.title,v.desc,plots,true);
-    }
+    // Experimental tab: disabled batch items (collapsed, sorted by order)
+    const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of disabledBatch) eh+=plotCard(key,v.title,v.desc,plots,true);
 
     if(eh.indexOf('feature')>-1){ec.innerHTML=eh}else{ec.style.display='none';$('expEmpty').style.display=''}
     log('Dashboard loaded','done');
@@ -624,7 +634,8 @@ async function loadDashboard(force){
 }
 
 function plotCard(key,title,desc,plots,collapsed){
-  return `<div class="feature"><div class="feature-header" onclick="this.parentElement.querySelector('.feature-body').classList.toggle('collapsed')" style="cursor:pointer"><div class="feature-title">${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+  const chevron=collapsed?'▶':'▼';
+  return `<div class="feature"><div class="feature-header" onclick="const b=this.parentElement.querySelector('.feature-body');b.classList.toggle('collapsed');this.querySelector('.chevron').textContent=b.classList.contains('collapsed')?'▶':'▼'" style="cursor:pointer"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
 }
 
 async function exportSession(){
@@ -748,7 +759,7 @@ function renderTunnelViewer(r){
         <button class="btn btn-sm btn-secondary" id="${id}_mode_absolute" onclick="_tunnelMode('absolute')">Absolute</button>
       </div>
       <div style="display:flex;justify-content:center">
-        <svg id="${id}_svg" viewBox="0 0 400 420" width="800" height="840" style="max-width:100%"></svg>
+        <svg id="${id}_svg" viewBox="0 0 400 420" width="640" height="672" style="max-width:100%"></svg>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
     </div></div>`;
