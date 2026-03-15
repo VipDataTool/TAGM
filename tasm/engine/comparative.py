@@ -14,30 +14,30 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 CAT_COLORS = {
-    "benign": "#2d936c", "baseline": "#2d936c", "user_baseline": "#78b89a",
-    "mild": "#e0a458", "harmful": "#c44536",
-    "jailbreak": "#7b2d8b", "adversarial": "#7b2d8b", "unknown": "#888888",
+    "benign": "#0072B2", "baseline": "#0072B2", "user_baseline": "#56B4E9",
+    "mild": "#E69F00", "harmful": "#D55E00",
+    "jailbreak": "#CC79A7", "adversarial": "#CC79A7", "unknown": "#999999",
 }
 
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=140, bbox_inches="tight",
-                facecolor="#0d1117", edgecolor="none")
+                facecolor="#121212", edgecolor="none")
     plt.close(fig)
     buf.seek(0)
     return base64.b64encode(buf.read()).decode()
 
 def _style_ax(ax, title=""):
-    ax.set_facecolor("#0d1117")
-    ax.tick_params(colors="#a0aec0", labelsize=10)
-    ax.xaxis.label.set_color("#a0aec0")
-    ax.yaxis.label.set_color("#a0aec0")
-    ax.title.set_color("#e2e8f0")
+    ax.set_facecolor("#1E1E1E")
+    ax.tick_params(colors="#9CA3AF", labelsize=10)
+    ax.xaxis.label.set_color("#9CA3AF")
+    ax.yaxis.label.set_color("#9CA3AF")
+    ax.title.set_color("#DEE2E6")
     if title:
         ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
     for spine in ax.spines.values():
-        spine.set_color("#2d3748")
-    ax.grid(True, alpha=0.15, color="#4a5568")
+        spine.set_color("#404040")
+    ax.grid(True, alpha=0.2, color="#333333")
 
 def _wrap(text, width=22):
     return "\n".join(textwrap.wrap(str(text), width))
@@ -60,7 +60,7 @@ def plot_trajectory_overlay(results: list) -> str:
         return ""
 
     fig, ax = plt.subplots(figsize=(14, 5.5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Normalized Amplitude Trajectories (all prompts)")
 
     for r in has_traj:
@@ -69,8 +69,8 @@ def plot_trajectory_overlay(results: list) -> str:
 
     n = len(has_traj[0]["amplitude_normalized"])
     for b, t in [(n // 3, "Early -> Mid"), (2 * n // 3, "Mid -> Late")]:
-        ax.axvline(x=b, color="#4a5568", linestyle="--", alpha=0.5)
-        ax.text(b + 1, ax.get_ylim()[1] * 0.92, t, fontsize=10, color="#718096")
+        ax.axvline(x=b, color="#404040", linestyle="--", alpha=0.5)
+        ax.text(b + 1, ax.get_ylim()[1] * 0.92, t, fontsize=10, color="#6B7280")
 
     ax.set_xlabel("Sublayer index", fontsize=11)
     ax.set_ylabel("Normalized sensitivity", fontsize=11)
@@ -93,7 +93,7 @@ def plot_difference_from_benign(results: list) -> str:
     baseline = np.mean(benign, axis=0)
 
     fig, ax = plt.subplots(figsize=(14, 5.5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Sensitivity Difference from Benign Baseline")
 
     cats = {}
@@ -112,14 +112,14 @@ def plot_difference_from_benign(results: list) -> str:
         ax.plot(diff, label=f"{cat.title()} - Benign", color=color, linewidth=1.8)
         ax.fill_between(range(len(diff)), diff, alpha=0.1, color=color)
 
-    ax.axhline(y=0, color="#4a5568", linewidth=1)
+    ax.axhline(y=0, color="#404040", linewidth=1)
     ax.set_xlabel("Sublayer index", fontsize=11)
     ax.set_ylabel("Delta normalized sensitivity", fontsize=11)
     ax.legend(fontsize=10)
 
     n = len(baseline)
     for b, t in [(n // 3, "Early -> Mid"), (2 * n // 3, "Mid -> Late")]:
-        ax.axvline(x=b, color="#4a5568", linestyle="--", alpha=0.4)
+        ax.axvline(x=b, color="#404040", linestyle="--", alpha=0.4)
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -147,7 +147,7 @@ def plot_discriminative_sublayers(results: list, top_n: int = 15) -> str:
     sorted_idx = np.argsort(diff)[::-1][:top_n]
 
     fig, ax = plt.subplots(figsize=(11, max(5, top_n * 0.45)))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, f"Top {top_n} Discriminative Sublayers\n(Adversarial - Benign)")
 
     labels = []
@@ -160,19 +160,19 @@ def plot_discriminative_sublayers(results: list, top_n: int = 15) -> str:
             "Middle" if layer_num < 2 * n_layers // 3 else "Late")
         labels.append(f"L{layer_num} {sublayer} ({region})")
         values.append(diff[idx])
-        colors.append("#7b2d8b" if region == "Middle" else (
-            "#4a6fa5" if region == "Late" else "#2d936c"))
+        colors.append("#CC79A7" if region == "Middle" else (
+            "#56B4E9" if region == "Late" else "#009E73"))
 
     y_pos = range(len(labels))
-    ax.barh(y_pos, values, color=colors, height=0.65, edgecolor="#1a202c")
+    ax.barh(y_pos, values, color=colors, height=0.65, edgecolor="#1a1a1a")
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(labels, fontsize=10, color="#a0aec0")
+    ax.set_yticklabels(labels, fontsize=10, color="#9CA3AF")
     ax.set_xlabel("Delta sensitivity", fontsize=11)
     ax.invert_yaxis()
 
-    handles = [Patch(facecolor="#2d936c", label="Early"),
-               Patch(facecolor="#7b2d8b", label="Middle"),
-               Patch(facecolor="#4a6fa5", label="Late")]
+    handles = [Patch(facecolor="#009E73", label="Early"),
+               Patch(facecolor="#CC79A7", label="Middle"),
+               Patch(facecolor="#56B4E9", label="Late")]
     ax.legend(handles=handles, fontsize=10, loc="lower right")
 
     plt.tight_layout()
@@ -193,7 +193,7 @@ def plot_metric_scatters(results: list) -> str:
     ]
 
     fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
 
     for ax, (x_key, y_key, x_label, y_label) in zip(axes.flat, scatter_defs):
         _style_ax(ax, f"{x_label} vs {y_label}")
@@ -205,7 +205,7 @@ def plot_metric_scatters(results: list) -> str:
                 continue
             color = CAT_COLORS.get(r.get("category", ""), "#888")
             ax.scatter(xv, yv, c=color, s=60, alpha=0.8,
-                       edgecolors="#1a202c", linewidth=0.5)
+                       edgecolors="#1E1E1E", linewidth=0.5)
 
         ax.set_xlabel(x_label, fontsize=11)
         ax.set_ylabel(y_label, fontsize=11)
@@ -223,7 +223,7 @@ def plot_behavioral_comparison(results: list) -> str:
         return ""
 
     fig, ax = plt.subplots(figsize=(max(11, len(has_both) * 1.0), 5.5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Behavioral Divergence: Instruct vs Base\nTop-1 Probability")
 
     x = np.arange(len(has_both))
@@ -233,11 +233,11 @@ def plot_behavioral_comparison(results: list) -> str:
     base_probs = [r["base_topk"][0][1] for r in has_both]
     labels = [_wrap(r["prompt"][:35], 18) for r in has_both]
 
-    ax.bar(x - w/2, inst_probs, w, label="Instruct", color="#4a6fa5", alpha=0.85)
-    ax.bar(x + w/2, base_probs, w, label="Base", color="#c44536", alpha=0.85)
+    ax.bar(x - w/2, inst_probs, w, label="Instruct", color="#56B4E9", alpha=0.85)
+    ax.bar(x + w/2, base_probs, w, label="Base", color="#D55E00", alpha=0.85)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=10, color="#a0aec0")
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=10, color="#9CA3AF")
     ax.set_ylabel("Top-1 probability", fontsize=11)
     ax.legend(fontsize=11)
 
@@ -258,24 +258,24 @@ def plot_proof1_summary(results: list) -> str:
     exact_rate = sum(1 for c in all_checks if c["exact"]) / len(all_checks)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
 
     ax = axes[0]
     _style_ax(ax, "Proof 1 Exactness Errors\n(log scale)")
-    ax.hist(np.log10(np.array(errors) + 1e-15), bins=30, color="#4a6fa5", alpha=0.8,
-            edgecolor="#1a202c")
+    ax.hist(np.log10(np.array(errors) + 1e-15), bins=30, color="#56B4E9", alpha=0.8,
+            edgecolor="#1E1E1E")
     ax.set_xlabel("log10(error)", fontsize=11)
     ax.set_ylabel("Count", fontsize=11)
 
     ax = axes[1]
     _style_ax(ax, f"Exactness Rate: {exact_rate:.1%}")
     bars = ax.bar(["Exact\n(< 1e-4)", "Inexact"], [exact_rate, 1 - exact_rate],
-                  color=["#2d936c", "#c44536"], alpha=0.85, width=0.5)
+                  color=["#009E73", "#D55E00"], alpha=0.85, width=0.5)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Fraction", fontsize=11)
     for bar, val in zip(bars, [exact_rate, 1 - exact_rate]):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
-                f"{val:.1%}", ha="center", fontsize=11, color="#e2e8f0")
+                f"{val:.1%}", ha="center", fontsize=11, color="#DEE2E6")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -301,7 +301,7 @@ def plot_ltp_category_comparison(results: list) -> str:
                 ("mean_V", "Offset\nVariance"), ("mean_L", "Lateral\nCoverage")]
 
     fig, axes = plt.subplots(1, len(ltp_keys), figsize=(4.5 * len(ltp_keys), 5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
 
     for ax, (key, title) in zip(axes, ltp_keys):
         _style_ax(ax, title)
@@ -322,13 +322,13 @@ def plot_ltp_category_comparison(results: list) -> str:
             for patch, color in zip(bp["boxes"], box_colors):
                 patch.set_facecolor(color)
                 patch.set_alpha(0.75)
-                patch.set_edgecolor("#a0aec0")
+                patch.set_edgecolor("#9CA3AF")
             for element in ["whiskers", "caps", "medians"]:
                 for item in bp[element]:
-                    item.set_color("#a0aec0")
+                    item.set_color("#9CA3AF")
             for item in bp["fliers"]:
-                item.set_markeredgecolor("#a0aec0")
-            ax.tick_params(axis="x", labelsize=10, colors="#a0aec0")
+                item.set_markeredgecolor("#9CA3AF")
+            ax.tick_params(axis="x", labelsize=10, colors="#9CA3AF")
 
     plt.tight_layout()
     return _fig_to_base64(fig)
@@ -341,13 +341,13 @@ def plot_ltp_m_vs_stress(results: list) -> str:
         return ""
 
     fig, ax = plt.subplots(figsize=(9, 7))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Offset Magnitude (M) vs Stress Score")
 
     for r in has_ltp:
         color = CAT_COLORS.get(r.get("category", ""), "#888")
         ax.scatter(r.get("stress_score", 0), r["ltp"]["mean_M"],
-                   c=color, s=60, alpha=0.8, edgecolors="#1a202c", linewidth=0.5)
+                   c=color, s=60, alpha=0.8, edgecolors="#1E1E1E", linewidth=0.5)
 
     ax.set_xlabel("Stress Score (ASM)", fontsize=11)
     ax.set_ylabel("Offset Magnitude M (LTP)", fontsize=11)
@@ -369,11 +369,11 @@ def plot_ltp_profile_shape_distribution(results: list) -> str:
         return ""
 
     fig, ax = plt.subplots(figsize=(max(8, len(available) * 2.5), 5))
-    fig.patch.set_facecolor("#0d1117")
+    fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Profile Shape Distribution by Category")
 
     shapes = ["steep", "flat", "inverted"]
-    shape_colors = {"steep": "#e0a458", "flat": "#4a6fa5", "inverted": "#c44536"}
+    shape_colors = {"steep": "#E69F00", "flat": "#56B4E9", "inverted": "#D55E00"}
     x = np.arange(len(available))
     width = 0.25
 
@@ -400,16 +400,91 @@ def plot_ltp_profile_shape_distribution(results: list) -> str:
     return _fig_to_base64(fig)
 
 
+def plot_key_scatters(results: list) -> str:
+    """Two-panel scatter: the two views that actually separate categories.
+    Entropy vs Net Correction and Stress vs Net Correction.
+    Includes 95% confidence ellipses per category."""
+    from engine.viz_style import (fig_to_base64, style_ax, apply_style,
+                                   CAT_COLORS, CAT_ORDER, CAT_MARKERS,
+                                   TEXT_PRIMARY, TEXT_SECONDARY)
+    apply_style()
+
+    panels = [
+        ("entropy", "net_correction", "Entropy", "Net Correction"),
+        ("stress_score", "net_correction", "Stress Score", "Net Correction"),
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+
+    for ax, (xkey, ykey, xlabel, ylabel) in zip(axes, panels):
+        style_ax(ax, xlabel=xlabel, ylabel=ylabel)
+
+        for cat in CAT_ORDER:
+            pts = [(r[xkey], r[ykey]) for r in results
+                   if r.get("category") == cat and r.get(xkey) is not None]
+            if not pts:
+                continue
+            xs, ys = zip(*pts)
+            xs, ys = np.array(xs), np.array(ys)
+            color = CAT_COLORS.get(cat, "#888")
+            marker = CAT_MARKERS.get(cat, "o")
+
+            # Scatter with redundant shape+color
+            ax.scatter(xs, ys, c=color, marker=marker, s=40, alpha=0.7,
+                       edgecolors="white", linewidths=0.4, zorder=3,
+                       label=cat.capitalize())
+
+            # 95% confidence ellipse
+            if len(xs) >= 3:
+                try:
+                    from matplotlib.patches import Ellipse
+                    cov = np.cov(xs, ys)
+                    eigenvals, eigenvecs = np.linalg.eigh(cov)
+                    order = eigenvals.argsort()[::-1]
+                    eigenvals = eigenvals[order]
+                    eigenvecs = eigenvecs[:, order]
+                    angle = np.degrees(np.arctan2(eigenvecs[1, 0], eigenvecs[0, 0]))
+                    # 95% CI for 2D normal = chi2(2, 0.95) = 5.991
+                    width = 2 * np.sqrt(5.991 * eigenvals[0])
+                    height = 2 * np.sqrt(5.991 * eigenvals[1])
+                    ell = Ellipse(xy=(xs.mean(), ys.mean()),
+                                  width=width, height=height, angle=angle,
+                                  facecolor=color, alpha=0.1,
+                                  edgecolor=color, linewidth=1.5,
+                                  linestyle="--", zorder=1)
+                    ax.add_patch(ell)
+                except Exception:
+                    pass  # Skip ellipse on numerical issues
+
+        ax.legend(fontsize=9, loc="best", framealpha=0.85)
+
+    plt.tight_layout(pad=1.5)
+    return fig_to_base64(fig)
+
+
 def generate_all_comparative(results: list) -> dict:
-    plots = {}
-    plots["trajectory_overlay"] = plot_trajectory_overlay(results)
-    plots["difference_from_benign"] = plot_difference_from_benign(results)
-    plots["discriminative_sublayers"] = plot_discriminative_sublayers(results)
-    plots["metric_scatters"] = plot_metric_scatters(results)
-    plots["behavioral_comparison"] = plot_behavioral_comparison(results)
-    plots["proof1_summary"] = plot_proof1_summary(results)
-    # LTP comparative plots
-    plots["ltp_category_comparison"] = plot_ltp_category_comparison(results)
-    plots["ltp_m_vs_stress"] = plot_ltp_m_vs_stress(results)
-    plots["ltp_profile_shapes"] = plot_ltp_profile_shape_distribution(results)
-    return {k: v for k, v in plots.items() if v}
+    """Generate all comparative plots, organized into proven and experimental."""
+    proven = {}
+    experimental = {}
+
+    # Proven (Analysis tab)
+    proven["key_scatters"] = plot_key_scatters(results)
+    proven["discriminative_sublayers"] = plot_discriminative_sublayers(results)
+    proven["proof1_summary"] = plot_proof1_summary(results)
+
+    # Experimental tab
+    experimental["trajectory_overlay"] = plot_trajectory_overlay(results)
+    experimental["difference_from_benign"] = plot_difference_from_benign(results)
+    experimental["metric_scatters"] = plot_metric_scatters(results)
+    experimental["behavioral_comparison"] = plot_behavioral_comparison(results)
+    experimental["ltp_category_comparison"] = plot_ltp_category_comparison(results)
+    experimental["ltp_m_vs_stress"] = plot_ltp_m_vs_stress(results)
+    experimental["ltp_profile_shapes"] = plot_ltp_profile_shape_distribution(results)
+
+    # Flatten into single dict with prefix for experimental
+    all_plots = {k: v for k, v in proven.items() if v}
+    for k, v in experimental.items():
+        if v:
+            all_plots[f"exp_{k}"] = v
+
+    return all_plots
