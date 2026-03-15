@@ -68,12 +68,24 @@ textarea{resize:vertical;min-height:44px}
 .main-tab .badge{font-size:8px;background:var(--bg-3);color:var(--text-2);padding:1px 4px;border-radius:6px;margin-left:3px}
 .main-tab.ltp-active{color:var(--cyan);border-bottom-color:var(--cyan)}
 .tab-panel{display:none;padding:16px}.tab-panel.active{display:block}
-.card{background:var(--bg-1);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden}
-.card-header{padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
 .card-header:hover{background:var(--bg-2)}
-.card-header h3{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-body{padding:12px}.card-body.collapsed{display:none}
-.pill{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:8px;border:1px solid}
+.card-header h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-body{padding:16px}.card-body.collapsed{display:none}
+.record-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.record-header h3{white-space:normal;line-height:1.4}
+.record-meta{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
+.btn-popout{font-size:9px;padding:3px 8px;background:var(--bg-3);color:var(--text-2);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .15s}
+.btn-popout:hover{color:var(--text-0);border-color:var(--text-2)}
+.feature{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-0)}
+.feature-header{padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border)}
+.feature-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0);margin:0}
+.feature-desc{font-size:13px;color:var(--text-1);line-height:1.6;margin:8px 0 0 0}
+.feature-legend{font-size:11px;color:var(--text-2);line-height:1.5;margin-top:6px;padding:6px 8px;background:var(--bg-1);border-radius:4px;border:1px dashed var(--border)}
+.feature-body{padding:0}
+.feature-body .plot-container{margin:0;border:none;border-radius:0}
+.pill{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:8px;border:1px solid}
 .pill-benign{border-color:var(--cat-benign);color:var(--cat-benign)}.pill-mild{border-color:var(--cat-mild);color:var(--cat-mild)}
 .pill-harmful{border-color:var(--cat-harmful);color:var(--cat-harmful)}.pill-jailbreak{border-color:var(--cat-jailbreak);color:var(--cat-jailbreak)}
 .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
@@ -86,13 +98,13 @@ textarea{resize:vertical;min-height:44px}
 .metric-ln.positive{color:var(--red)}.metric-ln.negative{color:var(--green)}.metric-ln.neutral{color:var(--text-3)}
 .plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
 .plot-container img{width:100%;display:block}
-.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px}
-.data-table th{text-align:left;padding:4px 5px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:8px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1)}
-.data-table td{padding:3px 5px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.data-table th{text-align:left;padding:5px 6px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1)}
+.data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1)}
 .data-table tr:hover td{background:var(--bg-2)}
-.topk-table{font-family:var(--mono);font-size:9px;margin-top:5px}
-.topk-table td{padding:2px 6px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
-.token-bar{height:3px;border-radius:2px;display:inline-block;vertical-align:middle}
+.topk-table{font-family:var(--mono);font-size:11px;margin-top:5px}
+.topk-table td{padding:3px 8px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
+.token-bar{height:5px;border-radius:2px;display:inline-block;vertical-align:middle}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:45vh;color:var(--text-3);text-align:center}
 .empty-state h2{font-family:var(--mono);font-size:14px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
 .empty-state p{font-size:11px;max-width:350px;line-height:1.4}
@@ -263,7 +275,7 @@ textarea{resize:vertical;min-height:44px}
 
 <script>
 const $=id=>document.getElementById(id);
-let modelLoaded=false, sessionResults=[], promptLibraryData=[];
+let modelLoaded=false, sessionResults=[], promptLibraryData=[], _busy=false;
 
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
@@ -380,35 +392,39 @@ async function analyzeBatch(){
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
     log(`Batch started: ${data.n_prompts} prompts. Polling progress...`);
-    // Poll progress until we see "done"
     let lastLen=0;
-    const poll=setInterval(async()=>{
+    async function pollBatch(){
       try{
         const p=await(await fetch('/api/progress')).json();
+        let done=false;
         for(let i=lastLen;i<p.log.length;i++){
           const e=p.log[i];
           log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':(e.stage==='warning'?'error':'')));
-          if(e.stage==='done'&&e.message.includes('Batch complete')){
-            clearInterval(poll);
-            if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
-            updateSessionBadge();
-            setLoading(btn,false);
-            log('Loading dashboard...');
-            try{await loadDashboard()}catch(de){log('Dashboard: '+de.message,'error')}
-          }
+          if(e.stage==='done'&&e.message.includes('Batch complete')){done=true}
         }
         lastLen=p.log.length;
+        if(done){
+          if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
+          updateSessionBadge();setLoading(btn,false);
+          log('Loading dashboard...');
+          try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
+          return; // Stop polling
+        }
       }catch(pe){}
-    },2000);
+      setTimeout(pollBatch,2000); // Schedule next poll only after this one completes
+    }
+    setTimeout(pollBatch,2000);
   }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────
-async function loadDashboard(){
+async function loadDashboard(force){
+  if(!force&&_busy){log('Another operation in progress, please wait.','error');return}
+  _busy=true;
   log('Loading dashboard...');
   try{
     const resp=await fetch('/api/dashboard');
-    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');return}
+    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');_busy=false;return}
     const data=await resp.json();
     if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
     sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
@@ -453,8 +469,9 @@ async function loadDashboard(){
 
     ec.innerHTML=eh;
     log('Dashboard loaded','done');
+    _busy=false;
     document.querySelectorAll('.main-tab')[1].click();
-  }catch(e){log('Dashboard error: '+e.message,'error')}
+  }catch(e){log('Dashboard error: '+e.message,'error');_busy=false}
 }
 
 function plotCard(key,title,desc,plots,collapsed){
@@ -462,37 +479,62 @@ function plotCard(key,title,desc,plots,collapsed){
 }
 
 async function exportSession(){
+  if(_busy){log('Another operation in progress, please wait.','error');return}
+  _busy=true;
   log('Exporting...');
   try{
+    // Get current progress length so we only see NEW entries
+    const curProg=await(await fetch('/api/progress')).json();
+    let lastLen=curProg.log.length;
     const r=await fetch('/api/export');const data=await r.json();
-    if(!data.ok){log('Export error: '+(data.error||''),'error');return}
+    if(!data.ok){log('Export error: '+(data.error||''),'error');_busy=false;return}
     log('Export started. Generating plots, PDF, and ZIP...');
-    // Poll progress until export is done
-    let lastLen=0;
-    const poll=setInterval(async()=>{
+    async function pollExport(){
       try{
         const p=await(await fetch('/api/progress')).json();
+        let exportDone=false, exportFailed=false;
         for(let i=lastLen;i<p.log.length;i++){
           const e=p.log[i];
           if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
             log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
           }
-          if(e.stage==='done'&&e.message.includes('Export ready')){
-            clearInterval(poll);
-            // Trigger download
-            log('Downloading ZIP...');
-            try{
-              const dr=await fetch('/api/export/download');
-              if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
-              else{log('Download failed: HTTP '+dr.status,'error')}
-            }catch(de){log('Download error: '+de.message,'error')}
-          }
-          if(e.stage==='error'&&e.message.includes('Export')){clearInterval(poll)}
+          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true}
+          if(e.stage==='error'&&e.message.includes('Export')){exportFailed=true}
         }
         lastLen=p.log.length;
+        if(exportDone){
+          log('Downloading ZIP...');
+          try{
+            const dr=await fetch('/api/export/download');
+            if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
+            else{log('Download failed: HTTP '+dr.status,'error')}
+          }catch(de){log('Download error: '+de.message,'error')}
+          _busy=false;return;
+        }
+        if(exportFailed){_busy=false;return;}
       }catch(pe){}
-    },2000);
-  }catch(e){log('Export error: '+e.message,'error')}
+      setTimeout(pollExport,2000);
+    }
+    setTimeout(pollExport,2000);
+  }catch(e){log('Export error: '+e.message,'error');_busy=false}
+}
+
+// ─── Pop-out Record Window ──────────────────────────────────────
+function popoutRecord(rid){
+  const el=document.getElementById(rid);
+  if(!el) return;
+  const w=window.open('','_blank','width=1000,height=800,scrollbars=yes');
+  if(!w) return;
+  // Grab stylesheets from parent
+  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(s=>s.outerHTML).join('\n');
+  w.document.write(`<!DOCTYPE html><html><head><title>TASM Record</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    ${styles}
+    <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
+    .card{max-width:960px;margin:0 auto}</style>
+    </head><body>${el.outerHTML}</body></html>`);
+  w.document.close();
 }
 
 // ─── Tunnel Cross-Section Viewer ─────────────────────────────────
@@ -519,9 +561,13 @@ function renderTunnelViewer(r){
     timeline+=`<span class="tv-tok" id="${id}_tok${i}" onclick="_tunnelGo(${i})" title="${escHtml(tokens[i])}">${escHtml(t.length>6?t.slice(0,5)+'…':t)}</span>`;
   }
 
-  return `<div class="card" style="border-color:var(--cyan);margin-bottom:12px">
-    <div class="card-header"><h3>Alignment Tunnel Cross-Section</h3></div>
-    <div class="card-body">
+  return `<div class="feature" style="border-color:var(--cyan)">
+    <div class="feature-header">
+      <div class="feature-title" style="color:var(--cyan)">Alignment Tunnel Cross-Section</div>
+      <p class="feature-desc">Step through the prompt one token at a time. Each frame shows a radial cross-section of the alignment correction field at that position. The 8 spokes represent the top-k alternative tokens the model considered — the counterfactual directions. Spoke length shows how strongly the alignment delta pushes toward each alternative. A uniform octagon means flat, omnidirectional correction. Spikes or lobes would indicate concentrated directional boundaries where the alignment field is steering the model away from specific alternatives.</p>
+      <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Labels = alternative token + probability · Shape colors: blue = flat, amber = steep, vermillion = inverted · Navigate with ◀ ▶ buttons, arrow keys, or click tokens below</div>
+    </div>
+    <div class="feature-body" style="padding:14px">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
         <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:40px">◀</button>
         <div style="flex:1;text-align:center">
@@ -534,7 +580,6 @@ function renderTunnelViewer(r){
         <svg id="${id}_svg" viewBox="0 0 400 400" width="380" height="380" style="max-width:100%"></svg>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
-      <div style="font-size:10px;color:var(--text-2);text-align:center;margin-top:6px">Click a token or use ◀ ▶ to step through the prompt. Each spoke = tension toward a counterfactual alternative.</div>
     </div></div>`;
 }
 
@@ -630,51 +675,128 @@ function _tunnelDraw(){
 // ─── Render ─────────────────────────────────────────────────────
 function renderLatest(r,plots){
   $('emptyState').style.display='none';const area=$('latestResults');
-  let h=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>${escHtml(r.prompt)}</h3>${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}<span style="font-family:var(--mono);font-size:10px;color:var(--text-3)">${r.seq_len}tok</span>${r.ltp?'<span class="ltp-badge">LTP</span>':''}</div><div class="card-body">`;
-  h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Stress measures overall correction pressure. Net Correction is the total signed attribution sum. Entropy and boundary/interior share characterize how correction distributes across tokens -- benign prompts typically concentrate at boundaries (first/last tokens) while adversarial prompts distribute across interior framing tokens.</div>`;
-  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Gini',r.gini,null)}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
-  // LTP summary metrics
+  const rid='rec_'+Date.now();
+
+  // ═══ RECORD HEADER ═══
+  let h=`<div class="card" id="${rid}">
+    <div class="card-header record-header">
+      <h3>${escHtml(r.prompt)}</h3>
+      <div class="record-meta">
+        ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-3)">${r.seq_len} tokens</span>
+        ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
+        <button class="btn-popout" onclick="popoutRecord('${rid}')" title="Open in new window">↗ Pop out</button>
+      </div>
+    </div>
+    <div class="card-body">`;
+
+  // ═══ SUMMARY METRICS ═══
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
   if(r.ltp){
     h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');
     h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');
-    h+=mc('V',r.ltp.mean_V,null,null,'ltp-metric');
-    h+=mc('L',r.ltp.mean_L,null,v=>(v*100).toFixed(1)+'%','ltp-metric');
   }
   h+=`</div>`;
-  if(r.has_negative_tokens)h+=`<div style="margin-bottom:6px;font-size:10px;color:var(--purple)">Neg attr: ${r.n_negative_tokens}/${r.seq_len} tokens</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
+
+  // ═══ TOP-K RESPONSES ═══
   h+=renderTopK(r);
 
-  // ASM plots
-  const plotDescs={
-    signed_attribution:['Signed Attribution','Per-token contribution to the alignment correction at the last position. Green bars push with the correction; red bars push against it. Tokens with high attribution in the interior (rather than at boundaries) suggest the model is responding to semantic framing rather than positional structure.'],
-    stress_per_token:['Focused Stress Score','Per-token correction pressure at discriminative middle layers, normalized by delta Frobenius norm. The relative ordering reveals which tokens drive the strongest alignment response -- framing tokens typically score higher than content tokens.'],
-    distribution_metrics:['Distribution Metrics','Summary of entropy, Gini coefficient, and boundary/interior share. Benign prompts typically show low entropy (concentrated at boundaries) while adversarial prompts show higher entropy (distributed across interior tokens).'],
-    amplitude_trajectory:['Amplitude Trajectory','Normalized sensitivity across all sublayers (alternating attention/MLP through the model depth). The shape reveals where alignment correction is most active -- middle-layer attention sublayers are predicted to carry the safety-relevant signal.'],
-    heatmap:['Sensitivity Heatmap','Token-by-layer view of where correction pressure concentrates. Bright regions show specific tokens driving strong correction at specific depths. Look for whether activation is boundary-concentrated (benign pattern) or interior-distributed (adversarial pattern).'],
+  // ═══ ASM FEATURE CARDS ═══
+  const features={
+    signed_attribution:{
+      title:'Signed Attribution',
+      desc:'Each bar shows one token\'s contribution to the alignment correction at the final position. Green bars reinforce the correction (the model\'s safety training is acting through these tokens). Red bars oppose it (these tokens push the model away from its aligned behavior). Interior tokens with high green bars indicate the model is responding to semantic framing — the hallmark of adversarial prompts that embed harmful requests inside legitimate-sounding language.',
+      legend:'Green = reinforces alignment correction · Red = opposes alignment correction · Bar height = magnitude of contribution'
+    },
+    stress_per_token:{
+      title:'Per-Token Stress',
+      desc:'Correction pressure at the discriminative middle layers (L8–L14), normalized by the Frobenius norm of the weight delta at each layer. This focuses on where the model\'s safety training is most active. Tokens with high stress are the ones the alignment field is working hardest to correct — typically framing tokens ("for academic purposes") rather than content tokens ("the", "of").',
+      legend:'Bar height = normalized correction pressure · Higher = more alignment activity at that token'
+    },
+    distribution_metrics:{
+      title:'Correction Distribution',
+      desc:'Three views of how alignment correction distributes across the prompt. Entropy measures uniformity (high = spread evenly, low = concentrated). Boundary vs interior share shows whether correction focuses on the first and last tokens (typical of benign prompts) or spreads across the interior (typical of adversarial prompts that use distributed framing).',
+      legend:'Entropy: 0 = all correction at one token, 1 = perfectly uniform · Boundary: first + last tokens · Interior: all other tokens'
+    },
+    amplitude_trajectory:{
+      title:'Layer-by-Layer Trajectory',
+      desc:'How correction magnitude evolves through the model\'s depth. Each point is a sublayer (alternating attention and MLP blocks). The shape reveals where the alignment field is most active. A spike at middle layers (sublayers 16–32) followed by a decline is the typical pattern — the model\'s safety training concentrates its intervention at these depths, which correspond to the abstract semantic processing stage.',
+      legend:'X-axis = sublayer index (0 = input, 48 = output) · Y-axis = correction magnitude · Dashed lines mark early/mid/late boundaries'
+    },
+    heatmap:{
+      title:'Token × Layer Sensitivity Map',
+      desc:'A 2D view showing exactly where in the model (which layer) each token (which position) receives the most alignment correction. Bright cells indicate strong correction. Benign prompts typically show bright spots only at boundary positions (first/last rows). Adversarial prompts show bright interior bands at middle layers — the model is detecting and correcting the adversarial framing throughout its semantic processing stage.',
+      legend:'Rows = tokens · Columns = sublayers (attention + MLP alternating) · Brightness = correction magnitude'
+    },
   };
-  for(const[k,v]of Object.entries(plots)){if(!v||k.startsWith('ltp_'))continue;const d=plotDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
+  for(const[k,v]of Object.entries(plots)){
+    if(!v||k.startsWith('ltp_'))continue;
+    const f=features[k];
+    h+=`<div class="feature">
+      <div class="feature-header">
+        <div class="feature-title">${f?f.title:k}</div>
+        ${f?`<p class="feature-desc">${f.desc}</p>`:''}
+        ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
+      </div>
+      <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+    </div>`;
+  }
 
-  // LTP plots section
+  // ═══ LTP SECTION ═══
   if(r.ltp){
-    h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--cyan)"><div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
-    h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">The alignment tunnel: each token is a step through the model's correction field. The radial chart shows the cross-section at each position — how strongly the alignment delta pushes toward each counterfactual alternative. Uniform circles = flat correction. Spikes = directional boundaries.</div>`;
+    h+=`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)">
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
 
-    // ═══ TUNNEL CROSS-SECTION VIEWER ═══
+    // Tunnel viewer
     h+=renderTunnelViewer(r);
 
-    const ltpDescs={
-      ltp_profiles:['Lateral Tension Profiles','Per-token lateral tension across counterfactual rank positions. Each stacked segment shows alignment correction toward that alternative.'],
-      ltp_tension_magnitudes:['Lateral Tension Magnitudes','Per-token net tension magnitude, colored by profile shape.'],
-      ltp_summary_stats:['LTP Summary Statistics','Offset magnitude (M), consistency (C), variance (V), and coverage (L).'],
-      ltp_profile_heatmap:['Profile Heatmap','Token-by-rank heatmap of lateral tension.'],
+    // LTP feature cards
+    const ltpFeatures={
+      ltp_profiles:{
+        title:'Tension Profiles (Stacked)',
+        desc:'Each column is one token. The stacked segments show lateral tension toward each counterfactual alternative, ordered by logit rank (rank 1 = strongest alternative the model considered). A tall, evenly-divided column means the alignment field pushes equally toward all alternatives at that position. A column dominated by one segment would indicate a concentrated directional boundary — but at 0.5B, profiles are uniformly flat.',
+        legend:'Segment height = tension toward that alternative · Rank 1 (bottom) = most likely alternative · Color = rank position'
+      },
+      ltp_tension_magnitudes:{
+        title:'Tension Magnitudes',
+        desc:'The total lateral tension at each token position — how strongly the alignment field pushes sideways (toward unchosen alternatives) rather than forward (along the generation path). Tokens where the model considered very different alternatives tend to have higher magnitudes. The dashed line marks the mean across all tokens.',
+        legend:'Bar height = net lateral tension magnitude · Color: blue = flat profile, amber = steep, vermillion = inverted · Dashed line = prompt mean'
+      },
+      ltp_summary_stats:{
+        title:'LTP Summary',
+        desc:'Four scalar summaries of the lateral tension field. M (magnitude) = mean lateral displacement. C (consistency) = directional coherence across tokens (0 = random, 1 = all pointing the same way). V (variance) = how concentrated the signal is across tokens. L (coverage) = fraction of tokens with detectable lateral tension.',
+        legend:'M and C are the primary metrics · At 0.5B, M ≈ 0.001–0.002 with d ≈ 0.3 between categories'
+      },
+      ltp_profile_heatmap:{
+        title:'Token × Rank Heatmap',
+        desc:'Rows are tokens, columns are counterfactual rank positions. Bright cells show high lateral tension toward that specific alternative. An all-bright row means strong omnidirectional lateral correction. A row with one bright cell would indicate a focused directional boundary. At 0.5B, most rows appear uniformly dim — the alignment tunnel has smooth cylindrical walls.',
+        legend:'Rows = tokens (top to bottom in prompt order) · Columns = alternative rank (1 = most likely, k = least likely) · Brightness = tension magnitude'
+      },
     };
-    for(const[k,v]of Object.entries(plots)){if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;const d=ltpDescs[k];h+=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">${d?d[0]:k}</div>${d?`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">${d[1]}</div>`:''}<div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>`}
+    for(const[k,v]of Object.entries(plots)){
+      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+      const f=ltpFeatures[k];
+      h+=`<div class="feature" style="border-color:var(--cyan)">
+        <div class="feature-header">
+          <div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>
+          ${f?`<p class="feature-desc">${f.desc}</p>`:''}
+          ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
+        </div>
+        <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+      </div>`;
+    }
 
-    // Counterfactual tokens table
+    // Counterfactual neighborhood table
     if(r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      h+=`<div style="margin-top:8px"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">Counterfactual Neighborhood</div>`;
-      h+=`<div style="font-size:11px;color:var(--text-1);margin-bottom:6px;line-height:1.5">The top-k alternative tokens the model considered at each position. These define the probing directions for the lateral tension profile -- the paths not taken. The probability column shows how seriously the model considered each alternative.</div>`;
-      h+=`<table class="data-table"><tr><th>Token</th><th>Shape</th>`;
+      h+=`<div class="feature" style="border-color:var(--cyan)">
+        <div class="feature-header">
+          <div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div>
+          <p class="feature-desc">The alternative tokens the model considered at each position — the paths not taken. These define the k probing directions for the lateral tension profile. Higher probability alternatives represent closer semantic neighbors; the alignment field's lateral structure is measured by projecting the weight delta toward each of these directions.</p>
+          <div class="feature-legend">🔑 Shape = profile classification (flat/steep/inverted) · Alt tokens sorted by model probability · Probability = how seriously the model considered that alternative</div>
+        </div>
+        <div class="feature-body" style="padding:10px">
+        <table class="data-table"><tr><th>Token</th><th>Shape</th>`;
       const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)h+=`<th>Alt ${i+1}</th>`;
       h+=`</tr>`;
       for(let i=0;i<Math.min(r.tokens.length,r.ltp.counterfactual_tokens.length);i++){
@@ -688,27 +810,27 @@ function renderLatest(r,plots){
         }
         h+=`</tr>`;
       }
-      h+=`</table></div>`;
+      h+=`</table></div></div>`;
     }
     h+=`</div>`;
   }
 
+  // Token attribution table
   h+=renderTokenTable(r)+`</div></div>`;
   area.innerHTML=h+area.innerHTML;
-  // Initialize tunnel viewer if LTP data present
   if(_tunnelState) _tunnelDraw();
 }
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
   const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
   for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
-  return`<div class="card" style="margin-bottom:8px;border-color:var(--border-accent)"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Model Responses</h3></div><div class="card-body"><table class="topk-table"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+  return`<div class="feature"><div class="feature-header"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
 }
 function renderTokenTable(r){
   if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
   const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
   for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
-  return`<table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table>`
+  return`<div class="feature"><div class="feature-header"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
 function renderDataTable(){
   if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';return}
