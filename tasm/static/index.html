@@ -745,13 +745,18 @@ function renderTunnelViewer(r){
       <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Point color = stress temperature (blue→amber→red) · Shape: octagon=uniform, spike=directional · Mode toggle changes normalization</div>
     </div>
     <div class="feature-body" style="padding:14px">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:40px">◀</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(0)" style="min-width:32px" title="First">⏮</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:32px" title="Previous">◀</button>
+        <button class="btn btn-sm" id="${id}_playbtn" onclick="_tunnelPlayPause()" style="min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)" title="Play/Pause">▶ Play</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:32px" title="Next">▶</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.n-1)" style="min-width:32px" title="Last">⏭</button>
         <div style="flex:1;text-align:center">
           <span style="font-family:var(--mono);font-size:16px;color:var(--text-0)" id="${id}_label"></span>
           <span style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px" id="${id}_meta"></span>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:40px">▶</button>
+        <label style="font-size:9px;color:var(--text-3);font-family:var(--mono)">Speed</label>
+        <input type="range" id="${id}_speed" min="1" max="10" value="4" style="width:70px" oninput="_tunnelSetSpeed(this.value)" title="Animation speed">
       </div>
       <div style="display:flex;justify-content:center;gap:6px;margin-bottom:10px">
         <button class="btn btn-sm" id="${id}_mode_shape" onclick="_tunnelMode('shape')" style="background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)">Shape</button>
@@ -764,11 +769,61 @@ function renderTunnelViewer(r){
       <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
     </div></div>`;
 }
+let _tunnelAnimFrame=null, _tunnelPlaying=false, _tunnelSpeed=4, _tunnelMorphProgress=1;
+let _tunnelPrevIdx=null, _tunnelTargetIdx=null;
+
 function _tunnelGo(idx){
   const s=_tunnelState; if(!s) return;
-  s.idx=Math.max(0,Math.min(s.n-1,idx));
-  _tunnelDraw();
+  const newIdx=Math.max(0,Math.min(s.n-1,idx));
+  if(newIdx===s.idx&&_tunnelMorphProgress>=1) return;
+  _tunnelPrevIdx=s.idx;
+  _tunnelTargetIdx=newIdx;
+  _tunnelMorphProgress=0;
+  s.idx=newIdx;
+  if(!_tunnelAnimFrame) _tunnelAnimate();
 }
+
+function _tunnelAnimate(){
+  _tunnelMorphProgress=Math.min(1, _tunnelMorphProgress+0.08+_tunnelSpeed*0.012);
+  _tunnelDrawMorphed();
+  if(_tunnelMorphProgress<1){
+    _tunnelAnimFrame=requestAnimationFrame(_tunnelAnimate);
+  } else {
+    _tunnelAnimFrame=null;
+    _tunnelDrawMorphed(); // final frame at t=1
+  }
+}
+
+function _tunnelPlayPause(){
+  const s=_tunnelState; if(!s) return;
+  _tunnelPlaying=!_tunnelPlaying;
+  const btn=document.getElementById(s.id+'_playbtn');
+  if(btn) btn.textContent=_tunnelPlaying?'⏸ Pause':'▶ Play';
+  if(_tunnelPlaying) _tunnelAutoAdvance();
+}
+
+function _tunnelSetSpeed(v){ _tunnelSpeed=parseInt(v)||4; }
+
+function _tunnelAutoAdvance(){
+  if(!_tunnelPlaying||!_tunnelState) return;
+  const s=_tunnelState;
+  if(_tunnelMorphProgress<1){
+    // Still morphing, wait
+    setTimeout(_tunnelAutoAdvance, 50);
+    return;
+  }
+  const next=(s.idx+1)%s.n;
+  _tunnelGo(next);
+  // Schedule next advance based on speed (speed 1=1500ms, speed 10=200ms)
+  const delay=1600-(_tunnelSpeed*140);
+  setTimeout(_tunnelAutoAdvance, Math.max(delay, 150));
+}
+
+// Easing function: smooth ease-in-out
+function _ease(t){ return t<0.5?2*t*t:(1-Math.pow(-2*t+2,2)/2); }
+
+// Interpolate between two values
+function _lerp(a,b,t){ return a+(b-a)*t; }
 
 function _tunnelMode(mode){
   const s=_tunnelState; if(!s) return;
@@ -783,25 +838,55 @@ function _tunnelMode(mode){
   _tunnelDraw();
 }
 
-function _tunnelDraw(){
+function _tunnelDrawMorphed(){
   const s=_tunnelState; if(!s) return;
-  const {profiles,normProfiles,devProfiles,devMax,tokens,shapes,cfs,mags,stress,attr,stressMax,attrMax,n,k,gmax,id,idx,mode}=s;
+  const t=_ease(_tunnelMorphProgress);
+  const prevIdx=(_tunnelPrevIdx!=null&&_tunnelPrevIdx<s.n)?_tunnelPrevIdx:s.idx;
+  const curIdx=s.idx;
+
+  // Interpolate all per-token data between prev and current frame
+  const prevNorm=s.normProfiles[prevIdx]||[];
+  const curNorm=s.normProfiles[curIdx]||[];
+  const prevDev=s.devProfiles[prevIdx]||[];
+  const curDev=s.devProfiles[curIdx]||[];
+  const prevRaw=s.profiles[prevIdx]||[];
+  const curRaw=s.profiles[curIdx]||[];
+
+  const interpNorm=[], interpDev=[], interpRaw=[];
+  for(let j=0;j<s.k;j++){
+    interpNorm.push(_lerp(prevNorm[j]||0, curNorm[j]||0, t));
+    interpDev.push(_lerp(prevDev[j]||0, curDev[j]||0, t));
+    interpRaw.push(_lerp(prevRaw[j]||0, curRaw[j]||0, t));
+  }
+
+  const interpStress=_lerp(s.stress[prevIdx]||0, s.stress[curIdx]||0, t);
+  const interpAttr=_lerp(s.attr[prevIdx]||0, s.attr[curIdx]||0, t);
+  const interpMag=_lerp(s.mags[prevIdx]||0, s.mags[curIdx]||0, t);
+
+  // Use current token's metadata (snaps, doesn't interpolate)
+  const cf=s.cfs[curIdx]||[];
+  const shape=s.shapes[curIdx]||'flat';
+  const token=s.tokens[curIdx]||'';
+
+  _tunnelRender(s, interpNorm, interpDev, interpRaw, interpStress, interpAttr, interpMag, cf, shape, token, curIdx);
+}
+
+function _tunnelDraw(){
+  // Non-animated draw (for initial render)
+  _tunnelMorphProgress=1;
+  _tunnelPrevIdx=null;
+  _tunnelDrawMorphed();
+}
+
+function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVal, mag, cf, shape, token, idx){
+  const {tokens,n,k,gmax,devMax,stressMax,attrMax,id,mode}=s;
   const svg=document.getElementById(id+'_svg'); if(!svg) return;
 
   const cx=200, cy=195, R=140;
-  const profile=profiles[idx]||[];
-  const normProfile=normProfiles[idx]||[];
-  const devProfile=devProfiles[idx]||[];
-  const cf=cfs[idx]||[];
-  const shape=shapes[idx]||'flat';
-  const mag=mags[idx]||0;
-  const token=tokens[idx]||'';
-  const stressVal=stress[idx]||0;
-  const attrVal=attr[idx]||0;
 
-  // Temperature: power-curve scaling for better visual spread
+  // Temperature with sqrt scaling
   const rawTemp=stressMax>0?stressVal/stressMax:0;
-  const tokenTemp=Math.pow(rawTemp, 0.5); // sqrt stretches the lower range
+  const tokenTemp=Math.pow(rawTemp, 0.5);
 
   function tempColor(t){
     if(t<0.5){const f=t*2;return`rgb(${Math.round(0+230*f)},${Math.round(114+45*f)},${Math.round(178-178*f)})`}
@@ -818,12 +903,10 @@ function _tunnelDraw(){
 
   // Grid rings
   if(mode==='deviation'){
-    // Deviation: center=0, rings show deviation magnitude
     for(let ring=1;ring<=3;ring++){
       const r=R*ring/3;
       svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
     }
-    // Center circle = uniform baseline
     svg_h+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#404040" opacity="0.5"/>`;
     svg_h+=`<text x="${cx+8}" y="${cy-6}" fill="#6B7280" font-size="10" font-family="monospace">baseline</text>`;
   } else {
@@ -836,50 +919,34 @@ function _tunnelDraw(){
   // Compute spoke values based on mode
   const spokeVals=[];
   for(let j=0;j<k;j++){
-    if(mode==='shape'){
-      spokeVals.push(normProfile[j]||0); // 0..~0.17
-    } else if(mode==='deviation'){
-      spokeVals.push(devProfile[j]||0); // can be negative
-    } else {
-      spokeVals.push((profile[j]||0)/gmax); // 0..1
-    }
+    if(mode==='shape') spokeVals.push(normProfile[j]||0);
+    else if(mode==='deviation') spokeVals.push(devProfile[j]||0);
+    else spokeVals.push(gmax>0?(rawProfile[j]||0)/gmax:0);
   }
 
-  // Normalization for radius mapping
   let valMax;
-  if(mode==='shape'){
-    valMax=Math.max(...spokeVals)*1.1||0.01;
-  } else if(mode==='deviation'){
-    valMax=devMax*1.1||0.01;
-  } else {
-    valMax=1;
-  }
+  if(mode==='shape') valMax=Math.max(...spokeVals)*1.1||0.01;
+  else if(mode==='deviation') valMax=devMax*1.1||0.01;
+  else valMax=1;
 
   // Spokes, points, polygon
   const points=[];
-  const pointColors=[];
   for(let j=0;j<k;j++){
     const angle=(2*Math.PI*j/k)-Math.PI/2;
     const endX=cx+R*Math.cos(angle), endY=cy+R*Math.sin(angle);
     svg_h+=`<line x1="${cx}" y1="${cy}" x2="${endX}" y2="${endY}" stroke="#404040" stroke-width="0.5"/>`;
 
     let radius;
-    if(mode==='deviation'){
-      // Map deviation: 0 at center, positive outward, negative inward (but clamp)
-      radius=Math.max(0, spokeVals[j]/valMax);
-    } else {
-      radius=spokeVals[j]/valMax;
-    }
+    if(mode==='deviation') radius=Math.max(0, spokeVals[j]/valMax);
+    else radius=spokeVals[j]/valMax;
     radius=Math.max(0, Math.min(1, radius));
     const px=cx+R*radius*Math.cos(angle), py=cy+R*radius*Math.sin(angle);
     points.push([px,py]);
 
-    // Per-spoke temperature from stress (same for all spokes of this token)
-    // But modulate by relative profile value for visual differentiation
-    const relVal=mode==='shape'?(normProfile[j]/(1/k)):1; // >1 if above uniform
+    // Per-spoke temperature
+    const relVal=mode==='shape'?(normProfile[j]/(1/k)):1;
     const spokeTemp=Math.min(1, tokenTemp * Math.pow(relVal, 2));
     const pc=tempColor(spokeTemp);
-    pointColors.push(pc);
 
     // Counterfactual label
     const labelR=R+24;
@@ -889,18 +956,15 @@ function _tunnelDraw(){
     const displayTok=cfTok.trim().length>8?cfTok.trim().slice(0,7)+'…':cfTok.trim();
     svg_h+=`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="#9CA3AF" font-size="12" font-family="monospace">${escHtml(displayTok)}</text>`;
 
-    // Data point with per-spoke color
     svg_h+=`<circle cx="${px}" cy="${py}" r="4.5" fill="${pc}" stroke="white" stroke-width="0.8" opacity="0.9"/>`;
   }
 
-  // Polygon
   if(points.length>=3){
     const polyFill=tempColor(tokenTemp);
     const poly=points.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
     svg_h=`<polygon points="${poly}" fill="${polyFill}" fill-opacity="${(0.08+tokenTemp*0.12).toFixed(2)}" stroke="${polyFill}" stroke-width="1.5" stroke-linejoin="round" stroke-opacity="0.6"/>`+svg_h;
   }
 
-  // Center dot
   svg_h+=`<circle cx="${cx}" cy="${cy}" r="2.5" fill="${bgColor}" opacity="0.5"/>`;
 
   // Rank numbers
@@ -921,7 +985,7 @@ function _tunnelDraw(){
   // Attribution
   const attrColor=attrVal<0?'#D55E00':'#009E73';
   const attrLabel=attrVal>=0?'+'+attrVal.toFixed(4):attrVal.toFixed(4);
-  svg_h+=`<text x="${cx}" y="${legY+legH+19}" text-anchor="middle" fill="${attrColor}" font-size="11" font-family="monospace" opacity="0.8">attr: ${attrLabel}</text>`;
+  svg_h+=`<text x="${cx}" y="${legY+legH+21}" text-anchor="middle" fill="${attrColor}" font-size="11" font-family="monospace" opacity="0.8">attr: ${attrLabel}</text>`;
 
   svg.innerHTML=svg_h;
 
@@ -1198,6 +1262,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
   if(e.key==='ArrowLeft'){e.preventDefault();_tunnelGo(_tunnelState.idx-1)}
   if(e.key==='ArrowRight'){e.preventDefault();_tunnelGo(_tunnelState.idx+1)}
+  if(e.key===' '){e.preventDefault();_tunnelPlayPause()}
 });
 
 // ─── Init ───────────────────────────────────────────────────────
