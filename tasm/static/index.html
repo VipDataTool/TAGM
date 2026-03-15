@@ -307,6 +307,7 @@ function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="
 const VIZ_REGISTRY = {
   // ── Per-Prompt: ASM + LTP Fusion ──
   tunnel_viewer:       {cat:'Fusion',     title:'Alignment Tunnel',           on:true,  scope:'prompt', order:10, type:'js',   needs:'ltp', desc:'Temperature-mapped radial cross-section per token'},
+  classification:      {cat:'Fusion',     title:'ASM Classifier',             on:true,  scope:'prompt', order:5,  type:'js',   desc:'4-class Gaussian scorecard with per-feature explanations'},
 
   // ── Per-Prompt: ASM Core ──
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', order:20, type:'plot', desc:'Per-token contribution to alignment correction'},
@@ -1002,6 +1003,60 @@ function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVa
     if(el) el.className='tv-tok'+(i===idx?' tv-tok-active':'');
   }
 }
+// ─── Classification Display ─────────────────────────────────────
+function renderClassification(r){
+  if(!r.classification) return '';
+  const cl=r.classification;
+  const pClass=cl.predicted;
+  const pConf=(cl.probabilities[pClass]*100).toFixed(0);
+  const borderColor=(pClass==='benign'||pClass==='mild')?'var(--cat-benign)':'var(--cat-harmful)';
+
+  // Probability bars
+  let probBars='';
+  const sorted=Object.entries(cl.probabilities).sort((a,b)=>b[1]-a[1]);
+  for(const[c,p]of sorted){
+    const color=c==='benign'?'var(--cat-benign)':c==='mild'?'var(--cat-mild)':c==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+    const w=(p*100).toFixed(0);
+    probBars+=`<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="font-family:var(--mono);font-size:12px;color:var(--text-2);width:70px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:18px;overflow:hidden"><div style="width:${w}%;height:100%;background:${color};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--text-1);width:40px">${w}%</span></div>`;
+  }
+
+  // Feature contributions
+  let contribs='';
+  for(const c of cl.contributions){
+    const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
+    const fColor=c.favors==='benign'?'var(--cat-benign)':c.favors==='mild'?'var(--cat-mild)':c.favors==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+    const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
+    contribs+=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:12px;width:14px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${c.explanation}</span><span class="pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span></div>`;
+  }
+
+  // Caveats
+  let caveatHtml='';
+  if(cl.caveats&&cl.caveats.length){
+    caveatHtml=`<div style="margin-top:10px;padding:8px 10px;background:rgba(230,159,0,0.08);border:1px solid var(--orange);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.map(c=>'⚠ '+c).join('<br>')}</div>`;
+  }
+
+  return `<div class="feature" style="border-color:${borderColor};border-width:2px">
+    <div class="feature-header">
+      <div class="feature-title">Classification: <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
+      <p class="feature-desc">${cl.summary}</p>
+      <div class="feature-legend">🔑 ● strong signal · ◐ moderate · ○ weak · Pill shows which class each feature favors</div>
+    </div>
+    <div class="feature-body" style="padding:14px">
+      <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Probability Distribution</div>
+          ${probBars}
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Feature Contributions</div>
+          ${contribs}
+        </div>
+      </div>
+      ${caveatHtml}
+    </div>
+  </div>`;
+}
+
 // ─── Render ─────────────────────────────────────────────────────
 function renderLatest(r,plots){
   $('emptyState').style.display='none';const area=$('latestResults');
@@ -1025,6 +1080,9 @@ function renderLatest(r,plots){
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric')}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
+
+  // ═══ CLASSIFIER RESULT ═══
+  if(vizIsEnabled('classification')) h+=renderClassification(r);
 
   // ═══ MODEL PREDICTIONS ═══
   if(vizIsEnabled('model_predictions')) h+=renderTopK(r);
@@ -1233,10 +1291,15 @@ function renderDataTable(){
     return`background:hsla(${hue},60%,50%,${(t*0.25).toFixed(2)})`;
   }
 
-  let h=`<div style="font-size:11px;color:var(--text-1);margin-bottom:8px">Sorted by category then net correction. Background intensity reflects relative magnitude within each column.</div>`;
-  h+=`<table class="data-table"><tr><th>#</th><th>Prompt</th><th>Cat</th><th>Tok</th><th>Stress</th><th>Ent</th><th>Int%</th><th>Net Corr</th></tr>`;
+  let h=`<div style="font-size:var(--font-desc);color:var(--text-1);margin-bottom:8px">Sorted by category then net correction. Background intensity reflects relative magnitude. Pred = ASM classifier prediction.</div>`;
+  h+=`<table class="data-table"><tr><th>#</th><th>Prompt</th><th>Cat</th><th>Pred</th><th>Tok</th><th>Stress</th><th>Ent</th><th>Int%</th><th>Net Corr</th></tr>`;
   sorted.forEach((r,i)=>{
-    h+=`<tr><td>${i+1}</td><td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,40))}${r.prompt.length>40?'…':''}</td><td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td><td>${r.seq_len||0}</td><td style="${heatBg(r.stress_score||0,'stress_score',200)}">${(r.stress_score||0).toFixed(3)}</td><td style="${heatBg(r.entropy||0,'entropy',40)}">${(r.entropy||0).toFixed(3)}</td><td style="${heatBg(r.middle_share||0,'middle_share',280)}">${((r.middle_share||0)*100).toFixed(1)}%</td><td style="${heatBg(r.net_correction||0,'net_correction',160)}">${(r.net_correction||0).toFixed(5)}</td></tr>`});
+    const cl=r.classification;
+    const pred=cl?cl.predicted:'?';
+    const predConf=cl?Math.round(cl.probabilities[pred]*100):'';
+    const match=r.category&&cl?(r.category===pred?'✓':'✗'):'';
+    const matchColor=match==='✓'?'var(--green)':'var(--red)';
+    h+=`<tr><td>${i+1}</td><td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,40))}${r.prompt.length>40?'…':''}</td><td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td><td><span class="pill ${pillClass(pred)}" style="font-size:8px">${pred.substring(0,4)}</span> <span style="font-size:9px;color:var(--text-3)">${predConf}%</span> <span style="color:${matchColor}">${match}</span></td><td>${r.seq_len||0}</td><td style="${heatBg(r.stress_score||0,'stress_score',200)}">${(r.stress_score||0).toFixed(3)}</td><td style="${heatBg(r.entropy||0,'entropy',40)}">${(r.entropy||0).toFixed(3)}</td><td style="${heatBg(r.middle_share||0,'middle_share',280)}">${((r.middle_share||0)*100).toFixed(1)}%</td><td style="${heatBg(r.net_correction||0,'net_correction',160)}">${(r.net_correction||0).toFixed(5)}</td></tr>`});
   h+=`</table>`;$('dataTableContainer').innerHTML=h;
 }
 

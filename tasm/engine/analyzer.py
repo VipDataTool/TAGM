@@ -440,4 +440,11 @@ def result_to_dict(r: PromptResult) -> dict:
     else:
         d["ltp"] = None
 
+    # Classification
+    try:
+        from engine.classifier import classify_to_dict
+        d["classification"] = classify_to_dict(d)
+    except Exception:
+        d["classification"] = None
+
     return d
