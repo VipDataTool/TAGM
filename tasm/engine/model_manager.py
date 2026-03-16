@@ -92,6 +92,10 @@ class ModelState:
     loaded: bool = False
     full_deltas_available: bool = False  # True if deltas for ALL layers are loaded
 
+    # Delta spectral structure (computed once at load time)
+    delta_spectral: dict = field(default_factory=dict)  # {key: {eff_rank, top1_share, top5_share}}
+    spectral_summary: dict = field(default_factory=dict)  # Aggregate stats
+
     def v_delta(self, layer_idx: int):
         return self.deltas.get(
             f"model.layers.{layer_idx}.self_attn.v_proj.weight")
@@ -198,6 +202,74 @@ def _compute_deltas_from_disk(model_id: str, instruct_model, dtype,
     return deltas, delta_frob_norms
 
 
+def _compute_spectral_profile(state, log_fn=print):
+    """Compute effective rank and spectral structure of each delta matrix.
+    
+    Effective rank = exp(entropy of normalized singular values).
+    Low rank = RLHF made a surgical correction (few directions modified).
+    High rank = RLHF reshaped the entire subspace.
+    
+    Computed once at load time. Zero per-prompt cost.
+    """
+    import numpy as np
+    
+    spectral = {}
+    eff_ranks = []
+    top1_shares = []
+    
+    for key, delta in state.deltas.items():
+        try:
+            # SVD on float32 for numerical stability
+            d = delta.float().cpu()
+            # For large matrices, use truncated SVD (top 64 singular values is enough)
+            k = min(64, min(d.shape))
+            U, S, Vh = torch.svd_lowrank(d, q=k)
+            s = S.numpy()
+            
+            # Normalize singular values to a probability distribution
+            s_norm = s / (s.sum() + 1e-10)
+            s_nonzero = s_norm[s_norm > 1e-10]
+            
+            # Effective rank: exp(Shannon entropy of singular value distribution)
+            ent = -np.sum(s_nonzero * np.log(s_nonzero))
+            eff_rank = float(np.exp(ent))
+            
+            # Top-1 share: fraction of total spectral energy in the first singular value
+            total_energy = float((s ** 2).sum())
+            top1_energy = float(s[0] ** 2) / total_energy if total_energy > 0 else 0
+            top5_energy = float((s[:5] ** 2).sum()) / total_energy if total_energy > 0 else 0
+            
+            spectral[key] = {
+                'eff_rank': round(eff_rank, 2),
+                'top1_share': round(top1_energy, 4),
+                'top5_share': round(top5_energy, 4),
+            }
+            eff_ranks.append(eff_rank)
+            top1_shares.append(top1_energy)
+        except Exception:
+            continue
+    
+    state.delta_spectral = spectral
+    
+    if eff_ranks:
+        # Aggregate summary
+        attn_ranks = [v['eff_rank'] for k, v in spectral.items() if 'self_attn' in k]
+        mlp_ranks = [v['eff_rank'] for k, v in spectral.items() if 'mlp' in k]
+        
+        state.spectral_summary = {
+            'mean_eff_rank': round(float(np.mean(eff_ranks)), 2),
+            'std_eff_rank': round(float(np.std(eff_ranks)), 2),
+            'mean_top1_share': round(float(np.mean(top1_shares)), 4),
+            'attn_mean_rank': round(float(np.mean(attn_ranks)), 2) if attn_ranks else 0,
+            'mlp_mean_rank': round(float(np.mean(mlp_ranks)), 2) if mlp_ranks else 0,
+            'n_sublayers': len(eff_ranks),
+        }
+        log_fn("info", f"Spectral profile: {len(eff_ranks)} sublayers, "
+               f"mean rank={state.spectral_summary['mean_eff_rank']:.1f}, "
+               f"attn={state.spectral_summary['attn_mean_rank']:.1f}, "
+               f"mlp={state.spectral_summary['mlp_mean_rank']:.1f}")
+
+
 class ModelManager:
     def __init__(self):
         self.state: Optional[ModelState] = None
@@ -300,6 +372,12 @@ class ModelManager:
         state.deltas = deltas
         state.delta_frob_norms = frob_norms
         state.full_deltas_available = (layer_filter is None)
+
+        # Compute delta spectral structure (effective rank per sublayer)
+        try:
+            _compute_spectral_profile(state, log)
+        except Exception as e:
+            log("warning", f"Spectral profile computation failed: {e}")
 
         # Save the base path for on-demand delta computation
         try:

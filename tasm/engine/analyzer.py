@@ -54,6 +54,7 @@ class PromptResult:
 
     # Behavioral divergence
     kl_divergence: Optional[float] = None
+    per_token_kl: Optional[np.ndarray] = None  # KL(instruct||base) at each position
 
     # Model responses (top-k next token predictions)
     instruct_topk: list = field(default_factory=list)  # [(token, prob), ...]
@@ -72,6 +73,10 @@ class PromptResult:
     attn_frac: Optional[np.ndarray] = None              # Fraction of correction from attention vs MLP per token
     token_similarity: Optional[np.ndarray] = None       # Token x token correction cosine similarity matrix
     full_capture_enabled: bool = False
+
+    # Model-intrinsic normalization
+    delta_scale: float = 0.0  # Mean fnorm across signal sublayers (set at analysis time)
+    spectral_summary: dict = field(default_factory=dict)  # Delta spectral structure
 
     # LTP results
     ltp: Optional[LTPResult] = None
@@ -151,6 +156,12 @@ class Analyzer:
         # Extract all metrics from cached activations
         self._extract_signed_attribution(result, seq_len, state)
         self._extract_stress_score(result, seq_len, state)
+
+        # Model-intrinsic scale: mean fnorm across signal sublayers
+        signal_norms = [v for k, v in state.delta_frob_norms.items()
+                        if any(f"model.layers.{li}." in k for li in state.signal_layers)]
+        result.delta_scale = float(np.mean(signal_norms)) if signal_norms else 1.0
+        result.spectral_summary = getattr(state, 'spectral_summary', {})
         if compute_full_trajectory or full_capture:
             self._extract_amplitude_trajectory(result, seq_len, state)
 
@@ -445,19 +456,29 @@ class Analyzer:
         """KL divergence and base model predictions in a single base-model pass."""
         inputs = state.tokenizer(result.prompt, return_tensors="pt").to(state.device)
         with torch.no_grad():
-            logits_inst = state.model_instruct(**inputs).logits[0, -1, :]
+            out_inst = state.model_instruct(**inputs)
 
             if state.model_base is not None:
-                logits_base = state.model_base(**inputs).logits[0, -1, :]
+                out_base = state.model_base(**inputs)
 
                 if compute_kl:
-                    log_p_inst = torch.log_softmax(logits_inst, dim=-1)
-                    log_p_base = torch.log_softmax(logits_base, dim=-1)
-                    p_inst = torch.softmax(logits_inst, dim=-1)
-                    result.kl_divergence = float(
-                        (p_inst * (log_p_inst - log_p_base)).sum().item())
+                    # Per-token KL divergence across the full sequence
+                    logits_i = out_inst.logits[0]   # [seq_len, vocab]
+                    logits_b = out_base.logits[0]
+
+                    log_p_i = torch.log_softmax(logits_i, dim=-1)
+                    log_p_b = torch.log_softmax(logits_b, dim=-1)
+                    p_i = torch.softmax(logits_i, dim=-1)
+
+                    # Per-position KL: sum over vocab at each token
+                    per_tok_kl = (p_i * (log_p_i - log_p_b)).sum(dim=-1)
+                    result.per_token_kl = per_tok_kl.cpu().numpy()
+
+                    # Scalar KL at final position (backward compat)
+                    result.kl_divergence = float(per_tok_kl[-1].item())
 
                 if capture_base:
+                    logits_base = out_base.logits[0, -1, :]
                     probs_base = torch.softmax(logits_base, dim=-1)
                     tk = torch.topk(probs_base, min(topk, probs_base.shape[0]))
                     result.base_topk = [
@@ -513,6 +534,7 @@ def result_to_dict(r: PromptResult) -> dict:
         "middle_share_ln": _native(r.middle_share_ln),
         "stress_score_ln": _native(r.stress_score_ln),
         "kl_divergence": _native(r.kl_divergence),
+        "per_token_kl": _native(r.per_token_kl) if r.per_token_kl is not None else None,
         "instruct_topk": r.instruct_topk,
         "base_topk": r.base_topk,
         "proof1_checks": r.proof1_checks,
@@ -523,6 +545,8 @@ def result_to_dict(r: PromptResult) -> dict:
         "signal_layer_indices": r.signal_layer_indices,
         "per_layer_amplitude": {str(k): _native(v) for k, v in r.per_layer_amplitude.items()},
         "full_capture_enabled": r.full_capture_enabled,
+        "delta_scale": _native(r.delta_scale),
+        "spectral_summary": r.spectral_summary,
     }
 
     # Full capture derived metrics
@@ -564,6 +588,12 @@ def result_to_dict(r: PromptResult) -> dict:
     try:
         from engine.classifier_v4 import classify as _v4_classify
         classifiers['v4'] = _v4_classify(d)
+    except Exception:
+        pass
+
+    try:
+        from engine.classifier_v5 import classify as _v5_classify
+        classifiers['v5'] = _v5_classify(d)
     except Exception:
         pass
 
