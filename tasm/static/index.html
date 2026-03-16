@@ -1008,8 +1008,38 @@ function renderClassification(r){
   if(!r.classification) return '';
   const cl=r.classification;
   const pClass=cl.predicted;
-  const pConf=(cl.probabilities[pClass]*100).toFixed(0);
+  const pConf=Math.round(cl.confidence*100);
   const borderColor=(pClass==='benign'||pClass==='mild')?'var(--cat-benign)':'var(--cat-harmful)';
+
+  // Decision tree stages
+  let stagesHtml='';
+  if(cl.stages&&cl.stages.length){
+    stagesHtml=`<div style="margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Decision Path</div>`;
+    for(const s of cl.stages){
+      const isRight=s.score>s.threshold;
+      const leftColor=s.left_class==='safe'?'var(--cat-benign)':s.left_class==='mild'?'var(--cat-mild)':s.left_class==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+      const rightColor=s.right_class==='adversarial'?'var(--cat-harmful)':s.right_class==='jailbreak'?'var(--cat-jailbreak)':s.right_class==='benign'?'var(--cat-benign)':'var(--cat-mild)';
+      const chosenColor=isRight?rightColor:leftColor;
+      const conf=Math.round(s.confidence*100);
+      const marginAbs=Math.abs(s.margin);
+      const barMax=Math.max(marginAbs*800,1);
+      stagesHtml+=`<div style="padding:8px 10px;margin:4px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenColor}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0)">${s.explanation}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="font-family:var(--mono);font-size:10px;color:${leftColor}">${s.left_class}</span>
+          <div style="flex:1;height:6px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
+            <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)"></div>
+            <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenColor};border-radius:3px;width:${Math.min(50,marginAbs*500).toFixed(0)}%;opacity:0.7"></div>
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:${rightColor}">${s.right_class}</span>
+        </div>
+      </div>`;
+    }
+    stagesHtml+=`</div>`;
+  }
 
   // Probability bars
   let probBars='';
@@ -1022,11 +1052,13 @@ function renderClassification(r){
 
   // Feature contributions
   let contribs='';
-  for(const c of cl.contributions){
-    const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
-    const fColor=c.favors==='benign'?'var(--cat-benign)':c.favors==='mild'?'var(--cat-mild)':c.favors==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
-    const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
-    contribs+=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:12px;width:14px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${c.explanation}</span><span class="pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span></div>`;
+  if(cl.contributions){
+    for(const c of cl.contributions){
+      const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
+      const fColor=c.favors==='benign'?'var(--cat-benign)':c.favors==='mild'?'var(--cat-mild)':c.favors==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+      const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
+      contribs+=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:12px;width:14px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${c.explanation}</span><span class="pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span></div>`;
+    }
   }
 
   // Caveats
@@ -1039,12 +1071,13 @@ function renderClassification(r){
     <div class="feature-header">
       <div class="feature-title">Classification: <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
       <p class="feature-desc">${cl.summary}</p>
-      <div class="feature-legend">🔑 ● strong signal · ◐ moderate · ○ weak · Pill shows which class each feature favors</div>
+      <div class="feature-legend">🔑 Decision tree: binary split → sub-classify · Bars show margin from boundary · ● strong · ◐ moderate · ○ weak</div>
     </div>
     <div class="feature-body" style="padding:14px">
+      ${stagesHtml}
       <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px">
         <div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Probability Distribution</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Gaussian Probabilities</div>
           ${probBars}
         </div>
         <div>
@@ -1053,6 +1086,8 @@ function renderClassification(r){
         </div>
       </div>
       ${caveatHtml}
+    </div>
+  </div>`;
     </div>
   </div>`;
 }
