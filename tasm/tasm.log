@@ -5203,3 +5203,9 @@ RuntimeError: The size of tensor a (896) must match the size of tensor b (128) a
 2026-03-16 19:29:31,158 [INFO] [exporting] Packaging ZIP...
 2026-03-16 19:29:33,066 [INFO] Session exported: 57 prompts, 47.8MB
 2026-03-16 19:29:33,066 [INFO] [done] Export ready: 57 prompts. Click Download.
+2026-03-16 20:38:18,448 [INFO] TASM Analyzer starting up
+2026-03-16 20:38:28,746 [INFO] [starting] Starting model load...
+2026-03-16 20:38:29,210 [INFO] [memory] [MEM] After unload | process=0.5GB, system=3.1/15.6GB (20%)
+2026-03-16 20:38:29,210 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-16 20:38:29,371 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 20:38:29,377 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
