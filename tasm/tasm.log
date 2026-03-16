@@ -4737,3 +4737,33 @@ RuntimeError: The size of tensor a (896) must match the size of tensor b (128) a
 2026-03-16 16:31:53,149 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
 2026-03-16 16:31:53,573 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
 2026-03-16 16:31:53,579 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-16 16:36:56,697 [INFO] Full reset performed
+2026-03-16 16:36:56,697 [INFO] [reset] All resources released. Session cleared.
+2026-03-16 16:37:10,543 [INFO] [starting] Starting model load...
+2026-03-16 16:37:11,190 [INFO] [memory] [MEM] After unload | process=2.5GB, system=5.5/15.6GB (35%)
+2026-03-16 16:37:11,190 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-16 16:37:11,234 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 16:37:11,240 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,156 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 16:37:14,162 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,216 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 16:37:14,222 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,245 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 16:37:14,251 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,276 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-16 16:37:14,298 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,955 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,956 [INFO] [memory] [MEM] After instruct model load | process=3.2GB, system=6.2/15.6GB (40%)
+2026-03-16 16:37:14,957 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-16 16:37:14,982 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-16 16:37:14,987 [INFO] [memory] [MEM] After base model download | process=3.2GB, system=6.2/15.6GB (40%)
+2026-03-16 16:37:14,989 [INFO] [memory] [MEM] After state_dict() | process=3.2GB, system=6.2/15.6GB (40%)
+2026-03-16 16:37:15,476 [INFO] [memory] [MEM] After all deltas: 120 total | process=3.3GB, system=6.3/15.6GB (40%)
+2026-03-16 16:37:15,668 [INFO] [memory] [MEM] Final: 120 deltas | process=3.3GB, system=6.3/15.6GB (40%)
+2026-03-16 16:37:15,669 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.5s (24L, 896d, 120 deltas)
+2026-03-16 16:37:15,669 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-16 16:37:18,364 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-16 16:37:22,447 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-16 16:37:29,558 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-16 16:37:36,826 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-16 16:37:36,826 [INFO] [ready] Model loaded. Session started. Ready to analyze.
