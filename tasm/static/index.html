@@ -299,6 +299,13 @@ function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d
 function clearLog(){$('progressLog').innerHTML=''}
 function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
 function pillClass(c){return({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''}
+function toggleFeature(el){
+  const f=el.closest('.feature');if(!f)return;
+  const b=f.querySelector('.feature-body');if(!b)return;
+  b.classList.toggle('collapsed');
+  const ch=el.querySelector('.chevron');
+  if(ch)ch.textContent=b.classList.contains('collapsed')?'\u25B6':'\u25BC';
+}
 function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-0.5?'negative':'neutral');return`<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`}
 function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
@@ -650,7 +657,7 @@ async function loadDashboard(force){
 
 function plotCard(key,title,desc,plots,collapsed){
   const chevron=collapsed?'▶':'▼';
-  return `<div class="feature"><div class="feature-header"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
 }
 
 async function exportSession(){
@@ -754,7 +761,7 @@ function renderTunnelViewer(r){
   }
 
   return `<div class="feature" style="border-color:var(--cyan)">
-    <div class="feature-header">
+    <div class="feature-header" onclick="toggleFeature(this)">
       <div class="feature-title" style="color:var(--cyan)">Alignment Tunnel</div>
       <p class="feature-desc">Step through each token to see the alignment field's cross-section. <strong>Shape mode</strong> normalizes each token's profile so the polygon fills the chart — you see pure directional structure. <strong>Deviation mode</strong> subtracts the uniform baseline so flat profiles collapse to the center and any directional concentration becomes the entire signal. <strong>Absolute mode</strong> shows raw magnitudes. Temperature (point color and background glow) reflects stress intensity.</p>
       <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Point color = stress temperature (blue→amber→red) · Shape: octagon=uniform, spike=directional · Mode toggle changes normalization</div>
@@ -1082,7 +1089,7 @@ function renderClassification(r){
   }
 
   return `<div class="feature" style="border-color:${borderColor};border-width:2px">
-    <div class="feature-header">
+    <div class="feature-header" onclick="toggleFeature(this)">
       <div class="feature-title">Classification: <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
       <p class="feature-desc">${cl.summary}</p>
       <div class="feature-legend">🔑 Decision tree: binary split → sub-classify · Bars show margin from boundary · ● strong · ◐ moderate · ○ weak</div>
@@ -1168,7 +1175,7 @@ function renderLatest(r,plots){
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
     const f=featureMeta[k];
     h+=`<div class="feature">
-      <div class="feature-header">
+      <div class="feature-header" onclick="toggleFeature(this)">
         <div class="feature-title">${f?f.title:k}</div>
         ${f?`<p class="feature-desc">${f.desc}</p>`:''}
         ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
@@ -1214,7 +1221,7 @@ function renderLatest(r,plots){
       if(!vizIsEnabled(k))continue;
       const f=ltpMeta[k];
       h+=`<div class="feature" style="border-color:var(--cyan)">
-        <div class="feature-header">
+        <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>
           ${f?`<p class="feature-desc">${f.desc}</p>`:''}
           ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
@@ -1226,7 +1233,7 @@ function renderLatest(r,plots){
     // Counterfactual table
     if(vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
       h+=`<div class="feature" style="border-color:var(--cyan)">
-        <div class="feature-header">
+        <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div>
           <p class="feature-desc">The alternative tokens the model considered at each position — the paths not taken. These define the probing directions for lateral tension measurement.</p>
           <div class="feature-legend">🔑 Shape = profile type · Alt tokens sorted by probability · Higher probability = closer semantic neighbor</div>
@@ -1264,7 +1271,7 @@ function renderLatest(r,plots){
     if(!v||k.startsWith('ltp_'))continue;
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
       const f=featureMeta[k];
-      expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+      expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
     }
   }
   // Disabled LTP plots
@@ -1273,22 +1280,22 @@ function renderLatest(r,plots){
       if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
       if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
         const f=ltpMeta[k];
-        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
       }
     }
     // Disabled JS vizs that have LTP data
     if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Alignment Tunnel (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Alignment Tunnel (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
     }
     if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Counterfactual Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Counterfactual Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
     }
   }
   if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
-    expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">Model Predictions (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
   }
   if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
-    expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">Attribution Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Attribution Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
   }
 
   // Append disabled items to experimental tab
@@ -1307,13 +1314,13 @@ function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
   const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
   for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
-  return`<div class="feature"><div class="feature-header"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
 }
 function renderTokenTable(r){
   if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
   const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
   for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
-  return`<div class="feature"><div class="feature-header"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
 function renderDataTable(){
   if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
