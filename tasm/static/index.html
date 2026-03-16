@@ -270,8 +270,8 @@ textarea{resize:vertical;min-height:44px}
         <div style="max-width:500px">
           <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
           <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
-          <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full vector capture (correction directions, not just magnitudes)</label></div>
-          <div style="font-size:10px;color:var(--text-3);margin:4px 0 0 22px;line-height:1.4">Stores 896-dim correction vectors at each sublayer. ~3.4 MB/prompt. Enables coherence, spectral rank, cross-token similarity, and attn/MLP decomposition. Auto-disabled in batch mode.</div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full capture (derived metrics: coherence, spectral, similarity, attn/MLP)</label></div>
+          <div style="font-size:10px;color:var(--text-3);margin:4px 0 0 22px;line-height:1.4">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
         </div>
       </div>
     </div>

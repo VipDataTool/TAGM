@@ -1,0 +1,506 @@
+{
+  "n_total": 22,
+  "categories": {
+    "benign": {
+      "n": 5,
+      "metrics": {
+        "stress_score": {
+          "estimate": 3.180147171020508,
+          "ci_low": 3.142010498046875,
+          "ci_high": 3.2193893432617187,
+          "n": 5
+        },
+        "entropy": {
+          "estimate": 0.7823186162080866,
+          "ci_low": 0.7428873158110977,
+          "ci_high": 0.8244959315458085,
+          "n": 5
+        },
+        "gini": {
+          "estimate": 0.408203125,
+          "ci_low": 0.34521484375,
+          "ci_high": 0.46806640625,
+          "n": 5
+        },
+        "top2_share": {
+          "estimate": 0.62861328125,
+          "ci_low": 0.5958984375,
+          "ci_high": 0.6587890625,
+          "n": 5
+        },
+        "middle_share": {
+          "estimate": 0.371142578125,
+          "ci_low": 0.341064453125,
+          "ci_high": 0.4037109375,
+          "n": 5
+        },
+        "interior_cv": {
+          "estimate": 0.697265625,
+          "ci_low": 0.5609375,
+          "ci_high": 0.85009765625,
+          "n": 5
+        },
+        "net_correction": {
+          "estimate": 0.07138671875,
+          "ci_low": 0.07041015625,
+          "ci_high": 0.07236328125,
+          "n": 5
+        },
+        "ltp_mean_M": {
+          "estimate": 0.0019524335861206056,
+          "ci_low": 0.001688528060913086,
+          "ci_high": 0.0022289276123046873,
+          "n": 5
+        },
+        "ltp_mean_C": {
+          "estimate": 0.21747324886240943,
+          "ci_low": 0.18400537299053915,
+          "ci_high": 0.25689301922929875,
+          "n": 5
+        },
+        "ltp_mean_V": {
+          "estimate": 3.1003322515398734e-06,
+          "ci_low": 1.8953362533230338e-06,
+          "ci_high": 4.8350248798669785e-06,
+          "n": 5
+        },
+        "ltp_mean_L": {
+          "estimate": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 5
+        },
+        "kl_divergence": {
+          "estimate": 0.467333984375,
+          "ci_low": 0.34091796875,
+          "ci_high": 0.59375,
+          "n": 5
+        }
+      },
+      "mean_seq_len": 9.0,
+      "negative_token_rate": 0.0
+    },
+    "mild": {
+      "n": 5,
+      "metrics": {
+        "stress_score": {
+          "estimate": 3.133389711380005,
+          "ci_low": 3.0625871658325194,
+          "ci_high": 3.2041922569274903,
+          "n": 5
+        },
+        "entropy": {
+          "estimate": 0.7915216557241482,
+          "ci_low": 0.7539139478142467,
+          "ci_high": 0.8243625456255946,
+          "n": 5
+        },
+        "gini": {
+          "estimate": 0.39033203125,
+          "ci_low": 0.313671875,
+          "ci_high": 0.4669921875,
+          "n": 5
+        },
+        "top2_share": {
+          "estimate": 0.6404296875,
+          "ci_low": 0.62216796875,
+          "ci_high": 0.65869140625,
+          "n": 5
+        },
+        "middle_share": {
+          "estimate": 0.359619140625,
+          "ci_low": 0.341357421875,
+          "ci_high": 0.377880859375,
+          "n": 5
+        },
+        "interior_cv": {
+          "estimate": 0.5216796875,
+          "ci_low": 0.3810546875,
+          "ci_high": 0.6623046875,
+          "n": 5
+        },
+        "net_correction": {
+          "estimate": 0.07042236328125,
+          "ci_low": 0.0698486328125,
+          "ci_high": 0.0711669921875,
+          "n": 5
+        },
+        "ltp_mean_M": {
+          "estimate": 0.0021841764450073243,
+          "ci_low": 0.001878046989440918,
+          "ci_high": 0.0025322437286376953,
+          "n": 5
+        },
+        "ltp_mean_C": {
+          "estimate": 0.25301473959980453,
+          "ci_low": 0.22303938906807144,
+          "ci_high": 0.28432927948982256,
+          "n": 5
+        },
+        "ltp_mean_V": {
+          "estimate": 1.5599124080929576e-06,
+          "ci_low": 1.0556959819986042e-06,
+          "ci_high": 2.0937491582112744e-06,
+          "n": 5
+        },
+        "ltp_mean_L": {
+          "estimate": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 5
+        },
+        "kl_divergence": {
+          "estimate": 0.2369140625,
+          "ci_low": 0.171630859375,
+          "ci_high": 0.298095703125,
+          "n": 5
+        }
+      },
+      "mean_seq_len": 9.2,
+      "negative_token_rate": 0.0
+    },
+    "harmful": {
+      "n": 6,
+      "metrics": {
+        "stress_score": {
+          "estimate": 3.2241442600886026,
+          "ci_low": 3.175435264905294,
+          "ci_high": 3.272819757461548,
+          "n": 6
+        },
+        "entropy": {
+          "estimate": 0.8431530588526625,
+          "ci_low": 0.8240729176783291,
+          "ci_high": 0.8663684396497144,
+          "n": 6
+        },
+        "gini": {
+          "estimate": 0.3662923177083333,
+          "ci_low": 0.3400065104166667,
+          "ci_high": 0.3895670572916667,
+          "n": 6
+        },
+        "top2_share": {
+          "estimate": 0.5163981119791666,
+          "ci_low": 0.4496256510416667,
+          "ci_high": 0.5760904947916666,
+          "n": 6
+        },
+        "middle_share": {
+          "estimate": 0.4835611979166667,
+          "ci_low": 0.4239501953125,
+          "ci_high": 0.5503743489583334,
+          "n": 6
+        },
+        "interior_cv": {
+          "estimate": 0.5238850911458334,
+          "ci_low": 0.400634765625,
+          "ci_high": 0.6663818359375,
+          "n": 6
+        },
+        "net_correction": {
+          "estimate": 0.077392578125,
+          "ci_low": 0.074127197265625,
+          "ci_high": 0.08051554361979167,
+          "n": 6
+        },
+        "ltp_mean_M": {
+          "estimate": 0.0019680261611938477,
+          "ci_low": 0.0018446048100789387,
+          "ci_high": 0.0021378199259440103,
+          "n": 6
+        },
+        "ltp_mean_C": {
+          "estimate": 0.21972294829263495,
+          "ci_low": 0.20632134483258324,
+          "ci_high": 0.23834987028202284,
+          "n": 6
+        },
+        "ltp_mean_V": {
+          "estimate": 1.6826547329796037e-06,
+          "ci_low": 1.4944640709963184e-06,
+          "ci_high": 1.864168697607355e-06,
+          "n": 6
+        },
+        "ltp_mean_L": {
+          "estimate": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 6
+        },
+        "kl_divergence": {
+          "estimate": 0.3183797200520833,
+          "ci_low": 0.22530110677083334,
+          "ci_high": 0.410400390625,
+          "n": 6
+        }
+      },
+      "mean_seq_len": 11.5,
+      "negative_token_rate": 0.0
+    },
+    "jailbreak": {
+      "n": 6,
+      "metrics": {
+        "stress_score": {
+          "estimate": 3.4689128398895264,
+          "ci_low": 3.362442413965861,
+          "ci_high": 3.5784918069839478,
+          "n": 6
+        },
+        "entropy": {
+          "estimate": 0.8076475594982614,
+          "ci_low": 0.7720484581885888,
+          "ci_high": 0.8317646730488845,
+          "n": 6
+        },
+        "gini": {
+          "estimate": 0.51416015625,
+          "ci_low": 0.479248046875,
+          "ci_high": 0.56640625,
+          "n": 6
+        },
+        "top2_share": {
+          "estimate": 0.4247639973958333,
+          "ci_low": 0.3864339192708333,
+          "ci_high": 0.4659830729166667,
+          "n": 6
+        },
+        "middle_share": {
+          "estimate": 0.5751139322916666,
+          "ci_low": 0.5337727864583334,
+          "ci_high": 0.6134440104166666,
+          "n": 6
+        },
+        "interior_cv": {
+          "estimate": 0.9034016927083334,
+          "ci_low": 0.755859375,
+          "ci_high": 1.0555013020833333,
+          "n": 6
+        },
+        "net_correction": {
+          "estimate": 0.081451416015625,
+          "ci_low": 0.07770792643229167,
+          "ci_high": 0.08485921223958333,
+          "n": 6
+        },
+        "ltp_mean_M": {
+          "estimate": 0.0015956958134969075,
+          "ci_low": 0.001362164815266927,
+          "ci_high": 0.0018822550773620605,
+          "n": 6
+        },
+        "ltp_mean_C": {
+          "estimate": 0.1795573010263696,
+          "ci_low": 0.15447682014010586,
+          "ci_high": 0.2080341996292065,
+          "n": 6
+        },
+        "ltp_mean_V": {
+          "estimate": 2.7201404357056227e-06,
+          "ci_low": 1.8247883354624067e-06,
+          "ci_high": 3.6239874543052346e-06,
+          "n": 6
+        },
+        "ltp_mean_L": {
+          "estimate": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 6
+        },
+        "kl_divergence": {
+          "estimate": 0.3614908854166667,
+          "ci_low": 0.2683512369791667,
+          "ci_high": 0.4669189453125,
+          "n": 6
+        }
+      },
+      "mean_seq_len": 20.0,
+      "negative_token_rate": 0.0
+    }
+  },
+  "separability": {
+    "stress_score": {
+      "effect_size": {
+        "estimate": 1.4486808482552702,
+        "ci_low": 0.8879000120571487,
+        "ci_high": 2.3265752208220856,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 3.2529527085099765,
+        "accuracy": 0.8181818181818182,
+        "direction": ">="
+      },
+      "benign_mean": 3.1567684412002563,
+      "harmful_mean": 3.3465285499890647
+    },
+    "entropy": {
+      "effect_size": {
+        "estimate": 0.9011925331379701,
+        "ci_low": 0.14901018816266662,
+        "ci_high": 2.133413004778844,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.8050521256340897,
+        "accuracy": 0.7727272727272727,
+        "direction": ">="
+      },
+      "benign_mean": 0.7869201359661174,
+      "harmful_mean": 0.8254003091754619
+    },
+    "gini": {
+      "effect_size": {
+        "estimate": 0.47160409771883627,
+        "ci_low": 0.02620992145391356,
+        "ci_high": 1.416516058642428,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.3150128381763527,
+        "accuracy": 0.6818181818181818,
+        "direction": ">="
+      },
+      "benign_mean": 0.399267578125,
+      "harmful_mean": 0.4402262369791667
+    },
+    "top2_share": {
+      "effect_size": {
+        "estimate": 2.5844723424819898,
+        "ci_low": 1.7416385344357939,
+        "ci_high": 4.504904936759899,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.5521169291708417,
+        "accuracy": 0.9090909090909091,
+        "direction": "<"
+      },
+      "benign_mean": 0.634521484375,
+      "harmful_mean": 0.4705810546875
+    },
+    "middle_share": {
+      "effect_size": {
+        "estimate": 2.5845819379089874,
+        "ci_low": 1.7439423873681605,
+        "ci_high": 4.494552659483446,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.40285258016032066,
+        "accuracy": 0.9090909090909091,
+        "direction": ">="
+      },
+      "benign_mean": 0.365380859375,
+      "harmful_mean": 0.5293375651041666
+    },
+    "interior_cv": {
+      "effect_size": {
+        "estimate": 0.4374427291351706,
+        "ci_low": 0.02366012748935736,
+        "ci_high": 1.372678539422472,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.6441339710671343,
+        "accuracy": 0.6363636363636364,
+        "direction": ">="
+      },
+      "benign_mean": 0.60947265625,
+      "harmful_mean": 0.7136433919270834
+    },
+    "net_correction": {
+      "effect_size": {
+        "estimate": 2.370564857694831,
+        "ci_low": 1.6057676908119909,
+        "ci_high": 4.056336061716228,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.07263526075588678,
+        "accuracy": 0.9545454545454546,
+        "direction": ">="
+      },
+      "benign_mean": 0.070904541015625,
+      "harmful_mean": 0.0794219970703125
+    },
+    "ltp_mean_M": {
+      "effect_size": {
+        "estimate": 0.7879810649060928,
+        "ci_low": 0.09108296096893333,
+        "ci_high": 1.7223640405521223,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.0019712899634259976,
+        "accuracy": 0.6818181818181818,
+        "direction": "<"
+      },
+      "benign_mean": 0.002068305015563965,
+      "harmful_mean": 0.0017818609873453777
+    },
+    "ltp_mean_C": {
+      "effect_size": {
+        "estimate": 0.8653565998425763,
+        "ci_low": 0.1371136976508421,
+        "ci_high": 1.8863245680583363,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 0.2044891511964968,
+        "accuracy": 0.6818181818181818,
+        "direction": "<"
+      },
+      "benign_mean": 0.235243994231107,
+      "harmful_mean": 0.19964012465950223
+    },
+    "ltp_mean_V": {
+      "effect_size": {
+        "estimate": 0.09703910763035185,
+        "ci_low": 0.014915099851662483,
+        "ci_high": 1.0226634422999197,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 1.0106742238870732e-06,
+        "accuracy": 0.6363636363636364,
+        "direction": ">="
+      },
+      "benign_mean": 2.3301223298164156e-06,
+      "harmful_mean": 2.2013975843426133e-06
+    },
+    "ltp_mean_L": {
+      "effect_size": {
+        "estimate": 0.0,
+        "ci_low": 0.0,
+        "ci_high": 0.0,
+        "n_a": 10,
+        "n_b": 12
+      },
+      "threshold": {
+        "threshold": 1.0,
+        "accuracy": 0.5454545454545454,
+        "direction": ">="
+      },
+      "benign_mean": 1.0,
+      "harmful_mean": 1.0
+    }
+  },
+  "correlations": {
+    "stress_vs_kl": {
+      "r": 0.28075658613935683,
+      "p": 0.2056422637828154,
+      "n": 22
+    }
+  }
+}

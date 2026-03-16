@@ -152,11 +152,10 @@ class Analyzer:
         self._extract_signed_attribution(result, seq_len, state)
         self._extract_stress_score(result, seq_len, state)
         if compute_full_trajectory or full_capture:
-            self._extract_amplitude_trajectory(result, seq_len, state,
-                                                store_vectors=full_capture)
+            self._extract_amplitude_trajectory(result, seq_len, state)
 
-        # Full capture: compute derived metrics from stored vectors
-        if full_capture and hasattr(result, '_correction_vectors') and result._correction_vectors:
+        # Full capture: compute derived metrics from the heatmap
+        if full_capture and result.heatmap is not None:
             self._compute_full_capture_metrics(result, seq_len, state)
 
         # LTP computation
@@ -316,11 +315,10 @@ class Analyzer:
         result.stress_score = float(per_token_total.mean().item())
         result.per_token_stress = per_token_total.numpy()
 
-    def _extract_amplitude_trajectory(self, result, seq_len, state, store_vectors=False):
+    def _extract_amplitude_trajectory(self, result, seq_len, state):
         raw_traj = []
         norm_traj = []
         heatmap_rows = []
-        correction_vecs = []  # Full vectors when store_vectors=True
 
         for layer_idx in range(state.n_layers):
             for sublayer_type in ["attn", "mlp"]:
@@ -329,8 +327,6 @@ class Analyzer:
                     raw_traj.append(0.0)
                     norm_traj.append(0.0)
                     heatmap_rows.append(np.zeros(seq_len))
-                    if store_vectors:
-                        correction_vecs.append(None)
                     continue
 
                 h = self.mm.activations[key]
@@ -344,7 +340,6 @@ class Analyzer:
                 raw_sum = 0.0
                 norm_sum = 0.0
                 per_tok = torch.zeros(seq_len)
-                vec_accum = torch.zeros(seq_len, h.shape[2]) if store_vectors else None
 
                 for dname in dnames:
                     if dname in state.deltas:
@@ -356,99 +351,92 @@ class Analyzer:
                             raw_sum += pn.mean().item()
                             norm_sum += (pn / fnorm).mean().item()
                             per_tok += pn / fnorm
-                            if store_vectors:
-                                vec_accum += projected / fnorm
 
                 raw_traj.append(raw_sum)
                 norm_traj.append(norm_sum)
                 heatmap_rows.append(per_tok.numpy())
-                if store_vectors:
-                    correction_vecs.append(vec_accum)
 
         result.amplitude_trajectory = raw_traj
         result.amplitude_normalized = norm_traj
         result.heatmap = np.array(heatmap_rows)
 
-        if store_vectors:
-            result._correction_vectors = correction_vecs  # List of (seq_len, hidden_dim) tensors
-            result._sublayer_types = []
-            for layer_idx in range(state.n_layers):
-                result._sublayer_types.append("attn")
-                result._sublayer_types.append("mlp")
-
     def _compute_full_capture_metrics(self, result, seq_len, state):
-        """Derive coherence, spectral rank, attn/MLP split, and similarity from stored vectors."""
-        vecs = result._correction_vectors  # list of (seq_len, hidden) tensors or None
-        types = result._sublayer_types
+        """Derive coherence, spectral rank, attn/MLP split, and similarity from the heatmap.
 
-        # Filter to valid sublayers
-        valid = [(v, t) for v, t in zip(vecs, types) if v is not None]
-        if not valid:
+        The heatmap is (n_sublayers x seq_len) where sublayers alternate attn/mlp.
+        Each token gets a n_sublayer-dim profile of correction norms across the network.
+        This is sufficient to compute all four derived metrics without storing raw vectors,
+        since q/k/v/gate/up projections have different output dimensions (GQA) and
+        cannot be meaningfully summed in a common vector space.
+        """
+        if result.heatmap is None or result.heatmap.size == 0:
             return
 
-        # ─── Per-token coherence: do correction vectors point the same way across layers? ───
-        coherence = np.zeros(seq_len)
-        for tok_i in range(seq_len):
-            tok_vecs = [v[tok_i] for v, _ in valid]
-            if len(tok_vecs) < 2:
-                continue
-            stacked = torch.stack(tok_vecs)  # (n_sublayers, hidden)
-            mean_dir = stacked.mean(dim=0)
-            mean_norm = mean_dir.norm()
-            if mean_norm > 1e-8:
-                mean_dir = mean_dir / mean_norm
-                cosines = torch.matmul(stacked, mean_dir)
-                norms = stacked.norm(dim=-1).clamp(min=1e-8)
-                coherence[tok_i] = float((cosines / norms).mean().item())
-        result.per_token_coherence = coherence
+        hm = result.heatmap  # (n_sublayers, seq_len)
+        n_sub, n_tok = hm.shape
+        if n_tok != seq_len or n_sub < 2:
+            return
 
         # ─── Attn vs MLP fraction per token ───
-        attn_mag = np.zeros(seq_len)
-        mlp_mag = np.zeros(seq_len)
-        for v, t in valid:
-            norms = v.norm(dim=-1).numpy()
-            if t == "attn":
-                attn_mag += norms
-            else:
-                mlp_mag += norms
-        total_mag = attn_mag + mlp_mag
-        result.attn_frac = np.where(total_mag > 0, attn_mag / total_mag, 0.5)
+        attn_rows = hm[0::2]  # Even indices = attn sublayers
+        mlp_rows = hm[1::2]   # Odd indices = mlp sublayers
+        attn_sum = attn_rows.sum(axis=0)  # (seq_len,)
+        mlp_sum = mlp_rows.sum(axis=0)
+        total = attn_sum + mlp_sum
+        result.attn_frac = np.where(total > 0, attn_sum / total, 0.5)
 
-        # ─── Per-token spectral rank (effective rank of correction across layers) ───
+        # ─── Per-token coherence: consistency of correction profile across layers ───
+        # For each token, measure how peaked vs uniform its sublayer profile is.
+        # High coherence = correction concentrated in few sublayers (consistent strategy)
+        # Low coherence = correction spread uniformly (no dominant strategy)
+        profiles = hm.T  # (seq_len, n_sublayers) -- each row is a token's correction profile
+        coherence = np.zeros(n_tok)
+        for i in range(n_tok):
+            p = profiles[i]
+            total_p = p.sum()
+            if total_p > 0:
+                normed = p / total_p
+                # Coherence = 1 - normalized entropy (1 = perfectly concentrated, 0 = uniform)
+                ent = -np.sum(normed * np.log(normed + 1e-10))
+                max_ent = np.log(n_sub) if n_sub > 1 else 1.0
+                coherence[i] = 1.0 - (ent / max_ent)
+        result.per_token_coherence = coherence
+
+        # ─── Per-token spectral rank (effective dimensionality of correction pattern) ───
+        # SVD of the heatmap reveals how many independent correction modes exist
+        try:
+            # Use the full heatmap transposed: (seq_len, n_sublayers)
+            u, s, _ = np.linalg.svd(profiles, full_matrices=False)
+            s = s[s > 1e-8]
+            if len(s) > 0:
+                p_s = s / s.sum()
+                ent = -np.sum(p_s * np.log(p_s))
+                global_spectral_rank = float(np.exp(ent))
+            else:
+                global_spectral_rank = 1.0
+        except Exception:
+            global_spectral_rank = 1.0
+
+        # Per-token: how many sublayers contribute meaningfully to this token's correction
         spectral_ranks = []
-        for tok_i in range(seq_len):
-            tok_vecs = [v[tok_i] for v, _ in valid if v is not None]
-            if len(tok_vecs) < 2:
+        for i in range(n_tok):
+            p = profiles[i]
+            nonzero = p[p > 1e-8]
+            if len(nonzero) > 1:
+                normed = nonzero / nonzero.sum()
+                ent = -np.sum(normed * np.log(normed))
+                spectral_ranks.append(round(float(np.exp(ent)), 2))
+            else:
                 spectral_ranks.append(1.0)
-                continue
-            stacked = torch.stack(tok_vecs)  # (n_sublayers, hidden)
-            try:
-                s = torch.linalg.svdvals(stacked)
-                s = s[s > 1e-8]
-                if len(s) > 0:
-                    p = s / s.sum()
-                    ent = -float((p * torch.log(p)).sum().item())
-                    eff_rank = float(np.exp(ent))
-                else:
-                    eff_rank = 1.0
-            except Exception:
-                eff_rank = 1.0
-            spectral_ranks.append(round(eff_rank, 2))
         result.per_token_spectral_rank = spectral_ranks
 
         # ─── Token x token similarity matrix ───
-        # Sum correction vectors across all sublayers per token, then cosine similarity
-        tok_totals = torch.zeros(seq_len, valid[0][0].shape[1])
-        for v, _ in valid:
-            tok_totals += v
-        norms = tok_totals.norm(dim=-1, keepdim=True).clamp(min=1e-8)
-        normed = tok_totals / norms
-        sim = torch.matmul(normed, normed.T).numpy()
+        # Cosine similarity of sublayer correction profiles between all token pairs
+        norms = np.linalg.norm(profiles, axis=1, keepdims=True)
+        norms = np.where(norms > 1e-8, norms, 1.0)
+        normed_profiles = profiles / norms
+        sim = normed_profiles @ normed_profiles.T
         result.token_similarity = sim
-
-        # Clean up raw vectors to free memory (keep derived metrics only)
-        del result._correction_vectors
-        del result._sublayer_types
 
     def _compute_behavioral_comparison(self, result, state,
                                         compute_kl=False,
