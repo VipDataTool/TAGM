@@ -9,6 +9,7 @@ import csv
 import json
 import math
 import time
+import base64
 import logging
 import threading
 import traceback
@@ -537,7 +538,7 @@ def _run_batch_sync(content, bl_content, filename,
                     compute_ltp=compute_ltp, ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
                     ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
-                    skip_plots=True)
+                    skip_plots=(len(prompts) > 100))
             except Exception as prompt_err:
                 logger.error(f"Prompt {i+1} failed: {prompt_err}")
                 log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
@@ -567,6 +568,29 @@ def _run_batch_sync(content, bl_content, filename,
     except Exception as e:
         logger.error(f"Batch failed: {traceback.format_exc()}")
         log_progress("error", f"Batch failed: {str(e)[:100]}")
+
+
+@app.get("/api/session/results")
+async def get_session_results():
+    """Return all session results with per-prompt plots loaded from disk."""
+    if not session or session.n_results == 0:
+        return {"ok": False, "results": []}
+    results = []
+    for i, r in enumerate(session.results):
+        r_copy = dict(r)
+        # Load plots from disk
+        plots = {}
+        plot_dir = session.session_dir / "plots" / "individual"
+        if plot_dir.exists():
+            for pfile in sorted(plot_dir.glob(f"{i:04d}_*.png")):
+                plot_name = pfile.stem[5:]  # strip "0000_"
+                try:
+                    plots[plot_name] = base64.b64encode(pfile.read_bytes()).decode()
+                except Exception:
+                    pass
+        r_copy["_plots"] = plots
+        results.append(r_copy)
+    return {"ok": True, "results": results}
 
 
 @app.get("/api/dashboard")

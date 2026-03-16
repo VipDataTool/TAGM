@@ -54,7 +54,7 @@ textarea{resize:vertical;min-height:44px}
 .btn-export:hover{background:var(--green);color:var(--bg-0)}
 .btn-export:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
 .btn+.btn{margin-top:5px}
-.btn-row{display:flex;gap:5px}.btn-row .btn{margin-top:0}.btn-row .btn:first-child{flex:1}
+.btn-row{display:flex;gap:5px}.btn-row .btn{margin-top:0;flex:1}
 .btn-sm{font-size:9px;padding:4px 7px;width:auto}
 .file-input-wrapper{margin-bottom:6px}
 .file-input-wrapper input[type="file"]{width:100%;font-size:10px;font-family:var(--mono);color:var(--text-2)}
@@ -62,7 +62,7 @@ textarea{resize:vertical;min-height:44px}
 .progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--text-3)}
 .progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
 .error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
-.content{padding:0;overflow-y:auto;max-height:calc(100vh - 45px)}
+.content{padding:0;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 45px);min-width:0}
 .main-tabs{display:flex;background:var(--bg-1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
 .main-tab{font-family:var(--mono);font-size:11px;padding:9px 16px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:all .15s}
 .main-tab:hover{color:var(--text-1)}.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
@@ -174,16 +174,15 @@ textarea{resize:vertical;min-height:44px}
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
-    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeSingle()" disabled>Analyze Prompt</button>
-    <button class="btn btn-sm btn-secondary" onclick="addCurrentToLibrary()">Save to Library</button>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
+    <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
+      <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
+      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
 
-  <!-- Batch -->
-  <div class="section">
-    <div class="section-title">Batch (CSV)</div>
-    <div class="file-input-wrapper"><input type="file" id="csvFile" accept=".csv"></div>
-    <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
-  </div>
+
 
   <!-- Session Actions -->
   <div class="section">
@@ -215,7 +214,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
     <div id="dashContent" style="display:none"></div>
   </div>
-  <div class="tab-panel" id="panel-data">
+  <div class="tab-panel" id="panel-data" style="overflow-x:auto;min-width:0">
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-experimental">
@@ -531,21 +530,28 @@ async function resetAll(){
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
-async function analyzeSingle(){
-  const prompt=$('promptInput').value.trim();
-  if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
-  if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
-  showError('promptError','');
-  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
-  const fd=new FormData();fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
+function _buildAnalysisFormData(){
+  const fd=new FormData();
   fd.append('compute_kl',$('computeKL').checked);
-  fd.append('compute_trajectory',$('cfgComputeTraj').checked);fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
+  fd.append('compute_trajectory',$('cfgComputeTraj').checked);
+  fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
   fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
   fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
+  return fd;
+}
+
+async function analyzePrompt(){
+  const prompt=$('promptInput').value.trim();
+  if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
+  if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
+  showError('promptError','');
+  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
+  const fd=_buildAnalysisFormData();
+  fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
     if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
@@ -557,18 +563,12 @@ async function analyzeSingle(){
 async function analyzeBatch(){
   const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
   const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
-  const fd=new FormData();fd.append('file',file);
-  fd.append('compute_kl',$('computeKL').checked);fd.append('compute_trajectory',false);
-  fd.append('capture_responses',$('cfgCaptureResponses').checked);
-  fd.append('compute_ltp',$('computeLTP').checked);
-  fd.append('ltp_k',$('cfgLtpK').value);
-  fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
-  fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
-  fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
+  const fd=_buildAnalysisFormData();
+  fd.append('file',file);fd.append('compute_trajectory',false);
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
-    log(`Batch started: ${data.n_prompts} prompts. Polling progress...`);
+    log(`Batch started: ${data.n_prompts} prompts...`);
     let lastLen=0;
     async function pollBatch(){
       try{
@@ -581,14 +581,24 @@ async function analyzeBatch(){
         }
         lastLen=p.log.length;
         if(done){
-          if(!sessionResults.length) sessionResults=new Array(data.n_prompts||1).fill({});
-          updateSessionBadge();setLoading(btn,false);
+          setLoading(btn,false);
+          log('Loading results...');
+          try{
+            const sr=await(await fetch('/api/session/results')).json();
+            if(sr.results){
+              sessionResults=sr.results;
+              updateSessionBadge();
+              $('latestResults').innerHTML='';$('emptyState').style.display='none';
+              for(const r of sr.results) renderLatest(r,r._plots||{});
+              renderDataTable();
+            }
+          }catch(re){log('Results load: '+re.message,'error')}
           log('Loading dashboard...');
           try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
-          return; // Stop polling
+          return;
         }
       }catch(pe){}
-      setTimeout(pollBatch,2000); // Schedule next poll only after this one completes
+      setTimeout(pollBatch,2000);
     }
     setTimeout(pollBatch,2000);
   }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
