@@ -132,6 +132,7 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         capture_responses, compute_ltp=False,
+                        full_capture=False,
                         ltp_k=8, ltp_layer_strategy="signal",
                         ltp_svd_rank=0, ltp_tuned_lens=False,
                         skip_plots=False):
@@ -140,6 +141,7 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
         compute_kl=compute_kl,
         compute_full_trajectory=compute_trajectory,
         capture_responses=capture_responses,
+        full_capture=full_capture,
         compute_ltp=compute_ltp,
         ltp_k=ltp_k,
         ltp_layer_strategy=ltp_layer_strategy,
@@ -406,6 +408,7 @@ async def analyze_single(prompt: str = Form(...),
                          compute_kl: bool = Form(False),
                          compute_trajectory: bool = Form(True),
                          capture_responses: bool = Form(False),
+                         full_capture: bool = Form(False),
                          compute_ltp: bool = Form(False),
                          ltp_k: int = Form(8),
                          ltp_layer_strategy: str = Form("signal"),
@@ -427,6 +430,7 @@ async def analyze_single(prompt: str = Form(...),
 
         result_dict, plots = _analyze_and_record(
             prompt, category, compute_kl, compute_trajectory, capture_responses,
+            full_capture=full_capture,
             compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 

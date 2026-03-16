@@ -66,6 +66,13 @@ class PromptResult:
     signal_layer_indices: list = field(default_factory=list)
     per_layer_amplitude: dict = field(default_factory=dict)
 
+    # Full capture derived metrics (computed when full_capture=True)
+    per_token_coherence: Optional[np.ndarray] = None   # Cross-layer direction agreement per token
+    per_token_spectral_rank: Optional[list] = None      # Effective rank of correction per token
+    attn_frac: Optional[np.ndarray] = None              # Fraction of correction from attention vs MLP per token
+    token_similarity: Optional[np.ndarray] = None       # Token x token correction cosine similarity matrix
+    full_capture_enabled: bool = False
+
     # LTP results
     ltp: Optional[LTPResult] = None
 
@@ -105,6 +112,7 @@ class Analyzer:
                        compute_kl: bool = False,
                        compute_full_trajectory: bool = True,
                        capture_responses: bool = False,
+                       full_capture: bool = False,
                        compute_ltp: bool = False,
                        ltp_k: int = 8,
                        ltp_layer_strategy: str = "signal",
@@ -115,14 +123,14 @@ class Analyzer:
         state = self.mm.state
         result = PromptResult(prompt=prompt, category=category)
         result.signal_layer_indices = list(state.signal_layers)
+        result.full_capture_enabled = full_capture
 
         # Install all hooks, run one forward pass
-        # Determine which extra layers LTP needs (if any)
         ltp_layers = None
         if compute_ltp and ltp_layer_strategy == "late":
             late_start = 2 * state.n_layers // 3
             ltp_layers = list(range(late_start, state.n_layers))
-        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory,
+        self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory or full_capture,
                                        ltp_layers=ltp_layers)
         tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=True)
 
@@ -143,10 +151,15 @@ class Analyzer:
         # Extract all metrics from cached activations
         self._extract_signed_attribution(result, seq_len, state)
         self._extract_stress_score(result, seq_len, state)
-        if compute_full_trajectory:
-            self._extract_amplitude_trajectory(result, seq_len, state)
+        if compute_full_trajectory or full_capture:
+            self._extract_amplitude_trajectory(result, seq_len, state,
+                                                store_vectors=full_capture)
 
-        # LTP computation (uses cached activations + logits from the same pass)
+        # Full capture: compute derived metrics from stored vectors
+        if full_capture and hasattr(result, '_correction_vectors') and result._correction_vectors:
+            self._compute_full_capture_metrics(result, seq_len, state)
+
+        # LTP computation
         if compute_ltp:
             result.ltp = self._compute_ltp(
                 model_out.logits, tokens, inputs["input_ids"],
@@ -303,10 +316,11 @@ class Analyzer:
         result.stress_score = float(per_token_total.mean().item())
         result.per_token_stress = per_token_total.numpy()
 
-    def _extract_amplitude_trajectory(self, result, seq_len, state):
+    def _extract_amplitude_trajectory(self, result, seq_len, state, store_vectors=False):
         raw_traj = []
         norm_traj = []
         heatmap_rows = []
+        correction_vecs = []  # Full vectors when store_vectors=True
 
         for layer_idx in range(state.n_layers):
             for sublayer_type in ["attn", "mlp"]:
@@ -315,6 +329,8 @@ class Analyzer:
                     raw_traj.append(0.0)
                     norm_traj.append(0.0)
                     heatmap_rows.append(np.zeros(seq_len))
+                    if store_vectors:
+                        correction_vecs.append(None)
                     continue
 
                 h = self.mm.activations[key]
@@ -328,6 +344,7 @@ class Analyzer:
                 raw_sum = 0.0
                 norm_sum = 0.0
                 per_tok = torch.zeros(seq_len)
+                vec_accum = torch.zeros(seq_len, h.shape[2]) if store_vectors else None
 
                 for dname in dnames:
                     if dname in state.deltas:
@@ -339,14 +356,99 @@ class Analyzer:
                             raw_sum += pn.mean().item()
                             norm_sum += (pn / fnorm).mean().item()
                             per_tok += pn / fnorm
+                            if store_vectors:
+                                vec_accum += projected / fnorm
 
                 raw_traj.append(raw_sum)
                 norm_traj.append(norm_sum)
                 heatmap_rows.append(per_tok.numpy())
+                if store_vectors:
+                    correction_vecs.append(vec_accum)
 
         result.amplitude_trajectory = raw_traj
         result.amplitude_normalized = norm_traj
         result.heatmap = np.array(heatmap_rows)
+
+        if store_vectors:
+            result._correction_vectors = correction_vecs  # List of (seq_len, hidden_dim) tensors
+            result._sublayer_types = []
+            for layer_idx in range(state.n_layers):
+                result._sublayer_types.append("attn")
+                result._sublayer_types.append("mlp")
+
+    def _compute_full_capture_metrics(self, result, seq_len, state):
+        """Derive coherence, spectral rank, attn/MLP split, and similarity from stored vectors."""
+        vecs = result._correction_vectors  # list of (seq_len, hidden) tensors or None
+        types = result._sublayer_types
+
+        # Filter to valid sublayers
+        valid = [(v, t) for v, t in zip(vecs, types) if v is not None]
+        if not valid:
+            return
+
+        # ─── Per-token coherence: do correction vectors point the same way across layers? ───
+        coherence = np.zeros(seq_len)
+        for tok_i in range(seq_len):
+            tok_vecs = [v[tok_i] for v, _ in valid]
+            if len(tok_vecs) < 2:
+                continue
+            stacked = torch.stack(tok_vecs)  # (n_sublayers, hidden)
+            mean_dir = stacked.mean(dim=0)
+            mean_norm = mean_dir.norm()
+            if mean_norm > 1e-8:
+                mean_dir = mean_dir / mean_norm
+                cosines = torch.matmul(stacked, mean_dir)
+                norms = stacked.norm(dim=-1).clamp(min=1e-8)
+                coherence[tok_i] = float((cosines / norms).mean().item())
+        result.per_token_coherence = coherence
+
+        # ─── Attn vs MLP fraction per token ───
+        attn_mag = np.zeros(seq_len)
+        mlp_mag = np.zeros(seq_len)
+        for v, t in valid:
+            norms = v.norm(dim=-1).numpy()
+            if t == "attn":
+                attn_mag += norms
+            else:
+                mlp_mag += norms
+        total_mag = attn_mag + mlp_mag
+        result.attn_frac = np.where(total_mag > 0, attn_mag / total_mag, 0.5)
+
+        # ─── Per-token spectral rank (effective rank of correction across layers) ───
+        spectral_ranks = []
+        for tok_i in range(seq_len):
+            tok_vecs = [v[tok_i] for v, _ in valid if v is not None]
+            if len(tok_vecs) < 2:
+                spectral_ranks.append(1.0)
+                continue
+            stacked = torch.stack(tok_vecs)  # (n_sublayers, hidden)
+            try:
+                s = torch.linalg.svdvals(stacked)
+                s = s[s > 1e-8]
+                if len(s) > 0:
+                    p = s / s.sum()
+                    ent = -float((p * torch.log(p)).sum().item())
+                    eff_rank = float(np.exp(ent))
+                else:
+                    eff_rank = 1.0
+            except Exception:
+                eff_rank = 1.0
+            spectral_ranks.append(round(eff_rank, 2))
+        result.per_token_spectral_rank = spectral_ranks
+
+        # ─── Token x token similarity matrix ───
+        # Sum correction vectors across all sublayers per token, then cosine similarity
+        tok_totals = torch.zeros(seq_len, valid[0][0].shape[1])
+        for v, _ in valid:
+            tok_totals += v
+        norms = tok_totals.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        normed = tok_totals / norms
+        sim = torch.matmul(normed, normed.T).numpy()
+        result.token_similarity = sim
+
+        # Clean up raw vectors to free memory (keep derived metrics only)
+        del result._correction_vectors
+        del result._sublayer_types
 
     def _compute_behavioral_comparison(self, result, state,
                                         compute_kl=False,
@@ -432,7 +534,15 @@ def result_to_dict(r: PromptResult) -> dict:
         "heatmap": r.heatmap.tolist() if r.heatmap is not None else [],
         "signal_layer_indices": r.signal_layer_indices,
         "per_layer_amplitude": {str(k): _native(v) for k, v in r.per_layer_amplitude.items()},
+        "full_capture_enabled": r.full_capture_enabled,
     }
+
+    # Full capture derived metrics
+    if r.full_capture_enabled:
+        d["per_token_coherence"] = r.per_token_coherence.tolist() if r.per_token_coherence is not None else []
+        d["per_token_spectral_rank"] = r.per_token_spectral_rank or []
+        d["attn_frac"] = r.attn_frac.tolist() if r.attn_frac is not None else []
+        d["token_similarity"] = r.token_similarity.tolist() if r.token_similarity is not None else []
 
     # LTP data
     if r.ltp is not None:

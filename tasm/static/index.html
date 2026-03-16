@@ -267,9 +267,11 @@ textarea{resize:vertical;min-height:44px}
       <div class="card-header"><h3>Analysis Options</h3></div>
       <div class="card-body">
         <div style="font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
-        <div style="max-width:400px">
+        <div style="max-width:500px">
           <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
           <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full vector capture (correction directions, not just magnitudes)</label></div>
+          <div style="font-size:10px;color:var(--text-3);margin:4px 0 0 22px;line-height:1.4">Stores 896-dim correction vectors at each sublayer. ~3.4 MB/prompt. Enables coherence, spectral rank, cross-token similarity, and attn/MLP decomposition. Auto-disabled in batch mode.</div>
         </div>
       </div>
     </div>
@@ -421,6 +423,7 @@ async function saveConfig(){
       analysis:{
         computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
         captureResponses: $('cfgCaptureResponses')?$('cfgCaptureResponses').checked:false,
+        fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
       }
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
@@ -455,6 +458,7 @@ async function loadConfig(){
     if(c.analysis){
       if($('cfgComputeTraj'))$('cfgComputeTraj').checked=c.analysis.computeTraj!==false;
       if($('cfgCaptureResponses'))$('cfgCaptureResponses').checked=!!c.analysis.captureResponses;
+      if($('cfgFullCapture'))$('cfgFullCapture').checked=!!c.analysis.fullCapture;
     }
     vizRenderConfig();
   }catch(e){}
@@ -535,7 +539,7 @@ async function analyzeSingle(){
   const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
   const fd=new FormData();fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   fd.append('compute_kl',$('computeKL').checked);
-  fd.append('compute_trajectory',$('cfgComputeTraj').checked);
+  fd.append('compute_trajectory',$('cfgComputeTraj').checked);fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
   fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
   fd.append('ltp_k',$('cfgLtpK').value);
@@ -1302,9 +1306,8 @@ function renderTokenTable(r){
   return`<div class="feature"><div class="feature-header"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
 function renderDataTable(){
-  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';return}
+  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
-  // Sort: by category order, then by net_correction descending
   const catOrd={benign:0,mild:1,harmful:2,jailbreak:3};
   const sorted=[...sessionResults].sort((a,b)=>{
     const ca=(catOrd[a.category]??4),cb=(catOrd[b.category]??4);
@@ -1312,28 +1315,103 @@ function renderDataTable(){
     return(b.net_correction||0)-(a.net_correction||0);
   });
 
-  // Compute column ranges for heatmap shading
+  // Column definitions: [key, label, format, heatHue]
+  // format: null=raw, 'f4'=4 decimal, 'f5'=5 decimal, 'pct'=percent, 'i'=integer, 's'=string, 'f2'=2 decimal
+  const cols=[
+    ['_index','#',null,null],
+    ['prompt','Prompt','s',null],
+    ['category','Cat','cat',null],
+    ['_pred','Pred','pred',null],
+    ['seq_len','Tok','i',null],
+    ['stress_score','Stress','f3',200],
+    ['net_correction','Net','f5',160],
+    ['entropy','Ent','f4',40],
+    ['middle_share','Int%','pct',280],
+    ['interior_cv','IntCV','f4',null],
+    ['top2_share','Bnd%','pct',null],
+    ['gini','Gini','f4',null],
+    ['kl_divergence','KL','f4',null],
+    ['n_negative_tokens','Neg','i',null],
+    ['stress_score_ln','Stress LN','f2',null],
+    ['entropy_ln','Ent LN','f2',null],
+    ['middle_share_ln','Int% LN','f2',null],
+    ['_inst_top1','Inst Top1','s',null],
+    ['_inst_prob','Inst P','pct3',null],
+    ['_base_top1','Base Top1','s',null],
+    ['_base_prob','Base P','pct3',null],
+    ['_ltp_M','M','f6',null],
+    ['_ltp_C','C','f4',null],
+    ['_ltp_max_prc','MaxPRC','pct_pp',null],
+    ['_ltp_n_dir','N_dir','i',null],
+  ];
+
+  // Compute ranges for heatmap columns
   const ranges={};
-  ['stress_score','entropy','middle_share','net_correction'].forEach(k=>{
+  ['stress_score','net_correction','entropy','middle_share'].forEach(k=>{
     const vals=sorted.map(r=>r[k]||0);
     ranges[k]={min:Math.min(...vals),max:Math.max(...vals)};
   });
   function heatBg(val,key,hue){
+    if(!hue)return'';
     const r=ranges[key];if(!r||r.max===r.min)return'';
     const t=(val-r.min)/(r.max-r.min);
     return`background:hsla(${hue},60%,50%,${(t*0.25).toFixed(2)})`;
   }
 
-  let h=`<div style="font-size:var(--font-desc);color:var(--text-1);margin-bottom:8px">Sorted by category then net correction. Background intensity reflects relative magnitude. Pred = ASM classifier prediction.</div>`;
-  h+=`<table class="data-table"><tr><th>#</th><th>Prompt</th><th>Cat</th><th>Pred</th><th>Tok</th><th>Stress</th><th>Ent</th><th>Int%</th><th>Net Corr</th></tr>`;
-  sorted.forEach((r,i)=>{
-    const cl=r.classification;
-    const pred=cl?cl.predicted:'?';
-    const predConf=cl?Math.round(cl.probabilities[pred]*100):'';
-    const match=r.category&&cl?(r.category===pred?'✓':'✗'):'';
-    const matchColor=match==='✓'?'var(--green)':'var(--red)';
-    h+=`<tr><td>${i+1}</td><td title="${escHtml(r.prompt)}">${escHtml(r.prompt.substring(0,40))}${r.prompt.length>40?'…':''}</td><td><span class="pill ${pillClass(r.category)}">${(r.category||'?').substring(0,4)}</span></td><td><span class="pill ${pillClass(pred)}" style="font-size:8px">${pred.substring(0,4)}</span> <span style="font-size:9px;color:var(--text-3)">${predConf}%</span> <span style="color:${matchColor}">${match}</span></td><td>${r.seq_len||0}</td><td style="${heatBg(r.stress_score||0,'stress_score',200)}">${(r.stress_score||0).toFixed(3)}</td><td style="${heatBg(r.entropy||0,'entropy',40)}">${(r.entropy||0).toFixed(3)}</td><td style="${heatBg(r.middle_share||0,'middle_share',280)}">${((r.middle_share||0)*100).toFixed(1)}%</td><td style="${heatBg(r.net_correction||0,'net_correction',160)}">${(r.net_correction||0).toFixed(5)}</td></tr>`});
-  h+=`</table>`;$('dataTableContainer').innerHTML=h;
+  function fmt(val,format){
+    if(val==null||val===''||val===undefined) return'--';
+    if(format==='s') return escHtml(String(val).substring(0,30));
+    if(format==='i') return Math.round(val);
+    if(format==='f2') return Number(val).toFixed(2);
+    if(format==='f3') return Number(val).toFixed(3);
+    if(format==='f4') return Number(val).toFixed(4);
+    if(format==='f5') return Number(val).toFixed(5);
+    if(format==='f6') return Number(val).toFixed(6);
+    if(format==='pct') return (Number(val)*100).toFixed(1)+'%';
+    if(format==='pct3') return (Number(val)*100).toFixed(1)+'%';
+    if(format==='pct_pp') return (Number(val)*100).toFixed(1)+'pp';
+    if(format==='cat') return val?`<span class="pill ${pillClass(val)}">${val.substring(0,4)}</span>`:'--';
+    if(format==='pred'){
+      if(!val||!val.cl) return'--';
+      const cl=val.cl,pred=cl.predicted,conf=Math.round((cl.probabilities[pred]||0)*100);
+      const match=val.cat&&(val.cat===pred?'✓':'✗');
+      const mc=match==='✓'?'var(--green)':'var(--red)';
+      return`<span class="pill ${pillClass(pred)}" style="font-size:8px">${pred.substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
+    }
+    return val;
+  }
+
+  function getVal(r,key){
+    if(key==='_index') return sessionResults.indexOf(r)+1;
+    if(key==='_pred') return{cl:r.classification,cat:r.category};
+    if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
+    if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
+    if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
+    if(key==='_base_prob') return r.base_topk&&r.base_topk[0]?r.base_topk[0][1]:null;
+    if(key==='_ltp_M') return r.ltp?r.ltp.mean_M:null;
+    if(key==='_ltp_C') return r.ltp?r.ltp.mean_C:null;
+    if(key==='_ltp_max_prc') return r.ltp?r.ltp.max_prc:null;
+    if(key==='_ltp_n_dir') return r.ltp?r.ltp.n_directional:null;
+    return r[key];
+  }
+
+  let h=`<div style="font-size:var(--font-desc);color:var(--text-1);margin-bottom:8px">Full dataset. Scroll horizontally for all columns. Heatmap shading on Stress, Net, Entropy, Int%.</div>`;
+  h+=`<div style="overflow-x:auto"><table class="data-table"><tr>`;
+  for(const[key,label]of cols) h+=`<th>${label}</th>`;
+  h+=`</tr>`;
+
+  for(const r of sorted){
+    h+=`<tr>`;
+    for(const[key,label,format,hue]of cols){
+      const val=getVal(r,key);
+      const style=key==='prompt'?'max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap':heatBg(r[key]||0,key,hue);
+      const title=key==='prompt'?` title="${escHtml(r.prompt)}"`:''
+      h+=`<td style="${style}"${title}>${fmt(val,format)}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</table></div>`;
+  $('dataTableContainer').innerHTML=h;
 }
 
 // ─── Prompt Library ─────────────────────────────────────────────

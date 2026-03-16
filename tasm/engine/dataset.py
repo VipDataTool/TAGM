@@ -152,6 +152,11 @@ class DatasetSession:
             "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
             "ltp_max_prc", "ltp_n_directional",
             "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
+            # Classification
+            "predicted_class", "prediction_confidence",
+            # Full capture
+            "full_capture",
+            "mean_coherence", "mean_spectral_rank", "mean_attn_frac",
         ]
 
         row = {
@@ -198,6 +203,24 @@ class DatasetSession:
             row["ltp_k"] = ltp.get("k", "")
             row["ltp_svd_rank"] = ltp.get("svd_rank", "")
             row["ltp_tuned_lens"] = ltp.get("tuned_lens", "")
+
+        # Classification
+        cl = result_dict.get("classification")
+        if cl:
+            row["predicted_class"] = cl.get("predicted", "")
+            row["prediction_confidence"] = cl.get("confidence", "")
+
+        # Full capture summary metrics
+        row["full_capture"] = result_dict.get("full_capture_enabled", False)
+        coherence = result_dict.get("per_token_coherence", [])
+        if coherence:
+            row["mean_coherence"] = sum(coherence) / len(coherence)
+        spectral = result_dict.get("per_token_spectral_rank", [])
+        if spectral:
+            row["mean_spectral_rank"] = sum(spectral) / len(spectral)
+        attn = result_dict.get("attn_frac", [])
+        if attn:
+            row["mean_attn_frac"] = sum(attn) / len(attn)
 
         mode = "a" if self._csv_initialized else "w"
         with open(self.csv_path, mode, newline="") as f:
