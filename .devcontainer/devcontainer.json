@@ -5,7 +5,7 @@
     "cpus": 4,
     "memory": "16gb"
   },
-  "postCreateCommand": "cd tasm && pip install -q torch transformers accelerate fastapi 'uvicorn[standard]' python-multipart matplotlib numpy scipy aiofiles reportlab",
+  "postCreateCommand": "pip cache purge && cd tasm && pip install -q --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && pip install -q --no-cache-dir transformers accelerate fastapi 'uvicorn[standard]' python-multipart matplotlib numpy scipy aiofiles reportlab safetensors huggingface_hub psutil && pip cache purge",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {
