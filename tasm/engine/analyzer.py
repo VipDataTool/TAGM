@@ -538,11 +538,37 @@ def result_to_dict(r: PromptResult) -> dict:
     else:
         d["ltp"] = None
 
-    # Classification
+    # Classification -- run all available classifiers
+    classifiers = {}
     try:
-        from engine.classifier import classify_to_dict
-        d["classification"] = classify_to_dict(d)
+        from engine.classifier import classify_to_dict as _v2_classify
+        result_v2 = _v2_classify(d)
+        result_v2['classifier'] = 'v2'
+        result_v2['classifier_name'] = 'Hierarchical Decision Tree'
+        classifiers['v2'] = result_v2
     except Exception:
-        d["classification"] = None
+        pass
+
+    try:
+        from engine.classifier_v1 import classify as _v1_classify
+        classifiers['v1'] = _v1_classify(d)
+    except Exception:
+        pass
+
+    try:
+        from engine.classifier_v3 import classify as _v3_classify
+        classifiers['v3'] = _v3_classify(d)
+    except Exception:
+        pass
+
+    try:
+        from engine.classifier_v4 import classify as _v4_classify
+        classifiers['v4'] = _v4_classify(d)
+    except Exception:
+        pass
+
+    d["classifiers"] = classifiers
+    # Backward compat: "classification" points to v2
+    d["classification"] = classifiers.get('v2')
 
     return d

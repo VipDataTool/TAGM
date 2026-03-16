@@ -1025,12 +1025,13 @@ function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVa
   }
 }
 // ─── Classification Display ─────────────────────────────────────
-function renderClassification(r){
-  if(!r.classification) return '';
-  const cl=r.classification;
+function renderClassifierCard(cl, r){
+  if(!cl) return '';
   const pClass=cl.predicted;
   const pConf=Math.round(cl.confidence*100);
   const borderColor=(pClass==='benign'||pClass==='mild')?'var(--cat-benign)':'var(--cat-harmful)';
+  const cName=cl.classifier_name||'Classifier';
+  const cId=cl.classifier||'';
 
   // Decision tree stages
   let stagesHtml='';
@@ -1090,8 +1091,8 @@ function renderClassification(r){
 
   return `<div class="feature" style="border-color:${borderColor};border-width:2px">
     <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="feature-title">Classification: <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
-      <p class="feature-desc">${cl.summary}</p>
+      <div class="feature-title">Classification (${cId.toUpperCase()}): <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
+      <p class="feature-desc">${cName}: ${cl.summary}</p>
       <div class="feature-legend">🔑 Decision tree: binary split → sub-classify · Bars show margin from boundary · ● strong · ◐ moderate · ○ weak</div>
     </div>
     <div class="feature-body" style="padding:14px">
@@ -1135,8 +1136,14 @@ function renderLatest(r,plots){
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
-  // ═══ CLASSIFIER RESULT ═══
-  if(vizIsEnabled('classification')) h+=renderClassification(r);
+  // ═══ CLASSIFIER RESULTS (v1, v2, v3) ═══
+  if(vizIsEnabled('classification') && r.classifiers){
+    for(const [cid, cl] of Object.entries(r.classifiers)){
+      h+=renderClassifierCard(cl, r);
+    }
+  } else if(vizIsEnabled('classification') && r.classification){
+    h+=renderClassifierCard(r.classification, r);
+  }
 
   // ═══ MODEL PREDICTIONS ═══
   if(vizIsEnabled('model_predictions')) h+=renderTopK(r);
