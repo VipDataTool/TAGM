@@ -597,6 +597,12 @@ def result_to_dict(r: PromptResult) -> dict:
     except Exception:
         pass
 
+    try:
+        from engine.classifier_v6 import classify as _v6_classify
+        classifiers['v6'] = _v6_classify(d)
+    except Exception:
+        pass
+
     d["classifiers"] = classifiers
     # Backward compat: "classification" points to v2
     d["classification"] = classifiers.get('v2')
