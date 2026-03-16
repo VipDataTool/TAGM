@@ -5386,3 +5386,33 @@ RuntimeError: The size of tensor a (896) must match the size of tensor b (128) a
 2026-03-16 20:50:53,533 [INFO] [exporting] Packaging ZIP...
 2026-03-16 20:50:55,701 [INFO] Session exported: 65 prompts, 56.2MB
 2026-03-16 20:50:55,701 [INFO] [done] Export ready: 65 prompts. Click Download.
+2026-03-16 21:22:10,742 [INFO] TASM Analyzer starting up
+2026-03-16 21:22:19,271 [INFO] [starting] Starting model load...
+2026-03-16 21:22:19,734 [INFO] [memory] [MEM] After unload | process=0.5GB, system=3.3/15.6GB (21%)
+2026-03-16 21:22:19,734 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-16 21:22:19,792 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 21:22:19,798 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,323 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 21:22:20,329 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,355 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 21:22:20,360 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,381 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-16 21:22:20,387 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,410 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-16 21:22:20,433 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,950 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,956 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-16 21:22:20,956 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-16 21:22:20,979 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-16 21:22:20,982 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-16 21:22:20,984 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-16 21:22:21,350 [INFO] [memory] [MEM] After all deltas: 120 total | process=2.0GB, system=4.8/15.6GB (31%)
+2026-03-16 21:22:21,494 [INFO] [memory] [MEM] Final: 120 deltas | process=2.0GB, system=4.8/15.6GB (31%)
+2026-03-16 21:22:23,451 [INFO] [info] Spectral profile: 120 sublayers, mean rank=63.1, attn=62.7, mlp=63.8
+2026-03-16 21:22:23,451 [INFO] [ready] Loaded Qwen 2.5 0.5B in 3.7s (24L, 896d, 120 deltas)
+2026-03-16 21:22:23,452 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-16 21:22:26,022 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-16 21:22:30,090 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-16 21:22:37,187 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-16 21:22:44,606 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-16 21:22:44,607 [INFO] [ready] Model loaded. Session started. Ready to analyze.
