@@ -762,9 +762,6 @@ def _run_export_sync():
     try:
         log_progress("exporting", "Packaging ZIP...")
         zip_bytes = session.export_zip()
-        # Save to disk for download endpoint
-        zip_path = session.session_dir / "tasm_session.zip"
-        zip_path.write_bytes(zip_bytes)
         logger.info(f"Session exported: {session.n_results} prompts, {len(zip_bytes)/1024/1024:.1f}MB")
         log_progress("done", f"Export ready: {session.n_results} prompts. Click Download.")
     except Exception as e:

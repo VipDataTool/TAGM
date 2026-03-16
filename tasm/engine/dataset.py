@@ -126,16 +126,17 @@ class DatasetSession:
         return groups
 
     def export_zip(self) -> bytes:
-        """Package the entire session as a ZIP."""
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        """Package the entire session as a ZIP, streaming directly to disk."""
+        zip_path = self.session_dir / "tasm_session.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, dirs, files in os.walk(self.session_dir):
                 for file in files:
+                    if file == "tasm_session.zip":
+                        continue  # Don't zip ourselves
                     filepath = Path(root) / file
                     arcname = filepath.relative_to(self.session_dir)
                     zf.write(filepath, arcname)
-        buf.seek(0)
-        return buf.read()
+        return zip_path.read_bytes()
 
     def _write_csv_row(self, result_dict: dict):
         """Append a result to the CSV file."""

@@ -62,7 +62,7 @@ textarea{resize:vertical;min-height:44px}
 .progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--text-3)}
 .progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
 .error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
-.content{padding:0;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 45px);min-width:0}
+.content{padding:0;overflow-y:auto;max-height:calc(100vh - 45px);min-width:0}
 .main-tabs{display:flex;background:var(--bg-1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
 .main-tab{font-family:var(--mono);font-size:11px;padding:9px 16px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:all .15s}
 .main-tab:hover{color:var(--text-1)}.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
@@ -99,9 +99,9 @@ textarea{resize:vertical;min-height:44px}
 .metric-ln.positive{color:var(--red)}.metric-ln.negative{color:var(--green)}.metric-ln.neutral{color:var(--text-3)}
 .plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
 .plot-container img{width:100%;display:block}
-.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--font-table)}
-.data-table th{text-align:left;padding:5px 6px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1)}
-.data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.data-table{border-collapse:collapse;font-family:var(--mono);font-size:var(--font-table)}
+.data-table th{text-align:left;padding:5px 6px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
+.data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1);white-space:nowrap}
 .data-table tr:hover td{background:var(--bg-2)}
 .topk-table{font-family:var(--mono);font-size:11px;margin-top:5px}
 .topk-table td{padding:3px 8px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
@@ -650,7 +650,7 @@ async function loadDashboard(force){
 
 function plotCard(key,title,desc,plots,collapsed){
   const chevron=collapsed?'▶':'▼';
-  return `<div class="feature"><div class="feature-header" onclick="const b=this.parentElement.querySelector('.feature-body');b.classList.toggle('collapsed');this.querySelector('.chevron').textContent=b.classList.contains('collapsed')?'▶':'▼'" style="cursor:pointer"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+  return `<div class="feature"><div class="feature-header"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
 }
 
 async function exportSession(){
@@ -1264,7 +1264,7 @@ function renderLatest(r,plots){
     if(!v||k.startsWith('ltp_'))continue;
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
       const f=featureMeta[k];
-      expH+=`<div class="feature"><div class="feature-header" onclick="this.parentElement.querySelector('.feature-body').classList.toggle('collapsed')" style="cursor:pointer"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+      expH+=`<div class="feature"><div class="feature-header"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
     }
   }
   // Disabled LTP plots
@@ -1273,7 +1273,7 @@ function renderLatest(r,plots){
       if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
       if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
         const f=ltpMeta[k];
-        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="this.parentElement.querySelector('.feature-body').classList.toggle('collapsed')" style="cursor:pointer"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
       }
     }
     // Disabled JS vizs that have LTP data
