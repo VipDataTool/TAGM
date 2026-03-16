@@ -150,6 +150,7 @@ class DatasetSession:
             "base_top1", "base_top1_prob",
             # LTP summary statistics
             "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
+            "ltp_max_prc", "ltp_n_directional",
             "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
         ]
 
@@ -191,6 +192,8 @@ class DatasetSession:
             row["ltp_mean_C"] = ltp.get("mean_C", "")
             row["ltp_mean_V"] = ltp.get("mean_V", "")
             row["ltp_mean_L"] = ltp.get("mean_L", "")
+            row["ltp_max_prc"] = ltp.get("max_prc", "")
+            row["ltp_n_directional"] = ltp.get("n_directional", "")
             row["ltp_layer_strategy"] = ltp.get("layer_strategy", "")
             row["ltp_k"] = ltp.get("k", "")
             row["ltp_svd_rank"] = ltp.get("svd_rank", "")

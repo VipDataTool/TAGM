@@ -132,6 +132,9 @@ class LTPResult:
     mean_C: float = 0.0
     mean_V: float = 0.0
     mean_L: float = 0.0
+    max_prc: float = 0.0          # Peak Rank Concentration of hottest token
+    n_directional: int = 0         # Tokens with PRC > threshold
+    prc_per_token: List[float] = field(default_factory=list)  # Per-token PRC values
     semantic_trajectory: Optional[np.ndarray] = None
     tension_trajectory: Optional[np.ndarray] = None
     layer_strategy: str = "signal"
@@ -351,6 +354,27 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         result.mean_V = np.mean([result.offset_variance.get(l, 0.0) for l in monitored])
         result.mean_L = np.mean([result.lateral_coverage.get(l, 0.0) for l in monitored])
 
+    # Per-token Peak Rank Concentration (PRC)
+    # PRC = max(normalized_profile) - 1/k for each token
+    # Measures directional structure: 0 = flat, >0 = directional preference
+    PRC_THRESHOLD = 0.02  # ~1.6pp above uniform for k=8
+    k = result.k or 8
+    prc_values = []
+    for profile in result.profiles:
+        if len(profile) >= 2:
+            total = np.sum(profile)
+            if total > 0:
+                normed = profile / total
+                prc = float(np.max(normed) - 1.0 / k)
+            else:
+                prc = 0.0
+        else:
+            prc = 0.0
+        prc_values.append(prc)
+    result.prc_per_token = prc_values
+    result.max_prc = max(prc_values) if prc_values else 0.0
+    result.n_directional = sum(1 for p in prc_values if p > PRC_THRESHOLD)
+
     _compute_dual_trajectory(result, model_manager, monitored, seq_len)
     return result
 
@@ -430,6 +454,8 @@ def ltp_result_to_dict(r: LTPResult) -> dict:
         "lateral_coverage": {str(k): _safe(v) for k, v in r.lateral_coverage.items()},
         "mean_M": _safe(r.mean_M), "mean_C": _safe(r.mean_C),
         "mean_V": _safe(r.mean_V), "mean_L": _safe(r.mean_L),
+        "max_prc": _safe(r.max_prc), "n_directional": r.n_directional,
+        "prc_per_token": [_safe(p) for p in r.prc_per_token],
         "layer_strategy": r.layer_strategy,
         "monitored_layers": r.monitored_layers,
         "k": r.k, "svd_rank": r.svd_rank, "tuned_lens": r.tuned_lens,

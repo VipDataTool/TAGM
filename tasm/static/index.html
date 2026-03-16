@@ -80,7 +80,7 @@ textarea{resize:vertical;min-height:44px}
 .btn-popout{font-size:9px;padding:3px 8px;background:var(--bg-3);color:var(--text-2);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .15s}
 .btn-popout:hover{color:var(--text-0);border-color:var(--text-2)}
 .feature{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-0)}
-.feature-header{padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border)}
+.feature-header{padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border);cursor:pointer}
 .feature-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0);margin:0}
 .feature-desc{font-size:var(--font-desc);color:var(--text-1);line-height:1.6;margin:8px 0 0 0}
 .feature-legend{font-size:var(--font-legend);color:var(--text-2);line-height:1.5;margin-top:6px;padding:6px 8px;background:var(--bg-1);border-radius:4px;border:1px dashed var(--border)}
@@ -1110,7 +1110,7 @@ function renderLatest(r,plots){
 
   // ═══ SUMMARY METRICS ═══
   h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
-  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric')}
+  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
@@ -1353,6 +1353,19 @@ async function addCurrentToLibrary(){
 }
 
 // ─── Keyboard Navigation ────────────────────────────────────────
+// ─── Feature card collapse (delegated) ──────────────────────────
+document.addEventListener('click',e=>{
+  const header=e.target.closest('.feature-header');
+  if(!header) return;
+  const feature=header.closest('.feature');
+  if(!feature) return;
+  const body=feature.querySelector('.feature-body');
+  if(!body) return;
+  body.classList.toggle('collapsed');
+  const chevron=header.querySelector('.chevron');
+  if(chevron) chevron.textContent=body.classList.contains('collapsed')?'▶':'▼';
+});
+
 document.addEventListener('keydown',e=>{
   if(!_tunnelState) return;
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
