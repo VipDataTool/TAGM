@@ -92,7 +92,7 @@ textarea{resize:vertical;min-height:44px}
 .pill-harmful{border-color:var(--cat-harmful);color:var(--cat-harmful)}.pill-jailbreak{border-color:var(--cat-jailbreak);color:var(--cat-jailbreak)}
 .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
 .metric-cell{background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:7px}
-.metric-cell .metric-label{font-size:10px;font-family:var(--mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.metric-cell .metric-label{font-size:10px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
 .metric-cell .metric-value{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text-0)}
 .metric-cell.ltp-metric{border-color:var(--cyan);border-style:dashed}
 .metric-cell.ltp-metric .metric-label{color:var(--cyan)}
@@ -101,7 +101,7 @@ textarea{resize:vertical;min-height:44px}
 .plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
 .plot-container img{width:100%;display:block}
 .data-table{border-collapse:collapse;font-family:var(--mono);font-size:var(--font-table)}
-.data-table th{text-align:left;padding:5px 6px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
+.data-table th{text-align:left;padding:5px 6px;color:var(--text-1);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
 .data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1);white-space:nowrap}
 .data-table tr:hover td{background:var(--bg-2)}
 .topk-table{font-family:var(--mono);font-size:11px;margin-top:5px}
@@ -1078,7 +1078,7 @@ function renderClassifierCard(cl, r){
   let stagesHtml='';
   if(cl.stages&&cl.stages.length){
     stagesHtml=`<div style="margin-bottom:12px">
-      <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Decision Path</div>`;
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Decision Path</div>`;
     for(const s of cl.stages){
       const isRight=s.score>s.threshold;
       const leftColor=s.left_class==='safe'?'var(--cat-benign)':s.left_class==='mild'?'var(--cat-mild)':s.left_class==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
@@ -1140,11 +1140,11 @@ function renderClassifierCard(cl, r){
       ${stagesHtml}
       <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px">
         <div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Gaussian Probabilities</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Gaussian Probabilities</div>
           ${probBars}
         </div>
         <div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Feature Contributions</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Feature Contributions</div>
           ${contribs}
         </div>
       </div>
