@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TASM -- The Alignment Stress Map Analyzer</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0:#121212;--bg-1:#1E1E1E;--bg-2:#252525;--bg-3:#2d2d2d;
+  --border:#333333;--border-accent:#404040;
+  --text-0:#DEE2E6;--text-1:#9CA3AF;--text-2:#6B7280;--text-3:#4B5563;
+  --blue:#58a6ff;--green:#009E73;--orange:#E69F00;--red:#D55E00;--purple:#CC79A7;
+  --cyan:#56B4E9;
+  --cat-benign:#0072B2;--cat-mild:#E69F00;--cat-harmful:#D55E00;--cat-jailbreak:#CC79A7;
+  --font-desc:13px;--font-legend:11px;--font-table:11px;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);min-height:100vh}
+.header{background:var(--bg-1);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px}
+.header h1{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
+.header h1 span{color:var(--blue)}
+.header .subtitle{font-size:10px;color:var(--text-3);font-family:var(--mono)}
+.status-pill{margin-left:auto;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid var(--border)}
+.status-pill.ready{border-color:var(--green);color:var(--green)}
+.status-pill.loading{border-color:var(--orange);color:var(--orange)}
+.status-pill.idle{border-color:var(--text-3);color:var(--text-3)}
+.session-badge{font-family:var(--mono);font-size:10px;color:var(--text-2);padding:2px 7px;border:1px solid var(--border);border-radius:8px}
+.main{display:grid;grid-template-columns:330px 1fr;min-height:calc(100vh - 45px)}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);padding:12px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 45px);min-width:0}
+.section{margin-bottom:14px}
+.section-title{font-family:var(--mono);font-size:9px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+label{font-size:10px;color:var(--text-2);display:block;margin-bottom:2px;font-weight:500}
+select,input[type="text"],textarea{width:100%;max-width:100%;box-sizing:border-box;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;color:var(--text-1);font-family:var(--mono);font-size:11px;padding:6px 8px;margin-bottom:6px}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+textarea{resize:vertical;min-height:44px}
+.checkbox-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.checkbox-row input[type="checkbox"]{accent-color:var(--blue)}
+.checkbox-row label{margin-bottom:0;font-size:10px;cursor:pointer}
+.btn{font-family:var(--mono);font-size:10px;font-weight:600;padding:7px 10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;transition:all .15s;width:100%;text-align:center}
+.btn-primary{background:var(--blue);color:var(--bg-0);border-color:var(--blue)}
+.btn-primary:hover{background:#79c0ff}
+.btn-primary:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-secondary{background:var(--bg-2);color:var(--text-1)}
+.btn-secondary:hover{background:var(--bg-3)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red);color:var(--bg-0)}
+.btn-dashboard{background:var(--green);color:var(--bg-0);border-color:var(--green);font-size:12px;padding:10px;letter-spacing:0.5px}
+.btn-dashboard:hover{background:#56d364}
+.btn-dashboard:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn-export{background:transparent;color:var(--green);border-color:var(--green)}
+.btn-export:hover{background:var(--green);color:var(--bg-0)}
+.btn-export:disabled{background:var(--bg-3);border-color:var(--border);color:var(--text-3);cursor:not-allowed}
+.btn+.btn{margin-top:5px}
+.btn-row{display:flex;gap:5px}.btn-row .btn{margin-top:0;flex:1}
+.btn-sm{font-size:9px;padding:4px 7px;width:auto}
+.file-input-wrapper{margin-bottom:6px}
+.file-input-wrapper input[type="file"]{width:100%;font-size:10px;font-family:var(--mono);color:var(--text-2)}
+.file-input-wrapper input[type="file"]::file-selector-button{font-family:var(--mono);font-size:9px;padding:3px 7px;border:1px solid var(--border);border-radius:3px;background:var(--bg-3);color:var(--text-1);cursor:pointer;margin-right:5px}
+.progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--text-3)}
+.progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
+.error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:10px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
+.content{padding:0;overflow-y:auto;max-height:calc(100vh - 45px);min-width:0}
+.main-tabs{display:flex;background:var(--bg-1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.main-tab{font-family:var(--mono);font-size:11px;padding:9px 16px;cursor:pointer;color:var(--text-3);border-bottom:2px solid transparent;transition:all .15s}
+.main-tab:hover{color:var(--text-1)}.main-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.main-tab .badge{font-size:8px;background:var(--bg-3);color:var(--text-2);padding:1px 4px;border-radius:6px;margin-left:3px}
+.main-tab.ltp-active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-panel{display:none;padding:16px}.tab-panel.active{display:block}
+.card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.card-header:hover{background:var(--bg-2)}
+.card-header h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-body{padding:16px}.card-body.collapsed{display:none}
+.record-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.record-header h3{white-space:normal;line-height:1.4}
+.record-meta{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
+.btn-popout{font-size:9px;padding:3px 8px;background:var(--bg-3);color:var(--text-2);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .15s}
+.btn-popout:hover{color:var(--text-0);border-color:var(--text-2)}
+.feature{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-0)}
+.feature-header{padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border);cursor:pointer}
+.feature-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0);margin:0}
+.feature-desc{font-size:var(--font-desc);color:var(--text-1);line-height:1.6;margin:8px 0 0 0}
+.feature-legend{font-size:var(--font-legend);color:var(--text-2);line-height:1.5;margin-top:6px;padding:6px 8px;background:var(--bg-1);border-radius:4px;border:1px dashed var(--border)}
+.feature-body{padding:0}.feature-body.collapsed{display:none}
+.feature-body .plot-container{margin:0;border:none;border-radius:0}
+.pill{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:8px;border:1px solid}
+.pill-benign{border-color:var(--cat-benign);color:var(--cat-benign)}.pill-mild{border-color:var(--cat-mild);color:var(--cat-mild)}
+.pill-harmful{border-color:var(--cat-harmful);color:var(--cat-harmful)}.pill-jailbreak{border-color:var(--cat-jailbreak);color:var(--cat-jailbreak)}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
+.metric-cell{background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:7px}
+.metric-cell .metric-label{font-size:10px;font-family:var(--mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.metric-cell .metric-value{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text-0)}
+.metric-cell.ltp-metric{border-color:var(--cyan);border-style:dashed}
+.metric-cell.ltp-metric .metric-label{color:var(--cyan)}
+.metric-ln{font-family:var(--mono);font-size:10px;margin-top:1px}
+.metric-ln.positive{color:var(--red)}.metric-ln.negative{color:var(--green)}.metric-ln.neutral{color:var(--text-3)}
+.plot-container{margin-bottom:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.plot-container img{width:100%;display:block}
+.data-table{border-collapse:collapse;font-family:var(--mono);font-size:var(--font-table)}
+.data-table th{text-align:left;padding:5px 6px;color:var(--text-3);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
+.data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1);white-space:nowrap}
+.data-table tr:hover td{background:var(--bg-2)}
+.topk-table{font-family:var(--mono);font-size:11px;margin-top:5px}
+.topk-table td{padding:3px 8px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
+.token-bar{height:5px;border-radius:2px;display:inline-block;vertical-align:middle}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:45vh;color:var(--text-3);text-align:center}
+.empty-state h2{font-family:var(--mono);font-size:14px;font-weight:500;margin-bottom:5px;color:var(--text-2)}
+.empty-state p{font-size:11px;max-width:350px;line-height:1.4}
+.add-model-form{display:none;margin-top:6px;padding:8px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px}
+.add-model-form.visible{display:block}
+/* LTP config moved to Configuration tab */
+.viz-config-row{display:flex;align-items:center;gap:6px;padding:2px 0}
+.viz-config-row input[type="checkbox"]{flex-shrink:0}
+.viz-config-row select,.viz-config-row input[type="number"]{background:var(--bg-2);border:1px solid var(--border);border-radius:3px;color:var(--text-1);font-family:var(--mono)}
+.tv-tok{display:inline-block;padding:2px 4px;font-family:var(--mono);font-size:10px;color:var(--text-2);background:var(--bg-2);border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all 0.15s}
+.tv-tok:hover{color:var(--text-0);border-color:var(--cyan)}
+.tv-tok-active{color:var(--cyan);background:var(--bg-3);border-color:var(--cyan);font-weight:600}
+.ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
+@media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>TASM</span> Analyzer</h1>
+  <span class="subtitle">Alignment Stress Map + Lateral Tension Profile</span>
+  <span class="session-badge" id="sessionBadge">No session</span>
+  <div class="status-pill idle" id="statusPill">NO MODEL</div>
+</div>
+<div class="main">
+<div class="sidebar">
+
+  <!-- User Info -->
+  <div class="section">
+    <div class="section-title">Analyst</div>
+    <input type="text" id="userName" placeholder="Your name" onchange="saveUserInfo()">
+    <input type="text" id="userOrg" placeholder="Organization" onchange="saveUserInfo()">
+  </div>
+
+  <!-- Model -->
+  <div class="section">
+    <div class="section-title">Model Pair</div>
+    <select id="modelSelect"><option value="">-- Select --</option></select>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+      <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="toggleAddModel()">+ Add model pair</button>
+    <div class="add-model-form" id="addModelForm">
+      <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
+      <input type="text" id="newModelName" placeholder="Display name">
+      <input type="text" id="newModelBase" placeholder="Base HF ID">
+      <input type="text" id="newModelInstruct" placeholder="Instruct HF ID">
+      <button class="btn btn-sm btn-primary" onclick="addModel()">Save</button>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="section">
+    <div class="section-title">Prompt</div>
+    <label>Library</label>
+    <select id="promptLibrary" onchange="loadFromLibrary()"><option value="">-- Presets --</option></select>
+    <label>Prompt text</label>
+    <textarea id="promptInput" placeholder="Enter or select a prompt..."></textarea>
+    <div id="promptError"></div>
+    <label>Category</label>
+    <select id="categorySelect">
+      <option value="">Auto</option><option value="benign">Benign</option>
+      <option value="mild">Mild</option><option value="harmful">Harmful</option>
+      <option value="jailbreak">Jailbreak</option>
+    </select>
+    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
+    <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
+      <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
+      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
+  </div>
+
+
+
+  <!-- Session Actions -->
+  <div class="section">
+    <div class="section-title">Session</div>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
+    <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Log <a href="/api/log" target="_blank" style="float:right;font-size:10px;color:var(--blue);text-decoration:none">download</a></div>
+    <div class="progress-log" id="progressLog"><div class="entry">Ready.</div></div>
+  </div>
+
+</div>
+<div class="content">
+  <div class="main-tabs">
+    <div class="main-tab active" onclick="switchMainTab(this,'panel-latest')">Prompt</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Analysis</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-experimental')">Experimental</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
+  </div>
+  <div class="tab-panel active" id="panel-latest">
+    <div class="empty-state" id="emptyState"><h2>No analysis yet</h2><p>Load a model, enter a prompt, and click Analyze.</p></div>
+    <div id="latestResults"></div>
+  </div>
+  <div class="tab-panel" id="panel-dashboard">
+    <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
+    <div id="dashContent" style="display:none"></div>
+  </div>
+  <div class="tab-panel" id="panel-data" style="overflow-x:auto;min-width:0">
+    <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
+  </div>
+  <div class="tab-panel" id="panel-experimental">
+    <div class="empty-state" id="expEmpty"><h2>No disabled visualizations</h2><p>Visualizations you disable in the Configuration tab will appear here.</p></div>
+    <div id="expContent" style="display:none"></div>
+  </div>
+  <div class="tab-panel" id="panel-config">
+    <div class="card">
+      <div class="card-header"><h3>LTP Configuration</h3></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5">Fine-tuning for the Lateral Tension Profile measurement. Default settings (late layers, k=8, no SVD, no tuned-lens) are optimal for Qwen 2.5 0.5B based on A/B testing across 8 configurations. Change these only for research exploration on different model architectures.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Layer strategy</label>
+            <select id="cfgLtpLayerStrategy" onchange="saveConfig()">
+              <option value="late" selected>Late layers (final third)</option>
+              <option value="signal">Signal layers (middle third)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Counterfactual k</label>
+            <select id="cfgLtpK" onchange="saveConfig()">
+              <option value="4">k=4</option>
+              <option value="6">k=6</option>
+              <option value="8" selected>k=8</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">SVD truncation</label>
+            <select id="cfgLtpSvdRank" onchange="saveConfig()">
+              <option value="0" selected>Off (full delta)</option>
+              <option value="3">Rank 3</option>
+              <option value="5">Rank 5</option>
+              <option value="8">Rank 8</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--cyan)">Tuned-lens</label>
+            <select id="cfgLtpTunedLens" onchange="saveConfig()">
+              <option value="false" selected>Off</option>
+              <option value="true">On</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="resetLtpConfig()">Reset to defaults</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Analysis Options</h3></div>
+      <div class="card-body">
+        <div style="font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
+        <div style="max-width:500px">
+          <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full capture (derived metrics: coherence, spectral, similarity, attn/MLP)</label></div>
+          <div style="font-size:10px;color:var(--text-3);margin:4px 0 0 22px;line-height:1.4">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Prompt Visualizations</h3></div>
+      <div class="card-body">
+        <div style="font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5">Toggle which features render in the Prompt tab. Changes apply to the next analysis.</div>
+        <div id="vizConfigPanel"></div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-sm btn-secondary" onclick="vizResetDefaults()">Reset to defaults</button>
+          <button class="btn btn-sm btn-secondary" onclick="vizEnableAll()">Enable all</button>
+          <button class="btn btn-sm btn-secondary" onclick="vizDisableAll()">Disable all</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let modelLoaded=false, sessionResults=[], promptLibraryData=[], _busy=false;
+
+function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
+function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
+function clearLog(){$('progressLog').innerHTML=''}
+function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
+function pillClass(c){return({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''}
+function toggleFeature(el){
+  const f=el.closest('.feature');if(!f)return;
+  const b=f.querySelector('.feature-body');if(!b)return;
+  b.classList.toggle('collapsed');
+  const ch=el.querySelector('.chevron');
+  if(ch)ch.textContent=b.classList.contains('collapsed')?'\u25B6':'\u25BC';
+}
+function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-0.5?'negative':'neutral');return`<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`}
+function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
+function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
+function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
+// ─── Visualization Registry ──────────────────────────────────────
+const VIZ_REGISTRY = {
+  // ── Per-Prompt: ASM + LTP Fusion ──
+  tunnel_viewer:       {cat:'Fusion',     title:'Alignment Tunnel',           on:true,  scope:'prompt', order:10, type:'js',   needs:'ltp', desc:'Temperature-mapped radial cross-section per token'},
+  classification:      {cat:'Fusion',     title:'ASM Classifier',             on:true,  scope:'prompt', order:5,  type:'js',   desc:'4-class Gaussian scorecard with per-feature explanations'},
+
+  // ── Per-Prompt: ASM Core ──
+  signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', order:20, type:'plot', desc:'Per-token contribution to alignment correction'},
+  stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', order:30, type:'plot', desc:'Correction pressure at discriminative middle layers'},
+  heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', order:40, type:'plot', desc:'2D correction intensity by token and sublayer'},
+  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', order:10, type:'plot', desc:'Single-prompt correction through model depth'},
+
+  // ── Per-Prompt: ASM Detail ──
+  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', order:50, type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
+  token_table:         {cat:'ASM Detail', title:'Attribution Table',          on:true,  scope:'prompt', order:60, type:'js',   desc:'Raw per-token values with inline bars'},
+  model_predictions:   {cat:'ASM Detail', title:'Model Predictions',          on:true,  scope:'prompt', order:70, type:'js',   desc:'Instruct vs base top-k tokens'},
+
+  // ── Per-Prompt: LTP ──
+  ltp_tension_magnitudes:{cat:'LTP',      title:'Tension Magnitudes',         on:true,  scope:'prompt', order:80, type:'plot', needs:'ltp', desc:'Per-token lateral tension colored by profile shape'},
+  ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:true, scope:'prompt', order:90, type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
+  ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:true, scope:'prompt', order:100, type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
+  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', order:110, type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
+  counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', order:120, type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
+
+  // ── Batch: Analysis tab ──
+  separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
+  batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
+  key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
+  discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
+  proof1_summary:      {cat:'Batch Analysis',title:'Proof 1 Verification',    on:true,  scope:'batch', order:60, type:'plot', desc:'Mathematical exactness of the decomposition'},
+
+  // ── Batch: Experimental ──
+  exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch', order:70,type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
+  exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch', order:80,type:'plot',desc:'Per-category trajectory minus benign mean'},
+  exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch', order:90,type:'plot',desc:'All pairwise metric scatters including weak metrics'},
+  exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch', order:100,type:'plot',desc:'Instruct vs base probabilities and KL'},
+  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch', order:110,type:'plot',desc:'LTP M,C,V,L box plots across categories'},
+  exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch', order:120,type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
+  exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch', order:130,type:'plot',desc:'Shape distribution across categories'},
+};
+
+function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
+function vizResetDefaults(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v.on=v._default} vizRenderConfig();saveConfig(); }
+function vizEnableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=true} vizRenderConfig();saveConfig(); }
+function vizDisableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=false} vizRenderConfig();saveConfig(); }
+
+function vizRenderConfig(){
+  const panel=$('vizConfigPanel'); if(!panel) return;
+  const groups={};
+  for(const[k,v]of Object.entries(VIZ_REGISTRY)){
+    if(!groups[v.cat]) groups[v.cat]=[];
+    groups[v.cat].push({key:k,...v});
+  }
+  let h='';
+  // Font size config
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:400px">
+      <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+      <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+    </div>
+  </div>`;
+  // Viz toggles by category
+  for(const[cat,items]of Object.entries(groups)){
+    const color=cat.includes('LTP')?'var(--cyan)':cat.includes('Fusion')?'var(--green)':cat.includes('Experimental')?'var(--orange)':'var(--text-2)';
+    const scope=items[0].scope;
+    const scopeLabel=scope==='prompt'?'per-prompt':(scope==='batch'?'analysis tab':'experimental tab');
+    h+=`<div style="margin-bottom:14px"><div style="font-size:10px;font-family:var(--mono);color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${cat} <span style="color:var(--text-3);text-transform:none;letter-spacing:0">(${scopeLabel})</span></div>`;
+    for(const item of items){
+      h+=`<div class="viz-config-row">
+        <input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()">
+        <label for="viz_${item.key}" style="flex:1"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-3);font-size:10px">— ${item.desc}</span></label>
+        <select style="width:60px;font-size:9px;padding:2px" onchange="VIZ_REGISTRY['${item.key}'].scope=this.value;saveConfig();vizRenderConfig()">
+          <option value="prompt" ${item.scope==='prompt'?'selected':''}>Prompt</option>
+          <option value="batch" ${item.scope==='batch'?'selected':''}>Batch</option>
+        </select>
+        <input type="number" value="${item.order}" min="1" max="999" style="width:42px;font-size:9px;padding:2px;text-align:center" onchange="VIZ_REGISTRY['${item.key}'].order=parseInt(this.value)||0;saveConfig()">
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+  panel.innerHTML=h;
+}
+
+function applyFontConfig(){
+  const desc=$('cfgFontDesc').value+'px';
+  const legend=$('cfgFontLegend').value+'px';
+  const table=$('cfgFontTable').value+'px';
+  document.documentElement.style.setProperty('--font-desc',desc);
+  document.documentElement.style.setProperty('--font-legend',legend);
+  document.documentElement.style.setProperty('--font-table',table);
+}
+
+// Store defaults for reset
+(function(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v._default=v.on} })();
+
+// ─── Config Persistence ─────────────────────────────────────────
+async function saveConfig(){
+  try{
+    const vizState={};
+    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]={on:v.on,scope:v.scope,order:v.order};
+    const config={
+      viz: vizState,
+      fonts:{
+        desc: $('cfgFontDesc')?$('cfgFontDesc').value:'13',
+        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'11',
+        table: $('cfgFontTable')?$('cfgFontTable').value:'11',
+      },
+      ltp:{
+        layerStrategy: $('cfgLtpLayerStrategy')?$('cfgLtpLayerStrategy').value:'late',
+        k: $('cfgLtpK')?$('cfgLtpK').value:'8',
+        svdRank: $('cfgLtpSvdRank')?$('cfgLtpSvdRank').value:'0',
+        tunedLens: $('cfgLtpTunedLens')?$('cfgLtpTunedLens').value:'false',
+      },
+      analysis:{
+        computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
+        captureResponses: $('cfgCaptureResponses')?$('cfgCaptureResponses').checked:false,
+        fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
+      }
+    };
+    await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
+  }catch(e){}
+}
+
+async function loadConfig(){
+  try{
+    const resp=await fetch('/api/config');
+    const data=await resp.json();
+    if(!data.ok||!data.config||!Object.keys(data.config).length) return;
+    const c=data.config;
+    // Viz toggles
+    if(c.viz){for(const[k,cfg]of Object.entries(c.viz)){if(VIZ_REGISTRY[k]){
+      if(typeof cfg==='object'){VIZ_REGISTRY[k].on=!!cfg.on;if(cfg.scope)VIZ_REGISTRY[k].scope=cfg.scope;if(cfg.order!=null)VIZ_REGISTRY[k].order=cfg.order}
+      else{VIZ_REGISTRY[k].on=!!cfg} // backward compat: old format was just bool
+    }}}
+    // Font sizes
+    if(c.fonts){
+      if(c.fonts.desc&&$('cfgFontDesc')){$('cfgFontDesc').value=c.fonts.desc;document.documentElement.style.setProperty('--font-desc',c.fonts.desc+'px')}
+      if(c.fonts.legend&&$('cfgFontLegend')){$('cfgFontLegend').value=c.fonts.legend;document.documentElement.style.setProperty('--font-legend',c.fonts.legend+'px')}
+      if(c.fonts.table&&$('cfgFontTable')){$('cfgFontTable').value=c.fonts.table;document.documentElement.style.setProperty('--font-table',c.fonts.table+'px')}
+    }
+    // LTP settings
+    if(c.ltp){
+      if(c.ltp.layerStrategy&&$('cfgLtpLayerStrategy'))$('cfgLtpLayerStrategy').value=c.ltp.layerStrategy;
+      if(c.ltp.k&&$('cfgLtpK'))$('cfgLtpK').value=c.ltp.k;
+      if(c.ltp.svdRank&&$('cfgLtpSvdRank'))$('cfgLtpSvdRank').value=c.ltp.svdRank;
+      if(c.ltp.tunedLens&&$('cfgLtpTunedLens'))$('cfgLtpTunedLens').value=c.ltp.tunedLens;
+    }
+    // Analysis options
+    if(c.analysis){
+      if($('cfgComputeTraj'))$('cfgComputeTraj').checked=c.analysis.computeTraj!==false;
+      if($('cfgCaptureResponses'))$('cfgCaptureResponses').checked=!!c.analysis.captureResponses;
+      if($('cfgFullCapture'))$('cfgFullCapture').checked=!!c.analysis.fullCapture;
+    }
+    vizRenderConfig();
+  }catch(e){}
+}
+
+function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
+
+function updateSessionBadge(){
+  $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
+  $('dashBtn').disabled=sessionResults.length<1;
+  $('exportBtn').disabled=sessionResults.length<1;
+}
+
+// ─── User Info ──────────────────────────────────────────────────
+async function saveUserInfo(){
+  const fd=new FormData();fd.append('name',$('userName').value);fd.append('organization',$('userOrg').value);
+  try{await fetch('/api/user_info',{method:'POST',body:fd})}catch(e){}
+}
+
+// ─── Models ─────────────────────────────────────────────────────
+async function loadModelList(){
+  try{
+    const r=await(await fetch('/api/models')).json();
+    const sel=$('modelSelect');sel.innerHTML='<option value="">-- Select --</option>';
+    (r.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=`${m.name}${m.notes?' - '+m.notes:''}`;sel.appendChild(o)});
+    const custom=document.createElement('option');custom.value='custom';custom.textContent='Custom pair...';sel.appendChild(custom);
+  }catch(e){}
+}
+function toggleAddModel(){$('addModelForm').classList.toggle('visible')}
+async function addModel(){
+  const fd=new FormData();
+  fd.append('id',$('newModelId').value);fd.append('name',$('newModelName').value);
+  fd.append('base',$('newModelBase').value);fd.append('instruct',$('newModelInstruct').value);
+  try{
+    const r=await(await fetch('/api/models',{method:'POST',body:fd})).json();
+    if(r.ok){log('Model pair added','done');$('addModelForm').classList.remove('visible');loadModelList();
+      ['newModelId','newModelName','newModelBase','newModelInstruct'].forEach(i=>$(i).value='');}
+    else log('Error: '+(r.error||''),'error');
+  }catch(e){log('Error: '+e.message,'error')}
+}
+
+// ─── Model Loading ──────────────────────────────────────────────
+async function loadModel(){
+  const sel=$('modelSelect');
+  if(!sel.value){showError('promptError','Select a model pair first.');return}
+  const btn=$('loadModelBtn');setLoading(btn,true);clearLog();log('Starting model load...');setStatus('loading','LOADING');
+  const fd=new FormData();
+  if(sel.value==='custom'){
+    const b=prompt('Base model HF ID:');const i=prompt('Instruct model HF ID:');
+    if(!b||!i){setLoading(btn,false);return}
+    fd.append('base_id',b);fd.append('instruct_id',i);
+  } else fd.append('pair_id',sel.value);
+  try{await fetch('/api/load_model',{method:'POST',body:fd})}catch(e){}
+  let lastLen=0;
+  const poll=setInterval(async()=>{
+    try{
+      const prog=await(await fetch('/api/progress')).json();
+      for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
+      lastLen=prog.log.length;
+      const st=await(await fetch('/api/status')).json();
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
+    }catch(e){}
+  },2000);
+}
+
+async function resetAll(){
+  if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+}
+
+// ─── Analysis ───────────────────────────────────────────────────
+function _buildAnalysisFormData(){
+  const fd=new FormData();
+  fd.append('compute_kl',$('computeKL').checked);
+  fd.append('compute_trajectory',$('cfgComputeTraj').checked);
+  fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
+  fd.append('capture_responses',$('cfgCaptureResponses').checked);
+  fd.append('compute_ltp',$('computeLTP').checked);
+  fd.append('ltp_k',$('cfgLtpK').value);
+  fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
+  fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
+  fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
+  return fd;
+}
+
+async function analyzePrompt(){
+  const prompt=$('promptInput').value.trim();
+  if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
+  if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
+  showError('promptError','');
+  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
+  const fd=_buildAnalysisFormData();
+  fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
+  try{
+    const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
+    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
+    else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
+  }catch(e){log('Error: '+e.message,'error')}
+  setLoading(btn,false);
+}
+
+async function analyzeBatch(){
+  const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
+  const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
+  const fd=_buildAnalysisFormData();
+  fd.append('file',file);fd.append('compute_trajectory',false);
+  try{
+    const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
+    if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
+    log(`Batch started: ${data.n_prompts} prompts...`);
+    let lastLen=0;
+    async function pollBatch(){
+      try{
+        const p=await(await fetch('/api/progress')).json();
+        let done=false;
+        for(let i=lastLen;i<p.log.length;i++){
+          const e=p.log[i];
+          log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':(e.stage==='warning'?'error':'')));
+          if(e.stage==='done'&&e.message.includes('Batch complete')){done=true}
+        }
+        lastLen=p.log.length;
+        if(done){
+          setLoading(btn,false);
+          log('Loading results...');
+          try{
+            const sr=await(await fetch('/api/session/results')).json();
+            if(sr.results){
+              sessionResults=sr.results;
+              updateSessionBadge();
+              $('latestResults').innerHTML='';$('emptyState').style.display='none';
+              for(const r of sr.results) renderLatest(r,r._plots||{});
+              renderDataTable();
+            }
+          }catch(re){log('Results load: '+re.message,'error')}
+          log('Loading dashboard...');
+          try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
+          return;
+        }
+      }catch(pe){}
+      setTimeout(pollBatch,2000);
+    }
+    setTimeout(pollBatch,2000);
+  }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
+}
+
+// ─── Dashboard ──────────────────────────────────────────────────
+async function loadDashboard(force){
+  if(!force&&_busy){log('Another operation in progress, please wait.','error');return}
+  _busy=true;
+  log('Loading dashboard...');
+  try{
+    const resp=await fetch('/api/dashboard');
+    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');_busy=false;return}
+    const data=await resp.json();
+    if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
+    sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
+    const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
+    const info=data.session_info||{},agg=data.aggregate||{},plots=data.plots||{},cats=agg.categories||{},sep=agg.separability||{};
+
+    // ═══ ANALYSIS TAB ═══
+    let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
+
+    if(Object.keys(cats).length){
+      h+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Category Summary</h3></div><div class="card-body"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Net Correction and Interior Share are the strongest discriminators. Stress is the only perfectly monotonic metric.</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th></tr>`;
+      for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(5):'--'}</td><td>${m.interior_cv?m.interior_cv.estimate.toFixed(4):'--'}</td></tr>`}
+      h+=`</table></div></div>`;
+    }
+
+    // Batch plots — sorted by registry order
+    const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of batchItems) h+=plotCard(key,v.title,v.desc,plots);
+
+    dc.innerHTML=h;
+
+    // ═══ EXPERIMENTAL TAB ═══
+    const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
+    let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
+
+    // Experimental tab: disabled batch items (collapsed, sorted by order)
+    const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of disabledBatch) eh+=plotCard(key,v.title,v.desc,plots,true);
+
+    if(eh.indexOf('feature')>-1){ec.innerHTML=eh}else{ec.style.display='none';$('expEmpty').style.display=''}
+    log('Dashboard loaded','done');
+    _busy=false;
+    document.querySelectorAll('.main-tab')[1].click();
+  }catch(e){log('Dashboard error: '+e.message,'error');_busy=false}
+}
+
+function plotCard(key,title,desc,plots,collapsed){
+  const chevron=collapsed?'▶':'▼';
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+}
+
+async function exportSession(){
+  if(_busy){log('Another operation in progress, please wait.','error');return}
+  _busy=true;
+  log('Exporting...');
+  try{
+    // Get current progress length so we only see NEW entries
+    const curProg=await(await fetch('/api/progress')).json();
+    let lastLen=curProg.log.length;
+    const r=await fetch('/api/export');const data=await r.json();
+    if(!data.ok){log('Export error: '+(data.error||''),'error');_busy=false;return}
+    log('Export started. Generating plots, PDF, and ZIP...');
+    async function pollExport(){
+      try{
+        const p=await(await fetch('/api/progress')).json();
+        let exportDone=false, exportFailed=false;
+        for(let i=lastLen;i<p.log.length;i++){
+          const e=p.log[i];
+          if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
+            log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
+          }
+          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true}
+          if(e.stage==='error'&&e.message.includes('Export')){exportFailed=true}
+        }
+        lastLen=p.log.length;
+        if(exportDone){
+          log('Downloading ZIP...');
+          try{
+            const dr=await fetch('/api/export/download');
+            if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tasm_session.zip';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
+            else{log('Download failed: HTTP '+dr.status,'error')}
+          }catch(de){log('Download error: '+de.message,'error')}
+          _busy=false;return;
+        }
+        if(exportFailed){_busy=false;return;}
+      }catch(pe){}
+      setTimeout(pollExport,2000);
+    }
+    setTimeout(pollExport,2000);
+  }catch(e){log('Export error: '+e.message,'error');_busy=false}
+}
+
+// ─── Pop-out Record Window ──────────────────────────────────────
+function popoutRecord(rid){
+  const el=document.getElementById(rid);
+  if(!el) return;
+  const w=window.open('','_blank','width=1000,height=800,scrollbars=yes');
+  if(!w) return;
+  // Grab stylesheets from parent
+  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(s=>s.outerHTML).join('\n');
+  w.document.write(`<!DOCTYPE html><html><head><title>TASM Record</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    ${styles}
+    <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
+    .card{max-width:960px;margin:0 auto}</style>
+    </head><body>${el.outerHTML}</body></html>`);
+  w.document.close();
+}
+
+// ─── Tunnel Cross-Section Viewer ─────────────────────────────────
+let _tunnelState = null;
+function renderTunnelViewer(r){
+  if(!r.ltp||!r.ltp.profiles||!r.ltp.profiles.length) return '';
+  const profiles=r.ltp.profiles, tokens=r.tokens, shapes=r.ltp.profile_shapes||[];
+  const cfs=r.ltp.counterfactual_tokens||[], mags=r.ltp.tension_magnitudes||[];
+  const stress=r.per_token_stress||[], attr=r.signed_attr||[];
+  const n=Math.min(tokens.length, profiles.length);
+  if(n===0) return '';
+  const k=profiles[0].length;
+
+  // Compute normalization data
+  let gmax=0;
+  for(let i=0;i<n;i++) for(let j=0;j<k;j++) gmax=Math.max(gmax,profiles[i][j]||0);
+  if(gmax===0) gmax=1;
+  const stressMax=stress.length?Math.max(...stress.map(Math.abs)):1;
+  const attrMax=attr.length?Math.max(...attr.map(Math.abs)):1;
+
+  // Precompute normalized and deviation profiles
+  const normProfiles=[], devProfiles=[];
+  let devMax=0;
+  for(let i=0;i<n;i++){
+    const row=profiles[i]||[];
+    const rowSum=row.reduce((a,v)=>a+(v||0),0)||1;
+    const normed=row.map(v=>(v||0)/rowSum);
+    normProfiles.push(normed);
+    const dev=normed.map(v=>v-1/k);
+    devProfiles.push(dev);
+    for(const d of dev) devMax=Math.max(devMax,Math.abs(d));
+  }
+  if(devMax===0) devMax=0.01;
+
+  const id='tunnel_'+Date.now();
+  _tunnelState={profiles,normProfiles,devProfiles,devMax,tokens,shapes,cfs,mags,stress,attr,stressMax,attrMax,n,k,gmax,id,idx:0,mode:'shape'};
+
+  let timeline='';
+  for(let i=0;i<n;i++){
+    const t=tokens[i].trim()||'·';
+    timeline+=`<span class="tv-tok" id="${id}_tok${i}" onclick="_tunnelGo(${i})" title="${escHtml(tokens[i])}">${escHtml(t.length>6?t.slice(0,5)+'…':t)}</span>`;
+  }
+
+  return `<div class="feature" style="border-color:var(--cyan)">
+    <div class="feature-header" onclick="toggleFeature(this)">
+      <div class="feature-title" style="color:var(--cyan)">Alignment Tunnel</div>
+      <p class="feature-desc">Step through each token to see the alignment field's cross-section. <strong>Shape mode</strong> normalizes each token's profile so the polygon fills the chart — you see pure directional structure. <strong>Deviation mode</strong> subtracts the uniform baseline so flat profiles collapse to the center and any directional concentration becomes the entire signal. <strong>Absolute mode</strong> shows raw magnitudes. Temperature (point color and background glow) reflects stress intensity.</p>
+      <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Point color = stress temperature (blue→amber→red) · Shape: octagon=uniform, spike=directional · Mode toggle changes normalization</div>
+    </div>
+    <div class="feature-body" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(0)" style="min-width:32px" title="First">⏮</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:32px" title="Previous">◀</button>
+        <button class="btn btn-sm" id="${id}_playbtn" onclick="_tunnelPlayPause()" style="min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)" title="Play/Pause">▶ Play</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:32px" title="Next">▶</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.n-1)" style="min-width:32px" title="Last">⏭</button>
+        <div style="flex:1;text-align:center">
+          <span style="font-family:var(--mono);font-size:16px;color:var(--text-0)" id="${id}_label"></span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px" id="${id}_meta"></span>
+        </div>
+        <label style="font-size:9px;color:var(--text-3);font-family:var(--mono)">Speed</label>
+        <input type="range" id="${id}_speed" min="1" max="10" value="4" style="width:70px" oninput="_tunnelSetSpeed(this.value)" title="Animation speed">
+      </div>
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:10px">
+        <button class="btn btn-sm" id="${id}_mode_shape" onclick="_tunnelMode('shape')" style="background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)">Shape</button>
+        <button class="btn btn-sm btn-secondary" id="${id}_mode_deviation" onclick="_tunnelMode('deviation')">Deviation</button>
+        <button class="btn btn-sm btn-secondary" id="${id}_mode_absolute" onclick="_tunnelMode('absolute')">Absolute</button>
+      </div>
+      <div style="display:flex;justify-content:center">
+        <svg id="${id}_svg" viewBox="0 0 400 420" width="640" height="672" style="max-width:100%"></svg>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
+    </div></div>`;
+}
+let _tunnelAnimFrame=null, _tunnelPlaying=false, _tunnelSpeed=4, _tunnelMorphProgress=1;
+let _tunnelPrevIdx=null, _tunnelTargetIdx=null;
+
+function _tunnelGo(idx){
+  const s=_tunnelState; if(!s) return;
+  const newIdx=Math.max(0,Math.min(s.n-1,idx));
+  if(newIdx===s.idx&&_tunnelMorphProgress>=1) return;
+  _tunnelPrevIdx=s.idx;
+  _tunnelTargetIdx=newIdx;
+  _tunnelMorphProgress=0;
+  s.idx=newIdx;
+  if(!_tunnelAnimFrame) _tunnelAnimate();
+}
+
+function _tunnelAnimate(){
+  _tunnelMorphProgress=Math.min(1, _tunnelMorphProgress+0.08+_tunnelSpeed*0.012);
+  _tunnelDrawMorphed();
+  if(_tunnelMorphProgress<1){
+    _tunnelAnimFrame=requestAnimationFrame(_tunnelAnimate);
+  } else {
+    _tunnelAnimFrame=null;
+    _tunnelDrawMorphed(); // final frame at t=1
+  }
+}
+
+function _tunnelPlayPause(){
+  const s=_tunnelState; if(!s) return;
+  _tunnelPlaying=!_tunnelPlaying;
+  const btn=document.getElementById(s.id+'_playbtn');
+  if(btn) btn.textContent=_tunnelPlaying?'⏸ Pause':'▶ Play';
+  if(_tunnelPlaying) _tunnelAutoAdvance();
+}
+
+function _tunnelSetSpeed(v){ _tunnelSpeed=parseInt(v)||4; }
+
+function _tunnelAutoAdvance(){
+  if(!_tunnelPlaying||!_tunnelState) return;
+  const s=_tunnelState;
+  if(_tunnelMorphProgress<1){
+    // Still morphing, wait
+    setTimeout(_tunnelAutoAdvance, 50);
+    return;
+  }
+  const next=(s.idx+1)%s.n;
+  _tunnelGo(next);
+  // Schedule next advance based on speed (speed 1=1500ms, speed 10=200ms)
+  const delay=1600-(_tunnelSpeed*140);
+  setTimeout(_tunnelAutoAdvance, Math.max(delay, 150));
+}
+
+// Easing function: smooth ease-in-out
+function _ease(t){ return t<0.5?2*t*t:(1-Math.pow(-2*t+2,2)/2); }
+
+// Interpolate between two values
+function _lerp(a,b,t){ return a+(b-a)*t; }
+
+function _tunnelMode(mode){
+  const s=_tunnelState; if(!s) return;
+  s.mode=mode;
+  for(const m of ['shape','deviation','absolute']){
+    const btn=document.getElementById(s.id+'_mode_'+m);
+    if(btn){
+      if(m===mode){btn.style.background='#56B4E9';btn.style.color='#121212';btn.style.borderColor='#56B4E9'}
+      else{btn.style.background='#2d2d2d';btn.style.color='#9CA3AF';btn.style.borderColor='#333333'}
+    }
+  }
+  _tunnelDraw();
+}
+
+function _tunnelDrawMorphed(){
+  const s=_tunnelState; if(!s) return;
+  const t=_ease(_tunnelMorphProgress);
+  const prevIdx=(_tunnelPrevIdx!=null&&_tunnelPrevIdx<s.n)?_tunnelPrevIdx:s.idx;
+  const curIdx=s.idx;
+
+  // Interpolate all per-token data between prev and current frame
+  const prevNorm=s.normProfiles[prevIdx]||[];
+  const curNorm=s.normProfiles[curIdx]||[];
+  const prevDev=s.devProfiles[prevIdx]||[];
+  const curDev=s.devProfiles[curIdx]||[];
+  const prevRaw=s.profiles[prevIdx]||[];
+  const curRaw=s.profiles[curIdx]||[];
+
+  const interpNorm=[], interpDev=[], interpRaw=[];
+  for(let j=0;j<s.k;j++){
+    interpNorm.push(_lerp(prevNorm[j]||0, curNorm[j]||0, t));
+    interpDev.push(_lerp(prevDev[j]||0, curDev[j]||0, t));
+    interpRaw.push(_lerp(prevRaw[j]||0, curRaw[j]||0, t));
+  }
+
+  const interpStress=_lerp(s.stress[prevIdx]||0, s.stress[curIdx]||0, t);
+  const interpAttr=_lerp(s.attr[prevIdx]||0, s.attr[curIdx]||0, t);
+  const interpMag=_lerp(s.mags[prevIdx]||0, s.mags[curIdx]||0, t);
+
+  // Use current token's metadata (snaps, doesn't interpolate)
+  const cf=s.cfs[curIdx]||[];
+  const shape=s.shapes[curIdx]||'flat';
+  const token=s.tokens[curIdx]||'';
+
+  _tunnelRender(s, interpNorm, interpDev, interpRaw, interpStress, interpAttr, interpMag, cf, shape, token, curIdx);
+}
+
+function _tunnelDraw(){
+  // Non-animated draw (for initial render)
+  _tunnelMorphProgress=1;
+  _tunnelPrevIdx=null;
+  _tunnelDrawMorphed();
+}
+
+function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVal, mag, cf, shape, token, idx){
+  const {tokens,n,k,gmax,devMax,stressMax,attrMax,id,mode}=s;
+  const svg=document.getElementById(id+'_svg'); if(!svg) return;
+
+  const cx=200, cy=195, R=140;
+
+  // Temperature with sqrt scaling
+  const rawTemp=stressMax>0?stressVal/stressMax:0;
+  const tokenTemp=Math.pow(rawTemp, 0.5);
+
+  function tempColor(t){
+    if(t<0.5){const f=t*2;return`rgb(${Math.round(0+230*f)},${Math.round(114+45*f)},${Math.round(178-178*f)})`}
+    else{const f=(t-0.5)*2;return`rgb(${Math.round(230-17*f)},${Math.round(159-65*f)},${Math.round(0)})`}
+  }
+  const bgColor=tempColor(tokenTemp);
+  const bgAlpha=(0.03+tokenTemp*0.15).toFixed(2);
+
+  let svg_h='';
+
+  // Background glow
+  svg_h+=`<defs><radialGradient id="${id}_bg"><stop offset="0%" stop-color="${bgColor}" stop-opacity="${bgAlpha}"/><stop offset="100%" stop-color="${bgColor}" stop-opacity="0"/></radialGradient></defs>`;
+  svg_h+=`<circle cx="${cx}" cy="${cy}" r="${R+20}" fill="url(#${id}_bg)"/>`;
+
+  // Grid rings
+  if(mode==='deviation'){
+    for(let ring=1;ring<=3;ring++){
+      const r=R*ring/3;
+      svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+    }
+    svg_h+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#404040" opacity="0.5"/>`;
+    svg_h+=`<text x="${cx+8}" y="${cy-6}" fill="#6B7280" font-size="10" font-family="monospace">baseline</text>`;
+  } else {
+    for(let ring=1;ring<=3;ring++){
+      const r=R*ring/3;
+      svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
+    }
+  }
+
+  // Compute spoke values based on mode
+  const spokeVals=[];
+  for(let j=0;j<k;j++){
+    if(mode==='shape') spokeVals.push(normProfile[j]||0);
+    else if(mode==='deviation') spokeVals.push(devProfile[j]||0);
+    else spokeVals.push(gmax>0?(rawProfile[j]||0)/gmax:0);
+  }
+
+  let valMax;
+  if(mode==='shape') valMax=Math.max(...spokeVals)*1.1||0.01;
+  else if(mode==='deviation') valMax=devMax*1.1||0.01;
+  else valMax=1;
+
+  // Spokes, points, polygon
+  const points=[];
+  for(let j=0;j<k;j++){
+    const angle=(2*Math.PI*j/k)-Math.PI/2;
+    const endX=cx+R*Math.cos(angle), endY=cy+R*Math.sin(angle);
+    svg_h+=`<line x1="${cx}" y1="${cy}" x2="${endX}" y2="${endY}" stroke="#404040" stroke-width="0.5"/>`;
+
+    let radius;
+    if(mode==='deviation') radius=Math.max(0, spokeVals[j]/valMax);
+    else radius=spokeVals[j]/valMax;
+    radius=Math.max(0, Math.min(1, radius));
+    const px=cx+R*radius*Math.cos(angle), py=cy+R*radius*Math.sin(angle);
+    points.push([px,py]);
+
+    // Per-spoke temperature
+    const relVal=mode==='shape'?(normProfile[j]/(1/k)):1;
+    const spokeTemp=Math.min(1, tokenTemp * Math.pow(relVal, 2));
+    const pc=tempColor(spokeTemp);
+
+    // Counterfactual label
+    const labelR=R+24;
+    const lx=cx+labelR*Math.cos(angle), ly=cy+labelR*Math.sin(angle);
+    const cfTok=cf[j]?cf[j][0]:'?';
+    const anchor=Math.abs(Math.cos(angle))<0.1?'middle':(Math.cos(angle)>0?'start':'end');
+    const displayTok=cfTok.trim().length>8?cfTok.trim().slice(0,7)+'…':cfTok.trim();
+    svg_h+=`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="#9CA3AF" font-size="12" font-family="monospace">${escHtml(displayTok)}</text>`;
+
+    svg_h+=`<circle cx="${px}" cy="${py}" r="4.5" fill="${pc}" stroke="white" stroke-width="0.8" opacity="0.9"/>`;
+  }
+
+  if(points.length>=3){
+    const polyFill=tempColor(tokenTemp);
+    const poly=points.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+    svg_h=`<polygon points="${poly}" fill="${polyFill}" fill-opacity="${(0.08+tokenTemp*0.12).toFixed(2)}" stroke="${polyFill}" stroke-width="1.5" stroke-linejoin="round" stroke-opacity="0.6"/>`+svg_h;
+  }
+
+  svg_h+=`<circle cx="${cx}" cy="${cy}" r="2.5" fill="${bgColor}" opacity="0.5"/>`;
+
+  // Rank numbers
+  for(let j=0;j<k;j++){
+    const angle=(2*Math.PI*j/k)-Math.PI/2;
+    const rx=cx+16*Math.cos(angle), ry=cy+16*Math.sin(angle);
+    svg_h+=`<text x="${rx}" y="${ry}" text-anchor="middle" dominant-baseline="middle" fill="#6B7280" font-size="11" font-family="sans-serif">${j+1}</text>`;
+  }
+
+  // Temperature legend
+  const legY=cy+R+24, legW=160, legH=7, legX=cx-legW/2;
+  svg_h+=`<defs><linearGradient id="${id}_tleg"><stop offset="0%" stop-color="${tempColor(0)}"/><stop offset="50%" stop-color="${tempColor(0.5)}"/><stop offset="100%" stop-color="${tempColor(1)}"/></linearGradient></defs>`;
+  svg_h+=`<rect x="${legX}" y="${legY}" width="${legW}" height="${legH}" rx="3" fill="url(#${id}_tleg)" opacity="0.6"/>`;
+  svg_h+=`<text x="${legX}" y="${legY+legH+9}" text-anchor="start" fill="#6B7280" font-size="10" font-family="monospace">cold</text>`;
+  svg_h+=`<text x="${legX+legW}" y="${legY+legH+9}" text-anchor="end" fill="#6B7280" font-size="10" font-family="monospace">hot</text>`;
+  svg_h+=`<text x="${cx}" y="${legY+legH+9}" text-anchor="middle" fill="#9CA3AF" font-size="11" font-family="monospace">stress: ${stressVal.toFixed(3)}</text>`;
+
+  // Attribution
+  const attrColor=attrVal<0?'#D55E00':'#009E73';
+  const attrLabel=attrVal>=0?'+'+attrVal.toFixed(4):attrVal.toFixed(4);
+  svg_h+=`<text x="${cx}" y="${legY+legH+21}" text-anchor="middle" fill="${attrColor}" font-size="11" font-family="monospace" opacity="0.8">attr: ${attrLabel}</text>`;
+
+  svg.innerHTML=svg_h;
+
+  // Update header
+  const label=document.getElementById(id+'_label');
+  if(label) label.innerHTML=`<span style="color:var(--cyan)">"${escHtml(token.trim())}"</span> <span style="color:var(--text-2);font-size:12px">[${idx+1}/${n}]</span>`;
+  const meta=document.getElementById(id+'_meta');
+  const prc=normProfile.length?((Math.max(...normProfile)-1/k)*100).toFixed(1):'?';
+  if(meta) meta.textContent=`M=${mag.toFixed(5)}  PRC=${prc}pp  shape=${shape}  mode=${mode}`;
+
+  // Timeline highlights
+  for(let i=0;i<n;i++){
+    const el=document.getElementById(id+'_tok'+i);
+    if(el) el.className='tv-tok'+(i===idx?' tv-tok-active':'');
+  }
+}
+// ─── Classification Display ─────────────────────────────────────
+function renderClassifierCard(cl, r){
+  if(!cl) return '';
+  const pClass=cl.predicted;
+  const pConf=Math.round(cl.confidence*100);
+  const borderColor=(pClass==='benign'||pClass==='mild')?'var(--cat-benign)':'var(--cat-harmful)';
+  const cName=cl.classifier_name||'Classifier';
+  const cId=cl.classifier||'';
+
+  // Decision tree stages
+  let stagesHtml='';
+  if(cl.stages&&cl.stages.length){
+    stagesHtml=`<div style="margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Decision Path</div>`;
+    for(const s of cl.stages){
+      const isRight=s.score>s.threshold;
+      const leftColor=s.left_class==='safe'?'var(--cat-benign)':s.left_class==='mild'?'var(--cat-mild)':s.left_class==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+      const rightColor=s.right_class==='adversarial'?'var(--cat-harmful)':s.right_class==='jailbreak'?'var(--cat-jailbreak)':s.right_class==='benign'?'var(--cat-benign)':'var(--cat-mild)';
+      const chosenColor=isRight?rightColor:leftColor;
+      const conf=Math.round(s.confidence*100);
+      const marginAbs=Math.abs(s.margin);
+      const barMax=Math.max(marginAbs*800,1);
+      stagesHtml+=`<div style="padding:8px 10px;margin:4px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenColor}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0)">${s.explanation}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="font-family:var(--mono);font-size:10px;color:${leftColor}">${s.left_class}</span>
+          <div style="flex:1;height:6px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
+            <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)"></div>
+            <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenColor};border-radius:3px;width:${Math.min(50,marginAbs*500).toFixed(0)}%;opacity:0.7"></div>
+          </div>
+          <span style="font-family:var(--mono);font-size:10px;color:${rightColor}">${s.right_class}</span>
+        </div>
+      </div>`;
+    }
+    stagesHtml+=`</div>`;
+  }
+
+  // Probability bars
+  let probBars='';
+  const sorted=Object.entries(cl.probabilities).sort((a,b)=>b[1]-a[1]);
+  for(const[c,p]of sorted){
+    const color=c==='benign'?'var(--cat-benign)':c==='mild'?'var(--cat-mild)':c==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+    const w=(p*100).toFixed(0);
+    probBars+=`<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="font-family:var(--mono);font-size:12px;color:var(--text-2);width:70px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:18px;overflow:hidden"><div style="width:${w}%;height:100%;background:${color};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--text-1);width:40px">${w}%</span></div>`;
+  }
+
+  // Feature contributions
+  let contribs='';
+  if(cl.contributions){
+    for(const c of cl.contributions){
+      const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
+      const fColor=c.favors==='benign'?'var(--cat-benign)':c.favors==='mild'?'var(--cat-mild)':c.favors==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+      const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
+      contribs+=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:12px;width:14px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${c.explanation}</span><span class="pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span></div>`;
+    }
+  }
+
+  // Caveats
+  let caveatHtml='';
+  if(cl.caveats&&cl.caveats.length){
+    caveatHtml=`<div style="margin-top:10px;padding:8px 10px;background:rgba(230,159,0,0.08);border:1px solid var(--orange);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.map(c=>'⚠ '+c).join('<br>')}</div>`;
+  }
+
+  return `<div class="feature" style="border-color:${borderColor};border-width:2px">
+    <div class="feature-header" onclick="toggleFeature(this)">
+      <div class="feature-title">Classification (${cId.toUpperCase()}): <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
+      <p class="feature-desc">${cName}: ${cl.summary}</p>
+      <div class="feature-legend">🔑 Decision tree: binary split → sub-classify · Bars show margin from boundary · ● strong · ◐ moderate · ○ weak</div>
+    </div>
+    <div class="feature-body" style="padding:14px">
+      ${stagesHtml}
+      <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px">
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Gaussian Probabilities</div>
+          ${probBars}
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Feature Contributions</div>
+          ${contribs}
+        </div>
+      </div>
+      ${caveatHtml}
+    </div>
+  </div>`;
+}
+
+// ─── Render ─────────────────────────────────────────────────────
+function renderLatest(r,plots){
+  $('emptyState').style.display='none';const area=$('latestResults');
+  const rid='rec_'+Date.now();
+
+  // ═══ RECORD HEADER ═══
+  let h=`<div class="card" id="${rid}">
+    <div class="card-header record-header">
+      <h3>${escHtml(r.prompt)}</h3>
+      <div class="record-meta">
+        ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-3)">${r.seq_len} tokens</span>
+        ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
+        <button class="btn-popout" onclick="popoutRecord('${rid}')" title="Open in new window">↗ Pop out</button>
+      </div>
+    </div>
+    <div class="card-body">`;
+
+  // ═══ SUMMARY METRICS ═══
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
+  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
+  h+=`</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
+
+  // ═══ CLASSIFIER RESULTS (v1, v2, v3) ═══
+  if(vizIsEnabled('classification') && r.classifiers){
+    for(const [cid, cl] of Object.entries(r.classifiers)){
+      h+=renderClassifierCard(cl, r);
+    }
+  } else if(vizIsEnabled('classification') && r.classification){
+    h+=renderClassifierCard(r.classification, r);
+  }
+
+  // ═══ MODEL PREDICTIONS ═══
+  if(vizIsEnabled('model_predictions')) h+=renderTopK(r);
+
+  // ═══ ASM FEATURE CARDS (plot-based, from server) ═══
+  const featureMeta={
+    signed_attribution:{
+      title:'Signed Attribution',
+      desc:'Each bar shows one token\'s contribution to the alignment correction. Green bars reinforce the correction (safety training acting). Red bars oppose it. Interior tokens with high green bars indicate the model is responding to semantic framing — the hallmark of adversarial prompts.',
+      legend:'Green = reinforces correction · Red = opposes · Height = magnitude'
+    },
+    stress_per_token:{
+      title:'Per-Token Stress',
+      desc:'Correction pressure at discriminative middle layers (L8–L14), normalized by delta Frobenius norm. Tokens with high stress are where the alignment field works hardest — typically framing tokens rather than content tokens.',
+      legend:'Height = correction pressure · Higher = more alignment activity'
+    },
+    distribution_metrics:{
+      title:'Correction Distribution',
+      desc:'Entropy, Gini, and boundary/interior share. High entropy = spread evenly. Low entropy = concentrated. Boundary-concentrated = benign pattern. Interior-distributed = adversarial pattern.',
+      legend:'Entropy: 0→concentrated, 1→uniform · Boundary = first+last tokens · Interior = all others'
+    },
+    amplitude_trajectory:{
+      title:'Layer-by-Layer Trajectory',
+      desc:'Correction magnitude through model depth. Each point is a sublayer (attention/MLP alternating). A spike at middle layers followed by decline is the typical pattern — safety training concentrates intervention at the abstract semantic processing stage.',
+      legend:'X = sublayer index · Y = correction magnitude · Dashed lines = early/mid/late boundaries'
+    },
+    heatmap:{
+      title:'Token × Layer Sensitivity Map',
+      desc:'2D view of where each token receives alignment correction at each depth. Bright cells = strong correction. Benign prompts show bright boundary spots. Adversarial prompts show bright interior bands at middle layers.',
+      legend:'Rows = tokens · Columns = sublayers · Brightness = correction magnitude'
+    },
+  };
+  for(const[k,v]of Object.entries(plots)){
+    if(!v||k.startsWith('ltp_'))continue;
+    if(!vizIsEnabled(k))continue;
+    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
+    const f=featureMeta[k];
+    h+=`<div class="feature">
+      <div class="feature-header" onclick="toggleFeature(this)">
+        <div class="feature-title">${f?f.title:k}</div>
+        ${f?`<p class="feature-desc">${f.desc}</p>`:''}
+        ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
+      </div>
+      <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+    </div>`;
+  }
+
+  // ═══ LTP SECTION ═══
+  const hasLtp=r.ltp&&Object.keys(VIZ_REGISTRY).some(k=>VIZ_REGISTRY[k].needs==='ltp'&&VIZ_REGISTRY[k].on);
+  if(r.ltp&&hasLtp){
+    h+=`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)">
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
+
+    // Tunnel viewer (JS-rendered, with fused stress+attribution)
+    if(vizIsEnabled('tunnel_viewer')) h+=renderTunnelViewer(r);
+
+    // LTP server-rendered plots
+    const ltpMeta={
+      ltp_profiles:{
+        title:'Tension Profiles (Stacked)',
+        desc:'Each column is one token. Stacked segments show tension toward each counterfactual alternative by logit rank. Evenly-divided = flat correction. One segment dominating = directional boundary.',
+        legend:'Segment height = tension per rank · Rank 1 (bottom) = most likely alternative · Color = rank'
+      },
+      ltp_tension_magnitudes:{
+        title:'Tension Magnitudes',
+        desc:'Total lateral tension at each token. The dashed line marks the prompt mean. Tokens where the model considered very different alternatives tend to show higher magnitude.',
+        legend:'Height = net lateral tension · Blue = flat · Amber = steep · Vermillion = inverted · Dashed = mean'
+      },
+      ltp_summary_stats:{
+        title:'LTP Summary',
+        desc:'M (magnitude) = mean lateral displacement. C (consistency) = directional coherence 0–1. V (variance) = token concentration. L (coverage) = fraction with signal.',
+        legend:'M and C are the primary metrics · At 0.5B: M ≈ 0.001–0.002, d ≈ 0.3 between categories'
+      },
+      ltp_profile_heatmap:{
+        title:'Token × Rank Heatmap',
+        desc:'Rows are tokens, columns are counterfactual ranks. Bright cells = high tension toward that alternative. Uniformly dim rows = smooth cylindrical tunnel walls.',
+        legend:'Rows = tokens · Columns = alt rank (1=most likely) · Brightness = tension'
+      },
+    };
+    for(const[k,v]of Object.entries(plots)){
+      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+      if(!vizIsEnabled(k))continue;
+      const f=ltpMeta[k];
+      h+=`<div class="feature" style="border-color:var(--cyan)">
+        <div class="feature-header" onclick="toggleFeature(this)">
+          <div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>
+          ${f?`<p class="feature-desc">${f.desc}</p>`:''}
+          ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
+        </div>
+        <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+      </div>`;
+    }
+
+    // Counterfactual table
+    if(vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
+      h+=`<div class="feature" style="border-color:var(--cyan)">
+        <div class="feature-header" onclick="toggleFeature(this)">
+          <div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div>
+          <p class="feature-desc">The alternative tokens the model considered at each position — the paths not taken. These define the probing directions for lateral tension measurement.</p>
+          <div class="feature-legend">🔑 Shape = profile type · Alt tokens sorted by probability · Higher probability = closer semantic neighbor</div>
+        </div>
+        <div class="feature-body" style="padding:10px">
+        <table class="data-table"><tr><th>Token</th><th>Shape</th>`;
+      const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)h+=`<th>Alt ${i+1}</th>`;
+      h+=`</tr>`;
+      for(let i=0;i<Math.min(r.tokens.length,r.ltp.counterfactual_tokens.length);i++){
+        const cf=r.ltp.counterfactual_tokens[i];
+        const shape=r.ltp.profile_shapes?r.ltp.profile_shapes[i]:'';
+        const shapeColor=shape==='steep'?'var(--orange)':(shape==='inverted'?'var(--red)':'var(--blue)');
+        h+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
+        for(let j=0;j<Math.min(kVal,4);j++){
+          if(cf&&j<cf.length)h+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
+          else h+=`<td>--</td>`;
+        }
+        h+=`</tr>`;
+      }
+      h+=`</table></div></div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // ═══ TOKEN TABLE ═══
+  if(vizIsEnabled('token_table')) h+=renderTokenTable(r);
+
+  h+=`</div></div>`;
+
+  // ═══ DISABLED PROMPT VIZS → EXPERIMENTAL CARD ═══
+  // Collect disabled prompt-scope visualizations and render them collapsed
+  let expH='';
+  // Disabled ASM plots
+  for(const[k,v]of Object.entries(plots)){
+    if(!v||k.startsWith('ltp_'))continue;
+    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
+      const f=featureMeta[k];
+      expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+    }
+  }
+  // Disabled LTP plots
+  if(r.ltp){
+    for(const[k,v]of Object.entries(plots)){
+      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+      if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
+        const f=ltpMeta[k];
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+      }
+    }
+    // Disabled JS vizs that have LTP data
+    if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Alignment Tunnel (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    }
+    if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Counterfactual Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    }
+  }
+  if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+  }
+  if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Attribution Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+  }
+
+  // Append disabled items to experimental tab
+  if(expH){
+    const ec=$('expContent');
+    if(ec){
+      ec.style.display='block';$('expEmpty').style.display='none';
+      ec.innerHTML+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Disabled Prompt Visualizations</h3></div><div class="card-body">${expH}</div></div>`;
+    }
+  }
+
+  area.innerHTML=h+area.innerHTML;
+  if(_tunnelState) _tunnelDraw();
+}
+function renderTopK(r){
+  if(!r.instruct_topk||!r.instruct_topk.length)return'';
+  const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
+  for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+}
+function renderTokenTable(r){
+  if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
+  const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
+  for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
+}
+function renderDataTable(){
+  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
+
+  const catOrd={benign:0,mild:1,harmful:2,jailbreak:3};
+  const sorted=[...sessionResults].sort((a,b)=>{
+    const ca=(catOrd[a.category]??4),cb=(catOrd[b.category]??4);
+    if(ca!==cb)return ca-cb;
+    return(b.net_correction||0)-(a.net_correction||0);
+  });
+
+  // Column definitions: [key, label, format, heatHue]
+  // format: null=raw, 'f4'=4 decimal, 'f5'=5 decimal, 'pct'=percent, 'i'=integer, 's'=string, 'f2'=2 decimal
+  const cols=[
+    ['_index','#',null,null],
+    ['prompt','Prompt','s',null],
+    ['category','Cat','cat',null],
+    ['_pred','Pred','pred',null],
+    ['seq_len','Tok','i',null],
+    ['stress_score','Stress','f3',200],
+    ['net_correction','Net','f5',160],
+    ['entropy','Ent','f4',40],
+    ['middle_share','Int%','pct',280],
+    ['interior_cv','IntCV','f4',null],
+    ['top2_share','Bnd%','pct',null],
+    ['gini','Gini','f4',null],
+    ['kl_divergence','KL','f4',null],
+    ['n_negative_tokens','Neg','i',null],
+    ['stress_score_ln','Stress LN','f2',null],
+    ['entropy_ln','Ent LN','f2',null],
+    ['middle_share_ln','Int% LN','f2',null],
+    ['_inst_top1','Inst Top1','s',null],
+    ['_inst_prob','Inst P','pct3',null],
+    ['_base_top1','Base Top1','s',null],
+    ['_base_prob','Base P','pct3',null],
+    ['_ltp_M','M','f6',null],
+    ['_ltp_C','C','f4',null],
+    ['_ltp_max_prc','MaxPRC','pct_pp',null],
+    ['_ltp_n_dir','N_dir','i',null],
+  ];
+
+  // Compute ranges for heatmap columns
+  const ranges={};
+  ['stress_score','net_correction','entropy','middle_share'].forEach(k=>{
+    const vals=sorted.map(r=>r[k]||0);
+    ranges[k]={min:Math.min(...vals),max:Math.max(...vals)};
+  });
+  function heatBg(val,key,hue){
+    if(!hue)return'';
+    const r=ranges[key];if(!r||r.max===r.min)return'';
+    const t=(val-r.min)/(r.max-r.min);
+    return`background:hsla(${hue},60%,50%,${(t*0.25).toFixed(2)})`;
+  }
+
+  function fmt(val,format){
+    if(val==null||val===''||val===undefined) return'--';
+    if(format==='s') return escHtml(String(val).substring(0,30));
+    if(format==='i') return Math.round(val);
+    if(format==='f2') return Number(val).toFixed(2);
+    if(format==='f3') return Number(val).toFixed(3);
+    if(format==='f4') return Number(val).toFixed(4);
+    if(format==='f5') return Number(val).toFixed(5);
+    if(format==='f6') return Number(val).toFixed(6);
+    if(format==='pct') return (Number(val)*100).toFixed(1)+'%';
+    if(format==='pct3') return (Number(val)*100).toFixed(1)+'%';
+    if(format==='pct_pp') return (Number(val)*100).toFixed(1)+'pp';
+    if(format==='cat') return val?`<span class="pill ${pillClass(val)}">${val.substring(0,4)}</span>`:'--';
+    if(format==='pred'){
+      if(!val||!val.cl) return'--';
+      const cl=val.cl,pred=cl.predicted,conf=Math.round((cl.probabilities[pred]||0)*100);
+      const match=val.cat&&(val.cat===pred?'✓':'✗');
+      const mc=match==='✓'?'var(--green)':'var(--red)';
+      return`<span class="pill ${pillClass(pred)}" style="font-size:8px">${pred.substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
+    }
+    return val;
+  }
+
+  function getVal(r,key){
+    if(key==='_index') return sessionResults.indexOf(r)+1;
+    if(key==='_pred') return{cl:r.classification,cat:r.category};
+    if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
+    if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
+    if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
+    if(key==='_base_prob') return r.base_topk&&r.base_topk[0]?r.base_topk[0][1]:null;
+    if(key==='_ltp_M') return r.ltp?r.ltp.mean_M:null;
+    if(key==='_ltp_C') return r.ltp?r.ltp.mean_C:null;
+    if(key==='_ltp_max_prc') return r.ltp?r.ltp.max_prc:null;
+    if(key==='_ltp_n_dir') return r.ltp?r.ltp.n_directional:null;
+    return r[key];
+  }
+
+  let h=`<div style="font-size:var(--font-desc);color:var(--text-1);margin-bottom:8px">Full dataset. Scroll horizontally for all columns. Heatmap shading on Stress, Net, Entropy, Int%.</div>`;
+  h+=`<div style="overflow-x:auto"><table class="data-table"><tr>`;
+  for(const[key,label]of cols) h+=`<th>${label}</th>`;
+  h+=`</tr>`;
+
+  for(const r of sorted){
+    h+=`<tr>`;
+    for(const[key,label,format,hue]of cols){
+      const val=getVal(r,key);
+      const style=key==='prompt'?'max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap':heatBg(r[key]||0,key,hue);
+      const title=key==='prompt'?` title="${escHtml(r.prompt)}"`:''
+      h+=`<td style="${style}"${title}>${fmt(val,format)}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</table></div>`;
+  $('dataTableContainer').innerHTML=h;
+}
+
+// ─── Prompt Library ─────────────────────────────────────────────
+async function loadPromptLibrary(){
+  try{const r=await(await fetch('/api/prompts')).json();promptLibraryData=r.prompts||[];renderPromptLibrary()}catch(e){}
+}
+function renderPromptLibrary(){
+  const s=$('promptLibrary');s.innerHTML='<option value="">-- Presets --</option>';
+  const g={};promptLibraryData.forEach((p,i)=>{if(p.baseline)return;const c=p.category||'other';if(!g[c])g[c]=[];g[c].push({...p,index:i})});
+  for(const[c,ps]of Object.entries(g)){const og=document.createElement('optgroup');og.label=c[0].toUpperCase()+c.slice(1);ps.forEach(p=>{const o=document.createElement('option');o.value=p.index;o.textContent=p.prompt.length>55?p.prompt.substring(0,52)+'...':p.prompt;og.appendChild(o)});s.appendChild(og)}
+}
+function loadFromLibrary(){const s=$('promptLibrary');if(s.value==='')return;const p=promptLibraryData[parseInt(s.value)];if(p){$('promptInput').value=p.prompt;$('categorySelect').value=p.category||''}}
+async function addCurrentToLibrary(){
+  const p=$('promptInput').value.trim();if(!p){showError('promptError','No prompt to save.');return}
+  const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');fd.append('baseline',false);
+  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.error||'Failed')}catch(e){}
+}
+
+// ─── Keyboard Navigation ────────────────────────────────────────
+// ─── Feature card collapse (delegated) ──────────────────────────
+document.addEventListener('click',e=>{
+  const header=e.target.closest('.feature-header');
+  if(!header) return;
+  const feature=header.closest('.feature');
+  if(!feature) return;
+  const body=feature.querySelector('.feature-body');
+  if(!body) return;
+  body.classList.toggle('collapsed');
+  const chevron=header.querySelector('.chevron');
+  if(chevron) chevron.textContent=body.classList.contains('collapsed')?'▶':'▼';
+});
+
+document.addEventListener('keydown',e=>{
+  if(!_tunnelState) return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
+  if(e.key==='ArrowLeft'){e.preventDefault();_tunnelGo(_tunnelState.idx-1)}
+  if(e.key==='ArrowRight'){e.preventDefault();_tunnelGo(_tunnelState.idx+1)}
+  if(e.key===' '){e.preventDefault();_tunnelPlayPause()}
+});
+
+// ─── Init ───────────────────────────────────────────────────────
+(async function(){
+  try{
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();
+    const st=await(await fetch('/api/status')).json();
+    if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
+    if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
+    else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
+      let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
+    if(st.session&&st.session.n_results>0)updateSessionBadge();
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
