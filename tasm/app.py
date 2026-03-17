@@ -681,13 +681,26 @@ def _run_dashboard_sync():
     })
 
 
-@app.get("/api/export")
-async def export_session():
+@app.post("/api/export")
+async def export_session(request: Request):
     if not session or session.n_results == 0:
         return JSONResponse(status_code=400, content={"error": "No data to export."})
 
+    # Parse export options from request body
+    try:
+        opts = await request.json()
+    except Exception:
+        opts = {}
+    export_opts = {
+        "csv": True,  # always
+        "pdf": opts.get("pdf", True),
+        "json": opts.get("json", True),
+        "charts": opts.get("charts", True),
+        "exportPath": opts.get("exportPath", ""),
+    }
+
     # Run export in background thread
-    threading.Thread(target=_run_export_sync, daemon=True).start()
+    threading.Thread(target=_run_export_sync, args=(export_opts,), daemon=True).start()
     return {"ok": True, "message": "Export started. Watch progress log."}
 
 
@@ -704,72 +717,117 @@ async def download_export():
         filename=f"tasm_session_{session.timestamp}.zip")
 
 
-def _run_export_sync():
+def _run_export_sync(opts=None):
     """Synchronous export — runs in a background thread."""
-    log_progress("exporting", "Generating aggregate statistics...")
-    try:
-        results = session.results
-        from engine.analyzer import PromptResult
-        pr_list = []
-        for r in results:
-            pr = PromptResult()
-            for key in ["stress_score", "net_correction", "entropy", "gini",
-                         "top2_share", "middle_share", "interior_cv",
-                         "kl_divergence", "category", "seq_len",
-                         "has_negative_tokens", "n_negative_tokens"]:
-                val = r.get(key)
-                if val is not None: setattr(pr, key, val)
+    if opts is None:
+        opts = {"csv": True, "pdf": True, "json": True, "charts": True, "exportPath": ""}
+    import shutil
 
-            ltp_data = r.get("ltp")
-            if ltp_data:
-                from engine.ltp import LTPResult
-                ltp_r = LTPResult()
-                ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
-                ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
-                ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
-                ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
-                pr.ltp = ltp_r
+    do_pdf = opts.get("pdf", True)
+    do_json = opts.get("json", True)
+    do_charts = opts.get("charts", True)
+    export_path = opts.get("exportPath", "").strip()
 
-            pr_list.append(pr)
+    # Aggregate stats are needed for PDF and charts, so compute if either is on
+    agg = None
+    all_plots = {}
+    if do_pdf or do_charts:
+        log_progress("exporting", "Generating aggregate statistics...")
+        try:
+            results = session.results
+            from engine.analyzer import PromptResult
+            pr_list = []
+            for r in results:
+                pr = PromptResult()
+                for key in ["stress_score", "net_correction", "entropy", "gini",
+                             "top2_share", "middle_share", "interior_cv",
+                             "kl_divergence", "category", "seq_len",
+                             "has_negative_tokens", "n_negative_tokens"]:
+                    val = r.get(key)
+                    if val is not None: setattr(pr, key, val)
 
-        log_progress("exporting", "Computing separability and comparative plots...")
-        agg = aggregate_batch(pr_list)
-        agg_plots = {"batch_summary": plot_batch_summary(agg),
-                     "separability": plot_separability(agg)}
-        comp_plots = generate_all_comparative(results)
-        all_plots = {**agg_plots, **comp_plots}
+                ltp_data = r.get("ltp")
+                if ltp_data:
+                    from engine.ltp import LTPResult
+                    ltp_r = LTPResult()
+                    ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
+                    ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
+                    ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
+                    ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
+                    pr.ltp = ltp_r
 
-        log_progress("exporting", "Generating PDF report...")
-        pdf_path = generate_batch_report(
-            agg, results, all_plots,
-            model_name=session.model_name, n_prompts=session.n_results,
-            user_info=user_info)
-        import shutil
-        shutil.copy2(pdf_path, session.session_dir / "report.pdf")
-        session.save_comparative_plots(all_plots)
-        session.save_aggregate_json(agg)
-    except Exception as e:
-        logger.error(f"Export PDF/stats failed: {e}")
-        log_progress("warning", f"PDF generation failed: {str(e)[:80]}")
+                pr_list.append(pr)
 
-    try:
-        log_progress("exporting", "Saving full results JSON...")
-        session.save_results_json()
-    except Exception as e:
-        logger.error(f"Export results JSON failed: {e}")
+            log_progress("exporting", "Computing separability and comparative plots...")
+            agg = aggregate_batch(pr_list)
+            agg_plots = {"batch_summary": plot_batch_summary(agg),
+                         "separability": plot_separability(agg)}
+            comp_plots = generate_all_comparative(results)
+            all_plots = {**agg_plots, **comp_plots}
 
-    try:
-        n = session.n_results
-        log_progress("exporting", f"Generating per-prompt plots ({n} prompts)...")
-        _generate_deferred_plots(session)
-    except Exception as e:
-        logger.error(f"Deferred plot generation failed: {e}")
+            if do_charts:
+                session.save_comparative_plots(all_plots)
+            session.save_aggregate_json(agg)
+        except Exception as e:
+            logger.error(f"Export aggregate/stats failed: {e}")
+            log_progress("warning", f"Aggregate stats failed: {str(e)[:80]}")
+    else:
+        log_progress("exporting", "Skipping charts and PDF (disabled)...")
+
+    if do_pdf and agg is not None:
+        try:
+            log_progress("exporting", "Generating PDF report...")
+            pdf_path = generate_batch_report(
+                agg, session.results, all_plots,
+                model_name=session.model_name, n_prompts=session.n_results,
+                user_info=user_info)
+            shutil.copy2(pdf_path, session.session_dir / "report.pdf")
+        except Exception as e:
+            logger.error(f"Export PDF failed: {e}")
+            log_progress("warning", f"PDF generation failed: {str(e)[:80]}")
+    elif not do_pdf:
+        log_progress("exporting", "Skipping PDF report (disabled)...")
+
+    if do_json:
+        try:
+            log_progress("exporting", "Saving full results JSON...")
+            session.save_results_json()
+        except Exception as e:
+            logger.error(f"Export results JSON failed: {e}")
+    else:
+        log_progress("exporting", "Skipping JSON results (disabled)...")
+
+    if do_charts:
+        try:
+            n = session.n_results
+            log_progress("exporting", f"Generating per-prompt plots ({n} prompts)...")
+            _generate_deferred_plots(session)
+        except Exception as e:
+            logger.error(f"Deferred plot generation failed: {e}")
+    else:
+        log_progress("exporting", "Skipping per-prompt plots (disabled)...")
 
     try:
         log_progress("exporting", "Packaging ZIP...")
         zip_bytes = session.export_zip()
-        logger.info(f"Session exported: {session.n_results} prompts, {len(zip_bytes)/1024/1024:.1f}MB")
-        log_progress("done", f"Export ready: {session.n_results} prompts. Click Download.")
+        size_mb = len(zip_bytes) / 1024 / 1024
+        logger.info(f"Session exported: {session.n_results} prompts, {size_mb:.1f}MB")
+
+        # Copy to custom export path if specified
+        if export_path:
+            try:
+                export_dir = Path(export_path)
+                export_dir.mkdir(parents=True, exist_ok=True)
+                zip_src = session.session_dir / "tasm_session.zip"
+                dest = export_dir / f"tasm_session_{session.timestamp}.zip"
+                shutil.copy2(zip_src, dest)
+                log_progress("done", f"Export ready: {session.n_results} prompts, {size_mb:.1f}MB → {dest}")
+            except Exception as e:
+                logger.error(f"Export copy to {export_path} failed: {e}")
+                log_progress("warning", f"Could not copy to {export_path}: {str(e)[:80]}")
+                log_progress("done", f"Export ready: {session.n_results} prompts (ZIP in session dir). Click Download.")
+        else:
+            log_progress("done", f"Export ready: {session.n_results} prompts. Click Download.")
     except Exception as e:
         logger.error(f"Export ZIP failed: {traceback.format_exc()}")
         log_progress("error", f"Export ZIP failed: {str(e)[:80]}")
