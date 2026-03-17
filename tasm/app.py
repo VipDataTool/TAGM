@@ -455,6 +455,7 @@ async def analyze_batch(file: UploadFile = File(...),
                         compute_kl: bool = Form(False),
                         compute_trajectory: bool = Form(False),
                         capture_responses: bool = Form(False),
+                        full_capture: bool = Form(False),
                         compute_ltp: bool = Form(False),
                         ltp_k: int = Form(8),
                         ltp_layer_strategy: str = Form("signal"),
@@ -489,6 +490,7 @@ async def analyze_batch(file: UploadFile = File(...),
         target=_run_batch_sync,
         args=(content, bl_content, filename,
               compute_kl, compute_trajectory, capture_responses,
+              full_capture,
               compute_ltp, ltp_k, ltp_layer_strategy,
               ltp_svd_rank, ltp_tuned_lens),
         daemon=True).start()
@@ -499,6 +501,7 @@ async def analyze_batch(file: UploadFile = File(...),
 
 def _run_batch_sync(content, bl_content, filename,
                     compute_kl, compute_trajectory, capture_responses,
+                    full_capture,
                     compute_ltp, ltp_k, ltp_layer_strategy,
                     ltp_svd_rank, ltp_tuned_lens):
     """Synchronous batch processing — runs in a background thread."""
@@ -515,7 +518,7 @@ def _run_batch_sync(content, bl_content, filename,
             log_progress("error", "No valid prompts found in CSV.")
             return
 
-        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
 
         if bl_content:
@@ -535,7 +538,8 @@ def _run_batch_sync(content, bl_content, filename,
                 _analyze_and_record(
                     p["prompt"], p["category"],
                     compute_kl, compute_trajectory, capture_responses,
-                    compute_ltp=compute_ltp, ltp_k=ltp_k,
+                    compute_ltp=compute_ltp, full_capture=full_capture,
+                    ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
                     ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
                     skip_plots=(len(prompts) > 100))
