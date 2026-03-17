@@ -1574,7 +1574,8 @@ function initTerrainViewer(results){
   };
 
   let curCat=Object.keys(D).includes('benign')?'benign':Object.keys(D)[0];
-  let curIdx=0, curBase='vivid', curOv='cool';
+  let curIdx=0, curBase='vivid', curOv='cool', labelScale=2.0;
+  let slideshowPlaying=false, slideshowSpeed=4, slideshowTimer=null;
   const BG=[.047,.047,.07];
   const FY=-2.2, SCX=0.55, COLS=17, HSCALE=180, X_MAX=8*SCX;
 
@@ -1698,21 +1699,23 @@ function initTerrainViewer(results){
       sc.add(dot);lbs.push(dot);
     }
 
-    // Token labels at every vertex
-    const LW=96,LH=24,LSX=SCX*.90,LSY=LSX*(LH/LW);
+    // Token labels at every vertex — size controlled by labelScale
+    const LW=Math.round(96*labelScale),LH=Math.round(24*labelScale);
+    const LSX=SCX*0.90*labelScale,LSY=LSX*(LH/LW);
+    const labelFontPx=Math.round(12*labelScale);
     const texCache={};
     const getTexture=(str,klT)=>{
-      const bucket=Math.round(klT*8),key=str+'|'+bucket;
+      const bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale;
       if(texCache[key])return texCache[key];
       const S=2,lc=document.createElement('canvas');lc.width=LW*S;lc.height=LH*S;
       const lx=lc.getContext('2d');lx.scale(S,S);
       const[ar,ag,ab]=BASES[curBase].fn(Math.max(.15,klT*.75+.18));
-      lx.font='700 12px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
-      lx.lineWidth=2.5;lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,LW/2,LH/2);
+      lx.font='700 '+labelFontPx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
+      lx.lineWidth=Math.max(2,labelScale*1.5);lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,LW/2,LH/2);
       lx.fillStyle='rgba(240,237,228,1.0)';lx.fillText(str,LW/2,LH/2);
       const ulLen=Math.max(4,Math.round((LW-10)*klT));
       lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
-      lx.fillRect((LW-ulLen)/2,LH/2+8,ulLen,2);
+      lx.fillRect((LW-ulLen)/2,LH/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)));
       texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
     };
     for(let t=0;t<nT;t++){
@@ -1774,6 +1777,10 @@ function initTerrainViewer(results){
     const entries=D[curCat]||[];
     entries.forEach((e,i)=>{h+=`<option value="${i}"${i===curIdx?' selected':''}>${e[0].slice(0,50)}</option>`});
     h+='</select>';
+    h+='<button class="tb" id="tPrev" onclick="window._terrainPrev()" title="Previous" style="min-width:22px;padding:2px 4px">\u25C0</button>';
+    h+='<button class="tb" id="tPlayBtn" onclick="window._terrainPlayPause()" title="Play/Pause" style="min-width:28px;padding:2px 5px">\u25B6</button>';
+    h+='<button class="tb" id="tNext" onclick="window._terrainNext()" title="Next" style="min-width:22px;padding:2px 4px">\u25B6</button>';
+    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:40px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Speed">';
     h+='<span class="tsep">|</span>';
     // Base ramp buttons
     for(const[k,def]of Object.entries(BASES)){
@@ -1784,7 +1791,7 @@ function initTerrainViewer(results){
     for(const[k,def]of Object.entries(OVS)){
       h+=`<button class="tcs${k===curOv?' on':''}" data-tov="${k}" onclick="window._terrainSetOv('${k}')">${def.label}</button>`;
     }
-    h+='<span class="tsep">|</span><span style="font-size:9px;color:#556">L-drag orbit \u00B7 R-drag pan \u00B7 scroll zoom</span>';
+    h+='<span class="tsep">|</span><span style="font-size:9px;color:#556">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:50px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size"><span style="font-size:9px;color:#556">L-drag orbit \u00B7 R-drag pan \u00B7 scroll zoom</span>';
     ui.innerHTML=h;
   }
 
@@ -1800,10 +1807,14 @@ function initTerrainViewer(results){
 
   window._terrainSelectCat=function(c){
     curCat=c;curIdx=0;
-    buildUI();  // full rebuild — updates category buttons, prompt dropdown, all controls
-    build();
+    if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}
+    buildUI();build();
   };
-  window._terrainSelectPrompt=function(i){curIdx=parseInt(i)||0;build()};
+  window._terrainSelectPrompt=function(i){
+    curIdx=parseInt(i)||0;
+    if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}
+    buildUI();build();
+  };
   window._terrainSetBase=function(k){
     curBase=k;
     document.querySelectorAll('[data-tbase]').forEach(b=>b.className='tcs'+(b.dataset.tbase===k?' on':''));
@@ -1814,6 +1825,49 @@ function initTerrainViewer(results){
     document.querySelectorAll('[data-tov]').forEach(b=>b.className='tcs'+(b.dataset.tov===k?' on':''));
     build();
   };
+  window._terrainSetLabelScale=function(v){
+    labelScale=parseInt(v)/10;
+    build();
+  };
+  window._terrainNext=function(){
+    const entries=D[curCat]||[];
+    if(!entries.length)return;
+    curIdx=(curIdx+1)%entries.length;
+    buildUI();build();
+  };
+  window._terrainPrev=function(){
+    const entries=D[curCat]||[];
+    if(!entries.length)return;
+    curIdx=(curIdx-1+entries.length)%entries.length;
+    buildUI();build();
+  };
+  window._terrainPlayPause=function(){
+    slideshowPlaying=!slideshowPlaying;
+    const btn=document.getElementById('tPlayBtn');
+    if(btn) btn.textContent=slideshowPlaying?'\u23F8':'\u25B6';
+    if(btn) btn.className='tb'+(slideshowPlaying?' on':'');
+    if(slideshowPlaying) _terrainAutoAdvance();
+    else if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}
+  };
+  window._terrainSetSpeed=function(v){slideshowSpeed=parseInt(v)||4};
+  function _terrainAutoAdvance(){
+    if(!slideshowPlaying)return;
+    const entries=D[curCat]||[];
+    if(!entries.length){slideshowPlaying=false;return}
+    curIdx=(curIdx+1)%entries.length;
+    // If we wrapped around to 0 and there are multiple categories, advance category
+    if(curIdx===0){
+      const cats=Object.keys(D);
+      const ci=cats.indexOf(curCat);
+      if(cats.length>1){
+        curCat=cats[(ci+1)%cats.length];
+        curIdx=0;
+      }
+    }
+    buildUI();build();
+    const delay=Math.max(500,4000-slideshowSpeed*350);
+    slideshowTimer=setTimeout(_terrainAutoAdvance,delay);
+  }
 
   // Camera
   let th=0.55,ph=0.68,rad=14;
@@ -1851,7 +1905,7 @@ function initTerrainViewer(results){
 
   // Cleanup if terrain container is removed (tab switch etc.)
   const observer=new MutationObserver(()=>{
-    if(!document.getElementById('tCv')){running=false;observer.disconnect();ren.dispose()}
+    if(!document.getElementById('tCv')){running=false;observer.disconnect();ren.dispose();if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null;slideshowPlaying=false}}
   });
   observer.observe(document.body,{childList:true,subtree:true});
 }
