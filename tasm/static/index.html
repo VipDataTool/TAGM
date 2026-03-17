@@ -1700,22 +1700,41 @@ function initTerrainViewer(results){
     }
 
     // Token labels at every vertex — size controlled by labelScale
+    // Spine labels (actual prompt tokens) are 1.5x larger and colored differently
     const LW=Math.round(96*labelScale),LH=Math.round(24*labelScale);
     const LSX=SCX*0.90*labelScale,LSY=LSX*(LH/LW);
+    const SPINE_BOOST=1.5;
+    const SLW=Math.round(LW*SPINE_BOOST),SLH=Math.round(LH*SPINE_BOOST);
+    const SLSX=LSX*SPINE_BOOST,SLSY=SLSX*(SLH/SLW);
     const labelFontPx=Math.round(12*labelScale);
+    const spineFontPx=Math.round(12*labelScale*SPINE_BOOST);
     const texCache={};
-    const getTexture=(str,klT)=>{
-      const bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale;
+    const getTexture=(str,klT,isSpine)=>{
+      const bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale+'|'+(isSpine?'S':'C');
       if(texCache[key])return texCache[key];
-      const S=2,lc=document.createElement('canvas');lc.width=LW*S;lc.height=LH*S;
+      const w=isSpine?SLW:LW, h=isSpine?SLH:LH, fpx=isSpine?spineFontPx:labelFontPx;
+      const S=2,lc=document.createElement('canvas');lc.width=w*S;lc.height=h*S;
       const lx=lc.getContext('2d');lx.scale(S,S);
-      const[ar,ag,ab]=BASES[curBase].fn(Math.max(.15,klT*.75+.18));
-      lx.font='700 '+labelFontPx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
-      lx.lineWidth=Math.max(2,labelScale*1.5);lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,LW/2,LH/2);
-      lx.fillStyle='rgba(240,237,228,1.0)';lx.fillText(str,LW/2,LH/2);
-      const ulLen=Math.max(4,Math.round((LW-10)*klT));
-      lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
-      lx.fillRect((LW-ulLen)/2,LH/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)));
+      lx.font='700 '+fpx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
+      if(isSpine){
+        // Spine: bright cyan fill, heavier outline
+        lx.lineWidth=Math.max(3,labelScale*2.2);lx.strokeStyle='rgba(0,0,0,0.98)';lx.strokeText(str,w/2,h/2);
+        lx.fillStyle='rgba(86,180,233,1.0)';lx.fillText(str,w/2,h/2);
+      }else{
+        // Counterfactual: warm white, thinner outline
+        lx.lineWidth=Math.max(2,labelScale*1.5);lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,w/2,h/2);
+        lx.fillStyle='rgba(240,237,228,1.0)';lx.fillText(str,w/2,h/2);
+      }
+      const ulLen=Math.max(4,Math.round((w-10)*klT));
+      if(!isSpine){
+        const[ar,ag,ab]=BASES[curBase].fn(Math.max(.15,klT*.75+.18));
+        lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
+        lx.fillRect((w-ulLen)/2,h/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)));
+      }else{
+        // Spine KL underline in cyan
+        lx.globalAlpha=.6;lx.fillStyle='rgba(86,180,233,0.8)';
+        lx.fillRect((w-ulLen)/2,h/2+Math.round(10*labelScale*SPINE_BOOST),ulLen,Math.max(2,Math.round(2*labelScale)));
+      }
       texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
     };
     for(let t=0;t<nT;t++){
@@ -1723,15 +1742,17 @@ function initTerrainViewer(results){
       const klT=(kl-klMin)/(klMax-klMin||1);
       for(let c=0;c<COLS;c++){
         const{x,y,z}=vtx[t][c];
+        const isSpine=(c===8);
         let str;
         if(c<8)str=(ctoks[c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        else if(c===8)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        else if(isSpine)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         if(!str)str='\u00B7';
-        const tex=getTexture(str,klT);
-        const fade=Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
+        const tex=getTexture(str,klT,isSpine);
+        const fade=isSpine?1.0:Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
+        const sx=isSpine?SLSX:LSX, sy=isSpine?SLSY:LSY;
         const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fade}));
-        sp.position.set(x,y+OFF+.06,z);sp.scale.set(LSX,LSY,1);
+        sp.position.set(x,y+OFF+(isSpine?.10:.06),z);sp.scale.set(sx,sy,1);
         sc.add(sp);lbs.push(sp);
       }
     }
@@ -1767,10 +1788,12 @@ function initTerrainViewer(results){
     const ui=document.getElementById('tUI');
     if(!ui) return;
     let h='';
-    // Category buttons
+    // Category select
+    h+='<select onchange="window._terrainSelectCat(this.value)" style="min-width:80px">';
     for(const c of Object.keys(D)){
-      h+=`<button class="tb${c===curCat?' on':''}" data-tcat="${c}" onclick="window._terrainSelectCat('${c}')">${c}</button>`;
+      h+=`<option value="${c}"${c===curCat?' selected':''}>${c}</option>`;
     }
+    h+='</select>';
     h+='<span class="tsep">|</span>';
     // Prompt select
     h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
@@ -1869,8 +1892,8 @@ function initTerrainViewer(results){
     slideshowTimer=setTimeout(_terrainAutoAdvance,delay);
   }
 
-  // Camera
-  let th=0.55,ph=0.68,rad=14;
+  // Camera — default: birds-eye top-down
+  let th=0.0,ph=0.08,rad=14;
   const target=new THREE.Vector3(0,FY+1.0,0);
   function updateCam(){
     cam.position.set(target.x+rad*Math.sin(ph)*Math.cos(th),target.y+rad*Math.cos(ph),target.z+rad*Math.sin(ph)*Math.sin(th));
