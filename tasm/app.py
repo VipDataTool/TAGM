@@ -657,12 +657,18 @@ def _run_dashboard_sync():
             "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
             "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
             "instruct_topk", "base_topk",
+            # Terrain viewer needs these per-token arrays
+            "tokens", "per_token_kl", "signed_attr", "per_token_stress",
         ]}
         ltp = r.get("ltp")
         if ltp:
             slim["ltp"] = {k: ltp.get(k) for k in [
                 "mean_M", "mean_C", "mean_V", "mean_L",
+                "max_prc", "n_directional",
                 "layer_strategy", "k", "svd_rank", "tuned_lens",
+                # Terrain viewer needs these per-token arrays
+                "profiles", "counterfactual_tokens", "tension_magnitudes",
+                "profile_shapes",
             ]}
         slim_results.append(slim)
 
