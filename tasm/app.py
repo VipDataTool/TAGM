@@ -809,7 +809,10 @@ def _run_export_sync(opts=None):
 
     try:
         log_progress("exporting", "Packaging ZIP...")
-        zip_bytes = session.export_zip()
+        zip_bytes = session.export_zip(
+            exclude_plots=not do_charts,
+            exclude_pdf=not do_pdf,
+            exclude_json=not do_json)
         size_mb = len(zip_bytes) / 1024 / 1024
         logger.info(f"Session exported: {session.n_results} prompts, {size_mb:.1f}MB")
 
@@ -825,15 +828,12 @@ def _run_export_sync(opts=None):
             except Exception as e:
                 logger.error(f"Export copy to {export_path} failed: {e}")
                 log_progress("warning", f"Could not copy to {export_path}: {str(e)[:80]}")
-                log_progress("done", f"Export ready: {session.n_results} prompts (ZIP in session dir). Click Download.")
+                log_progress("done", f"Export ready (path failed): {session.n_results} prompts. Click Download.")
         else:
             log_progress("done", f"Export ready: {session.n_results} prompts. Click Download.")
     except Exception as e:
         logger.error(f"Export ZIP failed: {traceback.format_exc()}")
         log_progress("error", f"Export ZIP failed: {str(e)[:80]}")
-    except Exception as e:
-        logger.error(f"Export failed: {traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/log")

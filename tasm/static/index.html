@@ -789,18 +789,21 @@ async function exportSession(){
     async function pollExport(){
       try{
         const p=await(await fetch('/api/progress')).json();
-        let exportDone=false, exportFailed=false;
+        let exportDone=false, exportFailed=false, doneMessage='';
         for(let i=lastLen;i<p.log.length;i++){
           const e=p.log[i];
           if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
             log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
           }
-          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true}
+          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true;doneMessage=e.message}
           if(e.stage==='error'&&e.message.includes('Export')){exportFailed=true}
         }
         lastLen=p.log.length;
         if(exportDone){
-          if(opts.exportPath){
+          // Check if a custom path was requested AND the backend confirmed it succeeded
+          // (path failure messages contain "path failed" and fall back to "Click Download")
+          const pathSucceeded=opts.exportPath && !doneMessage.includes('path failed');
+          if(pathSucceeded){
             log('Export saved to: '+opts.exportPath,'done');
           } else {
             log('Downloading ZIP...');

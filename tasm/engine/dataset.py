@@ -125,14 +125,25 @@ class DatasetSession:
             groups[cat].append(r)
         return groups
 
-    def export_zip(self) -> bytes:
-        """Package the entire session as a ZIP, streaming directly to disk."""
+    def export_zip(self, exclude_plots=False, exclude_pdf=False, exclude_json=False) -> bytes:
+        """Package the session as a ZIP, optionally excluding heavy artifacts."""
         zip_path = self.session_dir / "tasm_session.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, dirs, files in os.walk(self.session_dir):
+                # Prune plots directory tree entirely if charts excluded
+                if exclude_plots and "plots" in dirs:
+                    dirs.remove("plots")
+
                 for file in files:
                     if file == "tasm_session.zip":
-                        continue  # Don't zip ourselves
+                        continue
+                    # Skip PDF report
+                    if exclude_pdf and file == "report.pdf":
+                        continue
+                    # Skip results JSON (but keep aggregate_statistics.json, session.json)
+                    if exclude_json and file == "results.json":
+                        continue
+
                     filepath = Path(root) / file
                     arcname = filepath.relative_to(self.session_dir)
                     zf.write(filepath, arcname)
