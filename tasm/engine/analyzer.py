@@ -60,6 +60,9 @@ class PromptResult:
     instruct_topk: list = field(default_factory=list)  # [(token, prob), ...]
     base_topk: list = field(default_factory=list)
 
+    # Base model per-token counterfactuals (for terrain map base bank)
+    base_counterfactual_tokens: list = field(default_factory=list)  # [[("tok", prob), ...] per position]
+
     # Proof 1 exactness checks
     proof1_checks: list = field(default_factory=list)  # [{layer, head, sum, norm, error}]
 
@@ -486,6 +489,28 @@ class Analyzer:
                         for idx, p in zip(tk.indices, tk.values)
                     ]
 
+                # Per-token base counterfactuals for terrain map base bank
+                # Extract top-k alternatives at every position from base logits
+                base_logits_full = out_base.logits[0]  # [seq_len, vocab]
+                token_ids = inputs["input_ids"][0]
+                ltp_k = result.ltp.k if result.ltp else 8
+                base_cf = []
+                for i in range(base_logits_full.shape[0]):
+                    chosen_id = token_ids[i].item()
+                    topk_result = torch.topk(base_logits_full[i], ltp_k + 5)
+                    topk_ids = topk_result.indices.tolist()
+                    topk_logits = topk_result.values
+                    probs = torch.softmax(topk_logits, dim=-1)
+                    alts = []
+                    for j, tid in enumerate(topk_ids):
+                        if tid != chosen_id and len(alts) < ltp_k:
+                            alts.append((
+                                state.tokenizer.decode(tid).strip(),
+                                round(probs[j].item(), 4)
+                            ))
+                    base_cf.append(alts)
+                result.base_counterfactual_tokens = base_cf
+
 
 def result_to_dict(r: PromptResult) -> dict:
     """Serialize a PromptResult for JSON transport."""
@@ -537,6 +562,7 @@ def result_to_dict(r: PromptResult) -> dict:
         "per_token_kl": _native(r.per_token_kl) if r.per_token_kl is not None else None,
         "instruct_topk": r.instruct_topk,
         "base_topk": r.base_topk,
+        "base_counterfactual_tokens": r.base_counterfactual_tokens,
         "proof1_checks": r.proof1_checks,
         "per_layer_signed_attr": {str(k): v for k, v in r.per_layer_signed_attr.items()},
         "amplitude_trajectory": [_native(v) for v in r.amplitude_trajectory],

@@ -1611,26 +1611,40 @@ function _terrainTransformData(results){
     if(!cats[cat]) cats[cat]=[];
     const toks=r.tokens||[];
     const cf=ltp.counterfactual_tokens||[];
+    const baseCf=r.base_counterfactual_tokens||[];
     const kls=r.per_token_kl||[];
     const nT=toks.length;
     const rows=[];
     for(let i=0;i<nT;i++){
       const prof=profiles[i]||new Array(8).fill(0.01);
       const cands=cf[i]||[];
+      const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
       const im=[];for(let j=0;j<8;j++)im.push(prof[j]!=null?prof[j]:0.01);
       const bm=im.slice().reverse();
+      // Instruct-side labels (indices 0..7)
       const ctoks=[];
       for(let j=0;j<8;j++){
         if(j<cands.length&&cands[j]){
           ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
         }else ctoks.push('');
       }
-      for(let j=7;j>=0;j--){
-        if(j<cands.length&&cands[j]){
-          const nm=Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]);
-          ctoks.push('\u00B7'+nm);
-        }else ctoks.push('\u00B7');
+      // Base-side labels (indices 8..15) — use real base counterfactuals if available
+      if(baseCands.length>0){
+        for(let j=7;j>=0;j--){
+          if(j<baseCands.length&&baseCands[j]){
+            const nm=Array.isArray(baseCands[j])?baseCands[j][0]||'':String(baseCands[j]);
+            ctoks.push('\u00B7'+nm);
+          }else ctoks.push('\u00B7');
+        }
+      }else{
+        // Fallback: mirror instruct tokens (backward compat for old data)
+        for(let j=7;j>=0;j--){
+          if(j<cands.length&&cands[j]){
+            const nm=Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]);
+            ctoks.push('\u00B7'+nm);
+          }else ctoks.push('\u00B7');
+        }
       }
       rows.push([bm,im,Math.round(kl*1e4)/1e4,0,ctoks]);
     }
