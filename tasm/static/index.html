@@ -1639,10 +1639,13 @@ function initTerrainViewer(results){
       vtx.push([]);
       const[bm,im,kl]=rows[t];
       const z=-t*scZ+6,klT=(kl-klMin)/(klMax-klMin||1);
+      // Spine elevation: mean of this token's profile magnitudes
+      // Each token gets its own height — high-tension tokens ridge, low-tension tokens valley
+      const spineMag=(bm.reduce((a,v)=>a+v,0)+im.reduce((a,v)=>a+v,0))/(bm.length+im.length);
       for(let c=0;c<COLS;c++){
         let x,mag;
         if(c<8){x=(c-8)*SCX;mag=bm[c]}
-        else if(c===8){x=0;mag=mn}
+        else if(c===8){x=0;mag=spineMag}
         else{x=(c-8)*SCX;mag=im[c-9]}
         const y=FY+(mag-mn)*HSCALE;
         vtx[t].push({x,y,z});
@@ -1674,6 +1677,26 @@ function initTerrainViewer(results){
     gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
     wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));
     sc.add(wir);
+
+    // Prompt path trace — bright line connecting spine vertices
+    const spinePts=[];
+    for(let t=0;t<nT;t++){
+      const sv=vtx[t][8];
+      spinePts.push(new THREE.Vector3(sv.x, sv.y+OFF+0.04, sv.z));
+    }
+    const spineGeo=new THREE.BufferGeometry().setFromPoints(spinePts);
+    const spineLine=new THREE.Line(spineGeo,new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:0.85}));
+    sc.add(spineLine);lbs.push(spineLine);
+
+    // Spine vertex dots
+    const dotGeo=new THREE.SphereGeometry(0.035,6,6);
+    const dotMat=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:0.7});
+    for(let t=0;t<nT;t++){
+      const sv=vtx[t][8];
+      const dot=new THREE.Mesh(dotGeo,dotMat);
+      dot.position.set(sv.x, sv.y+OFF+0.04, sv.z);
+      sc.add(dot);lbs.push(dot);
+    }
 
     // Token labels at every vertex
     const LW=96,LH=24,LSX=SCX*.90,LSY=LSX*(LH/LW);
@@ -1777,10 +1800,10 @@ function initTerrainViewer(results){
 
   window._terrainSelectCat=function(c){
     curCat=c;curIdx=0;
-    document.querySelectorAll('[data-tcat]').forEach(b=>b.className='tb'+(b.dataset.tcat===c?' on':''));
-    refreshPromptSelect();build();
+    buildUI();  // full rebuild — updates category buttons, prompt dropdown, all controls
+    build();
   };
-  window._terrainSelectPrompt=function(i){curIdx=i;build()};
+  window._terrainSelectPrompt=function(i){curIdx=parseInt(i)||0;build()};
   window._terrainSetBase=function(k){
     curBase=k;
     document.querySelectorAll('[data-tbase]').forEach(b=>b.className='tcs'+(b.dataset.tbase===k?' on':''));
