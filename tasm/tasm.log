@@ -6500,3 +6500,35 @@ RuntimeError: The size of tensor a (896) must match the size of tensor b (128) a
 2026-03-17 19:39:13,698 [INFO] [exporting] Packaging ZIP...
 2026-03-17 19:39:14,117 [INFO] Session exported: 9 prompts, 10.6MB
 2026-03-17 19:39:14,117 [INFO] [done] Export ready: 9 prompts. Click Download.
+2026-03-17 19:41:24,362 [INFO] TASM Analyzer starting up
+2026-03-17 19:41:45,348 [INFO] [starting] Starting model load...
+2026-03-17 19:41:45,889 [INFO] [memory] [MEM] After unload | process=0.5GB, system=4.4/15.6GB (28%)
+2026-03-17 19:41:45,889 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-17 19:41:45,946 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-17 19:41:45,953 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-17 19:41:46,393 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-17 19:41:46,399 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-17 19:41:46,424 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-17 19:41:46,431 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-17 19:41:46,453 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-17 19:41:46,460 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-17 19:41:46,489 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-17 19:41:46,514 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-17 19:41:47,100 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-17 19:41:47,105 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=5.4/15.6GB (35%)
+2026-03-17 19:41:47,105 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-17 19:41:47,126 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-17 19:41:47,130 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=5.4/15.6GB (35%)
+2026-03-17 19:41:47,132 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=5.4/15.6GB (35%)
+2026-03-17 19:41:47,525 [INFO] [memory] [MEM] After all deltas: 120 total | process=2.0GB, system=5.9/15.6GB (38%)
+2026-03-17 19:41:47,682 [INFO] [memory] [MEM] Final: 120 deltas | process=2.0GB, system=5.9/15.6GB (38%)
+2026-03-17 19:41:49,935 [INFO] [info] Spectral profile: 120 sublayers, mean rank=63.1, attn=62.7, mlp=63.8
+2026-03-17 19:41:49,936 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.0s (24L, 896d, 120 deltas)
+2026-03-17 19:41:49,936 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-17 19:41:52,695 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-17 19:41:56,904 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-17 19:42:04,105 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-17 19:42:11,569 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-17 19:42:11,570 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-17 19:47:21,260 [INFO] Full reset performed
+2026-03-17 19:47:21,260 [INFO] [reset] All resources released. Session cleared.
