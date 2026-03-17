@@ -72,9 +72,12 @@ textarea{resize:vertical;min-height:44px}
 .tab-panel{display:none;padding:16px}.tab-panel.active{display:block}
 .card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
 .card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.card-header::before{content:'▼';font-size:10px;color:var(--text-3);transition:transform .15s;flex-shrink:0}
+.card-header:has(+.card-body.collapsed)::before{content:'▶'}
 .card-header:hover{background:var(--bg-2)}
 .card-header h3{font-family:var(--mono);font-size:var(--font-card-title);font-weight:700;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-body{padding:16px}.card-body.collapsed{display:none}
+.card-header:has(+.card-body.collapsed){border-bottom:none}
 .record-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .record-header h3{white-space:normal;line-height:1.4}
 .record-meta{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
@@ -329,6 +332,30 @@ function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-
 function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
 function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
+
+// ─── Card Collapse Defaults ─────────────────────────────────────
+const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',dashboard:'expanded',experimental:'expanded',config:'expanded'};
+const CARD_COLLAPSE_LABELS={prompt:'Prompt',dashboard:'Analysis',experimental:'Experimental',config:'Configuration'};
+function cardDefault(tab){return CARD_COLLAPSE_DEFAULTS[tab]==='collapsed'?' collapsed':''}
+function applyCardDefaults(panelId,tab){
+  const panel=$(panelId);if(!panel)return;
+  const bodies=panel.querySelectorAll('.card-body');
+  bodies.forEach(b=>{
+    if(CARD_COLLAPSE_DEFAULTS[tab]==='collapsed')b.classList.add('collapsed');
+    else b.classList.remove('collapsed');
+  });
+}
+
+// Global delegated click handler for all card headers
+document.addEventListener('click',function(e){
+  // Don't toggle if clicking a button inside the header (e.g. popout)
+  if(e.target.closest('button'))return;
+  const header=e.target.closest('.card-header');
+  if(!header)return;
+  const body=header.nextElementSibling;
+  if(body&&body.classList.contains('card-body'))body.classList.toggle('collapsed');
+});
+
 // ─── Visualization Registry ──────────────────────────────────────
 const VIZ_REGISTRY = {
   // ── Per-Prompt: ASM + LTP Fusion ──
@@ -394,6 +421,16 @@ function vizRenderConfig(){
       <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
     </div>
   </div>`;
+  // Card collapse defaults per tab
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Card Default State</div>
+    <div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Whether cards on each tab start expanded or collapsed.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">`;
+  for(const[tab,label]of Object.entries(CARD_COLLAPSE_LABELS)){
+    const cur=CARD_COLLAPSE_DEFAULTS[tab];
+    h+=`<div><label style="font-size:10px;color:var(--text-2)">${label}</label><select id="cfgCardDefault_${tab}" onchange="CARD_COLLAPSE_DEFAULTS['${tab}']=this.value;saveConfig()"><option value="expanded"${cur==='expanded'?' selected':''}>Expanded</option><option value="collapsed"${cur==='collapsed'?' selected':''}>Collapsed</option></select></div>`;
+  }
+  h+=`</div></div>`;
   // Viz toggles by category
   for(const[cat,items]of Object.entries(groups)){
     const color=cat.includes('LTP')?'var(--cyan)':cat.includes('Fusion')?'var(--green)':cat.includes('Experimental')?'var(--orange)':'var(--text-2)';
@@ -453,7 +490,8 @@ async function saveConfig(){
         computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
         captureResponses: $('cfgCaptureResponses')?$('cfgCaptureResponses').checked:false,
         fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
-      }
+      },
+      cardCollapse:{...CARD_COLLAPSE_DEFAULTS}
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
   }catch(e){}
@@ -490,7 +528,15 @@ async function loadConfig(){
       if($('cfgCaptureResponses'))$('cfgCaptureResponses').checked=!!c.analysis.captureResponses;
       if($('cfgFullCapture'))$('cfgFullCapture').checked=!!c.analysis.fullCapture;
     }
+    // Card collapse defaults
+    if(c.cardCollapse){
+      for(const[tab,val]of Object.entries(c.cardCollapse)){
+        if(CARD_COLLAPSE_DEFAULTS.hasOwnProperty(tab))CARD_COLLAPSE_DEFAULTS[tab]=val;
+      }
+    }
     vizRenderConfig();
+    // Apply config tab card defaults to the 3 static config cards
+    applyCardDefaults('panel-config','config');
   }catch(e){}
 }
 
@@ -653,7 +699,7 @@ async function loadDashboard(force){
     let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
 
     if(Object.keys(cats).length){
-      h+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Category Summary</h3></div><div class="card-body"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Net Correction and Interior Share are the strongest discriminators. Stress is the only perfectly monotonic metric.</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th></tr>`;
+      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body${cardDefault('dashboard')}"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Net Correction and Interior Share are the strongest discriminators. Stress is the only perfectly monotonic metric.</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th></tr>`;
       for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(5):'--'}</td><td>${m.interior_cv?m.interior_cv.estimate.toFixed(4):'--'}</td></tr>`}
       h+=`</table></div></div>`;
     }
@@ -1169,7 +1215,7 @@ function renderLatest(r,plots){
         <button class="btn-popout" onclick="popoutRecord('${rid}')" title="Open in new window">↗ Pop out</button>
       </div>
     </div>
-    <div class="card-body">`;
+    <div class="card-body${cardDefault('prompt')}">`;
 
   // ═══ SUMMARY METRICS ═══
   h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
@@ -1351,7 +1397,7 @@ function renderLatest(r,plots){
     const ec=$('expContent');
     if(ec){
       ec.style.display='block';$('expEmpty').style.display='none';
-      ec.innerHTML+=`<div class="card"><div class="card-header" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3>Disabled Prompt Visualizations</h3></div><div class="card-body">${expH}</div></div>`;
+      ec.innerHTML+=`<div class="card"><div class="card-header"><h3>Disabled Prompt Visualizations</h3></div><div class="card-body${cardDefault('experimental')}">${expH}</div></div>`;
     }
   }
 
