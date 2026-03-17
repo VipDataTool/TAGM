@@ -1603,6 +1603,7 @@ let _terrainState = null;
 
 function _terrainTransformData(results){
   const cats={};
+  let _bcfCount=0,_mirrorCount=0;
   for(const r of results){
     const cat=r.category||'unknown';
     const ltp=r.ltp||{};
@@ -1621,7 +1622,19 @@ function _terrainTransformData(results){
       const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
       const im=[];for(let j=0;j<8;j++)im.push(prof[j]!=null?prof[j]:0.01);
-      const bm=im.slice().reverse();
+      // Base-side magnitudes: use base counterfactual probabilities if available
+      let bm;
+      if(baseCands.length>=8){
+        _bcfCount++;
+        bm=[];
+        for(let j=7;j>=0;j--){
+          const p=(j<baseCands.length&&Array.isArray(baseCands[j]))?baseCands[j][1]||0.01:0.01;
+          bm.push(p);
+        }
+      }else{
+        _mirrorCount++;
+        bm=im.slice().reverse(); // Fallback: mirror instruct (old data)
+      }
       // Instruct-side labels (indices 0..7)
       const ctoks=[];
       for(let j=0;j<8;j++){
@@ -1650,6 +1663,7 @@ function _terrainTransformData(results){
     }
     cats[cat].push([r.prompt||'',toks,rows]);
   }
+  console.log('[Terrain] base counterfactual data: real='+_bcfCount+' mirrored='+_mirrorCount+' (if mirrored>0, base model data not reaching terrain — check KL/capture enabled, check browser cache)');
   return cats;
 }
 
@@ -1917,7 +1931,7 @@ function initTerrainViewer(results){
     // Info
     const peakKl=Math.max(...klVals);
     const peakTok=toks[klVals.indexOf(peakKl)].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,14);
-    document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'"';
+    document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'" \u00B7 base: '+(rows.some(r=>{const b=r[0],i=r[1];return JSON.stringify(b)!==JSON.stringify(i.slice().reverse())})?'\u2705 real':'\u274C mirrored');
 
     // Legend gradient
     const legC=document.getElementById('tLegBase');

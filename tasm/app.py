@@ -277,7 +277,14 @@ def _generate_deferred_plots(sess):
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
     html_path = Path(__file__).parent / "static" / "index.html"
-    return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(
+        content=html_path.read_text(),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
 
 
 @app.get("/favicon.svg")
@@ -426,7 +433,7 @@ async def analyze_single(prompt: str = Form(...),
 
     try:
         logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
-        if compute_kl or capture_responses:
+        if compute_kl or capture_responses or compute_ltp:
             mm.load_base_for_kl(callback=log_progress)
 
         result_dict, plots = _analyze_and_record(
@@ -435,7 +442,7 @@ async def analyze_single(prompt: str = Form(...),
             compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 
-        if compute_kl or capture_responses:
+        if compute_kl or capture_responses or compute_ltp:
             mm.unload_base()
 
         return sanitize_for_json({
@@ -529,7 +536,7 @@ def _run_batch_sync(content, bl_content, filename,
             if bl_prompts:
                 baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
 
-        if compute_kl or capture_responses:
+        if compute_kl or capture_responses or compute_ltp:
             mm.load_base_for_kl(callback=log_progress)
 
         for i, p in enumerate(prompts):
@@ -564,7 +571,7 @@ def _run_batch_sync(content, bl_content, filename,
                 except Exception:
                     log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
-        if compute_kl or capture_responses:
+        if compute_kl or capture_responses or compute_ltp:
             mm.unload_base()
 
         log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
@@ -660,7 +667,7 @@ def _run_dashboard_sync():
             "entropy", "gini", "top2_share", "middle_share", "interior_cv",
             "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
             "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
-            "instruct_topk", "base_topk",
+            "instruct_topk", "base_topk", "base_counterfactual_tokens",
             # Terrain viewer needs these per-token arrays
             "tokens", "per_token_kl", "signed_attr", "per_token_stress",
         ]}

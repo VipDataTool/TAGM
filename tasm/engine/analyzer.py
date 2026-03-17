@@ -183,8 +183,10 @@ class Analyzer:
         self.mm.clear_activations()
         self.mm._remove_hooks()
 
-        # KL divergence + base model responses (separate pass)
-        if compute_kl or capture_responses:
+        # KL divergence + base model responses + base counterfactuals (separate pass)
+        # Also needed when LTP is enabled for terrain map base bank
+        needs_base_pass = compute_kl or capture_responses or compute_ltp
+        if needs_base_pass:
             self._compute_behavioral_comparison(
                 result, state, compute_kl=compute_kl,
                 capture_base=(capture_responses and state.model_base is not None),
