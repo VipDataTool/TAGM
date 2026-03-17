@@ -15,7 +15,7 @@
   --blue:#58a6ff;--green:#009E73;--orange:#E69F00;--red:#D55E00;--purple:#CC79A7;
   --cyan:#56B4E9;
   --cat-benign:#0072B2;--cat-mild:#E69F00;--cat-harmful:#D55E00;--cat-jailbreak:#CC79A7;
-  --font-desc:13px;--font-legend:11px;--font-table:11px;
+  --font-desc:13px;--font-legend:11px;--font-table:11px;--font-card-title:24px;
   --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -73,7 +73,7 @@ textarea{resize:vertical;min-height:44px}
 .card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
 .card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
 .card-header:hover{background:var(--bg-2)}
-.card-header h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-header h3{font-family:var(--mono);font-size:var(--font-card-title);font-weight:700;color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-body{padding:16px}.card-body.collapsed{display:none}
 .record-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .record-header h3{white-space:normal;line-height:1.4}
@@ -122,7 +122,7 @@ textarea{resize:vertical;min-height:44px}
 .ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
 @media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
-.terrain-wrap{position:relative;width:100%;height:0;padding-bottom:62%;min-height:400px;background:#0c0c12;border-radius:4px;overflow:hidden}
+.terrain-wrap{position:relative;width:100%;height:0;padding-bottom:50%;min-height:320px;background:#0c0c12;border-radius:4px;overflow:hidden}
 .terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}
 .terrain-wrap canvas:active{cursor:grabbing}
 .terrain-ui{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;background:rgba(8,8,18,.75);padding:3px 7px;border-radius:6px;max-width:calc(100% - 16px);z-index:5}
@@ -387,7 +387,8 @@ function vizRenderConfig(){
   // Font size config
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:10px;font-family:var(--mono);color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:400px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
+      <div><label style="font-size:10px;color:var(--text-2)">Card titles</label><select id="cfgFontCardTitle" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24" selected>24px</option><option value="28">28px</option><option value="32">32px</option><option value="36">36px</option></select></div>
       <div><label style="font-size:10px;color:var(--text-2)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
       <div><label style="font-size:10px;color:var(--text-2)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
       <div><label style="font-size:10px;color:var(--text-2)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
@@ -416,9 +417,11 @@ function vizRenderConfig(){
 }
 
 function applyFontConfig(){
+  const cardTitle=$('cfgFontCardTitle').value+'px';
   const desc=$('cfgFontDesc').value+'px';
   const legend=$('cfgFontLegend').value+'px';
   const table=$('cfgFontTable').value+'px';
+  document.documentElement.style.setProperty('--font-card-title',cardTitle);
   document.documentElement.style.setProperty('--font-desc',desc);
   document.documentElement.style.setProperty('--font-legend',legend);
   document.documentElement.style.setProperty('--font-table',table);
@@ -435,6 +438,7 @@ async function saveConfig(){
     const config={
       viz: vizState,
       fonts:{
+        cardTitle: $('cfgFontCardTitle')?$('cfgFontCardTitle').value:'24',
         desc: $('cfgFontDesc')?$('cfgFontDesc').value:'13',
         legend: $('cfgFontLegend')?$('cfgFontLegend').value:'11',
         table: $('cfgFontTable')?$('cfgFontTable').value:'11',
@@ -468,6 +472,7 @@ async function loadConfig(){
     }}}
     // Font sizes
     if(c.fonts){
+      if(c.fonts.cardTitle&&$('cfgFontCardTitle')){$('cfgFontCardTitle').value=c.fonts.cardTitle;document.documentElement.style.setProperty('--font-card-title',c.fonts.cardTitle+'px')}
       if(c.fonts.desc&&$('cfgFontDesc')){$('cfgFontDesc').value=c.fonts.desc;document.documentElement.style.setProperty('--font-desc',c.fonts.desc+'px')}
       if(c.fonts.legend&&$('cfgFontLegend')){$('cfgFontLegend').value=c.fonts.legend;document.documentElement.style.setProperty('--font-legend',c.fonts.legend+'px')}
       if(c.fonts.table&&$('cfgFontTable')){$('cfgFontTable').value=c.fonts.table;document.documentElement.style.setProperty('--font-table',c.fonts.table+'px')}
@@ -1567,14 +1572,10 @@ function initTerrainViewer(results){
     ltp:{label:'LTP',fn:t=>stops(t,[[0,[.01,.01,.14]],[.18,[.04,.14,.42]],[.34,[.06,.36,.64]],[.48,[.06,.58,.62]],[.60,[.22,.74,.38]],[.72,[.58,.84,.14]],[.82,[.88,.82,.08]],[.90,[.96,.56,.06]],[.96,[.92,.22,.08]],[1,[.70,.04,.12]]])},
     ember:{label:'Heat',fn:t=>stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]])}
   };
-  const OVS={
-    none:{label:'Off',fn:null},
-    cool:{label:'Cool',fn:t=>stops(t,[[0,[.04,.04,.18]],[.40,[.05,.40,.75]],[.75,[.04,.72,.88]],[1,[0,.90,.78]]])},
-    aurora:{label:'Spectral',fn:t=>stops(t,[[0,[.04,.24,.32]],[.25,[.06,.58,.50]],[.5,[.32,.78,.28]],[.75,[.62,.42,.72]],[1,[.48,.12,.82]]])}
-  };
 
   let curCat=Object.keys(D).includes('benign')?'benign':Object.keys(D)[0];
-  let curIdx=0, curBase='vivid', curOv='cool', labelScale=2.0;
+  let curIdx=0, curBase='vivid', labelScale=2.0;
+  let renderMode='surface', dataFilter='all';  // surface|points, all|highkl|hotspots
   let slideshowPlaying=false, slideshowSpeed=4, slideshowTimer=null;
   const BG=[.047,.047,.07];
   const FY=-2.2, SCX=0.55, COLS=17, HSCALE=180, X_MAX=8*SCX;
@@ -1613,8 +1614,9 @@ function initTerrainViewer(results){
   function mixColor(mag,mn,mx,klT,xAbs){
     const t=Math.max(0,Math.min(1,(mag-mn)/(mx-mn||1)));
     let[r,g,b]=BASES[curBase].fn(t);
-    const ovFn=OVS[curOv].fn;
-    if(ovFn){const s=.42*klT;const[or,og,ob]=ovFn(klT);r=Math.min(1,r+or*s);g=Math.min(1,g+og*s);b=Math.min(1,b+ob*s)}
+    // KL modulates brightness — high KL tokens glow brighter
+    const klBoost=1.0+klT*0.3;
+    r=Math.min(1,r*klBoost);g=Math.min(1,g*klBoost);b=Math.min(1,b*klBoost);
     const fade=Math.pow(xAbs/X_MAX,1.6);
     r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
     return new THREE.Color(r,g,b);
@@ -1655,29 +1657,76 @@ function initTerrainViewer(results){
         csArr.push(col.r,col.g,col.b);
       }
     }
-    for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
+    // ── Compute filter mask ──
+    // Per-token filter: which tokens pass the current dataFilter
+    const klMean=klVals.reduce((a,v)=>a+v,0)/klVals.length;
+    const allMagsSorted=[...allMags].sort((a,b)=>a-b);
+    const medianMag=allMagsSorted[Math.floor(allMagsSorted.length/2)];
+    const tokenVisible=[];
+    for(let t=0;t<nT;t++){
+      if(dataFilter==='highkl') tokenVisible.push(rows[t][2]>klMean);
+      else if(dataFilter==='hotspots'){
+        const[bm,im]=rows[t];
+        const tMean=(bm.reduce((a,v)=>a+v,0)+im.reduce((a,v)=>a+v,0))/(bm.length+im.length);
+        tokenVisible.push(tMean>medianMag);
+      }
+      else tokenVisible.push(true);
+    }
+    // Dim filtered-out vertices
+    const dimFactor=0.15;
+    for(let t=0;t<nT;t++){
+      if(!tokenVisible[t]){
+        for(let c=0;c<COLS;c++){
+          const i=(t*COLS+c)*3;
+          csArr[i]*=dimFactor;csArr[i+1]*=dimFactor;csArr[i+2]*=dimFactor;
+        }
+      }
+    }
+
+    // ── Render mode: surface or points ──
     const geo=new THREE.BufferGeometry();
     geo.setAttribute('position',new THREE.Float32BufferAttribute(vsArr,3));
     geo.setAttribute('color',new THREE.Float32BufferAttribute(csArr,3));
-    geo.setIndex(ixArr);geo.computeVertexNormals();
-    msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30}));
-    sc.add(msh);
+
+    if(renderMode==='points'){
+      // Point cloud — vertex size scaled by visibility
+      const sizes=new Float32Array(nT*COLS);
+      for(let t=0;t<nT;t++){
+        const vis=tokenVisible[t];
+        for(let c=0;c<COLS;c++){
+          const edgeFade=1-Math.pow(Math.abs(c-8)/8,0.8)*0.6;
+          sizes[t*COLS+c]=vis?(0.06*edgeFade):0.01;
+        }
+      }
+      geo.setAttribute('size',new THREE.Float32BufferAttribute(sizes,1));
+      msh=new THREE.Points(geo,new THREE.PointsMaterial({vertexColors:true,size:0.08,sizeAttenuation:true,transparent:true,opacity:0.9}));
+      sc.add(msh);
+    }else{
+      // Surface mesh
+      for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
+      geo.setIndex(ixArr);geo.computeVertexNormals();
+      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30}));
+      sc.add(msh);
+    }
 
     // Floor
     const fG=new THREE.PlaneGeometry(COLS*SCX+1.2,nT*scZ+2);fG.rotateX(-Math.PI/2);
     flr=new THREE.Mesh(fG,new THREE.MeshBasicMaterial({color:0x0c0c12,transparent:true,opacity:.25,side:THREE.DoubleSide}));
     flr.position.set(0,FY-.01,6-(nT*scZ)/2);sc.add(flr);
 
-    // Grid lines on surface
-    const OFF=0.032,gridP=[],gridC=[];
-    const pushSeg=(ax,ay,az,bx,by,bz,r,g,b)=>{gridP.push(ax,ay+OFF,az,bx,by+OFF,bz);gridC.push(r,g,b,r,g,b)};
-    for(let t=0;t<nT;t++){for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const near=(c===7||c===8)?.30:.14;pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,near*.55,near*.65,near)}}
-    for(let c=0;c<COLS;c++){const isSpine=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(isSpine){pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62)}else{const fade=1-Math.pow(Math.abs(c-8)/8,.7);pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,fade*.22,fade*.26,fade*.38)}}}
-    const gridGeo=new THREE.BufferGeometry();
-    gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridP,3));
-    gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
-    wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));
-    sc.add(wir);
+    // Grid lines on surface (skip in points mode)
+    const OFF=0.032;
+    if(renderMode==='surface'){
+      const gridP=[],gridC=[];
+      const pushSeg=(ax,ay,az,bx,by,bz,r,g,b)=>{gridP.push(ax,ay+OFF,az,bx,by+OFF,bz);gridC.push(r,g,b,r,g,b)};
+      for(let t=0;t<nT;t++){for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const near=(c===7||c===8)?.30:.14;pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,near*.55,near*.65,near)}}
+      for(let c=0;c<COLS;c++){const isSpine=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(isSpine){pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62)}else{const fade=1-Math.pow(Math.abs(c-8)/8,.7);pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,fade*.22,fade*.26,fade*.38)}}}
+      const gridGeo=new THREE.BufferGeometry();
+      gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridP,3));
+      gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
+      wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));
+      sc.add(wir);
+    }
 
     // Prompt path trace — bright line connecting spine vertices
     const spinePts=[];
@@ -1806,15 +1855,23 @@ function initTerrainViewer(results){
     h+='<button class="tb" onclick="window._terrainNext()" title="Next prompt">Next</button>';
     h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
     h+='<span class="tsep">|</span>';
-    // Base ramp buttons
+    // Color ramp select
+    h+='<select onchange="window._terrainSetBase(this.value)" title="Color ramp">';
     for(const[k,def]of Object.entries(BASES)){
-      h+=`<button class="tcs${k===curBase?' on':''}" data-tbase="${k}" onclick="window._terrainSetBase('${k}')">${def.label}</button>`;
+      h+=`<option value="${k}"${k===curBase?' selected':''}>${def.label}</option>`;
     }
-    h+='<span class="tsep">|</span>';
-    // Overlay buttons
-    for(const[k,def]of Object.entries(OVS)){
-      h+=`<button class="tcs${k===curOv?' on':''}" data-tov="${k}" onclick="window._terrainSetOv('${k}')">${def.label}</button>`;
-    }
+    h+='</select>';
+    // Render mode select
+    h+='<select onchange="window._terrainSetMode(this.value)" title="Render mode">';
+    h+=`<option value="surface"${renderMode==='surface'?' selected':''}>Surface</option>`;
+    h+=`<option value="points"${renderMode==='points'?' selected':''}>Points</option>`;
+    h+='</select>';
+    // Data filter select
+    h+='<select onchange="window._terrainSetFilter(this.value)" title="Data filter">';
+    h+=`<option value="all"${dataFilter==='all'?' selected':''}>All tokens</option>`;
+    h+=`<option value="highkl"${dataFilter==='highkl'?' selected':''}>High KL</option>`;
+    h+=`<option value="hotspots"${dataFilter==='hotspots'?' selected':''}>Hot spots</option>`;
+    h+='</select>';
     h+='<span class="tsep">|</span>';
     h+='<span style="font-size:8px;color:#556">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
     h+='<span class="tsep">|</span>';
@@ -1844,14 +1901,13 @@ function initTerrainViewer(results){
     buildUI();build();
   };
   window._terrainSetBase=function(k){
-    curBase=k;
-    document.querySelectorAll('[data-tbase]').forEach(b=>b.className='tcs'+(b.dataset.tbase===k?' on':''));
-    build();
+    curBase=k;build();
   };
-  window._terrainSetOv=function(k){
-    curOv=k;
-    document.querySelectorAll('[data-tov]').forEach(b=>b.className='tcs'+(b.dataset.tov===k?' on':''));
-    build();
+  window._terrainSetMode=function(m){
+    renderMode=m;build();
+  };
+  window._terrainSetFilter=function(f){
+    dataFilter=f;build();
   };
   window._terrainSetLabelScale=function(v){
     labelScale=parseInt(v)/10;
@@ -1889,7 +1945,7 @@ function initTerrainViewer(results){
     const w=window.open('','_blank','width=1200,height=800');
     if(!w)return;
     const entry=D[curCat][curIdx];
-    const dataJSON=JSON.stringify({cat:curCat,idx:curIdx,D:D,base:curBase,ov:curOv,ls:labelScale});
+    const dataJSON=JSON.stringify({cat:curCat,idx:curIdx,D:D,base:curBase,ls:labelScale});
     // Grab the Three.js script src
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain — '+curCat+'</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12}');
