@@ -125,18 +125,18 @@ textarea{resize:vertical;min-height:44px}
 .terrain-wrap{position:relative;width:100%;height:0;padding-bottom:62%;min-height:400px;background:#0c0c12;border-radius:4px;overflow:hidden}
 .terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}
 .terrain-wrap canvas:active{cursor:grabbing}
-.terrain-ui{position:absolute;bottom:10px;left:10px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:rgba(8,8,18,.72);padding:5px 10px;border-radius:7px;max-width:calc(100% - 20px);z-index:5}
-.terrain-ui .tb{font-size:10px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:5px;color:#888;cursor:pointer;transition:all .12s}
+.terrain-ui{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;background:rgba(8,8,18,.75);padding:3px 7px;border-radius:6px;max-width:calc(100% - 16px);z-index:5}
+.terrain-ui .tb{font-size:9px;padding:1px 6px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:4px;color:#888;cursor:pointer;transition:all .12s;font-family:var(--mono)}
 .terrain-ui .tb:hover{background:rgba(255,255,255,.05)}
 .terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB;background:rgba(74,158,224,.1)}
-.terrain-ui .tsep{color:rgba(255,255,255,.1);margin:0 2px;font-size:10px}
-.terrain-ui select{background:rgba(255,255,255,.03);border:.5px solid rgba(255,255,255,.12);border-radius:4px;color:#888;font-size:10px;padding:1px 4px;cursor:pointer;max-width:220px;font-family:var(--mono)}
-.terrain-ui .tcs{font-size:9px;padding:2px 6px 2px 3px;background:rgba(255,255,255,.02);border:.5px solid rgba(255,255,255,.10);border-radius:4px;color:#777;cursor:pointer;display:inline-flex;align-items:center;gap:2px;transition:all .12s}
+.terrain-ui .tsep{color:rgba(255,255,255,.08);margin:0 1px;font-size:9px}
+.terrain-ui select{background:rgba(255,255,255,.03);border:.5px solid rgba(255,255,255,.12);border-radius:3px;color:#888;font-size:9px;padding:1px 3px;cursor:pointer;max-width:200px;font-family:var(--mono)}
+.terrain-ui .tcs{font-size:8px;padding:1px 5px 1px 2px;background:rgba(255,255,255,.02);border:.5px solid rgba(255,255,255,.10);border-radius:3px;color:#777;cursor:pointer;display:inline-flex;align-items:center;gap:2px;transition:all .12s}
 .terrain-ui .tcs:hover{background:rgba(255,255,255,.06)}
 .terrain-ui .tcs.on{border-color:#4A9EE0;color:#85B7EB;background:rgba(74,158,224,.09)}
-.terrain-ui .tsw{display:inline-block;width:22px;height:6px;border-radius:2px;flex-shrink:0}
-.terrain-inf{position:absolute;top:8px;left:10px;font-size:10px;color:#778;background:rgba(8,8,18,.55);padding:3px 8px;border-radius:5px;z-index:5}
-.terrain-leg{position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:3px;background:rgba(8,8,18,.55);padding:4px 8px;border-radius:5px;z-index:5}
+.terrain-ui .tsw{display:inline-block;width:18px;height:5px;border-radius:2px;flex-shrink:0}
+.terrain-inf{position:absolute;top:6px;left:8px;font-size:9px;color:#778;background:rgba(8,8,18,.55);padding:2px 6px;border-radius:4px;z-index:5;font-family:var(--mono)}
+.terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}
 .terrain-leg canvas{height:5px;width:100px;border-radius:2px}
 .terrain-leg span{font-size:8px;color:#556}
 </style>
@@ -1800,10 +1800,11 @@ function initTerrainViewer(results){
     const entries=D[curCat]||[];
     entries.forEach((e,i)=>{h+=`<option value="${i}"${i===curIdx?' selected':''}>${e[0].slice(0,50)}</option>`});
     h+='</select>';
-    h+='<button class="tb" id="tPrev" onclick="window._terrainPrev()" title="Previous" style="min-width:22px;padding:2px 4px">\u25C0</button>';
-    h+='<button class="tb" id="tPlayBtn" onclick="window._terrainPlayPause()" title="Play/Pause" style="min-width:28px;padding:2px 5px">\u25B6</button>';
-    h+='<button class="tb" id="tNext" onclick="window._terrainNext()" title="Next" style="min-width:22px;padding:2px 4px">\u25B6</button>';
-    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:40px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Speed">';
+    h+='<button class="tb" onclick="window._terrainPrev()" title="Previous prompt">Prev</button>';
+    const playLabel=slideshowPlaying?'Stop':'Play';
+    h+='<button class="tb'+(slideshowPlaying?' on':'')+'" id="tPlayBtn" onclick="window._terrainPlayPause()" title="Play/Pause slideshow">'+playLabel+'</button>';
+    h+='<button class="tb" onclick="window._terrainNext()" title="Next prompt">Next</button>';
+    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
     h+='<span class="tsep">|</span>';
     // Base ramp buttons
     for(const[k,def]of Object.entries(BASES)){
@@ -1814,7 +1815,11 @@ function initTerrainViewer(results){
     for(const[k,def]of Object.entries(OVS)){
       h+=`<button class="tcs${k===curOv?' on':''}" data-tov="${k}" onclick="window._terrainSetOv('${k}')">${def.label}</button>`;
     }
-    h+='<span class="tsep">|</span><span style="font-size:9px;color:#556">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:50px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size"><span style="font-size:9px;color:#556">L-drag orbit \u00B7 R-drag pan \u00B7 scroll zoom</span>';
+    h+='<span class="tsep">|</span>';
+    h+='<span style="font-size:8px;color:#556">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
+    h+='<span class="tsep">|</span>';
+    h+='<button class="tb" onclick="window._terrainResetView()" title="Reset to default view">Reset</button>';
+    h+='<button class="tb" onclick="window._terrainPopout()" title="Open in new window">Pop out</button>';
     ui.innerHTML=h;
   }
 
@@ -1866,13 +1871,93 @@ function initTerrainViewer(results){
   };
   window._terrainPlayPause=function(){
     slideshowPlaying=!slideshowPlaying;
-    const btn=document.getElementById('tPlayBtn');
-    if(btn) btn.textContent=slideshowPlaying?'\u23F8':'\u25B6';
-    if(btn) btn.className='tb'+(slideshowPlaying?' on':'');
+    buildUI();  // rebuild to update Play/Stop label
     if(slideshowPlaying) _terrainAutoAdvance();
     else if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}
   };
   window._terrainSetSpeed=function(v){slideshowSpeed=parseInt(v)||4};
+  window._terrainResetView=function(){
+    th=0.0;ph=0.08;rad=14;
+    const entries=D[curCat]||[];
+    const nT=entries[curIdx]?entries[curIdx][1].length:10;
+    const scZ=12/Math.max(nT-1,1);
+    target.set(0,FY+1.0,6-(nT-1)*scZ/2);
+    updateCam();
+  };
+  window._terrainPopout=function(){
+    // Build a standalone HTML page with the terrain data and renderer
+    const w=window.open('','_blank','width=1200,height=800');
+    if(!w)return;
+    const entry=D[curCat][curIdx];
+    const dataJSON=JSON.stringify({cat:curCat,idx:curIdx,D:D,base:curBase,ov:curOv,ls:labelScale});
+    // Grab the Three.js script src
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain — '+curCat+'</title>');
+    w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12}');
+    w.document.write('body{font-family:system-ui,sans-serif;color:#c2c0b6}');
+    w.document.write('canvas{display:block;position:fixed;inset:0;width:100%!important;height:100%!important;cursor:grab}canvas:active{cursor:grabbing}');
+    w.document.write('#inf{position:fixed;top:10px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
+    w.document.write('#hint{position:fixed;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}</style>');
+    w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script></head><body>');
+    w.document.write('<canvas id="cv"></canvas><div id="inf">'+
+      (entry?entry[0].slice(0,80):'')+'</div><div id="hint">drag: orbit | right-drag: pan | scroll: zoom</div>');
+    // Inline a minimal renderer that reads the data
+    w.document.write('<script>const _D='+dataJSON+';<\/script>');
+    // Write the self-contained renderer
+    const rendererSrc=`
+const D=_D.D,curCat=_D.cat,curIdx=_D.idx;
+const entry=D[curCat][curIdx];if(!entry)document.body.innerHTML='<p style="color:#888;padding:20px">No data</p>';
+const[prompt,toks,rows]=entry;const nT=toks.length;
+function S(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
+const BFn=t=>S(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]]);
+const BG=[.047,.047,.07],FY=-2.2,SCX=.55,COLS=17,HS=180,XM=8*SCX;
+const cv=document.getElementById('cv'),sc=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(44,innerWidth/innerHeight,.1,200);
+const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setClearColor(0x0c0c12,1);
+function onR(){ren.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+onR();addEventListener('resize',onR);
+sc.add(new THREE.AmbientLight(0x667788,.6));
+const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
+sc.add(new THREE.DirectionalLight(0x445566,.25)).position.set(-4,5,-3);
+let aM=[];for(const r of rows){r[0].forEach(v=>aM.push(v));r[1].forEach(v=>aM.push(v))}
+const mn=Math.min(...aM),mx=Math.max(...aM),scZ=12/Math.max(nT-1,1);
+const klV=rows.map(r=>r[2]),klMn=Math.min(...klV),klMx=Math.max(...klV);
+const vs=[],cs=[],ix=[],vtx=[];
+for(let t=0;t<nT;t++){vtx.push([]);const[bm,im,kl]=rows[t];const z=-t*scZ+6,klT=(kl-klMn)/(klMx-klMn||1);
+const sM=(bm.reduce((a,v)=>a+v,0)+im.reduce((a,v)=>a+v,0))/(bm.length+im.length);
+for(let c=0;c<COLS;c++){let x,mg;if(c<8){x=(c-8)*SCX;mg=bm[c]}else if(c===8){x=0;mg=sM}else{x=(c-8)*SCX;mg=im[c-9]}
+const y=FY+(mg-mn)*HS;vtx[t].push({x,y,z});vs.push(x,y,z);
+const tt=Math.max(0,Math.min(1,(mg-mn)/(mx-mn||1)));let[r,g,b]=BFn(tt);
+const fade=Math.pow(Math.abs(x)/XM,1.6);r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
+cs.push(r,g,b)}}
+for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ix.push(a,b,cc,b,dd,cc)}
+const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vs,3));
+geo.setAttribute('color',new THREE.Float32BufferAttribute(cs,3));geo.setIndex(ix);geo.computeVertexNormals();
+sc.add(new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30})));
+const gP=[],gC=[];const pS=(ax,ay,az,bx,by,bz,r,g,b)=>{gP.push(ax,ay+.032,az,bx,by+.032,bz);gC.push(r,g,b,r,g,b)};
+for(let t=0;t<nT;t++)for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const n=(c===7||c===8)?.3:.14;pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,n*.55,n*.65,n)}
+for(let c=0;c<COLS;c++){const sp=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(sp)pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62);else{const f=1-Math.pow(Math.abs(c-8)/8,.7);pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,f*.22,f*.26,f*.38)}}}
+const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gP,3));gg.setAttribute('color',new THREE.Float32BufferAttribute(gC,3));
+sc.add(new THREE.LineSegments(gg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82})));
+const spts=[];for(let t=0;t<nT;t++){const sv=vtx[t][8];spts.push(new THREE.Vector3(sv.x,sv.y+.07,sv.z))}
+sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(spts),new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:.85})));
+const dg=new THREE.SphereGeometry(.035,6,6),dm=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:.7});
+for(let t=0;t<nT;t++){const sv=vtx[t][8];const d=new THREE.Mesh(dg,dm);d.position.set(sv.x,sv.y+.07,sv.z);sc.add(d)}
+let th=0,ph=.08,rad=14;const tgt=new THREE.Vector3(0,FY+1,6-(nT-1)*scZ/2);
+function uc(){cam.position.set(tgt.x+rad*Math.sin(ph)*Math.cos(th),tgt.y+rad*Math.cos(ph),tgt.z+rad*Math.sin(ph)*Math.sin(th));cam.lookAt(tgt)}
+const pt={};cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pt[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY}});
+cv.addEventListener('pointerup',e=>{cv.releasePointerCapture(e.pointerId);delete pt[e.pointerId]});
+cv.addEventListener('pointermove',e=>{const p=pt[e.pointerId];if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+if(p.btn===0){th+=dx*.008;ph=Math.max(.08,Math.min(1.55,ph-dy*.008))}else{const s=rad*.0012;
+const r=new THREE.Vector3();r.crossVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th))).normalize();
+const fw=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
+const u=new THREE.Vector3().crossVectors(r,fw).normalize();tgt.addScaledVector(r,-dx*s);tgt.addScaledVector(u,dy*s)}uc()});
+cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.max(4,Math.min(30,rad+e.deltaY*.012));uc()},{passive:false});
+uc();(function a(){requestAnimationFrame(a);ren.render(sc,cam)})();`;
+    w.document.write('<script>'+rendererSrc+'<\/script></body></html>');
+    w.document.close();
+  };
   function _terrainAutoAdvance(){
     if(!slideshowPlaying)return;
     const entries=D[curCat]||[];
