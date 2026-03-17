@@ -6,6 +6,7 @@
 <title>TASM -- The Alignment Stress Map Analyzer</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 :root {
   --bg-0:#121212;--bg-1:#1E1E1E;--bg-2:#252525;--bg-3:#2d2d2d;
@@ -121,6 +122,23 @@ textarea{resize:vertical;min-height:44px}
 .ltp-badge{font-family:var(--mono);font-size:8px;background:rgba(125,184,201,0.15);color:var(--cyan);padding:1px 5px;border-radius:6px;border:1px solid var(--cyan);margin-left:3px}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-accent);border-radius:3px}
 @media(max-width:900px){.main{grid-template-columns:1fr}.sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}.content{max-height:none}}
+.terrain-wrap{position:relative;width:100%;height:0;padding-bottom:62%;min-height:400px;background:#0c0c12;border-radius:4px;overflow:hidden}
+.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}
+.terrain-wrap canvas:active{cursor:grabbing}
+.terrain-ui{position:absolute;bottom:10px;left:10px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:rgba(8,8,18,.72);padding:5px 10px;border-radius:7px;max-width:calc(100% - 20px);z-index:5}
+.terrain-ui .tb{font-size:10px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:5px;color:#888;cursor:pointer;transition:all .12s}
+.terrain-ui .tb:hover{background:rgba(255,255,255,.05)}
+.terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB;background:rgba(74,158,224,.1)}
+.terrain-ui .tsep{color:rgba(255,255,255,.1);margin:0 2px;font-size:10px}
+.terrain-ui select{background:rgba(255,255,255,.03);border:.5px solid rgba(255,255,255,.12);border-radius:4px;color:#888;font-size:10px;padding:1px 4px;cursor:pointer;max-width:220px;font-family:var(--mono)}
+.terrain-ui .tcs{font-size:9px;padding:2px 6px 2px 3px;background:rgba(255,255,255,.02);border:.5px solid rgba(255,255,255,.10);border-radius:4px;color:#777;cursor:pointer;display:inline-flex;align-items:center;gap:2px;transition:all .12s}
+.terrain-ui .tcs:hover{background:rgba(255,255,255,.06)}
+.terrain-ui .tcs.on{border-color:#4A9EE0;color:#85B7EB;background:rgba(74,158,224,.09)}
+.terrain-ui .tsw{display:inline-block;width:22px;height:6px;border-radius:2px;flex-shrink:0}
+.terrain-inf{position:absolute;top:8px;left:10px;font-size:10px;color:#778;background:rgba(8,8,18,.55);padding:3px 8px;border-radius:5px;z-index:5}
+.terrain-leg{position:absolute;bottom:10px;right:10px;display:flex;flex-direction:column;gap:3px;background:rgba(8,8,18,.55);padding:4px 8px;border-radius:5px;z-index:5}
+.terrain-leg canvas{height:5px;width:100px;border-radius:2px}
+.terrain-leg span{font-size:8px;color:#556}
 </style>
 </head>
 <body>
@@ -337,6 +355,7 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Analysis tab ──
   separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
+  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — lateral tension × counterfactual rank × token sequence. Surface color = tension magnitude with KL overlay. Grid lines trace the mesh. Every vertex labeled with its counterfactual token.'},
   batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
   key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
   discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
@@ -638,7 +657,24 @@ async function loadDashboard(force){
     const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
     for(const[key,v]of batchItems) h+=plotCard(key,v.title,v.desc,plots);
 
+    // Terrain viewer (batch JS viz — needs LTP data)
+    const hasLtpData=sessionResults.some(r=>r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0);
+    if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
+      h+=`<div class="feature" style="border-color:var(--cyan)">
+        <div class="feature-header" onclick="toggleFeature(this)">
+          <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
+          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude. Color = tension heatmap with KL divergence overlay. Grid lines follow the mesh surface. Every vertex shows its counterfactual token. Left-drag orbit, right-drag pan, scroll zoom.</p>
+        </div>
+        <div class="feature-body" id="terrainFeatureBody" style="padding:0"><div id="terrainContainer"></div></div>
+      </div>`;
+    }
+
     dc.innerHTML=h;
+
+    // Initialize terrain after DOM is set
+    if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
+      try{initTerrainViewer(sessionResults)}catch(e){console.error('Terrain init error:',e)}
+    }
 
     // ═══ EXPERIMENTAL TAB ═══
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
@@ -1475,6 +1511,327 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'){e.preventDefault();_tunnelGo(_tunnelState.idx+1)}
   if(e.key===' '){e.preventDefault();_tunnelPlayPause()}
 });
+
+// ─── Alignment Terrain Viewer ──────────────────────────────────
+let _terrainState = null;
+
+function _terrainTransformData(results){
+  const cats={};
+  for(const r of results){
+    const cat=r.category||'unknown';
+    const ltp=r.ltp||{};
+    const profiles=ltp.profiles||[];
+    if(!profiles.length) continue;  // Skip results without LTP data
+    if(!cats[cat]) cats[cat]=[];
+    const toks=r.tokens||[];
+    const cf=ltp.counterfactual_tokens||[];
+    const kls=r.per_token_kl||[];
+    const nT=toks.length;
+    const rows=[];
+    for(let i=0;i<nT;i++){
+      const prof=profiles[i]||new Array(8).fill(0.01);
+      const cands=cf[i]||[];
+      const kl=(kls[i]!=null)?kls[i]:0;
+      const im=[];for(let j=0;j<8;j++)im.push(prof[j]!=null?prof[j]:0.01);
+      const bm=im.slice().reverse();
+      const ctoks=[];
+      for(let j=0;j<8;j++){
+        if(j<cands.length&&cands[j]){
+          ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
+        }else ctoks.push('');
+      }
+      for(let j=7;j>=0;j--){
+        if(j<cands.length&&cands[j]){
+          const nm=Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]);
+          ctoks.push('\u00B7'+nm);
+        }else ctoks.push('\u00B7');
+      }
+      rows.push([bm,im,Math.round(kl*1e4)/1e4,0,ctoks]);
+    }
+    cats[cat].push([r.prompt||'',toks,rows]);
+  }
+  return cats;
+}
+
+function initTerrainViewer(results){
+  const container=document.getElementById('terrainContainer');
+  if(!container) return;
+
+  const D=_terrainTransformData(results);
+  if(!Object.keys(D).length) return;
+
+  // Color ramps
+  function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
+  const BASES={
+    vivid:{label:'Vivid',fn:t=>stops(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]])},
+    ltp:{label:'LTP',fn:t=>stops(t,[[0,[.01,.01,.14]],[.18,[.04,.14,.42]],[.34,[.06,.36,.64]],[.48,[.06,.58,.62]],[.60,[.22,.74,.38]],[.72,[.58,.84,.14]],[.82,[.88,.82,.08]],[.90,[.96,.56,.06]],[.96,[.92,.22,.08]],[1,[.70,.04,.12]]])},
+    ember:{label:'Heat',fn:t=>stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]])}
+  };
+  const OVS={
+    none:{label:'Off',fn:null},
+    cool:{label:'Cool',fn:t=>stops(t,[[0,[.04,.04,.18]],[.40,[.05,.40,.75]],[.75,[.04,.72,.88]],[1,[0,.90,.78]]])},
+    aurora:{label:'Spectral',fn:t=>stops(t,[[0,[.04,.24,.32]],[.25,[.06,.58,.50]],[.5,[.32,.78,.28]],[.75,[.62,.42,.72]],[1,[.48,.12,.82]]])}
+  };
+
+  let curCat=Object.keys(D).includes('benign')?'benign':Object.keys(D)[0];
+  let curIdx=0, curBase='vivid', curOv='cool';
+  const BG=[.047,.047,.07];
+  const FY=-2.2, SCX=0.55, COLS=17, HSCALE=180, X_MAX=8*SCX;
+
+  // Build DOM
+  container.innerHTML=`<div class="terrain-wrap">
+    <canvas id="tCv"></canvas>
+    <div class="terrain-ui" id="tUI"></div>
+    <div class="terrain-inf" id="tInf"></div>
+    <div class="terrain-leg" id="tLeg">
+      <div style="display:flex;gap:4px;align-items:center"><span id="tLegMin">0</span><canvas id="tLegBase"></canvas><span id="tLegMax">0</span></div>
+    </div>
+  </div>`;
+
+  const cv=document.getElementById('tCv');
+  const wrap=cv.parentElement;
+  const sc=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(44,1,.1,200);
+  const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+  ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  ren.setClearColor(0x0c0c12,1);
+  function onResize(){
+    const w=wrap.clientWidth,h=wrap.clientHeight;
+    if(w<1||h<1)return;
+    ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();
+  }
+  onResize();
+  new ResizeObserver(onResize).observe(wrap);
+
+  sc.add(new THREE.AmbientLight(0x667788,.6));
+  const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
+  const dl2=new THREE.DirectionalLight(0x445566,.25);dl2.position.set(-4,5,-3);sc.add(dl2);
+
+  let msh=null,wir=null,flr=null,lbs=[];
+
+  function mixColor(mag,mn,mx,klT,xAbs){
+    const t=Math.max(0,Math.min(1,(mag-mn)/(mx-mn||1)));
+    let[r,g,b]=BASES[curBase].fn(t);
+    const ovFn=OVS[curOv].fn;
+    if(ovFn){const s=.42*klT;const[or,og,ob]=ovFn(klT);r=Math.min(1,r+or*s);g=Math.min(1,g+og*s);b=Math.min(1,b+ob*s)}
+    const fade=Math.pow(xAbs/X_MAX,1.6);
+    r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
+    return new THREE.Color(r,g,b);
+  }
+
+  function build(){
+    [msh,wir,flr].forEach(m=>{if(!m)return;sc.remove(m);m.geometry.dispose();m.material.dispose()});
+    lbs.forEach(s=>{sc.remove(s);if(s.geometry)s.geometry.dispose();if(s.material){s.material.map&&s.material.map.dispose();s.material.dispose()}});
+    msh=wir=flr=null;lbs=[];
+    const entries=D[curCat];
+    if(!entries||!entries[curIdx])return;
+    const[prompt,toks,rows]=entries[curIdx];
+    const nT=toks.length,scZ=12/Math.max(nT-1,1);
+    let allMags=[];
+    for(const row of rows){row[0].forEach(v=>allMags.push(v));row[1].forEach(v=>allMags.push(v))}
+    const mn=Math.min(...allMags),mx=Math.max(...allMags);
+    const klVals=rows.map(r=>r[2]);
+    const klMin=Math.min(...klVals),klMax=Math.max(...klVals);
+
+    // Surface
+    const vsArr=[],csArr=[],ixArr=[],vtx=[];
+    for(let t=0;t<nT;t++){
+      vtx.push([]);
+      const[bm,im,kl]=rows[t];
+      const z=-t*scZ+6,klT=(kl-klMin)/(klMax-klMin||1);
+      for(let c=0;c<COLS;c++){
+        let x,mag;
+        if(c<8){x=(c-8)*SCX;mag=bm[c]}
+        else if(c===8){x=0;mag=mn}
+        else{x=(c-8)*SCX;mag=im[c-9]}
+        const y=FY+(mag-mn)*HSCALE;
+        vtx[t].push({x,y,z});
+        vsArr.push(x,y,z);
+        const col=mixColor(mag,mn,mx,klT,Math.abs(x));
+        csArr.push(col.r,col.g,col.b);
+      }
+    }
+    for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(vsArr,3));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(csArr,3));
+    geo.setIndex(ixArr);geo.computeVertexNormals();
+    msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30}));
+    sc.add(msh);
+
+    // Floor
+    const fG=new THREE.PlaneGeometry(COLS*SCX+1.2,nT*scZ+2);fG.rotateX(-Math.PI/2);
+    flr=new THREE.Mesh(fG,new THREE.MeshBasicMaterial({color:0x0c0c12,transparent:true,opacity:.25,side:THREE.DoubleSide}));
+    flr.position.set(0,FY-.01,6-(nT*scZ)/2);sc.add(flr);
+
+    // Grid lines on surface
+    const OFF=0.032,gridP=[],gridC=[];
+    const pushSeg=(ax,ay,az,bx,by,bz,r,g,b)=>{gridP.push(ax,ay+OFF,az,bx,by+OFF,bz);gridC.push(r,g,b,r,g,b)};
+    for(let t=0;t<nT;t++){for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const near=(c===7||c===8)?.30:.14;pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,near*.55,near*.65,near)}}
+    for(let c=0;c<COLS;c++){const isSpine=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(isSpine){pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62)}else{const fade=1-Math.pow(Math.abs(c-8)/8,.7);pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,fade*.22,fade*.26,fade*.38)}}}
+    const gridGeo=new THREE.BufferGeometry();
+    gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridP,3));
+    gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
+    wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));
+    sc.add(wir);
+
+    // Token labels at every vertex
+    const LW=96,LH=24,LSX=SCX*.90,LSY=LSX*(LH/LW);
+    const texCache={};
+    const getTexture=(str,klT)=>{
+      const bucket=Math.round(klT*8),key=str+'|'+bucket;
+      if(texCache[key])return texCache[key];
+      const S=2,lc=document.createElement('canvas');lc.width=LW*S;lc.height=LH*S;
+      const lx=lc.getContext('2d');lx.scale(S,S);
+      const[ar,ag,ab]=BASES[curBase].fn(Math.max(.15,klT*.75+.18));
+      lx.font='700 12px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
+      lx.lineWidth=2.5;lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,LW/2,LH/2);
+      lx.fillStyle='rgba(240,237,228,1.0)';lx.fillText(str,LW/2,LH/2);
+      const ulLen=Math.max(4,Math.round((LW-10)*klT));
+      lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
+      lx.fillRect((LW-ulLen)/2,LH/2+8,ulLen,2);
+      texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
+    };
+    for(let t=0;t<nT;t++){
+      const[,,kl,,ctoks]=rows[t];
+      const klT=(kl-klMin)/(klMax-klMin||1);
+      for(let c=0;c<COLS;c++){
+        const{x,y,z}=vtx[t][c];
+        let str;
+        if(c<8)str=(ctoks[c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        else if(c===8)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        if(!str)str='\u00B7';
+        const tex=getTexture(str,klT);
+        const fade=Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
+        const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fade}));
+        sp.position.set(x,y+OFF+.06,z);sp.scale.set(LSX,LSY,1);
+        sc.add(sp);lbs.push(sp);
+      }
+    }
+
+    // Axis labels
+    const frontZ=vtx[0][8].z+scZ*.6;
+    const makeAx=(txt,xp,align)=>{
+      const ac=document.createElement('canvas');ac.width=160;ac.height=22;
+      const ax=ac.getContext('2d');ax.font='500 10px system-ui,sans-serif';
+      ax.fillStyle='rgba(110,110,130,0.55)';ax.textAlign=align||'center';
+      ax.fillText(txt,align==='right'?155:align==='left'?5:80,14);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(ac),transparent:true,depthTest:false}));
+      sp.position.set(xp,FY+.1,frontZ);sp.scale.set(1.3,.19,1);sc.add(sp);lbs.push(sp);
+    };
+    makeAx('\u2190 base',-2.2,'right');
+    makeAx('instruct \u2192',2.2,'left');
+
+    // Info
+    const peakKl=Math.max(...klVals);
+    const peakTok=toks[klVals.indexOf(peakKl)].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,14);
+    document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'"';
+
+    // Legend gradient
+    const legC=document.getElementById('tLegBase');
+    if(legC){legC.width=100;const ctx=legC.getContext('2d');const g=ctx.createLinearGradient(0,0,100,0);for(let i=0;i<=20;i++){const t=i/20;const[r,gr,b]=BASES[curBase].fn(t);g.addColorStop(t,'rgb('+Math.round(r*255)+','+Math.round(gr*255)+','+Math.round(b*255)+')')}ctx.fillStyle=g;ctx.fillRect(0,0,100,6)}
+    const lMin=document.getElementById('tLegMin'),lMax=document.getElementById('tLegMax');
+    if(lMin)lMin.textContent=(mn*1e3).toFixed(1);
+    if(lMax)lMax.textContent=(mx*1e3).toFixed(1);
+  }
+
+  // Build UI controls
+  function buildUI(){
+    const ui=document.getElementById('tUI');
+    if(!ui) return;
+    let h='';
+    // Category buttons
+    for(const c of Object.keys(D)){
+      h+=`<button class="tb${c===curCat?' on':''}" data-tcat="${c}" onclick="window._terrainSelectCat('${c}')">${c}</button>`;
+    }
+    h+='<span class="tsep">|</span>';
+    // Prompt select
+    h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
+    const entries=D[curCat]||[];
+    entries.forEach((e,i)=>{h+=`<option value="${i}"${i===curIdx?' selected':''}>${e[0].slice(0,50)}</option>`});
+    h+='</select>';
+    h+='<span class="tsep">|</span>';
+    // Base ramp buttons
+    for(const[k,def]of Object.entries(BASES)){
+      h+=`<button class="tcs${k===curBase?' on':''}" data-tbase="${k}" onclick="window._terrainSetBase('${k}')">${def.label}</button>`;
+    }
+    h+='<span class="tsep">|</span>';
+    // Overlay buttons
+    for(const[k,def]of Object.entries(OVS)){
+      h+=`<button class="tcs${k===curOv?' on':''}" data-tov="${k}" onclick="window._terrainSetOv('${k}')">${def.label}</button>`;
+    }
+    h+='<span class="tsep">|</span><span style="font-size:9px;color:#556">L-drag orbit \u00B7 R-drag pan \u00B7 scroll zoom</span>';
+    ui.innerHTML=h;
+  }
+
+  function refreshPromptSelect(){
+    const sel=document.getElementById('tPSel');
+    if(!sel)return;
+    sel.innerHTML='';
+    (D[curCat]||[]).forEach((e,i)=>{
+      const o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,50);
+      if(i===curIdx)o.selected=true;sel.appendChild(o);
+    });
+  }
+
+  window._terrainSelectCat=function(c){
+    curCat=c;curIdx=0;
+    document.querySelectorAll('[data-tcat]').forEach(b=>b.className='tb'+(b.dataset.tcat===c?' on':''));
+    refreshPromptSelect();build();
+  };
+  window._terrainSelectPrompt=function(i){curIdx=i;build()};
+  window._terrainSetBase=function(k){
+    curBase=k;
+    document.querySelectorAll('[data-tbase]').forEach(b=>b.className='tcs'+(b.dataset.tbase===k?' on':''));
+    build();
+  };
+  window._terrainSetOv=function(k){
+    curOv=k;
+    document.querySelectorAll('[data-tov]').forEach(b=>b.className='tcs'+(b.dataset.tov===k?' on':''));
+    build();
+  };
+
+  // Camera
+  let th=0.55,ph=0.68,rad=14;
+  const target=new THREE.Vector3(0,FY+1.0,0);
+  function updateCam(){
+    cam.position.set(target.x+rad*Math.sin(ph)*Math.cos(th),target.y+rad*Math.cos(ph),target.z+rad*Math.sin(ph)*Math.sin(th));
+    cam.lookAt(target);
+  }
+  const ptrs={};
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY}});
+  cv.addEventListener('pointerup',e=>{cv.releasePointerCapture(e.pointerId);delete ptrs[e.pointerId]});
+  cv.addEventListener('pointermove',e=>{
+    const p=ptrs[e.pointerId];if(!p)return;
+    const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+    if(p.btn===0){th+=dx*.008;ph=Math.max(.08,Math.min(1.55,ph-dy*.008))}
+    else{
+      const speed=rad*.0012;
+      const right=new THREE.Vector3();
+      right.crossVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th))).normalize();
+      const fwd=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
+      const up=new THREE.Vector3().crossVectors(right,fwd).normalize();
+      target.addScaledVector(right,-dx*speed);target.addScaledVector(up,dy*speed);
+    }
+    updateCam();
+  });
+  cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.max(4,Math.min(30,rad+e.deltaY*.012));updateCam()},{passive:false});
+
+  // Start
+  buildUI();
+  updateCam();
+  build();
+  let running=true;
+  (function loop(){if(!running)return;requestAnimationFrame(loop);ren.render(sc,cam)})();
+
+  // Cleanup if terrain container is removed (tab switch etc.)
+  const observer=new MutationObserver(()=>{
+    if(!document.getElementById('tCv')){running=false;observer.disconnect();ren.dispose()}
+  });
+  observer.observe(document.body,{childList:true,subtree:true});
+}
 
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
