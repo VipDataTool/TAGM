@@ -1626,11 +1626,20 @@ function _terrainTransformData(results){
       let bm;
       if(baseCands.length>=8){
         _bcfCount++;
-        bm=[];
+        // Extract raw base probs (reversed to match terrain bank layout)
+        const rawBm=[];
         for(let j=7;j>=0;j--){
           const p=(j<baseCands.length&&Array.isArray(baseCands[j]))?baseCands[j][1]||0.01:0.01;
-          bm.push(p);
+          rawBm.push(p);
         }
+        // Rescale base probs to match instruct LTP magnitude range
+        // This preserves the relative shape (probability ranking) while making
+        // both banks visually comparable on the terrain surface
+        const imMin=Math.min(...im),imMax=Math.max(...im);
+        const bmMin=Math.min(...rawBm),bmMax=Math.max(...rawBm);
+        const bmRange=bmMax-bmMin||1;
+        const imRange=imMax-imMin||imMax*0.1;
+        bm=rawBm.map(v=>imMin+(v-bmMin)/bmRange*imRange);
       }else{
         _mirrorCount++;
         bm=im.slice().reverse(); // Fallback: mirror instruct (old data)
