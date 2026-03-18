@@ -433,7 +433,7 @@ async def analyze_single(prompt: str = Form(...),
 
     try:
         logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
-        if compute_kl or capture_responses or compute_ltp:
+        if compute_kl or capture_responses:
             mm.load_base_for_kl(callback=log_progress)
 
         result_dict, plots = _analyze_and_record(
@@ -442,7 +442,7 @@ async def analyze_single(prompt: str = Form(...),
             compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 
-        if compute_kl or capture_responses or compute_ltp:
+        if compute_kl or capture_responses:
             mm.unload_base()
 
         return sanitize_for_json({
@@ -536,7 +536,7 @@ def _run_batch_sync(content, bl_content, filename,
             if bl_prompts:
                 baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
 
-        if compute_kl or capture_responses or compute_ltp:
+        if compute_kl or capture_responses:
             mm.load_base_for_kl(callback=log_progress)
 
         for i, p in enumerate(prompts):
@@ -571,7 +571,7 @@ def _run_batch_sync(content, bl_content, filename,
                 except Exception:
                     log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
-        if compute_kl or capture_responses or compute_ltp:
+        if compute_kl or capture_responses:
             mm.unload_base()
 
         log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")

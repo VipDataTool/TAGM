@@ -1615,43 +1615,34 @@ function _terrainTransformData(results){
     const baseCf=r.base_counterfactual_tokens||[];
     const kls=r.per_token_kl||[];
     const nT=toks.length;
-    const rows=[];
+    const hasBaseCf=baseCf.length>0&&baseCf.some(bc=>bc&&bc.length>=8);
+
+    // ── Pass 1: collect raw data ──
+    const rawRows=[];
     for(let i=0;i<nT;i++){
       const prof=profiles[i]||new Array(8).fill(0.01);
       const cands=cf[i]||[];
       const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
       const im=[];for(let j=0;j<8;j++)im.push(prof[j]!=null?prof[j]:0.01);
-      // Base-side magnitudes: use base counterfactual probabilities if available
-      let bm;
+      let rawBm=null;
       if(baseCands.length>=8){
         _bcfCount++;
-        // Extract raw base probs (reversed to match terrain bank layout)
-        const rawBm=[];
+        rawBm=[];
         for(let j=7;j>=0;j--){
           const p=(j<baseCands.length&&Array.isArray(baseCands[j]))?baseCands[j][1]||0.01:0.01;
           rawBm.push(p);
         }
-        // Rescale base probs to match instruct LTP magnitude range
-        // This preserves the relative shape (probability ranking) while making
-        // both banks visually comparable on the terrain surface
-        const imMin=Math.min(...im),imMax=Math.max(...im);
-        const bmMin=Math.min(...rawBm),bmMax=Math.max(...rawBm);
-        const bmRange=bmMax-bmMin||1;
-        const imRange=imMax-imMin||imMax*0.1;
-        bm=rawBm.map(v=>imMin+(v-bmMin)/bmRange*imRange);
       }else{
         _mirrorCount++;
-        bm=im.slice().reverse(); // Fallback: mirror instruct (old data)
       }
-      // Instruct-side labels (indices 0..7)
+      // Build labels
       const ctoks=[];
       for(let j=0;j<8;j++){
         if(j<cands.length&&cands[j]){
           ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
         }else ctoks.push('');
       }
-      // Base-side labels (indices 8..15) — use real base counterfactuals if available
       if(baseCands.length>0){
         for(let j=7;j>=0;j--){
           if(j<baseCands.length&&baseCands[j]){
@@ -1660,13 +1651,34 @@ function _terrainTransformData(results){
           }else ctoks.push('\u00B7');
         }
       }else{
-        // Fallback: mirror instruct tokens (backward compat for old data)
         for(let j=7;j>=0;j--){
           if(j<cands.length&&cands[j]){
             const nm=Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]);
             ctoks.push('\u00B7'+nm);
           }else ctoks.push('\u00B7');
         }
+      }
+      rawRows.push({im,rawBm,kl,ctoks});
+    }
+
+    // ── Pass 2: normalize base bank into instruct magnitude space ──
+    // Use the global instruct range across ALL tokens in this prompt
+    // so the base probability shape has room to express itself
+    let allIm=[];
+    for(const row of rawRows) allIm.push(...row.im);
+    const gImMin=Math.min(...allIm),gImMax=Math.max(...allIm);
+    const gImRange=gImMax-gImMin||gImMax*0.1;
+
+    const rows=[];
+    for(let i=0;i<nT;i++){
+      const{im,rawBm,kl,ctoks}=rawRows[i];
+      let bm;
+      if(rawBm){
+        const bmMin=Math.min(...rawBm),bmMax=Math.max(...rawBm);
+        const bmRange=bmMax-bmMin||1;
+        bm=rawBm.map(v=>gImMin+(v-bmMin)/bmRange*gImRange);
+      }else{
+        bm=im.slice().reverse();
       }
       rows.push([bm,im,Math.round(kl*1e4)/1e4,0,ctoks]);
     }

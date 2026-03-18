@@ -140,7 +140,7 @@ class Analyzer:
             ltp_layers = list(range(late_start, state.n_layers))
         self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory or full_capture,
                                        ltp_layers=ltp_layers)
-        tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=True)
+        tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=full_capture)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
         result.seq_len = len(tokens)
@@ -183,13 +183,14 @@ class Analyzer:
         self.mm.clear_activations()
         self.mm._remove_hooks()
 
-        # KL divergence + base model responses + base counterfactuals (separate pass)
-        # Also needed when LTP is enabled for terrain map base bank
-        needs_base_pass = compute_kl or capture_responses or compute_ltp
-        if needs_base_pass:
+        # KL divergence + base model responses + base counterfactuals (separate base-model pass)
+        # Only runs when base model is actually loaded (requires KL or capture_responses)
+        if (compute_kl or capture_responses) and state.model_base is not None:
             self._compute_behavioral_comparison(
-                result, state, compute_kl=compute_kl,
-                capture_base=(capture_responses and state.model_base is not None),
+                result, state,
+                instruct_logits=model_out.logits,
+                compute_kl=compute_kl,
+                capture_base=capture_responses,
                 topk=response_topk)
 
         return result
@@ -455,63 +456,60 @@ class Analyzer:
         result.token_similarity = sim
 
     def _compute_behavioral_comparison(self, result, state,
+                                        instruct_logits=None,
                                         compute_kl=False,
                                         capture_base=False,
                                         topk=10):
-        """KL divergence and base model predictions in a single base-model pass."""
+        """KL divergence, base model predictions, and base counterfactuals.
+        Reuses instruct logits from the main forward pass — only runs base model."""
         inputs = state.tokenizer(result.prompt, return_tensors="pt").to(state.device)
         with torch.no_grad():
-            out_inst = state.model_instruct(**inputs)
+            # Reuse instruct logits from main analysis pass (no redundant forward)
+            logits_i = instruct_logits[0] if instruct_logits is not None else None
 
-            if state.model_base is not None:
-                out_base = state.model_base(**inputs)
+            out_base = state.model_base(**inputs)
 
-                if compute_kl:
-                    # Per-token KL divergence across the full sequence
-                    logits_i = out_inst.logits[0]   # [seq_len, vocab]
-                    logits_b = out_base.logits[0]
+            if compute_kl and logits_i is not None:
+                logits_b = out_base.logits[0]
 
-                    log_p_i = torch.log_softmax(logits_i, dim=-1)
-                    log_p_b = torch.log_softmax(logits_b, dim=-1)
-                    p_i = torch.softmax(logits_i, dim=-1)
+                log_p_i = torch.log_softmax(logits_i, dim=-1)
+                log_p_b = torch.log_softmax(logits_b, dim=-1)
+                p_i = torch.softmax(logits_i, dim=-1)
 
-                    # Per-position KL: sum over vocab at each token
-                    per_tok_kl = (p_i * (log_p_i - log_p_b)).sum(dim=-1)
-                    result.per_token_kl = per_tok_kl.cpu().numpy()
+                per_tok_kl = (p_i * (log_p_i - log_p_b)).sum(dim=-1)
+                result.per_token_kl = per_tok_kl.cpu().numpy()
+                result.kl_divergence = float(per_tok_kl[-1].item())
+                del log_p_i, log_p_b, p_i, per_tok_kl
 
-                    # Scalar KL at final position (backward compat)
-                    result.kl_divergence = float(per_tok_kl[-1].item())
+            if capture_base:
+                logits_base = out_base.logits[0, -1, :]
+                probs_base = torch.softmax(logits_base, dim=-1)
+                tk = torch.topk(probs_base, min(topk, probs_base.shape[0]))
+                result.base_topk = [
+                    (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
+                    for idx, p in zip(tk.indices, tk.values)
+                ]
+                del logits_base, probs_base
 
-                if capture_base:
-                    logits_base = out_base.logits[0, -1, :]
-                    probs_base = torch.softmax(logits_base, dim=-1)
-                    tk = torch.topk(probs_base, min(topk, probs_base.shape[0]))
-                    result.base_topk = [
-                        (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
-                        for idx, p in zip(tk.indices, tk.values)
-                    ]
-
-                # Per-token base counterfactuals for terrain map base bank
-                # Extract top-k alternatives at every position from base logits
-                base_logits_full = out_base.logits[0]  # [seq_len, vocab]
-                token_ids = inputs["input_ids"][0]
-                ltp_k = result.ltp.k if result.ltp else 8
-                base_cf = []
-                for i in range(base_logits_full.shape[0]):
-                    chosen_id = token_ids[i].item()
-                    topk_result = torch.topk(base_logits_full[i], ltp_k + 5)
-                    topk_ids = topk_result.indices.tolist()
-                    topk_logits = topk_result.values
-                    probs = torch.softmax(topk_logits, dim=-1)
-                    alts = []
-                    for j, tid in enumerate(topk_ids):
-                        if tid != chosen_id and len(alts) < ltp_k:
-                            alts.append((
-                                state.tokenizer.decode(tid).strip(),
-                                round(probs[j].item(), 4)
-                            ))
-                    base_cf.append(alts)
-                result.base_counterfactual_tokens = base_cf
+            # Per-token base counterfactuals for terrain map base bank
+            base_logits_full = out_base.logits[0]  # [seq_len, vocab]
+            token_ids = inputs["input_ids"][0]
+            ltp_k = result.ltp.k if result.ltp else 8
+            base_cf = []
+            for i in range(base_logits_full.shape[0]):
+                chosen_id = token_ids[i].item()
+                topk_result = torch.topk(base_logits_full[i], ltp_k + 5)
+                probs = torch.softmax(topk_result.values, dim=-1)
+                alts = []
+                for j, tid in enumerate(topk_result.indices.tolist()):
+                    if tid != chosen_id and len(alts) < ltp_k:
+                        alts.append((
+                            state.tokenizer.decode(tid).strip(),
+                            round(probs[j].item(), 4)
+                        ))
+                base_cf.append(alts)
+            result.base_counterfactual_tokens = base_cf
+            del base_logits_full, out_base
 
 
 def result_to_dict(r: PromptResult) -> dict:
