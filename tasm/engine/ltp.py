@@ -120,7 +120,7 @@ def precompute_tuned_lens_cache(model_manager, calibration_prompts: List[str],
 class LTPResult:
     """Per-prompt LTP computation results."""
     profiles: List[np.ndarray] = field(default_factory=list)
-    base_profiles: List[np.ndarray] = field(default_factory=list)  # Base bank: -ΔW/2 → W_O_base
+    base_profiles: List[np.ndarray] = field(default_factory=list)  # Base bank: ΔW/2 with base counterfactuals
     tension_points: List[np.ndarray] = field(default_factory=list)
     tension_magnitudes: List[float] = field(default_factory=list)
     profile_shapes: List[str] = field(default_factory=list)
@@ -151,7 +151,8 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 k: int = 8, layer_strategy: str = "signal",
                 svd_cache: Dict[int, torch.Tensor] = None,
                 svd_rank: int = 0,
-                tuned_lens_cache: Dict[int, torch.Tensor] = None) -> LTPResult:
+                tuned_lens_cache: Dict[int, torch.Tensor] = None,
+                base_logits=None) -> LTPResult:
     """Compute the Lateral Tension Profile for a completed forward pass.
     svd_cache: precomputed truncated dW_V per layer (None = use raw delta).
     svd_rank: the truncation rank used (for recording in results).
@@ -214,6 +215,21 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         cf_tokens = [(state.tokenizer.decode(aid).strip(), prob) for aid, prob in alts]
         result.counterfactual_tokens.append(cf_tokens)
 
+    # ── Base model counterfactual alternatives (for base bank probe directions) ──
+    per_position_base_alts = []
+    if base_logits is not None:
+        base_log_probs = base_logits[0]
+        for i in range(seq_len):
+            chosen_id = per_position_chosen[i]
+            topk_result = torch.topk(base_log_probs[i], k + 5)
+            topk_ids = topk_result.indices.tolist()
+            probs = torch.softmax(topk_result.values, dim=-1)
+            alts = []
+            for j, tid in enumerate(topk_ids):
+                if tid != chosen_id and len(alts) < k:
+                    alts.append((tid, probs[j].item()))
+            per_position_base_alts.append(alts)
+
     all_layer_tension_points = {l: [] for l in monitored}
     all_layer_profiles = {l: [] for l in monitored}
     all_layer_base_profiles = {l: [] for l in monitored}
@@ -235,7 +251,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
         h = model_manager.activations[h_key][0]
 
-        # ── Select dW_V: SVD-truncated or raw, then halve for midpoint ──
+        # ── ΔW_V / 2 ──
         if svd_cache is not None and layer_idx in svd_cache:
             dw_v_full = svd_cache[layer_idx]
         else:
@@ -244,33 +260,41 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
             continue
         dw_v_half = dw_v_full * 0.5
 
-        W_O_instruct = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
-
-        # ── Recover W_O_base from instruct weights and stored delta ──
-        delta_O = state.o_delta(layer_idx)
-        if delta_O is not None:
-            W_O_base = W_O_instruct - delta_O
-            o_diff = (W_O_instruct - W_O_base).norm().item()
-            logger.info(f"[LTP] Layer {layer_idx}: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = {o_diff:.6f}")
-        else:
-            W_O_base = W_O_instruct
-            logger.warning(f"[LTP] Layer {layer_idx}: o_delta is None — W_O_base = W_O_instruct (IDENTICAL). Did you reload the model after deploying?")
-
+        W_O = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
         n_kv_heads = state.n_kv_heads
         n_heads = state.n_heads
         head_dim = state.head_dim
         heads_per_kv = n_heads // n_kv_heads
 
-        # ── Check if tuned-lens correction is available for this layer ──
         has_tl = (tuned_lens_cache is not None and layer_idx in tuned_lens_cache)
         if has_tl:
             A_l = tuned_lens_cache[layer_idx]
 
+        def _project_alts(alts_list, chosen_id, tau):
+            """Project a set of counterfactual alternatives through ΔW/2 → W_O → lateral.
+            Same pipeline for both banks — only the input alternatives differ."""
+            magnitudes = []
+            for alt_id, alt_prob in alts_list:
+                d_ic = W_u[alt_id] - W_u[chosen_id]
+                if has_tl:
+                    d_ic = torch.matmul(A_l, d_ic)
+                delta_val = torch.matmul(dw_v_half, d_ic)
+                expanded = delta_val.view(n_kv_heads, head_dim) \
+                    .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
+                proj = torch.matmul(W_O, expanded)
+                fwd = torch.dot(proj, tau) * tau
+                lateral = proj - fwd
+                magnitudes.append(lateral.norm().item())
+            while len(magnitudes) < k:
+                magnitudes.append(0.0)
+            return magnitudes
+
         for i in range(seq_len):
-            alts = per_position_alts[i]
+            inst_alts = per_position_alts[i]
+            base_alts = per_position_base_alts[i] if i < len(per_position_base_alts) else inst_alts
             chosen_id = per_position_chosen[i]
 
-            if not alts:
+            if not inst_alts:
                 all_layer_tension_points[layer_idx].append(
                     torch.zeros(state.hidden_size, device=device, dtype=dtype))
                 all_layer_profiles[layer_idx].append(np.zeros(k))
@@ -289,47 +313,27 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 else:
                     tau = torch.zeros_like(h[0])
 
-            instruct_magnitudes = []
-            base_magnitudes = []
+            # Same measurement, different input
+            instruct_magnitudes = _project_alts(inst_alts, chosen_id, tau)
+            base_magnitudes = _project_alts(base_alts, chosen_id, tau)
+
+            # Weighted tension for existing metrics (uses instruct bank)
             weighted_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
             prob_sum = 0.0
-
-            for alt_id, alt_prob in alts:
+            for alt_id, alt_prob in inst_alts:
                 d_ic = W_u[alt_id] - W_u[chosen_id]
-
-                # ── Tuned-lens: correct probe direction for this layer ──
                 if has_tl:
                     d_ic = torch.matmul(A_l, d_ic)
-
-                # ── Midpoint: project +ΔW_V/2 through instruct pathway ──
                 delta_val = torch.matmul(dw_v_half, d_ic)
                 expanded = delta_val.view(n_kv_heads, head_dim) \
                     .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
-                inst_proj = torch.matmul(W_O_instruct, expanded)
-
-                inst_fwd = torch.dot(inst_proj, tau) * tau
-                inst_lateral = inst_proj - inst_fwd
-                instruct_magnitudes.append(inst_lateral.norm().item())
-
-                # ── Midpoint: project -ΔW_V/2 through base pathway ──
-                base_expanded = (-delta_val).view(n_kv_heads, head_dim) \
-                    .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
-                base_proj = torch.matmul(W_O_base, base_expanded)
-
-                base_fwd = torch.dot(base_proj, tau) * tau
-                base_lateral = base_proj - base_fwd
-                base_magnitudes.append(base_lateral.norm().item())
-
-                # Weighted tension uses instruct lateral (backward compat)
-                weighted_tension += alt_prob * inst_lateral
+                proj = torch.matmul(W_O, expanded)
+                fwd = torch.dot(proj, tau) * tau
+                lateral = proj - fwd
+                weighted_tension += alt_prob * lateral
                 prob_sum += alt_prob
-
             if prob_sum > 0:
                 weighted_tension /= prob_sum
-            while len(instruct_magnitudes) < k:
-                instruct_magnitudes.append(0.0)
-            while len(base_magnitudes) < k:
-                base_magnitudes.append(0.0)
 
             all_layer_tension_points[layer_idx].append(weighted_tension)
             all_layer_profiles[layer_idx].append(np.array(instruct_magnitudes[:k]))

@@ -177,10 +177,19 @@ class Analyzer:
 
         # LTP computation
         if compute_ltp:
+            # Get base model logits for base bank probe directions
+            base_logits = None
+            if state.model_base is not None:
+                with torch.no_grad():
+                    base_out = state.model_base(**inputs)
+                    base_logits = base_out.logits
+                    del base_out
+
             result.ltp = self._compute_ltp(
                 model_out.logits, tokens, inputs["input_ids"],
                 k=ltp_k, layer_strategy=ltp_layer_strategy,
-                svd_rank=ltp_svd_rank, use_tuned_lens=ltp_tuned_lens)
+                svd_rank=ltp_svd_rank, use_tuned_lens=ltp_tuned_lens,
+                base_logits=base_logits)
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -202,7 +211,8 @@ class Analyzer:
 
     def _compute_ltp(self, logits, tokens, input_ids,
                      k: int = 8, layer_strategy: str = "signal",
-                     svd_rank: int = 0, use_tuned_lens: bool = False) -> LTPResult:
+                     svd_rank: int = 0, use_tuned_lens: bool = False,
+                     base_logits=None) -> LTPResult:
         """Compute LTP using cached activations from the forward pass."""
         from engine.ltp import compute_ltp as _compute_ltp
 
@@ -214,7 +224,8 @@ class Analyzer:
             self.mm, logits, tokens, input_ids,
             k=k, layer_strategy=layer_strategy,
             svd_cache=svd_cache, svd_rank=svd_rank,
-            tuned_lens_cache=tl_cache)
+            tuned_lens_cache=tl_cache,
+            base_logits=base_logits)
 
     def _extract_signed_attribution(self, result, seq_len, state):
         """Extract signed attribution with per-layer detail and proof checks."""
