@@ -394,9 +394,10 @@ class ModelManager:
             state.base_safetensors_path = ""
 
         elapsed = time.time() - t0
+        n_o_proj = sum(1 for k in state.deltas if 'o_proj' in k)
         log("ready", f"Loaded {display} in {elapsed:.1f}s "
             f"({state.n_layers}L, {state.hidden_size}d, "
-            f"{len(state.deltas)} deltas)")
+            f"{len(state.deltas)} deltas, {n_o_proj} o_proj)")
 
         state.loaded = True
         self.state = state

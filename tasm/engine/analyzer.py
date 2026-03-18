@@ -184,8 +184,10 @@ class Analyzer:
         self.mm._remove_hooks()
 
         # KL divergence + base model responses + base counterfactuals (separate base-model pass)
-        # Only runs when base model is actually loaded (requires KL or capture_responses)
-        if (compute_kl or capture_responses) and state.model_base is not None:
+        needs_base = compute_kl or capture_responses or compute_ltp
+        has_base = state.model_base is not None
+        logger.info(f"[BASE PASS] needs={needs_base} (kl={compute_kl}, cap={capture_responses}, ltp={compute_ltp}), model_base loaded={has_base}")
+        if needs_base and has_base:
             self._compute_behavioral_comparison(
                 result, state,
                 instruct_logits=model_out.logits,
@@ -509,6 +511,7 @@ class Analyzer:
                         ))
                 base_cf.append(alts)
             result.base_counterfactual_tokens = base_cf
+            logger.info(f"[BASE CF] Generated {len(base_cf)} base counterfactual token sets (k={ltp_k})")
             del base_logits_full, out_base
 
 

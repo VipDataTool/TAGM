@@ -248,7 +248,13 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
         # ── Recover W_O_base from instruct weights and stored delta ──
         delta_O = state.o_delta(layer_idx)
-        W_O_base = (W_O_instruct - delta_O) if delta_O is not None else W_O_instruct
+        if delta_O is not None:
+            W_O_base = W_O_instruct - delta_O
+            o_diff = (W_O_instruct - W_O_base).norm().item()
+            logger.info(f"[LTP] Layer {layer_idx}: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = {o_diff:.6f}")
+        else:
+            W_O_base = W_O_instruct
+            logger.warning(f"[LTP] Layer {layer_idx}: o_delta is None — W_O_base = W_O_instruct (IDENTICAL). Did you reload the model after deploying?")
 
         n_kv_heads = state.n_kv_heads
         n_heads = state.n_heads
@@ -401,6 +407,20 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
     result.prc_per_token = prc_values
     result.max_prc = max(prc_values) if prc_values else 0.0
     result.n_directional = sum(1 for p in prc_values if p > PRC_THRESHOLD)
+
+    # Diagnostic: confirm base_profiles differ from instruct profiles
+    if result.base_profiles and result.profiles:
+        n_bp = len(result.base_profiles)
+        n_ip = len(result.profiles)
+        if n_bp > 0 and n_ip > 0:
+            diff = np.mean([np.sum(np.abs(result.profiles[i] - result.base_profiles[i]))
+                           for i in range(min(n_bp, n_ip))])
+            logger.info(f"[LTP] base_profiles: {n_bp} entries, mean |instruct - base| = {diff:.8f}"
+                       f" {'(IDENTICAL — o_proj delta missing?)' if diff < 1e-10 else '(asymmetric ✓)'}")
+        else:
+            logger.warning(f"[LTP] base_profiles: {n_bp} entries, profiles: {n_ip} entries")
+    else:
+        logger.warning(f"[LTP] base_profiles EMPTY")
 
     _compute_dual_trajectory(result, model_manager, monitored, seq_len)
     return result

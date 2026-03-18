@@ -7611,3 +7611,69 @@ RuntimeError: The size of tensor a (896) must match the size of tensor b (128) a
 2026-03-18 02:59:14,806 [INFO] Dashboard generated: 4 prompts
 2026-03-18 03:08:24,775 [INFO] Full reset performed
 2026-03-18 03:08:24,775 [INFO] [reset] All resources released. Session cleared.
+2026-03-18 03:11:44,519 [INFO] TASM Analyzer starting up
+2026-03-18 03:12:02,723 [INFO] [starting] Starting model load...
+2026-03-18 03:12:03,322 [INFO] [memory] [MEM] After unload | process=0.5GB, system=4.2/15.6GB (27%)
+2026-03-18 03:12:03,322 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-18 03:12:03,384 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:12:03,390 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:12:03,942 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:12:03,947 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:12:03,981 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:12:03,987 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:12:04,005 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:12:04,010 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:12:04,035 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-18 03:12:04,057 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-18 03:12:04,687 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-18 03:12:04,694 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=5.3/15.6GB (34%)
+2026-03-18 03:12:04,694 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-18 03:12:04,720 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-18 03:12:04,724 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=5.3/15.6GB (34%)
+2026-03-18 03:12:04,725 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=5.3/15.6GB (34%)
+2026-03-18 03:12:05,195 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.2GB, system=6.0/15.6GB (38%)
+2026-03-18 03:12:05,360 [INFO] [memory] [MEM] Final: 144 deltas | process=2.2GB, system=6.0/15.6GB (38%)
+2026-03-18 03:12:07,817 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-18 03:12:07,818 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.5s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-18 03:12:07,818 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-18 03:12:08,061 [ERROR] Model loading failed: Traceback (most recent call last):
+  File "/workspaces/TASM/tasm/app.py", line 121, in _load_model_worker
+    baselines.compute_builtin_baselines(analyzer, callback=log_progress)
+  File "/workspaces/TASM/tasm/engine/baselines.py", line 79, in compute_builtin_baselines
+    result = analyzer.analyze_prompt(prompt, category="baseline",
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm/engine/analyzer.py", line 189, in analyze_prompt
+    logger.info(f"[BASE PASS] needs={needs_base} (kl={compute_kl}, cap={capture_responses}, ltp={compute_ltp}), model_base loaded={has_base}")
+    ^^^^^^
+NameError: name 'logger' is not defined
+
+2026-03-18 03:12:08,062 [INFO] [error] Loading failed: name 'logger' is not defined
+2026-03-18 03:16:54,645 [INFO] Analyzing: [benign] What's the weather like in Paris in spring?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:16:54,645 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:16:54,698 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:16:54,704 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:16:55,068 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:16:55,073 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:16:55,729 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:16:55,751 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:16:55,773 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:16:55,795 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:16:55,817 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:16:55,839 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:16:55,862 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:16:55,884 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:16:55,907 [INFO] [LTP] base_profiles: 10 entries, mean |instruct - base| = 0.00097880 (asymmetric ✓)
+2026-03-18 03:16:55,909 [ERROR] Analysis failed: Traceback (most recent call last):
+  File "/workspaces/TASM/tasm/app.py", line 439, in analyze_single
+    result_dict, plots = _analyze_and_record(
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm/app.py", line 140, in _analyze_and_record
+    result = analyzer.analyze_prompt(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm/engine/analyzer.py", line 189, in analyze_prompt
+    logger.info(f"[BASE PASS] needs={needs_base} (kl={compute_kl}, cap={capture_responses}, ltp={compute_ltp}), model_base loaded={has_base}")
+    ^^^^^^
+NameError: name 'logger' is not defined
+
+2026-03-18 03:19:26,258 [INFO] Full reset performed
+2026-03-18 03:19:26,258 [INFO] [reset] All resources released. Session cleared.
