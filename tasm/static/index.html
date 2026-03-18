@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TASM -- The Alignment Stress Map Analyzer</title>
+<title>TASM v3.18a -- The Alignment Stress Map Analyzer</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1674,6 +1674,22 @@ function _terrainTransformData(results){
   if(diag.missingBaseProfiles>0) console.error('[Terrain] MISSING base_profiles on '+diag.missingBaseProfiles+'/'+diag.total+' prompts. Check: 1) Model reloaded after deploy? (o_proj deltas need reload) 2) LTP enabled? 3) base_profiles in dashboard LTP whitelist?');
   if(diag.missingBaseCf>0) console.error('[Terrain] MISSING base_counterfactual_tokens on '+diag.missingBaseCf+'/'+diag.total+' prompts. Check: 1) Base model loaded? (need KL or capture or LTP enabled) 2) base_counterfactual_tokens in dashboard slim whitelist?');
   if(diag.total>0&&diag.hasBaseProfiles===diag.total&&diag.hasBaseCf===diag.total) console.log('[Terrain] All base data present.');
+  // Dump first prompt raw data to confirm what the terrain actually renders
+  const firstCat=Object.keys(cats)[0];
+  if(firstCat&&cats[firstCat][0]){
+    const[prompt,toks,rows]=cats[firstCat][0];
+    if(rows[0]){
+      const[bm,im,kl,_,ctoks]=rows[0];
+      console.log('[Terrain] FIRST TOKEN "'+toks[0]+'":');
+      console.log('  im (instruct mags):', JSON.stringify(im));
+      console.log('  bm (base mags):    ', JSON.stringify(bm));
+      console.log('  bm===all zeros?', bm.every(v=>v===0));
+      console.log('  bm===im reversed?', JSON.stringify(bm)===JSON.stringify([...im].reverse()));
+      console.log('  instruct labels:', JSON.stringify(ctoks.slice(0,8)));
+      console.log('  base labels:    ', JSON.stringify(ctoks.slice(8)));
+    }
+  }
+  console.log('[Terrain] VERSION: v3.18a — if you do not see this, browser is cached');
   return cats;
 }
 
@@ -1912,7 +1928,7 @@ function initTerrainViewer(results){
         const{x,y,z}=vtx[t][c];
         const isSpine=(c===8);
         let str;
-        if(c<8)str=(ctoks[c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        if(c<8)str=(ctoks[8+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         else if(isSpine)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         if(!str)str='\u00B7';
