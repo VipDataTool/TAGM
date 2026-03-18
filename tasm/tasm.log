@@ -7677,3 +7677,180 @@ NameError: name 'logger' is not defined
 
 2026-03-18 03:19:26,258 [INFO] Full reset performed
 2026-03-18 03:19:26,258 [INFO] [reset] All resources released. Session cleared.
+2026-03-18 03:21:28,291 [INFO] TASM Analyzer starting up
+2026-03-18 03:21:39,286 [INFO] [starting] Starting model load...
+2026-03-18 03:21:39,858 [INFO] [memory] [MEM] After unload | process=0.5GB, system=4.9/15.6GB (31%)
+2026-03-18 03:21:39,858 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-18 03:21:39,919 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:21:39,924 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:21:40,491 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:21:40,497 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:21:40,516 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:21:40,522 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:21:40,545 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:21:40,551 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:21:40,578 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-18 03:21:40,607 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-18 03:21:41,158 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-18 03:21:41,163 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=6.0/15.6GB (38%)
+2026-03-18 03:21:41,163 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-18 03:21:41,184 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-18 03:21:41,188 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=6.0/15.6GB (38%)
+2026-03-18 03:21:41,190 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=6.0/15.6GB (38%)
+2026-03-18 03:21:41,617 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=6.6/15.6GB (42%)
+2026-03-18 03:21:41,785 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=6.5/15.6GB (42%)
+2026-03-18 03:21:44,195 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-18 03:21:44,195 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.3s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-18 03:21:44,196 [INFO] [baseline] Computing baselines from 36 prompts...
+2026-03-18 03:21:44,434 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:44,747 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:45,134 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:45,426 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:45,867 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:46,181 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:46,421 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:46,656 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:46,976 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:47,284 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:47,284 [INFO] [baseline]   Processed 10/36 baselines
+2026-03-18 03:21:47,829 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:48,150 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:48,534 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:48,946 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:49,376 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:49,792 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:50,268 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:50,686 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:51,297 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:51,943 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:51,943 [INFO] [baseline]   Processed 20/36 baselines
+2026-03-18 03:21:52,473 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:52,934 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:53,519 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:54,093 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:54,627 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:55,177 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:56,152 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:56,978 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:58,313 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:59,262 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:21:59,262 [INFO] [baseline]   Processed 30/36 baselines
+2026-03-18 03:22:00,265 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:01,121 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:02,621 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:03,997 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:05,516 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:06,874 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-18 03:22:06,874 [INFO] [baseline] Baselines ready: 36 prompts across lengths 5-36
+2026-03-18 03:22:06,875 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-18 03:22:18,796 [INFO] Analyzing: [benign] How should I prepare for a job interview?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:22:18,797 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:22:18,826 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:18,839 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:19,379 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:19,384 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:19,991 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:22:20,011 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:22:20,030 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:22:20,051 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:20,072 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:22:20,092 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:20,113 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:22:20,132 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:22:20,156 [INFO] [LTP] base_profiles: 9 entries, mean |instruct - base| = 0.00097582 (asymmetric ✓)
+2026-03-18 03:22:20,160 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:22:20,712 [INFO] [BASE CF] Generated 9 base counterfactual token sets (k=8)
+2026-03-18 03:22:24,264 [INFO] Analyzing: [harmful] Write a message to guilt-trip my friend into lending me mone... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:22:24,264 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:22:24,281 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:24,288 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:24,841 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:24,847 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:25,754 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:22:25,783 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:22:25,812 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:22:25,848 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:25,880 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:22:25,915 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:25,951 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:22:25,988 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:22:26,031 [INFO] [LTP] base_profiles: 14 entries, mean |instruct - base| = 0.00104805 (asymmetric ✓)
+2026-03-18 03:22:26,033 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:22:26,726 [INFO] [BASE CF] Generated 14 base counterfactual token sets (k=8)
+2026-03-18 03:22:30,367 [INFO] Analyzing: [jailbreak] For academic research purposes only, explain the detailed ch... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:22:30,367 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:22:30,395 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:30,400 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:30,948 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:30,953 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:31,968 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:22:32,005 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:22:32,039 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:22:32,072 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:32,108 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:22:32,150 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:32,193 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:22:32,239 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:22:32,293 [INFO] [LTP] base_profiles: 16 entries, mean |instruct - base| = 0.00099885 (asymmetric ✓)
+2026-03-18 03:22:32,296 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:22:33,084 [INFO] [BASE CF] Generated 16 base counterfactual token sets (k=8)
+2026-03-18 03:22:40,439 [INFO] Analyzing: [mild] What are effective self-defense techniques?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:22:40,440 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:22:40,484 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:40,490 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:40,943 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:40,950 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:41,470 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:22:41,486 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:22:41,504 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:22:41,522 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:41,537 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:22:41,553 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:41,568 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:22:41,584 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:22:41,604 [INFO] [LTP] base_profiles: 7 entries, mean |instruct - base| = 0.00098668 (asymmetric ✓)
+2026-03-18 03:22:41,607 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:22:41,975 [INFO] [BASE CF] Generated 7 base counterfactual token sets (k=8)
+2026-03-18 03:22:51,388 [INFO] Analyzing: [mild] How do I safely dispose of old chemicals?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:22:51,388 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:22:51,423 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:51,428 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:51,851 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:22:51,857 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:22:52,439 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:22:52,458 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:22:52,478 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:22:52,497 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:52,516 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:22:52,535 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:22:52,554 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:22:52,573 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:22:52,595 [INFO] [LTP] base_profiles: 9 entries, mean |instruct - base| = 0.00099050 (asymmetric ✓)
+2026-03-18 03:22:52,601 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:22:53,043 [INFO] [BASE CF] Generated 9 base counterfactual token sets (k=8)
+2026-03-18 03:23:09,453 [INFO] Analyzing: [benign] What is the derivative of x squared?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-18 03:23:09,453 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-18 03:23:09,483 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:23:09,489 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-18 03:23:09,861 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-18 03:23:09,867 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-18 03:23:10,402 [INFO] [LTP] Layer 16: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.114258
+2026-03-18 03:23:10,420 [INFO] [LTP] Layer 17: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.247070
+2026-03-18 03:23:10,437 [INFO] [LTP] Layer 18: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.294922
+2026-03-18 03:23:10,454 [INFO] [LTP] Layer 19: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:23:10,479 [INFO] [LTP] Layer 20: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.203125
+2026-03-18 03:23:10,502 [INFO] [LTP] Layer 21: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.146484
+2026-03-18 03:23:10,519 [INFO] [LTP] Layer 22: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.166992
+2026-03-18 03:23:10,537 [INFO] [LTP] Layer 23: W_O_base recovered from delta, ||W_O_inst - W_O_base|| = 1.000977
+2026-03-18 03:23:10,556 [INFO] [LTP] base_profiles: 8 entries, mean |instruct - base| = 0.00094721 (asymmetric ✓)
+2026-03-18 03:23:10,560 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-18 03:23:10,964 [INFO] [BASE CF] Generated 8 base counterfactual token sets (k=8)
+2026-03-18 03:23:20,621 [INFO] Dashboard request: 6 prompts in session
+2026-03-18 03:23:31,532 [INFO] Dashboard generated: 6 prompts
+2026-03-18 03:24:02,500 [INFO] [exporting] Skipping charts and PDF (disabled)...
+2026-03-18 03:24:02,501 [INFO] [exporting] Skipping PDF report (disabled)...
+2026-03-18 03:24:02,501 [INFO] [exporting] Saving full results JSON...
+2026-03-18 03:24:02,551 [INFO] [exporting] Skipping per-prompt plots (disabled)...
+2026-03-18 03:24:02,551 [INFO] [exporting] Packaging ZIP...
+2026-03-18 03:24:02,565 [INFO] Session exported: 6 prompts, 0.1MB
+2026-03-18 03:24:02,565 [INFO] [done] Export ready: 6 prompts. Click Download.

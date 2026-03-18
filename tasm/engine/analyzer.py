@@ -8,6 +8,9 @@ import torch
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
+import logging
+
+logger = logging.getLogger("tasm")
 
 from engine.ltp import (LTPResult, compute_ltp, ltp_result_to_dict,
                         precompute_svd_cache, precompute_tuned_lens_cache)
