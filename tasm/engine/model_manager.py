@@ -65,7 +65,7 @@ def _save_model_registry(pairs: dict):
 KNOWN_PAIRS = _load_model_registry()
 
 PROJ_KEYS = ["q_proj.weight", "k_proj.weight", "v_proj.weight",
-             "gate_proj.weight", "up_proj.weight"]
+             "o_proj.weight", "gate_proj.weight", "up_proj.weight"]
 
 
 @dataclass
@@ -99,6 +99,10 @@ class ModelState:
     def v_delta(self, layer_idx: int):
         return self.deltas.get(
             f"model.layers.{layer_idx}.self_attn.v_proj.weight")
+
+    def o_delta(self, layer_idx: int):
+        return self.deltas.get(
+            f"model.layers.{layer_idx}.self_attn.o_proj.weight")
 
 
 def _compute_deltas_from_disk(model_id: str, instruct_model, dtype,

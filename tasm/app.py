@@ -678,8 +678,8 @@ def _run_dashboard_sync():
                 "max_prc", "n_directional",
                 "layer_strategy", "k", "svd_rank", "tuned_lens",
                 # Terrain viewer needs these per-token arrays
-                "profiles", "counterfactual_tokens", "tension_magnitudes",
-                "profile_shapes",
+                "profiles", "base_profiles", "counterfactual_tokens",
+                "tension_magnitudes", "profile_shapes",
             ]}
         slim_results.append(slim)
 

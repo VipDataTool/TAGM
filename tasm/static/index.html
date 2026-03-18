@@ -385,7 +385,7 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Analysis tab ──
   separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
-  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — lateral tension × counterfactual rank × token sequence. Surface color = tension magnitude with KL overlay. Grid lines trace the mesh. Every vertex labeled with its counterfactual token.'},
+  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — midpoint tension decomposition. Each bank shows ±ΔW/2 projected through its own W_O. Asymmetry reveals directional alignment geometry.'},
   batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
   key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
   discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
@@ -740,7 +740,7 @@ async function loadDashboard(force){
       h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
-          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude. Color = tension heatmap with KL divergence overlay. Grid lines follow the mesh surface. Every vertex shows its counterfactual token. Left-drag orbit, right-drag pan, scroll zoom.</p>
+          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude from midpoint decomposition (±ΔW/2 projected through each model's own O-projection). Instruct bank (right) shows alignment field built by training. Base bank (left) shows alignment field carved from the base model. Color = tension heatmap with KL divergence overlay. Grid lines follow the mesh surface. Every vertex shows its counterfactual token. Left-drag orbit, right-drag pan, scroll zoom.</p>
         </div>
         <div class="feature-body" id="terrainFeatureBody" style="padding:0"><div id="terrainContainer"></div></div>
       </div>`;
@@ -1603,39 +1603,43 @@ let _terrainState = null;
 
 function _terrainTransformData(results){
   const cats={};
-  let _bcfCount=0,_mirrorCount=0;
+  let _baseProfileCount=0,_mirrorCount=0;
   for(const r of results){
     const cat=r.category||'unknown';
     const ltp=r.ltp||{};
     const profiles=ltp.profiles||[];
-    if(!profiles.length) continue;  // Skip results without LTP data
+    if(!profiles.length) continue;
     if(!cats[cat]) cats[cat]=[];
     const toks=r.tokens||[];
+    const baseProfiles=ltp.base_profiles||[];
     const cf=ltp.counterfactual_tokens||[];
     const baseCf=r.base_counterfactual_tokens||[];
     const kls=r.per_token_kl||[];
     const nT=toks.length;
-    const hasBaseCf=baseCf.length>0&&baseCf.some(bc=>bc&&bc.length>=8);
 
-    // ── Pass 1: collect raw data ──
-    const rawRows=[];
+    const rows=[];
     for(let i=0;i<nT;i++){
-      const prof=profiles[i]||new Array(8).fill(0.01);
       const cands=cf[i]||[];
       const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
-      const im=[];for(let j=0;j<8;j++)im.push(prof[j]!=null?prof[j]:0.01);
-      let rawBm=null;
-      if(baseCands.length>=8){
-        _bcfCount++;
-        rawBm=[];
-        for(let j=7;j>=0;j--){
-          const p=(j<baseCands.length&&Array.isArray(baseCands[j]))?baseCands[j][1]||0.01:0.01;
-          rawBm.push(p);
-        }
+
+      // \u2500\u2500 Instruct bank: LTP tension magnitudes (+\u0394W/2 \u2192 W_O_instruct) \u2500\u2500
+      const prof=profiles[i]||new Array(8).fill(0.01);
+      const im=[];
+      for(let j=0;j<8;j++) im.push(prof[j]!=null?prof[j]:0.01);
+
+      // \u2500\u2500 Base bank: LTP tension magnitudes (-\u0394W/2 \u2192 W_O_base) \u2500\u2500
+      let bm;
+      const bprof=baseProfiles[i];
+      if(bprof&&bprof.length>=8){
+        _baseProfileCount++;
+        bm=[];
+        for(let j=7;j>=0;j--) bm.push(bprof[j]!=null?bprof[j]:0.01);
       }else{
         _mirrorCount++;
+        bm=im.slice().reverse();
       }
+
       // Build labels
       const ctoks=[];
       for(let j=0;j<8;j++){
@@ -1658,33 +1662,11 @@ function _terrainTransformData(results){
           }else ctoks.push('\u00B7');
         }
       }
-      rawRows.push({im,rawBm,kl,ctoks});
-    }
-
-    // ── Pass 2: normalize base bank into instruct magnitude space ──
-    // Use the global instruct range across ALL tokens in this prompt
-    // so the base probability shape has room to express itself
-    let allIm=[];
-    for(const row of rawRows) allIm.push(...row.im);
-    const gImMin=Math.min(...allIm),gImMax=Math.max(...allIm);
-    const gImRange=gImMax-gImMin||gImMax*0.1;
-
-    const rows=[];
-    for(let i=0;i<nT;i++){
-      const{im,rawBm,kl,ctoks}=rawRows[i];
-      let bm;
-      if(rawBm){
-        const bmMin=Math.min(...rawBm),bmMax=Math.max(...rawBm);
-        const bmRange=bmMax-bmMin||1;
-        bm=rawBm.map(v=>gImMin+(v-bmMin)/bmRange*gImRange);
-      }else{
-        bm=im.slice().reverse();
-      }
       rows.push([bm,im,Math.round(kl*1e4)/1e4,0,ctoks]);
     }
     cats[cat].push([r.prompt||'',toks,rows]);
   }
-  console.log('[Terrain] base counterfactual data: real='+_bcfCount+' mirrored='+_mirrorCount+' (if mirrored>0, base model data not reaching terrain — check KL/capture enabled, check browser cache)');
+  console.log('[Terrain] midpoint tension: real_base_profiles='+_baseProfileCount+' mirrored='+_mirrorCount);
   return cats;
 }
 
@@ -1952,7 +1934,7 @@ function initTerrainViewer(results){
     // Info
     const peakKl=Math.max(...klVals);
     const peakTok=toks[klVals.indexOf(peakKl)].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,14);
-    document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'" \u00B7 base: '+(rows.some(r=>{const b=r[0],i=r[1];return JSON.stringify(b)!==JSON.stringify(i.slice().reverse())})?'\u2705 real':'\u274C mirrored');
+    document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'" \u00B7 midpoint: '+(rows.some(r=>{const b=r[0],i=r[1];return JSON.stringify(b)!==JSON.stringify(i.slice().reverse())})?'\u2705 dual W_O':'\u274C mirrored');
 
     // Legend gradient
     const legC=document.getElementById('tLegBase');

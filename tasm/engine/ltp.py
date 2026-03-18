@@ -120,6 +120,7 @@ def precompute_tuned_lens_cache(model_manager, calibration_prompts: List[str],
 class LTPResult:
     """Per-prompt LTP computation results."""
     profiles: List[np.ndarray] = field(default_factory=list)
+    base_profiles: List[np.ndarray] = field(default_factory=list)  # Base bank: -ΔW/2 → W_O_base
     tension_points: List[np.ndarray] = field(default_factory=list)
     tension_magnitudes: List[float] = field(default_factory=list)
     profile_shapes: List[str] = field(default_factory=list)
@@ -215,6 +216,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
     all_layer_tension_points = {l: [] for l in monitored}
     all_layer_profiles = {l: [] for l in monitored}
+    all_layer_base_profiles = {l: [] for l in monitored}
 
     # Log which activation keys are available for LTP layers
     avail_keys = [k for k in model_manager.activations.keys() if 'layer_' in k]
@@ -233,15 +235,21 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
         h = model_manager.activations[h_key][0]
 
-        # ── Select dW_V: SVD-truncated or raw ──
+        # ── Select dW_V: SVD-truncated or raw, then halve for midpoint ──
         if svd_cache is not None and layer_idx in svd_cache:
-            dw_v = svd_cache[layer_idx]
+            dw_v_full = svd_cache[layer_idx]
         else:
-            dw_v = state.v_delta(layer_idx)
-        if dw_v is None:
+            dw_v_full = state.v_delta(layer_idx)
+        if dw_v_full is None:
             continue
+        dw_v_half = dw_v_full * 0.5
 
-        W_O = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
+        W_O_instruct = model.model.layers[layer_idx].self_attn.o_proj.weight.detach()
+
+        # ── Recover W_O_base from instruct weights and stored delta ──
+        delta_O = state.o_delta(layer_idx)
+        W_O_base = (W_O_instruct - delta_O) if delta_O is not None else W_O_instruct
+
         n_kv_heads = state.n_kv_heads
         n_heads = state.n_heads
         head_dim = state.head_dim
@@ -260,6 +268,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 all_layer_tension_points[layer_idx].append(
                     torch.zeros(state.hidden_size, device=device, dtype=dtype))
                 all_layer_profiles[layer_idx].append(np.zeros(k))
+                all_layer_base_profiles[layer_idx].append(np.zeros(k))
                 continue
 
             if i > 0:
@@ -274,7 +283,8 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 else:
                     tau = torch.zeros_like(h[0])
 
-            profile_magnitudes = []
+            instruct_magnitudes = []
+            base_magnitudes = []
             weighted_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
             prob_sum = 0.0
 
@@ -285,41 +295,58 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 if has_tl:
                     d_ic = torch.matmul(A_l, d_ic)
 
-                # ── Project through attention sublayer pathway ──
-                delta_val = torch.matmul(dw_v, d_ic)
+                # ── Midpoint: project +ΔW_V/2 through instruct pathway ──
+                delta_val = torch.matmul(dw_v_half, d_ic)
                 expanded = delta_val.view(n_kv_heads, head_dim) \
                     .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
-                delta_proj = torch.matmul(W_O, expanded)
+                inst_proj = torch.matmul(W_O_instruct, expanded)
 
-                forward_component = torch.dot(delta_proj, tau) * tau
-                lateral = delta_proj - forward_component
+                inst_fwd = torch.dot(inst_proj, tau) * tau
+                inst_lateral = inst_proj - inst_fwd
+                instruct_magnitudes.append(inst_lateral.norm().item())
 
-                lat_mag = lateral.norm().item()
-                profile_magnitudes.append(lat_mag)
-                weighted_tension += alt_prob * lateral
+                # ── Midpoint: project -ΔW_V/2 through base pathway ──
+                base_expanded = (-delta_val).view(n_kv_heads, head_dim) \
+                    .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
+                base_proj = torch.matmul(W_O_base, base_expanded)
+
+                base_fwd = torch.dot(base_proj, tau) * tau
+                base_lateral = base_proj - base_fwd
+                base_magnitudes.append(base_lateral.norm().item())
+
+                # Weighted tension uses instruct lateral (backward compat)
+                weighted_tension += alt_prob * inst_lateral
                 prob_sum += alt_prob
 
             if prob_sum > 0:
                 weighted_tension /= prob_sum
-            while len(profile_magnitudes) < k:
-                profile_magnitudes.append(0.0)
+            while len(instruct_magnitudes) < k:
+                instruct_magnitudes.append(0.0)
+            while len(base_magnitudes) < k:
+                base_magnitudes.append(0.0)
 
             all_layer_tension_points[layer_idx].append(weighted_tension)
-            all_layer_profiles[layer_idx].append(np.array(profile_magnitudes[:k]))
+            all_layer_profiles[layer_idx].append(np.array(instruct_magnitudes[:k]))
+            all_layer_base_profiles[layer_idx].append(np.array(base_magnitudes[:k]))
 
     if not monitored:
         return result
 
     for i in range(seq_len):
         layer_profiles = []
+        layer_base_profiles = []
         layer_tensions = []
         for l in monitored:
             if i < len(all_layer_profiles[l]):
                 layer_profiles.append(all_layer_profiles[l][i])
+            if i < len(all_layer_base_profiles[l]):
+                layer_base_profiles.append(all_layer_base_profiles[l][i])
             if i < len(all_layer_tension_points[l]):
                 layer_tensions.append(all_layer_tension_points[l][i])
         avg_profile = np.mean(layer_profiles, axis=0) if layer_profiles else np.zeros(k)
+        avg_base_profile = np.mean(layer_base_profiles, axis=0) if layer_base_profiles else np.zeros(k)
         result.profiles.append(avg_profile)
+        result.base_profiles.append(avg_base_profile)
         if layer_tensions:
             avg_tension = torch.stack(layer_tensions).mean(dim=0)
         else:
@@ -445,6 +472,7 @@ def ltp_result_to_dict(r: LTPResult) -> dict:
 
     return {
         "profiles": [_safe(p) for p in r.profiles],
+        "base_profiles": [_safe(p) for p in r.base_profiles],
         "tension_magnitudes": [_safe(m) for m in r.tension_magnitudes],
         "profile_shapes": r.profile_shapes,
         "counterfactual_tokens": r.counterfactual_tokens,
