@@ -2070,8 +2070,8 @@ function initTerrainViewer(results){
     const labelFontPx=Math.round(12*labelScale);
     const spineFontPx=Math.round(12*labelScale*SPINE_BOOST);
     const texCache={};
-    const getTexture=(str,klT,isSpine)=>{
-      const bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale+'|'+(isSpine?'S':'C');
+    const getTexture=(str,klT,isSpine,colIdx)=>{
+      const bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale+'|'+(isSpine?'S':'C')+'|'+colIdx;
       if(texCache[key])return texCache[key];
       const w=isSpine?SLW:LW, h=isSpine?SLH:LH, fpx=isSpine?spineFontPx:labelFontPx;
       const S=2,lc=document.createElement('canvas');lc.width=w*S;lc.height=h*S;
@@ -2088,7 +2088,7 @@ function initTerrainViewer(results){
       }
       const ulLen=Math.max(4,Math.round((w-10)*klT));
       if(!isSpine){
-        const[ar,ag,ab]=_rampFor(c)(Math.max(.15,klT*.75+.18));
+        const[ar,ag,ab]=_rampFor(colIdx)(Math.max(.15,klT*.75+.18));
         lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
         lx.fillRect((w-ulLen)/2,h/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)));
       }else{
@@ -2109,7 +2109,7 @@ function initTerrainViewer(results){
         else if(isSpine)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
         if(!str)str='\u00B7';
-        const tex=getTexture(str,klT,isSpine);
+        const tex=getTexture(str,klT,isSpine,c);
         const fade=isSpine?1.0:Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
         const sx=isSpine?SLSX:LSX, sy=isSpine?SLSY:LSY;
         const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fade}));
@@ -2291,10 +2291,10 @@ function initTerrainViewer(results){
     w.document.write('#toolbar{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(8,8,18,.85);border-bottom:1px solid #222;font-family:monospace;font-size:11px;flex-wrap:wrap}');
     w.document.write('#toolbar select,#toolbar button{font-family:monospace;font-size:10px;padding:3px 8px;background:#181822;color:#aab;border:1px solid #333;border-radius:3px;cursor:pointer}');
     w.document.write('#toolbar button:hover{background:#252538;color:#dde}#toolbar .sep{color:#333;margin:0 2px}');
-    w.document.write('#scene{flex:1;position:relative;min-height:0}');
-    w.document.write('#scene canvas{display:block;width:100%;height:100%;cursor:grab}#scene canvas:active{cursor:grabbing}');
-    w.document.write('#inf{position:absolute;top:8px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
-    w.document.write('#hint{position:absolute;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}</style>');
+    w.document.write('#scene{flex:1;position:relative;min-height:0;overflow:hidden}');
+    w.document.write('#scene canvas{position:absolute;top:0;left:0;width:100%;height:100%;cursor:grab}#scene canvas:active{cursor:grabbing}');
+    w.document.write('#inf{position:absolute;top:8px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace;z-index:2}');
+    w.document.write('#hint{position:absolute;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace;z-index:2}</style>');
     w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script></head><body>');
     w.document.write('<div id="toolbar"></div>');
     w.document.write('<div id="scene"><canvas id="cv"></canvas><div id="inf">'+
@@ -2319,8 +2319,8 @@ const cv=document.getElementById('cv'),scn=document.getElementById('scene'),sc=n
 const cam=new THREE.PerspectiveCamera(44,1,.1,200);
 const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setClearColor(0x0c0c12,1);
-function onR(){const w=scn.clientWidth,h=scn.clientHeight;if(w<1||h<1)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
-onR();addEventListener('resize',onR);new ResizeObserver(onR).observe(scn);
+function onR(){const w=scn.clientWidth,h=scn.clientHeight;if(w<10||h<10)return;cv.width=w;cv.height=h;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+new ResizeObserver(onR).observe(scn);
 sc.add(new THREE.AmbientLight(0x667788,.6));
 const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
 sc.add(new THREE.DirectionalLight(0x445566,.25)).position.set(-4,5,-3);
@@ -2378,7 +2378,7 @@ function buildUI(){
   h+='<select onchange="curBase=this.value;build()">';
   for(const k of Object.keys(BASES)){h+='<option value="'+k+'"'+(k===curBase?' selected':'')+'>'+BASES[k].label+'</option>'}
   h+='</select>';
-  h+='<span class="sep">|</span><button onclick="th=0;ph=.08;rad=14;uc()">Reset</button>';
+  h+='<span class="sep">|</span><button onclick="build()">Reset</button>';
   tb.innerHTML=h;
 }
 function selectCat(c){curCat=c;curIdx=0;stopPlay();buildUI();build()}
@@ -2387,7 +2387,9 @@ function nav(d){const e=D[curCat]||[];if(!e.length)return;curIdx=(curIdx+d+e.len
 function togglePlay(){playing=!playing;buildUI();if(playing)advance();else stopPlay()}
 function stopPlay(){playing=false;if(timer){clearTimeout(timer);timer=null}}
 function advance(){if(!playing)return;nav(1);timer=setTimeout(advance,Math.max(500,4000-speed*350))}
-buildUI();build();uc();
+// Defer init until after flex layout is computed — without this,
+// the #scene container has 0 height and the camera sets up wrong.
+requestAnimationFrame(()=>{onR();buildUI();build()});
 (function a(){requestAnimationFrame(a);ren.render(sc,cam)})();`;
     w.document.write('<script>'+rendererSrc+'<\/script></body></html>');
     w.document.close();
