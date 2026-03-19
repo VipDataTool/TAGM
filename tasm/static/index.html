@@ -2088,7 +2088,7 @@ function initTerrainViewer(results){
       }
       const ulLen=Math.max(4,Math.round((w-10)*klT));
       if(!isSpine){
-        const[ar,ag,ab]=BASES[curBase].fn(Math.max(.15,klT*.75+.18));
+        const[ar,ag,ab]=_rampFor(c)(Math.max(.15,klT*.75+.18));
         lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(ar*255)+','+Math.round(ag*255)+','+Math.round(ab*255)+')';
         lx.fillRect((w-ulLen)/2,h/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)));
       }else{
@@ -2287,18 +2287,18 @@ function initTerrainViewer(results){
     // Grab the Three.js script src
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain — '+curCat+'</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12}');
-    w.document.write('body{font-family:system-ui,sans-serif;color:#c2c0b6}');
-    w.document.write('canvas{display:block;position:fixed;inset:0;width:100%!important;height:100%!important;cursor:grab}canvas:active{cursor:grabbing}');
-    w.document.write('#inf{position:fixed;top:46px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
-    w.document.write('#hint{position:fixed;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}');
-    w.document.write('#toolbar{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(8,8,18,.85);border-bottom:1px solid #222;font-family:monospace;font-size:11px;flex-wrap:wrap}');
+    w.document.write('body{font-family:system-ui,sans-serif;color:#c2c0b6;display:flex;flex-direction:column}');
+    w.document.write('#toolbar{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(8,8,18,.85);border-bottom:1px solid #222;font-family:monospace;font-size:11px;flex-wrap:wrap}');
     w.document.write('#toolbar select,#toolbar button{font-family:monospace;font-size:10px;padding:3px 8px;background:#181822;color:#aab;border:1px solid #333;border-radius:3px;cursor:pointer}');
     w.document.write('#toolbar button:hover{background:#252538;color:#dde}#toolbar .sep{color:#333;margin:0 2px}');
-    w.document.write('</style>');
+    w.document.write('#scene{flex:1;position:relative;min-height:0}');
+    w.document.write('#scene canvas{display:block;width:100%;height:100%;cursor:grab}#scene canvas:active{cursor:grabbing}');
+    w.document.write('#inf{position:absolute;top:8px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
+    w.document.write('#hint{position:absolute;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}</style>');
     w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script></head><body>');
     w.document.write('<div id="toolbar"></div>');
-    w.document.write('<canvas id="cv"></canvas><div id="inf">'+
-      (entry?entry[0].slice(0,80):'')+'</div><div id="hint">drag: orbit | right-drag: pan | scroll: zoom</div>');
+    w.document.write('<div id="scene"><canvas id="cv"></canvas><div id="inf">'+
+      (entry?entry[0].slice(0,80):'')+'</div><div id="hint">drag: orbit | right-drag: pan | scroll: zoom</div></div>');
     // Inline data and BASES ramp definitions
     w.document.write('<script>const _D='+dataJSON+';');
     // Also inline the BASES ramp functions (serialize them as strings and re-eval)
@@ -2315,12 +2315,12 @@ function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[
 const BG=[.047,.047,.07],FY=-2.2,SCX=.55,COLS=17,HS=180,XM=8*SCX;
 function _rampFor(ci){const p=BASES[curBase];if(ci===8&&p.spine)return p.spine;if(ci>8&&p.inst)return p.inst;return p.base}
 function mixC(mg,mn,mx,klT,xA,ci){const t=Math.max(0,Math.min(1,(mg-mn)/(mx-mn||1)));let[r,g,b]=_rampFor(ci)(t);const k=1+klT*.3;r=Math.min(1,r*k);g=Math.min(1,g*k);b=Math.min(1,b*k);const f=Math.pow(xA/XM,1.6);return[r*(1-f)+BG[0]*f,g*(1-f)+BG[1]*f,b*(1-f)+BG[2]*f]}
-const cv=document.getElementById('cv'),sc=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(44,innerWidth/innerHeight,.1,200);
+const cv=document.getElementById('cv'),scn=document.getElementById('scene'),sc=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(44,1,.1,200);
 const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setClearColor(0x0c0c12,1);
-function onR(){ren.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
-onR();addEventListener('resize',onR);
+function onR(){const w=scn.clientWidth,h=scn.clientHeight;if(w<1||h<1)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+onR();addEventListener('resize',onR);new ResizeObserver(onR).observe(scn);
 sc.add(new THREE.AmbientLight(0x667788,.6));
 const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
 sc.add(new THREE.DirectionalLight(0x445566,.25)).position.set(-4,5,-3);
@@ -2360,7 +2360,7 @@ cv.addEventListener('pointermove',e=>{const p=pt[e.pointerId];if(!p)return;const
 if(p.btn===0){th+=dx*.008;ph=Math.max(.08,Math.min(1.55,ph-dy*.008))}else{const s=rad*.0012;
 const r=new THREE.Vector3();r.crossVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th))).normalize();
 const fw=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
-const u=new THREE.Vector3().crossVectors(r,fw).normalize();tgt.addScaledVector(r,-dx*s);tgt.addScaledVector(u,dy*s)}uc()});
+const u=new THREE.Vector3().crossVectors(r,fw).normalize();tgt.addScaledVector(r,-dx*s);tgt.addScaledVector(u,-dy*s)}uc()});
 cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.max(4,Math.min(30,rad+e.deltaY*.012));uc()},{passive:false});
 // ─── Control panel ──
 let playing=false,speed=4,timer=null;
@@ -2432,7 +2432,7 @@ buildUI();build();uc();
       right.crossVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th))).normalize();
       const fwd=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
       const up=new THREE.Vector3().crossVectors(right,fwd).normalize();
-      target.addScaledVector(right,-dx*speed);target.addScaledVector(up,dy*speed);
+      target.addScaledVector(right,-dx*speed);target.addScaledVector(up,-dy*speed);
     }
     updateCam();
   });
