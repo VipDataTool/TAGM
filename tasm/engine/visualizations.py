@@ -14,48 +14,23 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.colors import LinearSegmentedColormap
 
-CAT_COLORS = {
-    "benign": "#0072B2", "baseline": "#0072B2", "user_baseline": "#56B4E9",
-    "mild": "#E69F00", "harmful": "#D55E00",
-    "jailbreak": "#CC79A7", "adversarial": "#CC79A7", "unknown": "#999999",
-}
+from engine.viz_style import (
+    fig_to_base64 as _fig_to_base64,
+    style_ax as _style_ax_full,
+    apply_style,
+    CAT_COLORS, SHAPE_COLORS,
+    BG_DARK, BG_SURFACE, TASM_CMAP,
+    wrap_label as _wrap_label,
+    wrap_labels as _wrap_labels,
+)
 
-TASM_CMAP = LinearSegmentedColormap.from_list(
-    "tasm", ["#121212", "#1a1e2e", "#2d3a6b", "#4a6fa5", "#7db8c9",
-             "#c4e0a5", "#f0e68c", "#e8a838", "#c44536", "#8b1a1a"])
-
-SHAPE_COLORS = {"steep": "#E69F00", "flat": "#56B4E9", "inverted": "#D55E00"}
-
-
-def _fig_to_base64(fig) -> str:
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
-                facecolor="#121212", edgecolor="none")
-    plt.close(fig)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode()
+# Apply the shared dark theme on import
+apply_style()
 
 
 def _style_ax(ax, title=""):
-    ax.set_facecolor("#1E1E1E")
-    ax.tick_params(colors="#9CA3AF", labelsize=13)
-    ax.xaxis.label.set_color("#9CA3AF")
-    ax.yaxis.label.set_color("#9CA3AF")
-    ax.title.set_color("#DEE2E6")
-    if title:
-        ax.set_title(title, fontsize=16, fontweight="bold", pad=12)
-    for spine in ax.spines.values():
-        spine.set_color("#404040")
-    ax.grid(True, alpha=0.2, color="#333333")
-
-
-def _wrap_label(text, width=18):
-    """Wrap a long label for tick labels."""
-    return "\n".join(textwrap.wrap(text, width))
-
-
-def _wrap_labels(labels, width=18):
-    return [_wrap_label(l, width) for l in labels]
+    """Wrapper for backward compatibility — per-prompt plots only pass title."""
+    _style_ax_full(ax, title=title)
 
 
 # ─── ASM Visualizations (unchanged) ────────────────────────────

@@ -193,8 +193,7 @@ def _generate_deferred_plots(sess):
     (skip_plots=True). Reconstitutes minimal PromptResult objects from stored
     dicts and generates plots one at a time to control memory."""
     from engine.analyzer import PromptResult
-    from engine.ltp import LTPResult
-    import numpy as np
+    import gc
 
     plot_dir = sess.session_dir / "plots" / "individual"
     generated = 0
@@ -206,23 +205,7 @@ def _generate_deferred_plots(sess):
             continue
 
         try:
-            # Reconstitute a minimal PromptResult for the plot functions
-            pr = PromptResult()
-            pr.tokens = r.get("tokens", [])
-            pr.seq_len = r.get("seq_len", len(pr.tokens))
-            pr.signed_attr = r.get("signed_attr", [])
-            pr.per_token_stress = r.get("per_token_stress", [])
-            pr.stress_score = r.get("stress_score", 0)
-            pr.net_correction = r.get("net_correction", 0)
-            pr.entropy = r.get("entropy", 0)
-            pr.gini = r.get("gini", 0)
-            pr.top2_share = r.get("top2_share", 0)
-            pr.middle_share = r.get("middle_share", 0)
-            pr.interior_cv = r.get("interior_cv", 0)
-            pr.amplitude_trajectory = r.get("amplitude_trajectory", [])
-            pr.amplitude_normalized = r.get("amplitude_normalized", [])
-            pr.heatmap = r.get("heatmap", [])
-            pr.signal_layer_indices = r.get("signal_layer_indices", [])
+            pr = PromptResult.from_dict(r, mode="plot")
 
             plots = {
                 "signed_attribution": plot_signed_attribution(pr),
@@ -235,46 +218,23 @@ def _generate_deferred_plots(sess):
                 plots["heatmap"] = plot_heatmap(pr)
 
             # LTP plots
-            ltp_data = r.get("ltp")
-            if ltp_data and ltp_data.get("profiles"):
-                ltp_r = LTPResult()
-                ltp_r.profiles = [np.array(p) for p in ltp_data.get("profiles", [])]
-                ltp_r.tension_magnitudes = ltp_data.get("tension_magnitudes", [])
-                ltp_r.profile_shapes = ltp_data.get("profile_shapes", [])
-                ltp_r.counterfactual_tokens = ltp_data.get("counterfactual_tokens", [])
-                ltp_r.mean_M = ltp_data.get("mean_M", 0)
-                ltp_r.mean_C = ltp_data.get("mean_C", 0)
-                ltp_r.mean_V = ltp_data.get("mean_V", 0)
-                ltp_r.mean_L = ltp_data.get("mean_L", 0)
-                ltp_r.k = ltp_data.get("k", 8)
-                ltp_r.offset_magnitude = {int(k): v for k, v in ltp_data.get("offset_magnitude", {}).items()}
-                ltp_r.offset_consistency = {int(k): v for k, v in ltp_data.get("offset_consistency", {}).items()}
-                sem = ltp_data.get("semantic_trajectory_2d", [])
-                ten = ltp_data.get("tension_trajectory_2d", [])
-                if sem:
-                    ltp_r.semantic_trajectory = np.array(sem)
-                if ten:
-                    ltp_r.tension_trajectory = np.array(ten)
-
-                plots["ltp_profiles"] = plot_ltp_profiles(ltp_r, pr.tokens)
-                plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(ltp_r, pr.tokens)
-                plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(ltp_r)
-                plots["ltp_summary_stats"] = plot_ltp_summary_stats(ltp_r)
-                plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(ltp_r, pr.tokens)
+            if pr.ltp and pr.ltp.profiles:
+                plots["ltp_profiles"] = plot_ltp_profiles(pr.ltp, pr.tokens)
+                plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(pr.ltp, pr.tokens)
+                plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(pr.ltp)
+                plots["ltp_summary_stats"] = plot_ltp_summary_stats(pr.ltp)
+                plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(pr.ltp, pr.tokens)
 
             # Write to disk
-            import base64 as b64mod
             for name, b64_str in plots.items():
                 if b64_str:
                     path = plot_dir / f"{idx:04d}_{name}.png"
-                    path.write_bytes(b64mod.b64decode(b64_str))
+                    path.write_bytes(base64.b64decode(b64_str))
 
             generated += 1
 
-            # GC every 10 plots batches
             if generated % 10 == 0:
-                import gc as _gc
-                _gc.collect()
+                gc.collect()
 
         except Exception as e:
             logger.warning(f"Deferred plot {idx} failed: {e}")
@@ -400,6 +360,59 @@ async def reset_all():
     logger.info("Full reset performed")
     log_progress("reset", "All resources released. Session cleared.")
     return {"ok": True, "message": "Reset complete."}
+
+
+@app.post("/api/recalibrate")
+async def recalibrate_classifier():
+    """Recalibrate the v2 classifier's class parameters from the current
+    session's labeled results. Requires at least 2 prompts per category
+    to compute stable mean/std estimates. Reports what changed."""
+    if not session or session.n_results < 4:
+        return JSONResponse(status_code=400,
+                            content={"error": "Need at least 4 labeled prompts in session."})
+
+    from engine.classifier import update_params, CLASS_PARAMS, CLASSES, FEATURES
+
+    results = session.results
+    new_params = update_params(results)
+
+    # Build a diff report showing what changed
+    changes = []
+    for cls in CLASSES:
+        for feat in FEATURES:
+            old_mu, old_sigma = CLASS_PARAMS[cls][feat]
+            new_mu, new_sigma = new_params[cls][feat]
+            if abs(new_mu - old_mu) > 1e-6 or abs(new_sigma - old_sigma) > 1e-6:
+                changes.append({
+                    "class": cls, "feature": feat,
+                    "old_mean": round(old_mu, 6), "new_mean": round(new_mu, 6),
+                    "old_std": round(old_sigma, 6), "new_std": round(new_sigma, 6),
+                    "delta_mean": round(new_mu - old_mu, 6),
+                })
+
+    # Count per-category sample sizes
+    cat_counts = {}
+    for r in results:
+        cat = r.get("category", "")
+        if cat in CLASSES:
+            cat_counts[cat] = cat_counts.get(cat, 0) + 1
+
+    # Apply the new parameters
+    for cls in CLASSES:
+        CLASS_PARAMS[cls] = new_params[cls]
+
+    logger.info(f"Classifier v2 recalibrated from {len(results)} prompts: "
+                f"{len(changes)} parameters changed, categories={cat_counts}")
+
+    return {
+        "ok": True,
+        "n_prompts": len(results),
+        "category_counts": cat_counts,
+        "n_changes": len(changes),
+        "changes": changes,
+        "message": f"v2 classifier recalibrated from {len(results)} prompts. "
+                   f"{len(changes)} parameters updated.",
+    }
 
 
 @app.get("/api/progress")
@@ -639,30 +652,7 @@ def _run_dashboard_sync():
     logger.info(f"Dashboard request: {session.n_results} prompts in session")
     results = session.results
     from engine.analyzer import PromptResult
-    pr_list = []
-    for r in results:
-        pr = PromptResult()
-        for key in ["stress_score", "net_correction", "entropy", "gini",
-                     "top2_share", "middle_share", "interior_cv",
-                     "kl_divergence", "entropy_ln", "top2_share_ln",
-                     "middle_share_ln", "stress_score_ln",
-                     "n_negative_tokens", "has_negative_tokens",
-                     "category", "seq_len"]:
-            val = r.get(key)
-            if val is not None:
-                setattr(pr, key, val)
-
-        ltp_data = r.get("ltp")
-        if ltp_data:
-            from engine.ltp import LTPResult
-            ltp_r = LTPResult()
-            ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
-            ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
-            ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
-            ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
-            pr.ltp = ltp_r
-
-        pr_list.append(pr)
+    pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
 
     agg = aggregate_batch(pr_list)
     agg_plots = {"batch_summary": plot_batch_summary(agg),
@@ -763,27 +753,7 @@ def _run_export_sync(opts=None):
         try:
             results = session.results
             from engine.analyzer import PromptResult
-            pr_list = []
-            for r in results:
-                pr = PromptResult()
-                for key in ["stress_score", "net_correction", "entropy", "gini",
-                             "top2_share", "middle_share", "interior_cv",
-                             "kl_divergence", "category", "seq_len",
-                             "has_negative_tokens", "n_negative_tokens"]:
-                    val = r.get(key)
-                    if val is not None: setattr(pr, key, val)
-
-                ltp_data = r.get("ltp")
-                if ltp_data:
-                    from engine.ltp import LTPResult
-                    ltp_r = LTPResult()
-                    ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
-                    ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
-                    ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
-                    ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
-                    pr.ltp = ltp_r
-
-                pr_list.append(pr)
+            pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
 
             log_progress("exporting", "Computing separability and comparative plots...")
             agg = aggregate_batch(pr_list)

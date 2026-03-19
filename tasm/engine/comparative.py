@@ -13,34 +13,21 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
-CAT_COLORS = {
-    "benign": "#0072B2", "baseline": "#0072B2", "user_baseline": "#56B4E9",
-    "mild": "#E69F00", "harmful": "#D55E00",
-    "jailbreak": "#CC79A7", "adversarial": "#CC79A7", "unknown": "#999999",
-}
+from engine.viz_style import (
+    fig_to_base64 as _fig_to_base64,
+    style_ax as _style_ax_full,
+    apply_style,
+    CAT_COLORS,
+    wrap_label as _wrap,
+)
 
-def _fig_to_base64(fig) -> str:
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight",
-                facecolor="#121212", edgecolor="none")
-    plt.close(fig)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode()
+# Apply the shared dark theme on import
+apply_style()
+
 
 def _style_ax(ax, title=""):
-    ax.set_facecolor("#1E1E1E")
-    ax.tick_params(colors="#9CA3AF", labelsize=13)
-    ax.xaxis.label.set_color("#9CA3AF")
-    ax.yaxis.label.set_color("#9CA3AF")
-    ax.title.set_color("#DEE2E6")
-    if title:
-        ax.set_title(title, fontsize=16, fontweight="bold", pad=12)
-    for spine in ax.spines.values():
-        spine.set_color("#404040")
-    ax.grid(True, alpha=0.2, color="#333333")
-
-def _wrap(text, width=22):
-    return "\n".join(textwrap.wrap(str(text), width))
+    """Wrapper for backward compatibility — comparative plots only pass title."""
+    _style_ax_full(ax, title=title)
 
 
 def _cat_legend(ax, results):

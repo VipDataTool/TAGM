@@ -270,10 +270,13 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         if has_tl:
             A_l = tuned_lens_cache[layer_idx]
 
-        def _project_alts(alts_list, chosen_id, tau):
+        def _project_alts(alts_list, chosen_id, tau, return_laterals=False):
             """Project a set of counterfactual alternatives through ΔW/2 → W_O → lateral.
-            Same pipeline for both banks — only the input alternatives differ."""
+            Same pipeline for both banks — only the input alternatives differ.
+            When return_laterals=True, also returns the full lateral vectors
+            (needed for weighted tension computation on the instruct bank)."""
             magnitudes = []
+            laterals = [] if return_laterals else None
             for alt_id, alt_prob in alts_list:
                 d_ic = W_u[alt_id] - W_u[chosen_id]
                 if has_tl:
@@ -285,9 +288,11 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 fwd = torch.dot(proj, tau) * tau
                 lateral = proj - fwd
                 magnitudes.append(lateral.norm().item())
+                if return_laterals:
+                    laterals.append((alt_prob, lateral))
             while len(magnitudes) < k:
                 magnitudes.append(0.0)
-            return magnitudes
+            return magnitudes, laterals
 
         for i in range(seq_len):
             inst_alts = per_position_alts[i]
@@ -313,23 +318,17 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 else:
                     tau = torch.zeros_like(h[0])
 
-            # Same measurement, different input
-            instruct_magnitudes = _project_alts(inst_alts, chosen_id, tau)
-            base_magnitudes = _project_alts(base_alts, chosen_id, tau)
+            # Instruct bank: get magnitudes AND lateral vectors in one pass
+            instruct_magnitudes, inst_laterals = _project_alts(
+                inst_alts, chosen_id, tau, return_laterals=True)
+            # Base bank: magnitudes only (no weighted tension needed)
+            base_magnitudes, _ = _project_alts(base_alts, chosen_id, tau)
 
-            # Weighted tension for existing metrics (uses instruct bank)
+            # Weighted tension from the instruct bank's already-computed laterals
+            # (reuses projections instead of recomputing them)
             weighted_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
             prob_sum = 0.0
-            for alt_id, alt_prob in inst_alts:
-                d_ic = W_u[alt_id] - W_u[chosen_id]
-                if has_tl:
-                    d_ic = torch.matmul(A_l, d_ic)
-                delta_val = torch.matmul(dw_v_half, d_ic)
-                expanded = delta_val.view(n_kv_heads, head_dim) \
-                    .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
-                proj = torch.matmul(W_O, expanded)
-                fwd = torch.dot(proj, tau) * tau
-                lateral = proj - fwd
+            for alt_prob, lateral in inst_laterals:
                 weighted_tension += alt_prob * lateral
                 prob_sum += alt_prob
             if prob_sum > 0:

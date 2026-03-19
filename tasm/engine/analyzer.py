@@ -87,6 +87,88 @@ class PromptResult:
     # LTP results
     ltp: Optional[LTPResult] = None
 
+    # ─── Field sets for from_dict reconstitution ──────────────────
+    # Centralized here so every caller uses the same definitions.
+    # "scalar" = what aggregate_batch and statistics need.
+    # "plot"   = everything "scalar" provides, plus per-token arrays
+    #            and trajectories needed to regenerate visualizations.
+
+    _SCALAR_FIELDS = [
+        "stress_score", "net_correction", "entropy", "gini",
+        "top2_share", "middle_share", "interior_cv",
+        "kl_divergence", "category", "seq_len",
+        "has_negative_tokens", "n_negative_tokens",
+        # Length-normalized variants
+        "entropy_ln", "top2_share_ln", "middle_share_ln", "stress_score_ln",
+    ]
+
+    _PLOT_EXTRA_FIELDS = [
+        # Per-token arrays needed by plot functions
+        "tokens", "signed_attr", "per_token_stress",
+        # Trajectory and heatmap
+        "amplitude_trajectory", "amplitude_normalized",
+        "heatmap", "signal_layer_indices",
+    ]
+
+    @classmethod
+    def from_dict(cls, d: dict, mode: str = "scalar") -> "PromptResult":
+        """Reconstitute a PromptResult from a stored result dict.
+
+        Modes:
+          "scalar" — scalar metrics only (for aggregate_batch, statistics).
+          "plot"   — scalars + per-token arrays + trajectories + LTP profiles
+                     (for deferred plot generation).
+
+        This is the single point of truth for which fields each mode needs.
+        All reconstitution in app.py calls this instead of hand-copying fields.
+        """
+        pr = cls()
+
+        # Always copy scalar fields
+        for key in cls._SCALAR_FIELDS:
+            val = d.get(key)
+            if val is not None:
+                setattr(pr, key, val)
+
+        # Plot mode adds per-token arrays and trajectories
+        if mode == "plot":
+            for key in cls._PLOT_EXTRA_FIELDS:
+                val = d.get(key)
+                if val is not None:
+                    setattr(pr, key, val)
+
+        # LTP reconstitution — summary stats for scalar, full profiles for plot
+        ltp_data = d.get("ltp")
+        if ltp_data:
+            ltp_r = LTPResult()
+            ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
+            ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
+            ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
+            ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
+
+            if mode == "plot":
+                ltp_r.profiles = [np.array(p) for p in ltp_data.get("profiles", [])]
+                ltp_r.tension_magnitudes = ltp_data.get("tension_magnitudes", [])
+                ltp_r.profile_shapes = ltp_data.get("profile_shapes", [])
+                ltp_r.counterfactual_tokens = ltp_data.get("counterfactual_tokens", [])
+                ltp_r.k = ltp_data.get("k", 8)
+                ltp_r.offset_magnitude = {
+                    int(k): v for k, v in ltp_data.get("offset_magnitude", {}).items()
+                }
+                ltp_r.offset_consistency = {
+                    int(k): v for k, v in ltp_data.get("offset_consistency", {}).items()
+                }
+                sem = ltp_data.get("semantic_trajectory_2d", [])
+                ten = ltp_data.get("tension_trajectory_2d", [])
+                if sem:
+                    ltp_r.semantic_trajectory = np.array(sem)
+                if ten:
+                    ltp_r.tension_trajectory = np.array(ten)
+
+            pr.ltp = ltp_r
+
+        return pr
+
 
 class Analyzer:
     def __init__(self, model_manager):
