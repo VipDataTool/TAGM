@@ -213,6 +213,7 @@ textarea{resize:vertical;min-height:44px}
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="enableBaselines" onchange="toggleBaselines(this.checked)"><label for="enableBaselines">Length normalization <span style="font-size:8px;color:var(--text-3)">(σ-deviation from baselines.csv)</span></label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
     <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
       <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
@@ -663,6 +664,22 @@ function _buildAnalysisFormData(){
   fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
   fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
   return fd;
+}
+
+async function toggleBaselines(enabled){
+  const cb=$('enableBaselines');
+  try{
+    log(enabled?'Enabling baselines...':'Disabling baselines...');
+    const r=await(await fetch('/api/baselines/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})})).json();
+    if(r.ok){
+      const s=r.baselines;
+      log(s.enabled?`Baselines ON: ${s.total_prompts} prompts, lengths ${s.length_range[0]}-${s.length_range[1]}`:'Baselines OFF','done');
+      if(cb)cb.checked=s.enabled;
+    }else{
+      log('Baselines toggle failed: '+(r.error||''),'error');
+      if(cb)cb.checked=false;
+    }
+  }catch(e){log('Baselines error: '+e.message,'error');if(cb)cb.checked=false}
 }
 
 async function analyzePrompt(){
@@ -2274,6 +2291,8 @@ function initTerrainViewer(results){
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
     if(st.session&&st.session.n_results>0)updateSessionBadge();
+    // Restore baselines toggle from server state
+    if(st.baseline_summary&&st.baseline_summary.enabled&&$('enableBaselines'))$('enableBaselines').checked=true;
   }catch(e){}
 })();
 </script>

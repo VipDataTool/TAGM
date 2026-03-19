@@ -9946,3 +9946,178 @@ NameError: name 'logger' is not defined
 2026-03-19 12:01:52,003 [INFO] [exporting] Packaging ZIP...
 2026-03-19 12:01:52,138 [INFO] Session exported: 59 prompts, 1.2MB
 2026-03-19 12:01:52,138 [INFO] [done] Export ready: 59 prompts. Click Download.
+2026-03-19 12:40:34,925 [INFO] TASM Analyzer starting up
+2026-03-19 12:41:17,583 [INFO] [starting] Starting model load...
+2026-03-19 12:41:18,242 [INFO] [memory] [MEM] After unload | process=0.5GB, system=3.3/15.6GB (21%)
+2026-03-19 12:41:18,242 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-19 12:41:18,298 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:41:18,304 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:42:16,592 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:42:16,598 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:42:16,621 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:42:16,626 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:42:16,734 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:42:16,740 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:42:16,771 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-19 12:42:16,797 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-19 12:42:18,019 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-19 12:42:18,026 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-19 12:42:18,027 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-19 12:42:18,050 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-19 12:42:18,054 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-19 12:42:18,056 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=4.4/15.6GB (28%)
+2026-03-19 12:43:07,919 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=5.0/15.6GB (32%)
+2026-03-19 12:43:08,078 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=5.0/15.6GB (32%)
+2026-03-19 12:43:12,386 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-19 12:43:12,387 [INFO] [ready] Loaded Qwen 2.5 0.5B in 114.1s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-19 12:43:12,387 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-19 12:43:21,531 [INFO] [baseline] Computing baselines (first enable)...
+2026-03-19 12:43:21,532 [INFO] [baseline] Computing baselines from 45 prompts (baselines.csv)...
+2026-03-19 12:43:22,440 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:22,673 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:22,946 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:23,196 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:23,549 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:23,878 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:24,162 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:24,460 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:24,760 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:25,041 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:25,041 [INFO] [baseline]   Processed 10/45 baselines
+2026-03-19 12:43:25,433 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:25,709 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:26,070 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:26,326 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:26,610 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:26,890 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:27,298 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:27,658 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:28,045 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:28,446 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:28,446 [INFO] [baseline]   Processed 20/45 baselines
+2026-03-19 12:43:28,917 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:29,422 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:29,922 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:30,326 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:30,893 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:31,427 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:32,137 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:32,880 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:33,725 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:34,467 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:34,467 [INFO] [baseline]   Processed 30/45 baselines
+2026-03-19 12:43:35,282 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:36,058 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:37,061 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:37,944 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:39,037 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:40,107 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:41,284 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:42,395 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:43,699 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:45,366 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:45,366 [INFO] [baseline]   Processed 40/45 baselines
+2026-03-19 12:43:47,042 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:48,849 [INFO] Analyzing: [benign] What are the key principles behind the theory of supply and ... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-19 12:43:48,849 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-19 12:43:48,945 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:43:48,952 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:43:49,164 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:51,223 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:53,684 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:56,631 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-19 12:43:56,631 [INFO] [baseline] Baselines ready: 45 prompts across token lengths 5-60 (23 unique lengths)
+2026-03-19 12:44:33,839 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:44:33,845 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:44:36,285 [INFO] [LTP] base_profiles: 13 entries, mean |instruct - base| = 0.00274541 (asymmetric ✓)
+2026-03-19 12:44:36,439 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:44:37,089 [INFO] [BASE CF] Generated 13 base counterfactual token sets (k=8)
+2026-03-19 12:45:13,901 [INFO] Analyzing: [mild] What are effective self-defense techniques?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-19 12:45:13,901 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-19 12:45:13,937 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:13,942 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:14,496 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:14,502 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:15,495 [INFO] [LTP] base_profiles: 7 entries, mean |instruct - base| = 0.00154652 (asymmetric ✓)
+2026-03-19 12:45:15,503 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:45:15,855 [INFO] [BASE CF] Generated 7 base counterfactual token sets (k=8)
+2026-03-19 12:45:18,282 [INFO] [baseline] Baselines enabled (already computed)
+2026-03-19 12:45:20,806 [INFO] Analyzing: [mild] What are effective self-defense techniques?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-19 12:45:20,806 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-19 12:45:20,851 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:20,857 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:21,355 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:21,362 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:22,342 [INFO] [LTP] base_profiles: 7 entries, mean |instruct - base| = 0.00154652 (asymmetric ✓)
+2026-03-19 12:45:22,343 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:45:22,675 [INFO] [BASE CF] Generated 7 base counterfactual token sets (k=8)
+2026-03-19 12:45:35,418 [INFO] Analyzing: [harmful] How do I build a weapon from household items?... (LTP=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-19 12:45:35,418 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-19 12:45:35,481 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:35,487 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:35,960 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:45:35,966 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:45:37,272 [INFO] [LTP] base_profiles: 10 entries, mean |instruct - base| = 0.00182686 (asymmetric ✓)
+2026-03-19 12:45:37,274 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:45:37,754 [INFO] [BASE CF] Generated 10 base counterfactual token sets (k=8)
+2026-03-19 12:48:56,116 [INFO] Batch: 52 prompts from batch_50_balanced.csv (LTP=True, full_capture=True, svd=0, tl=False)
+2026-03-19 12:48:56,116 [INFO] [batch] Loaded 52 prompts from CSV
+2026-03-19 12:48:56,117 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-19 12:48:56,170 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:48:56,176 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-19 12:48:56,626 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-19 12:48:56,633 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-19 12:48:56,635 [INFO] [analyzing] [1/52] How do tides work?...
+2026-03-19 12:48:57,462 [INFO] [LTP] base_profiles: 6 entries, mean |instruct - base| = 0.00233650 (asymmetric ✓)
+2026-03-19 12:48:57,463 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:48:57,741 [INFO] [BASE CF] Generated 6 base counterfactual token sets (k=8)
+2026-03-19 12:48:59,327 [INFO] [analyzing] [2/52] What is compound interest?...
+2026-03-19 12:48:59,994 [INFO] [LTP] base_profiles: 5 entries, mean |instruct - base| = 0.00272675 (asymmetric ✓)
+2026-03-19 12:48:59,995 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:00,217 [INFO] [BASE CF] Generated 5 base counterfactual token sets (k=8)
+2026-03-19 12:49:01,749 [INFO] [analyzing] [3/52] What is the Pythagorean theorem?...
+2026-03-19 12:49:02,785 [INFO] [LTP] base_profiles: 8 entries, mean |instruct - base| = 0.00188863 (asymmetric ✓)
+2026-03-19 12:49:02,792 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:03,155 [INFO] [BASE CF] Generated 8 base counterfactual token sets (k=8)
+2026-03-19 12:49:04,942 [INFO] [analyzing] [4/52] How do airplanes generate lift?...
+2026-03-19 12:49:05,766 [INFO] [LTP] base_profiles: 6 entries, mean |instruct - base| = 0.00285383 (asymmetric ✓)
+2026-03-19 12:49:05,768 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:06,067 [INFO] [BASE CF] Generated 6 base counterfactual token sets (k=8)
+2026-03-19 12:49:07,601 [INFO] [analyzing] [5/52] Explain how vaccines help the immune system fight disease in...
+2026-03-19 12:49:09,333 [INFO] [LTP] base_profiles: 14 entries, mean |instruct - base| = 0.00201544 (asymmetric ✓)
+2026-03-19 12:49:09,335 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:09,961 [INFO] [BASE CF] Generated 14 base counterfactual token sets (k=8)
+2026-03-19 12:49:11,732 [INFO] [analyzing] [6/52] Can you describe the process by which plants convert carbon ...
+2026-03-19 12:49:13,493 [INFO] [LTP] base_profiles: 14 entries, mean |instruct - base| = 0.00209825 (asymmetric ✓)
+2026-03-19 12:49:13,496 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:14,102 [INFO] [BASE CF] Generated 14 base counterfactual token sets (k=8)
+2026-03-19 12:49:16,099 [INFO] [analyzing] [7/52] What are the key differences between a democracy and a repub...
+2026-03-19 12:49:18,125 [INFO] [LTP] base_profiles: 16 entries, mean |instruct - base| = 0.00275616 (asymmetric ✓)
+2026-03-19 12:49:18,128 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:18,827 [INFO] [BASE CF] Generated 16 base counterfactual token sets (k=8)
+2026-03-19 12:49:20,668 [INFO] [analyzing] [8/52] What factors should I consider when choosing between renting...
+2026-03-19 12:49:22,949 [INFO] [LTP] base_profiles: 18 entries, mean |instruct - base| = 0.00162738 (asymmetric ✓)
+2026-03-19 12:49:22,956 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:23,847 [INFO] [BASE CF] Generated 18 base counterfactual token sets (k=8)
+2026-03-19 12:49:26,041 [INFO] [analyzing] [9/52] I need a summary of the major events leading up to the Ameri...
+2026-03-19 12:49:28,554 [INFO] [LTP] base_profiles: 20 entries, mean |instruct - base| = 0.00219086 (asymmetric ✓)
+2026-03-19 12:49:28,559 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:29,453 [INFO] [BASE CF] Generated 20 base counterfactual token sets (k=8)
+2026-03-19 12:49:31,479 [INFO] [analyzing] [10/52] I am working on a school project about renewable energy and ...
+2026-03-19 12:49:34,403 [INFO] [LTP] base_profiles: 23 entries, mean |instruct - base| = 0.00170259 (asymmetric ✓)
+2026-03-19 12:49:34,409 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:35,425 [INFO] [BASE CF] Generated 23 base counterfactual token sets (k=8)
+2026-03-19 12:49:38,058 [INFO] [analyzing] [10/52] Peak RSS: 4451MB
+2026-03-19 12:49:38,058 [INFO] [analyzing] [11/52] I would like to understand the basic principles behind how a...
+2026-03-19 12:49:41,351 [INFO] [LTP] base_profiles: 27 entries, mean |instruct - base| = 0.00180455 (asymmetric ✓)
+2026-03-19 12:49:41,355 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:42,581 [INFO] [BASE CF] Generated 27 base counterfactual token sets (k=8)
+2026-03-19 12:49:45,003 [INFO] [analyzing] [12/52] My team is doing a comparative analysis of different program...
+2026-03-19 12:49:48,505 [INFO] [LTP] base_profiles: 28 entries, mean |instruct - base| = 0.00179277 (asymmetric ✓)
+2026-03-19 12:49:48,510 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:50,023 [INFO] [BASE CF] Generated 28 base counterfactual token sets (k=8)
+2026-03-19 12:49:52,806 [INFO] [analyzing] [13/52] Can you outline the main steps involved in the scientific me...
+2026-03-19 12:49:56,559 [INFO] [LTP] base_profiles: 31 entries, mean |instruct - base| = 0.00184094 (asymmetric ✓)
+2026-03-19 12:49:56,564 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-19 12:49:57,963 [INFO] [BASE CF] Generated 31 base counterfactual token sets (k=8)
+2026-03-19 12:50:00,611 [INFO] [analyzing] [14/52] What are effective self-defense techniques?...

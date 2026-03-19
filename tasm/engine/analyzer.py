@@ -186,8 +186,8 @@ class Analyzer:
     def _get_tuned_lens_cache(self, layer_indices=None):
         """Get or build tuned-lens cache (calibrated once, reused)."""
         if self._tuned_lens_cache is None:
-            from engine.baselines import get_baseline_prompts
-            cal_prompts = get_baseline_prompts()
+            from engine.baselines import load_baselines_csv
+            cal_prompts = load_baselines_csv()
             if not cal_prompts:
                 cal_prompts = ["The quick brown fox jumps over the lazy dog.",
                                "What is the capital of France?",

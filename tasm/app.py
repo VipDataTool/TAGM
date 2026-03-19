@@ -124,7 +124,8 @@ def _load_model_worker(pair_id, base_id, instruct_id):
                      instruct_id=instruct_id, callback=log_progress)
         analyzer = Analyzer(mm)
         baselines = BaselineManager()
-        baselines.compute_builtin_baselines(analyzer, callback=log_progress)
+        # Baselines are NOT computed automatically — the user enables them
+        # via the toggle, which triggers /api/baselines/compute.
         session = DatasetSession()
         session.set_model(mm.state.display_name)
         loading_state["active"] = False
@@ -420,6 +421,58 @@ async def get_progress():
     return {"log": progress_log}
 
 
+# ─── Baselines ────────────────────────────────────────────────────
+
+@app.get("/api/baselines")
+async def get_baselines():
+    """Return baseline system status."""
+    return {"ok": True, "baselines": baselines.get_summary()}
+
+
+@app.post("/api/baselines/toggle")
+async def toggle_baselines(request: Request):
+    """Enable or disable baseline length normalization.
+    When enabling for the first time, triggers computation from baselines.csv."""
+    if not analyzer:
+        return JSONResponse(status_code=400, content={"error": "No model loaded."})
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    enable = body.get("enabled", not baselines.enabled)
+
+    if enable and not baselines._computed:
+        # First time enabling — compute from baselines.csv
+        log_progress("baseline", "Computing baselines (first enable)...")
+        import asyncio
+        def _compute():
+            baselines.compute_baselines(analyzer, callback=log_progress)
+        await asyncio.to_thread(_compute)
+    elif enable:
+        baselines.enabled = True
+        log_progress("baseline", "Baselines enabled (already computed)")
+    else:
+        baselines.enabled = False
+        log_progress("baseline", "Baselines disabled — _ln fields will be None")
+
+    return {"ok": True, "baselines": baselines.get_summary()}
+
+
+@app.post("/api/baselines/recompute")
+async def recompute_baselines():
+    """Force recomputation of baselines from baselines.csv."""
+    if not analyzer:
+        return JSONResponse(status_code=400, content={"error": "No model loaded."})
+    log_progress("baseline", "Recomputing baselines from baselines.csv...")
+    import asyncio
+    def _compute():
+        baselines.compute_baselines(analyzer, callback=log_progress)
+    await asyncio.to_thread(_compute)
+    return {"ok": True, "baselines": baselines.get_summary()}
+
+
+# ─── Prompts ──────────────────────────────────────────────────────
+
 @app.get("/api/prompts")
 async def get_prompts():
     """Return all prompts from the unified prompts.csv."""
@@ -428,13 +481,12 @@ async def get_prompts():
 
 @app.post("/api/prompts")
 async def add_prompt_route(prompt: str = Form(...),
-                           category: str = Form("benign"),
-                           baseline: bool = Form(False)):
+                           category: str = Form("benign")):
     err = _validate_prompt(prompt)
     if err:
         return JSONResponse(status_code=400, content={"error": err})
     cat = _validate_category(category)
-    csv_add_prompt(prompt, cat, baseline)
+    csv_add_prompt(prompt, cat)
     logger.info(f"Prompt added to library: [{cat}] {prompt[:60]}...")
     return {"ok": True, "prompts": get_all_prompts()}
 
