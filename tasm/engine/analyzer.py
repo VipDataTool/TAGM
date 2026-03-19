@@ -606,60 +606,69 @@ def result_to_dict(r: PromptResult) -> dict:
         d["ltp"] = None
 
     # Classification -- run all available classifiers
+    # Each classifier is wrapped individually so one failure doesn't block
+    # the rest.  Failures are logged and an error stub is inserted so the
+    # user (and developer) can see that the classifier was attempted.
     classifiers = {}
-    try:
-        from engine.classifier import classify_to_dict as _v2_classify
-        result_v2 = _v2_classify(d)
-        result_v2['classifier'] = 'v2'
-        result_v2['classifier_name'] = 'Hierarchical Decision Tree'
-        classifiers['v2'] = result_v2
-    except Exception:
-        pass
 
-    try:
-        from engine.classifier_v1 import classify as _v1_classify
-        classifiers['v1'] = _v1_classify(d)
-    except Exception:
-        pass
+    _CLASSIFIER_REGISTRY = [
+        ('v1', 'engine.classifier_v1',  'classify', None),
+        ('v2', 'engine.classifier',     'classify_to_dict', {'classifier': 'v2', 'classifier_name': 'Hierarchical Decision Tree'}),
+        ('v3', 'engine.classifier_v3',  'classify', None),
+        ('v4', 'engine.classifier_v4',  'classify', None),
+        ('v5', 'engine.classifier_v5',  'classify', None),
+        ('v6', 'engine.classifier_v6',  'classify', None),
+        ('v7', 'engine.classifier_v7',  'classify', None),
+        ('v8', 'engine.classifier_v8',  'classify', None),
+    ]
 
-    try:
-        from engine.classifier_v3 import classify as _v3_classify
-        classifiers['v3'] = _v3_classify(d)
-    except Exception:
-        pass
-
-    try:
-        from engine.classifier_v4 import classify as _v4_classify
-        classifiers['v4'] = _v4_classify(d)
-    except Exception:
-        pass
-
-    try:
-        from engine.classifier_v5 import classify as _v5_classify
-        classifiers['v5'] = _v5_classify(d)
-    except Exception:
-        pass
-
-    try:
-        from engine.classifier_v6 import classify as _v6_classify
-        classifiers['v6'] = _v6_classify(d)
-    except Exception:
-        pass
-
-    try:
-        from engine.classifier_v7 import classify as _v7_classify
-        classifiers['v7'] = _v7_classify(d)
-    except Exception:
-        pass
-
-    try:
-        from engine.classifier_v8 import classify as _v8_classify
-        classifiers['v8'] = _v8_classify(d)
-    except Exception:
-        pass
+    import importlib
+    for version, module_path, fn_name, extra_fields in _CLASSIFIER_REGISTRY:
+        try:
+            mod = importlib.import_module(module_path)
+            classify_fn = getattr(mod, fn_name)
+            result_cl = classify_fn(d)
+            if extra_fields:
+                result_cl.update(extra_fields)
+            classifiers[version] = result_cl
+        except Exception as e:
+            logger.warning(f"Classifier {version} failed: {e}")
+            classifiers[version] = {
+                'predicted': None, 'confidence': 0.0,
+                'error': str(e), 'classifier': version,
+            }
 
     d["classifiers"] = classifiers
     # Backward compat: "classification" points to v2
     d["classification"] = classifiers.get('v2')
 
+    # Final recursive sanitization — the single authoritative point where
+    # all NaN/Inf values are guaranteed replaced with None.  This ensures
+    # the dict is safe for json.dump (Python writes NaN literally, which
+    # is invalid JSON) and prevents NaN from leaking into session storage,
+    # CSV export, or frontend rendering.
+    d = _sanitize_all(d)
+
     return d
+
+
+def _sanitize_all(obj):
+    """Recursively replace NaN/Inf floats with None throughout a nested structure.
+    Also coerces stray numpy scalars and arrays that may have been introduced
+    by classifier outputs or other post-processing."""
+    if isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, (np.floating, np.float32, np.float64)):
+        v = float(obj)
+        return None if (np.isnan(v) or np.isinf(v)) else v
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, np.ndarray):
+        return _sanitize_all(obj.tolist())
+    if isinstance(obj, dict):
+        return {k: _sanitize_all(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_all(v) for v in obj]
+    return obj

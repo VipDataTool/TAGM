@@ -235,13 +235,22 @@ def aggregate_batch(results: list) -> dict:
                         }
 
     # Correlation between stress_score and kl_divergence
+    # Filter at the prompt level to keep pairs aligned — independent NaN
+    # filtering on separate lists can misalign which prompt each value
+    # belongs to, producing correlations on mismatched data.
     correlations = {}
-    ss_vals = _clean_values([float(r.stress_score) for r in results if r.kl_divergence is not None])
-    kl_vals = _clean_values([float(r.kl_divergence) for r in results if r.kl_divergence is not None])
-    if len(ss_vals) >= 3 and len(kl_vals) >= 3:
-        r_val, p_val = sp_stats.pearsonr(ss_vals[:len(kl_vals)], kl_vals[:len(ss_vals)])
+    corr_pairs = [
+        (float(r.stress_score), float(r.kl_divergence))
+        for r in results
+        if r.kl_divergence is not None
+        and not (math.isnan(float(r.stress_score)) or math.isinf(float(r.stress_score)))
+        and not (math.isnan(float(r.kl_divergence)) or math.isinf(float(r.kl_divergence)))
+    ]
+    if len(corr_pairs) >= 3:
+        ss_vals, kl_vals = zip(*corr_pairs)
+        r_val, p_val = sp_stats.pearsonr(ss_vals, kl_vals)
         correlations["stress_vs_kl"] = {"r": _safe_float(r_val), "p": _safe_float(p_val),
-                                         "n": min(len(ss_vals), len(kl_vals))}
+                                         "n": len(corr_pairs)}
 
     return {
         "n_total": len(results),

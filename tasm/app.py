@@ -61,6 +61,12 @@ progress_log = []
 loading_state = {"active": False, "error": None}
 user_info = {"name": "", "organization": ""}
 
+# Locks protecting shared mutable state from concurrent access.
+# _analysis_lock: serializes forward passes, activation caches, and session writes.
+# _loading_lock: makes the loading_state check-and-set atomic.
+_analysis_lock = threading.Lock()
+_loading_lock = threading.Lock()
+
 
 def log_progress(stage, message):
     progress_log.append({"stage": stage, "message": message, "time": time.time()})
@@ -137,42 +143,47 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         ltp_k=8, ltp_layer_strategy="signal",
                         ltp_svd_rank=0, ltp_tuned_lens=False,
                         skip_plots=False):
-    result = analyzer.analyze_prompt(
-        prompt, category=category,
-        compute_kl=compute_kl,
-        compute_full_trajectory=compute_trajectory,
-        capture_responses=capture_responses,
-        full_capture=full_capture,
-        compute_ltp=compute_ltp,
-        ltp_k=ltp_k,
-        ltp_layer_strategy=ltp_layer_strategy,
-        ltp_svd_rank=ltp_svd_rank,
-        ltp_tuned_lens=ltp_tuned_lens)
+    # Serialize access to model activations, hooks, and session state.
+    # Without this lock, concurrent API calls can corrupt activation caches
+    # (one prompt's hidden states overwriting another's mid-extraction)
+    # and race on session.results.
+    with _analysis_lock:
+        result = analyzer.analyze_prompt(
+            prompt, category=category,
+            compute_kl=compute_kl,
+            compute_full_trajectory=compute_trajectory,
+            capture_responses=capture_responses,
+            full_capture=full_capture,
+            compute_ltp=compute_ltp,
+            ltp_k=ltp_k,
+            ltp_layer_strategy=ltp_layer_strategy,
+            ltp_svd_rank=ltp_svd_rank,
+            ltp_tuned_lens=ltp_tuned_lens)
 
-    baselines.normalize_result(result)
+        baselines.normalize_result(result)
 
-    plots = {}
-    if not skip_plots:
-        plots = {
-            "signed_attribution": plot_signed_attribution(result),
-            "stress_per_token": plot_stress_per_token(result),
-            "distribution_metrics": plot_distribution_metrics(result),
-        }
-        if compute_trajectory:
-            plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
-            plots["heatmap"] = plot_heatmap(result)
+        plots = {}
+        if not skip_plots:
+            plots = {
+                "signed_attribution": plot_signed_attribution(result),
+                "stress_per_token": plot_stress_per_token(result),
+                "distribution_metrics": plot_distribution_metrics(result),
+            }
+            if compute_trajectory:
+                plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
+                plots["heatmap"] = plot_heatmap(result)
 
-        # LTP plots
-        if compute_ltp and result.ltp is not None:
-            plots["ltp_profiles"] = plot_ltp_profiles(result.ltp, result.tokens)
-            plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(result.ltp, result.tokens)
-            plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(result.ltp)
-            plots["ltp_summary_stats"] = plot_ltp_summary_stats(result.ltp)
-            plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(result.ltp, result.tokens)
+            # LTP plots
+            if compute_ltp and result.ltp is not None:
+                plots["ltp_profiles"] = plot_ltp_profiles(result.ltp, result.tokens)
+                plots["ltp_tension_magnitudes"] = plot_ltp_tension_magnitudes(result.ltp, result.tokens)
+                plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(result.ltp)
+                plots["ltp_summary_stats"] = plot_ltp_summary_stats(result.ltp)
+                plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(result.ltp, result.tokens)
 
-    result_dict = result_to_dict(result)
-    if session:
-        session.add_result(result_dict, plots)
+        result_dict = result_to_dict(result)
+        if session:
+            session.add_result(result_dict, plots)
 
     return result_dict, plots
 
@@ -349,17 +360,22 @@ async def add_model(id: str = Form(...), name: str = Form(...),
 async def load_model(pair_id: str = Form(None),
                      base_id: str = Form(None),
                      instruct_id: str = Form(None)):
-    if loading_state["active"]:
-        return {"ok": False, "message": "Already loading a model."}
+    # Atomic check-and-set prevents two concurrent load_model requests
+    # from both passing the "active" check before either sets the flag.
+    with _loading_lock:
+        if loading_state["active"]:
+            return {"ok": False, "message": "Already loading a model."}
+        loading_state["active"] = True
+        loading_state["error"] = None
 
     # Validate
     if not pair_id and not (base_id and instruct_id):
+        with _loading_lock:
+            loading_state["active"] = False
         return JSONResponse(status_code=400,
                             content={"error": "Select a model pair or provide custom IDs."})
 
     progress_log.clear()
-    loading_state["active"] = True
-    loading_state["error"] = None
     log_progress("starting", "Starting model load...")
 
     thread = threading.Thread(
