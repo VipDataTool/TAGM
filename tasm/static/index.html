@@ -107,6 +107,24 @@ textarea{resize:vertical;min-height:44px}
 .data-table th{text-align:left;padding:5px 6px;color:var(--text-1);border-bottom:1px solid var(--border);font-weight:500;text-transform:uppercase;font-size:9px;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
 .data-table td{padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text-1);white-space:nowrap}
 .data-table tr:hover td{background:var(--bg-2)}
+/* ─── Data Grid (Data tab — scrollable, resizable, selectable) ─── */
+.dt-toolbar{display:flex;align-items:center;gap:8px;padding:6px 0;font-family:var(--mono);font-size:10px;color:var(--text-2);flex-wrap:wrap}
+.dt-toolbar .btn{width:auto;font-size:9px;padding:4px 10px}
+.dt-toolbar .dt-sel-count{color:var(--text-1);min-width:80px}
+.dt-wrap{position:relative;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-1)}
+.dt-scroll{overflow:auto;max-height:calc(100vh - 200px);min-height:200px}
+.dt-grid{border-collapse:separate;border-spacing:0;font-family:var(--mono);font-size:var(--font-table);width:max-content;min-width:100%}
+.dt-grid th,.dt-grid td{padding:4px 8px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;position:relative}
+.dt-grid th{position:sticky;top:0;z-index:3;background:var(--bg-2);color:var(--text-2);font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.3px;cursor:default;user-select:none}
+.dt-grid th:first-child{position:sticky;left:0;z-index:4}
+.dt-grid td:first-child{position:sticky;left:0;z-index:1;background:var(--bg-1)}
+.dt-grid tr:hover td{background:var(--bg-2)}
+.dt-grid tr.dt-selected td{background:rgba(88,166,255,0.08)}
+.dt-grid td.dt-cell-prompt{max-width:250px;overflow:hidden;text-overflow:ellipsis}
+.dt-grid .dt-cb{width:16px;text-align:center;padding:4px 4px}
+.dt-grid .dt-cb input{accent-color:var(--blue);cursor:pointer}
+.dt-resize{position:absolute;right:-2px;top:0;bottom:0;width:5px;cursor:col-resize;z-index:5}
+.dt-resize:hover,.dt-resize.active{background:var(--blue)}
 .topk-table{font-family:var(--mono);font-size:11px;margin-top:5px}
 .topk-table td{padding:3px 8px}.tok-inst{color:var(--blue)}.tok-base{color:var(--red)}
 .token-bar{height:5px;border-radius:2px;display:inline-block;vertical-align:middle}
@@ -235,7 +253,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
     <div id="dashContent" style="display:none"></div>
   </div>
-  <div class="tab-panel" id="panel-data" style="overflow-x:auto;min-width:0">
+  <div class="tab-panel" id="panel-data" style="padding:8px 16px;min-width:0">
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-experimental">
@@ -1455,40 +1473,40 @@ function renderDataTable(){
   if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
   const catOrd={benign:0,mild:1,harmful:2,jailbreak:3};
-  const sorted=[...sessionResults].sort((a,b)=>{
+  const sorted=[...sessionResults].map((r,i)=>({...r,_srcIdx:i})).sort((a,b)=>{
     const ca=(catOrd[a.category]??4),cb=(catOrd[b.category]??4);
     if(ca!==cb)return ca-cb;
     return(b.net_correction||0)-(a.net_correction||0);
   });
 
-  // Column definitions: [key, label, format, heatHue]
-  // format: null=raw, 'f4'=4 decimal, 'f5'=5 decimal, 'pct'=percent, 'i'=integer, 's'=string, 'f2'=2 decimal
+  // Column definitions: [key, label, format, heatHue, defaultWidth]
   const cols=[
-    ['_index','#',null,null],
-    ['prompt','Prompt','s',null],
-    ['category','Cat','cat',null],
-    ['_pred','Pred','pred',null],
-    ['seq_len','Tok','i',null],
-    ['stress_score','Stress','f3',200],
-    ['net_correction','Net','f5',160],
-    ['entropy','Ent','f4',40],
-    ['middle_share','Int%','pct',280],
-    ['interior_cv','IntCV','f4',null],
-    ['top2_share','Bnd%','pct',null],
-    ['gini','Gini','f4',null],
-    ['kl_divergence','KL','f4',null],
-    ['n_negative_tokens','Neg','i',null],
-    ['stress_score_ln','Stress LN','f2',null],
-    ['entropy_ln','Ent LN','f2',null],
-    ['middle_share_ln','Int% LN','f2',null],
-    ['_inst_top1','Inst Top1','s',null],
-    ['_inst_prob','Inst P','pct3',null],
-    ['_base_top1','Base Top1','s',null],
-    ['_base_prob','Base P','pct3',null],
-    ['_ltp_M','M','f6',null],
-    ['_ltp_C','C','f4',null],
-    ['_ltp_max_prc','MaxPRC','pct_pp',null],
-    ['_ltp_n_dir','N_dir','i',null],
+    ['_cb','','cb',null,32],
+    ['_index','#',null,null,32],
+    ['prompt','Prompt','s',null,220],
+    ['category','Cat','cat',null,52],
+    ['_pred','Pred','pred',null,100],
+    ['seq_len','Tok','i',null,36],
+    ['stress_score','Stress','f3',200,60],
+    ['net_correction','Net','f5',160,72],
+    ['entropy','Ent','f4',40,58],
+    ['middle_share','Int%','pct',280,52],
+    ['interior_cv','IntCV','f4',null,54],
+    ['top2_share','Bnd%','pct',null,52],
+    ['gini','Gini','f4',null,52],
+    ['kl_divergence','KL','f4',null,52],
+    ['n_negative_tokens','Neg','i',null,34],
+    ['stress_score_ln','StressLN','f2',null,60],
+    ['entropy_ln','EntLN','f2',null,52],
+    ['middle_share_ln','Int%LN','f2',null,56],
+    ['_inst_top1','InstTop1','s',null,70],
+    ['_inst_prob','InstP','pct3',null,50],
+    ['_base_top1','BaseTop1','s',null,70],
+    ['_base_prob','BaseP','pct3',null,50],
+    ['_ltp_M','M','f6',null,68],
+    ['_ltp_C','C','f4',null,52],
+    ['_ltp_max_prc','MaxPRC','pct_pp',null,56],
+    ['_ltp_n_dir','N_dir','i',null,40],
   ];
 
   // Compute ranges for heatmap columns
@@ -1505,7 +1523,7 @@ function renderDataTable(){
   }
 
   function fmt(val,format){
-    if(val==null||val===''||val===undefined) return'--';
+    if(val==null||val===''||val===undefined) return'<span style="color:var(--text-3)">--</span>';
     if(format==='s') return escHtml(String(val).substring(0,30));
     if(format==='i') return Math.round(val);
     if(format==='f2') return Number(val).toFixed(2);
@@ -1528,7 +1546,8 @@ function renderDataTable(){
   }
 
   function getVal(r,key){
-    if(key==='_index') return sessionResults.indexOf(r)+1;
+    if(key==='_cb') return r._srcIdx;
+    if(key==='_index') return r._srcIdx+1;
     if(key==='_pred') return{cl:r.classification,cat:r.category};
     if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
     if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
@@ -1541,23 +1560,157 @@ function renderDataTable(){
     return r[key];
   }
 
-  let h=`<div style="font-size:var(--font-desc);color:var(--text-1);margin-bottom:8px">Full dataset. Scroll horizontally for all columns. Heatmap shading on Stress, Net, Entropy, Int%.</div>`;
-  h+=`<div style="overflow-x:auto"><table class="data-table"><tr>`;
-  for(const[key,label]of cols) h+=`<th>${label}</th>`;
-  h+=`</tr>`;
+  // ─── Toolbar ──────────────────────────────────────────────────
+  let h=`<div class="dt-toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:4px;cursor:pointer">
+      <input type="checkbox" id="dtSelectAll" onchange="dtToggleAll(this.checked)"> <span style="font-size:10px">All</span>
+    </label>
+    <span class="dt-sel-count" id="dtSelCount">0 selected</span>
+    <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
+    <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
+    <span style="margin-left:auto;color:var(--text-3);font-size:9px">${sorted.length} records · drag column edges to resize</span>
+  </div>`;
+
+  // ─── Table ────────────────────────────────────────────────────
+  h+=`<div class="dt-wrap"><div class="dt-scroll" id="dtScroll"><table class="dt-grid" id="dtGridTable"><thead><tr>`;
+
+  for(let ci=0;ci<cols.length;ci++){
+    const[key,label,format,,w]=cols[ci];
+    const isCheckbox = key==='_cb';
+    const cls = isCheckbox ? ' class="dt-cb"' : '';
+    const content = isCheckbox
+      ? ''
+      : `${label}<div class="dt-resize" data-col="${ci}" onmousedown="dtStartResize(event,${ci})"></div>`;
+    h+=`<th${cls} style="min-width:${w}px;width:${w}px">${content}</th>`;
+  }
+  h+=`</tr></thead><tbody>`;
 
   for(const r of sorted){
-    h+=`<tr>`;
-    for(const[key,label,format,hue]of cols){
+    const srcIdx = r._srcIdx;
+    h+=`<tr data-idx="${srcIdx}" id="dtRow_${srcIdx}">`;
+    for(const[key,label,format,hue,w]of cols){
       const val=getVal(r,key);
-      const style=key==='prompt'?'max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap':heatBg(r[key]||0,key,hue);
-      const title=key==='prompt'?` title="${escHtml(r.prompt)}"`:''
-      h+=`<td style="${style}"${title}>${fmt(val,format)}</td>`;
+      if(key==='_cb'){
+        h+=`<td class="dt-cb"><input type="checkbox" data-idx="${srcIdx}" onchange="dtUpdateSelection()"></td>`;
+      } else if(key==='prompt'){
+        h+=`<td class="dt-cell-prompt" title="${escHtml(r.prompt)}">${fmt(val,format)}</td>`;
+      } else {
+        const style=heatBg(r[key]||0,key,hue);
+        h+=`<td style="${style}">${fmt(val,format)}</td>`;
+      }
     }
     h+=`</tr>`;
   }
-  h+=`</table></div>`;
+  h+=`</tbody></table></div></div>`;
   $('dataTableContainer').innerHTML=h;
+}
+
+// ─── Data Table: Selection ──────────────────────────────────────
+function dtGetSelectedIndices(){
+  const cbs=document.querySelectorAll('#dtGridTable tbody input[type="checkbox"]:checked');
+  return Array.from(cbs).map(cb=>parseInt(cb.dataset.idx));
+}
+function dtUpdateSelection(){
+  const sel=dtGetSelectedIndices();
+  const count=sel.length;
+  const el=$('dtSelCount'); if(el) el.textContent=count+' selected';
+  const reBtn=$('dtRerunBtn'); if(reBtn) reBtn.disabled=count===0;
+  const rmBtn=$('dtRemoveBtn'); if(rmBtn) rmBtn.disabled=count===0;
+  // Update "select all" checkbox state
+  const allCbs=document.querySelectorAll('#dtGridTable tbody input[type="checkbox"]');
+  const allCheck=$('dtSelectAll');
+  if(allCheck){
+    allCheck.checked=allCbs.length>0&&count===allCbs.length;
+    allCheck.indeterminate=count>0&&count<allCbs.length;
+  }
+  // Highlight selected rows
+  document.querySelectorAll('#dtGridTable tbody tr').forEach(tr=>{
+    const cb=tr.querySelector('input[type="checkbox"]');
+    tr.classList.toggle('dt-selected',cb&&cb.checked);
+  });
+}
+function dtToggleAll(checked){
+  document.querySelectorAll('#dtGridTable tbody input[type="checkbox"]').forEach(cb=>{cb.checked=checked});
+  dtUpdateSelection();
+}
+
+// ─── Data Table: Remove ─────────────────────────────────────────
+async function dtRemoveSelected(){
+  const indices=dtGetSelectedIndices();
+  if(!indices.length) return;
+  if(!confirm(`Remove ${indices.length} result(s) from the session? This cannot be undone.`)) return;
+  try{
+    const r=await(await fetch('/api/session/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})})).json();
+    if(r.ok){
+      log(`Removed ${r.removed} results (${r.remaining} remaining)`,'done');
+      // Reload session results
+      const sr=await(await fetch('/api/session/results')).json();
+      if(sr.ok) sessionResults=sr.results;
+      updateSessionBadge();renderDataTable();
+    } else { log('Remove failed: '+(r.error||'unknown'),'error') }
+  }catch(e){log('Remove error: '+e.message,'error')}
+}
+
+// ─── Data Table: Rerun ──────────────────────────────────────────
+async function dtRerunSelected(){
+  const indices=dtGetSelectedIndices();
+  if(!indices.length) return;
+  // Gather current analysis options from the sidebar checkboxes (same IDs as analyze_single)
+  const options={
+    compute_kl:$('computeKL')&&$('computeKL').checked,
+    compute_trajectory:$('cfgComputeTraj')&&$('cfgComputeTraj').checked,
+    capture_responses:$('cfgCaptureResponses')&&$('cfgCaptureResponses').checked,
+    full_capture:$('cfgFullCapture')&&$('cfgFullCapture').checked,
+    compute_ltp:$('computeLTP')&&$('computeLTP').checked,
+    ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
+    ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
+    ltp_svd_rank:parseInt(($('cfgLtpSvdRank')&&$('cfgLtpSvdRank').value)||0),
+    ltp_tuned_lens:$('cfgLtpTunedLens')&&$('cfgLtpTunedLens').value==='true',
+  };
+  log(`Rerunning ${indices.length} prompt(s)...`,'analyzing');
+  try{
+    const r=await(await fetch('/api/session/rerun',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices,options})})).json();
+    if(r.ok){
+      log(`Reran ${r.rerun} prompts (${r.total} total in session)`,'done');
+      const sr=await(await fetch('/api/session/results')).json();
+      if(sr.ok) sessionResults=sr.results;
+      updateSessionBadge();renderDataTable();
+    } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
+  }catch(e){log('Rerun error: '+e.message,'error')}
+}
+
+// ─── Data Table: Column Resize ──────────────────────────────────
+let _dtResizeState=null;
+function dtStartResize(e,colIndex){
+  e.preventDefault();
+  const table=document.getElementById('dtGridTable');
+  if(!table) return;
+  const th=table.querySelectorAll('thead th')[colIndex];
+  if(!th) return;
+  const startX=e.clientX;
+  const startW=th.offsetWidth;
+  const handle=e.target;
+  handle.classList.add('active');
+
+  function onMove(ev){
+    const delta=ev.clientX-startX;
+    const newW=Math.max(28,startW+delta);
+    th.style.width=newW+'px';
+    th.style.minWidth=newW+'px';
+    // Also resize corresponding body cells for consistency
+    const rows=table.querySelectorAll('tbody tr');
+    rows.forEach(tr=>{
+      const td=tr.children[colIndex];
+      if(td){td.style.width=newW+'px';td.style.minWidth=newW+'px'}
+    });
+  }
+  function onUp(){
+    handle.classList.remove('active');
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
 }
 
 // ─── Prompt Library ─────────────────────────────────────────────

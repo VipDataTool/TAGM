@@ -633,6 +633,123 @@ async def get_session_results():
     return {"ok": True, "results": results}
 
 
+@app.post("/api/session/remove")
+async def remove_from_session(request: Request):
+    """Remove specific results from the session by index."""
+    if not session:
+        return JSONResponse(status_code=400, content={"error": "No active session."})
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON body."})
+
+    indices = sorted(set(body.get("indices", [])), reverse=True)
+    if not indices:
+        return JSONResponse(status_code=400, content={"error": "No indices provided."})
+
+    removed = 0
+    for idx in indices:
+        if 0 <= idx < len(session.results):
+            session.results.pop(idx)
+            removed += 1
+
+    # Reindex _index fields
+    for i, r in enumerate(session.results):
+        r["_index"] = i
+
+    # Rewrite the CSV from scratch to stay in sync
+    session._csv_initialized = False
+    if session.csv_path.exists():
+        session.csv_path.unlink()
+    for r in session.results:
+        session._write_csv_row(r)
+
+    logger.info(f"Removed {removed} results from session ({session.n_results} remaining)")
+    return {"ok": True, "removed": removed, "remaining": session.n_results}
+
+
+@app.post("/api/session/rerun")
+async def rerun_prompts(request: Request):
+    """Rerun specific prompts from the session by index. The old results are
+    removed and fresh analyses are appended at the end."""
+    if not session:
+        return JSONResponse(status_code=400, content={"error": "No active session."})
+    if not analyzer:
+        return JSONResponse(status_code=400, content={"error": "No model loaded."})
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON body."})
+
+    indices = sorted(set(body.get("indices", [])))
+    if not indices:
+        return JSONResponse(status_code=400, content={"error": "No indices provided."})
+
+    # Read analysis options from the request (with defaults)
+    opts = body.get("options", {})
+    compute_kl = opts.get("compute_kl", False)
+    compute_trajectory = opts.get("compute_trajectory", True)
+    capture_responses = opts.get("capture_responses", False)
+    full_capture = opts.get("full_capture", False)
+    compute_ltp = opts.get("compute_ltp", False)
+    ltp_k = opts.get("ltp_k", 8)
+    ltp_layer_strategy = opts.get("ltp_layer_strategy", "signal")
+    ltp_svd_rank = opts.get("ltp_svd_rank", 0)
+    ltp_tuned_lens = opts.get("ltp_tuned_lens", False)
+
+    # Collect prompts to rerun before removing them
+    to_rerun = []
+    for idx in indices:
+        if 0 <= idx < len(session.results):
+            r = session.results[idx]
+            to_rerun.append({"prompt": r["prompt"], "category": r.get("category", "")})
+
+    if not to_rerun:
+        return JSONResponse(status_code=400, content={"error": "No valid indices."})
+
+    # Remove the old results (reverse order to keep indices valid)
+    for idx in sorted(indices, reverse=True):
+        if 0 <= idx < len(session.results):
+            session.results.pop(idx)
+
+    # Reindex
+    for i, r in enumerate(session.results):
+        r["_index"] = i
+
+    # Load base model if needed
+    needs_base = compute_kl or capture_responses or compute_ltp
+    if needs_base:
+        mm.load_base_for_kl(callback=log_progress)
+
+    # Rerun in the request thread (these are individual prompts, not a huge batch)
+    rerun_count = 0
+    for item in to_rerun:
+        try:
+            _analyze_and_record(
+                item["prompt"], item["category"],
+                compute_kl, compute_trajectory, capture_responses,
+                full_capture=full_capture,
+                compute_ltp=compute_ltp, ltp_k=ltp_k,
+                ltp_layer_strategy=ltp_layer_strategy,
+                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
+            rerun_count += 1
+        except Exception as e:
+            logger.error(f"Rerun failed for '{item['prompt'][:40]}': {e}")
+
+    if needs_base:
+        mm.unload_base()
+
+    # Rewrite CSV from scratch
+    session._csv_initialized = False
+    if session.csv_path.exists():
+        session.csv_path.unlink()
+    for r in session.results:
+        session._write_csv_row(r)
+
+    logger.info(f"Reran {rerun_count}/{len(to_rerun)} prompts")
+    return {"ok": True, "rerun": rerun_count, "total": session.n_results}
+
+
 @app.get("/api/dashboard")
 async def get_dashboard():
     if not session or session.n_results == 0:

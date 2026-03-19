@@ -66,7 +66,7 @@
       "order": 110
     },
     "counterfactual_table": {
-      "on": true,
+      "on": false,
       "scope": "prompt",
       "order": 120
     },
@@ -81,66 +81,66 @@
       "order": 15
     },
     "batch_summary": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 30
     },
     "key_scatters": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 40
     },
     "discriminative_sublayers": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 50
     },
     "proof1_summary": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 60
     },
     "exp_trajectory_overlay": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 70
     },
     "exp_difference_from_benign": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 80
     },
     "exp_metric_scatters": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 90
     },
     "exp_behavioral_comparison": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 100
     },
     "exp_ltp_category_comparison": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 110
     },
     "exp_ltp_m_vs_stress": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 120
     },
     "exp_ltp_profile_shapes": {
-      "on": true,
+      "on": false,
       "scope": "batch",
       "order": 130
     }
   },
   "fonts": {
-    "cardTitle": "24",
-    "desc": "13",
-    "legend": "11",
-    "table": "11"
+    "cardTitle": "20",
+    "desc": "14",
+    "legend": "14",
+    "table": "14"
   },
   "ltp": {
     "layerStrategy": "late",
