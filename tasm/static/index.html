@@ -758,7 +758,7 @@ async function loadDashboard(force){
       h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
-          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude from midpoint decomposition (±ΔW/2 projected through each model's own O-projection). Instruct bank (right) shows alignment field built by training. Base bank (left) shows alignment field carved from the base model. Color = tension heatmap with KL divergence overlay. Grid lines follow the mesh surface. Every vertex shows its counterfactual token. Left-drag orbit, right-drag pan, scroll zoom.</p>
+          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude from midpoint decomposition (±ΔW/2 projected through each model's own O-projection). Instruct bank (right, warm tones) shows alignment field built by training. Base bank (left, cool tones) shows alignment field carved from the base model. Dual palette mode uses separate color ramps so the two banks are distinguishable at a glance. Left-drag orbit, right-drag pan, scroll zoom.</p>
         </div>
         <div class="feature-body" id="terrainFeatureBody" style="padding:0"><div id="terrainContainer"></div></div>
       </div>`;
@@ -845,7 +845,10 @@ async function exportSession(){
 function popoutRecord(rid){
   const el=document.getElementById(rid);
   if(!el) return;
-  const w=window.open('','_blank','width=1000,height=800,scrollbars=yes');
+  const pw=1000,ph=800;
+  const left=Math.round((screen.width-pw)/2);
+  const top=Math.round((screen.height-ph)/2);
+  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
   if(!w) return;
   // Grab stylesheets from parent
   const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
@@ -1432,17 +1435,17 @@ function renderLatest(r,plots){
     }
     // Disabled JS vizs that have LTP data
     if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Alignment Tunnel (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">▶</span>Alignment Tunnel (disabled)</div><p class="feature-desc">Interactive per-token alignment field cross-section viewer.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Alignment Tunnel</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
     }
     if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">Counterfactual Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">▶</span>Counterfactual Table (disabled)</div><p class="feature-desc">Alternative tokens at each position with probabilities and profile shapes.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Counterfactual Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
     }
   }
   if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">▶</span>Model Predictions (disabled)</div><p class="feature-desc">Side-by-side instruct vs base top-k next-token predictions.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Model Predictions</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
   }
   if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Attribution Table (disabled)</div><p class="feature-desc">Enable in Configuration tab to view.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">▶</span>Attribution Table (disabled)</div><p class="feature-desc">Raw per-token signed attribution and stress values with inline bars.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Attribution Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
   }
 
   // Append disabled items to experimental tab
@@ -1853,20 +1856,40 @@ function initTerrainViewer(results){
   const D=_terrainTransformData(results);
   if(!Object.keys(D).length) return;
 
-  // Color ramps
+  // Color ramps — dual palette: base bank (cool) and instruct bank (warm)
+  // Each "profile" defines a pair of ramps for the two model banks,
+  // plus a spine ramp for the center ridge.
   function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
   const BASES={
-    vivid:{label:'Vivid',fn:t=>stops(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]])},
-    ltp:{label:'LTP',fn:t=>stops(t,[[0,[.01,.01,.14]],[.18,[.04,.14,.42]],[.34,[.06,.36,.64]],[.48,[.06,.58,.62]],[.60,[.22,.74,.38]],[.72,[.58,.84,.14]],[.82,[.88,.82,.08]],[.90,[.96,.56,.06]],[.96,[.92,.22,.08]],[1,[.70,.04,.12]]])},
-    ember:{label:'Heat',fn:t=>stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]])}
+    dual:{label:'Dual (Base ↔ Instruct)',
+      base:t=>stops(t,[[0,[.01,.02,.12]],[.15,[.02,.08,.32]],[.30,[.04,.20,.52]],[.45,[.06,.38,.68]],[.58,[.10,.56,.78]],[.70,[.22,.72,.84]],[.82,[.48,.85,.88]],[.92,[.72,.94,.96]],[1,[.90,.98,.99]]]),
+      inst:t=>stops(t,[[0,[.12,.02,.01]],[.15,[.32,.06,.02]],[.30,[.52,.12,.02]],[.45,[.72,.28,.04]],[.58,[.86,.44,.06]],[.70,[.94,.60,.08]],[.82,[.98,.76,.18]],[.92,[.99,.88,.42]],[1,[1,.96,.72]]]),
+      spine:t=>stops(t,[[0,[.06,.05,.06]],[.30,[.20,.18,.16]],[.60,[.50,.46,.38]],[.80,[.78,.72,.60]],[1,[.96,.92,.80]]])},
+    vivid:{label:'Vivid (shared)',
+      base:t=>stops(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]]),
+      inst:null,  // null = same as base
+      spine:null},
+    ember:{label:'Heat (shared)',
+      base:t=>stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]]),
+      inst:null,
+      spine:null}
   };
 
   let curCat=Object.keys(D).includes('benign')?'benign':Object.keys(D)[0];
-  let curIdx=0, curBase='vivid', labelScale=2.0;
+  let curIdx=0, curBase='dual', labelScale=2.0;
   let renderMode='surface', dataFilter='all';  // surface|points, all|highkl|hotspots
   let slideshowPlaying=false, slideshowSpeed=4, slideshowTimer=null;
   const BG=[.047,.047,.07];
   const FY=-2.2, SCX=0.55, COLS=17, HSCALE=180, X_MAX=8*SCX;
+
+  function _rampFor(colIdx){
+    // Returns the color ramp function for the given column index:
+    // cols 0-7 = base bank, col 8 = spine, cols 9-16 = instruct bank
+    const profile=BASES[curBase];
+    if(colIdx===8 && profile.spine) return profile.spine;
+    if(colIdx>8 && profile.inst) return profile.inst;
+    return profile.base;  // fallback: base ramp for everything when inst is null
+  }
 
   // Build DOM
   container.innerHTML=`<div class="terrain-wrap">
@@ -1899,9 +1922,10 @@ function initTerrainViewer(results){
 
   let msh=null,wir=null,flr=null,lbs=[];
 
-  function mixColor(mag,mn,mx,klT,xAbs){
+  function mixColor(mag,mn,mx,klT,xAbs,colIdx){
     const t=Math.max(0,Math.min(1,(mag-mn)/(mx-mn||1)));
-    let[r,g,b]=BASES[curBase].fn(t);
+    const rampFn=_rampFor(colIdx);
+    let[r,g,b]=rampFn(t);
     // KL modulates brightness — high KL tokens glow brighter
     const klBoost=1.0+klT*0.3;
     r=Math.min(1,r*klBoost);g=Math.min(1,g*klBoost);b=Math.min(1,b*klBoost);
@@ -1941,7 +1965,7 @@ function initTerrainViewer(results){
         const y=FY+(mag-mn)*HSCALE;
         vtx[t].push({x,y,z});
         vsArr.push(x,y,z);
-        const col=mixColor(mag,mn,mx,klT,Math.abs(x));
+        const col=mixColor(mag,mn,mx,klT,Math.abs(x),c);
         csArr.push(col.r,col.g,col.b);
       }
     }
@@ -2113,9 +2137,31 @@ function initTerrainViewer(results){
     const baseHasData=rows.some(r=>r[0].some(v=>v>0));
     document.getElementById('tInf').textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'" \u00B7 base: '+(baseHasData?'\u2705 data':'\u274C NO DATA — reload model');
 
-    // Legend gradient
+    // Legend gradient — dual: two bars side-by-side; shared: one bar
     const legC=document.getElementById('tLegBase');
-    if(legC){legC.width=100;const ctx=legC.getContext('2d');const g=ctx.createLinearGradient(0,0,100,0);for(let i=0;i<=20;i++){const t=i/20;const[r,gr,b]=BASES[curBase].fn(t);g.addColorStop(t,'rgb('+Math.round(r*255)+','+Math.round(gr*255)+','+Math.round(b*255)+')')}ctx.fillStyle=g;ctx.fillRect(0,0,100,6)}
+    if(legC){
+      const profile=BASES[curBase];
+      const hasDual=!!profile.inst;
+      legC.width=hasDual?200:100; legC.height=hasDual?18:6;
+      const ctx=legC.getContext('2d');
+      ctx.clearRect(0,0,legC.width,legC.height);
+      if(hasDual){
+        // Base ramp (top bar)
+        const g1=ctx.createLinearGradient(0,0,legC.width,0);
+        for(let i=0;i<=20;i++){const t=i/20;const[r,gr,b]=profile.base(t);g1.addColorStop(t,'rgb('+Math.round(r*255)+','+Math.round(gr*255)+','+Math.round(b*255)+')')}
+        ctx.fillStyle=g1;ctx.fillRect(0,0,legC.width,7);
+        ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('base',2,6);
+        // Instruct ramp (bottom bar)
+        const g2=ctx.createLinearGradient(0,0,legC.width,0);
+        for(let i=0;i<=20;i++){const t=i/20;const[r,gr,b]=profile.inst(t);g2.addColorStop(t,'rgb('+Math.round(r*255)+','+Math.round(gr*255)+','+Math.round(b*255)+')')}
+        ctx.fillStyle=g2;ctx.fillRect(0,11,legC.width,7);
+        ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('inst',2,17);
+      } else {
+        const g=ctx.createLinearGradient(0,0,100,0);
+        for(let i=0;i<=20;i++){const t=i/20;const[r,gr,b]=profile.base(t);g.addColorStop(t,'rgb('+Math.round(r*255)+','+Math.round(gr*255)+','+Math.round(b*255)+')')}
+        ctx.fillStyle=g;ctx.fillRect(0,0,100,6);
+      }
+    }
     const lMin=document.getElementById('tLegMin'),lMax=document.getElementById('tLegMax');
     if(lMin)lMin.textContent=(mn*1e3).toFixed(1);
     if(lMax)lMax.textContent=(mx*1e3).toFixed(1);
@@ -2230,31 +2276,45 @@ function initTerrainViewer(results){
     updateCam();
   };
   window._terrainPopout=function(){
-    // Build a standalone HTML page with the terrain data and renderer
-    const w=window.open('','_blank','width=1200,height=800');
+    // Build a standalone HTML page with the terrain data, renderer, and full control panel
+    const pw=1200,ph=800;
+    const left=Math.round((screen.width-pw)/2);
+    const top=Math.round((screen.height-ph)/2);
+    const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top}`);
     if(!w)return;
     const entry=D[curCat][curIdx];
-    const dataJSON=JSON.stringify({cat:curCat,idx:curIdx,D:D,base:curBase,ls:labelScale});
+    const dataJSON=JSON.stringify({cat:curCat,idx:curIdx,D:D,base:curBase,ls:labelScale,BASES_keys:Object.keys(BASES),BASES_labels:Object.fromEntries(Object.entries(BASES).map(([k,v])=>[k,v.label]))});
     // Grab the Three.js script src
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain — '+curCat+'</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12}');
     w.document.write('body{font-family:system-ui,sans-serif;color:#c2c0b6}');
     w.document.write('canvas{display:block;position:fixed;inset:0;width:100%!important;height:100%!important;cursor:grab}canvas:active{cursor:grabbing}');
-    w.document.write('#inf{position:fixed;top:10px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
-    w.document.write('#hint{position:fixed;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}</style>');
+    w.document.write('#inf{position:fixed;top:46px;left:12px;font-size:12px;color:#889;background:rgba(8,8,18,.6);padding:4px 10px;border-radius:6px;font-family:monospace}');
+    w.document.write('#hint{position:fixed;bottom:10px;right:12px;font-size:10px;color:#445;font-family:monospace}');
+    w.document.write('#toolbar{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(8,8,18,.85);border-bottom:1px solid #222;font-family:monospace;font-size:11px;flex-wrap:wrap}');
+    w.document.write('#toolbar select,#toolbar button{font-family:monospace;font-size:10px;padding:3px 8px;background:#181822;color:#aab;border:1px solid #333;border-radius:3px;cursor:pointer}');
+    w.document.write('#toolbar button:hover{background:#252538;color:#dde}#toolbar .sep{color:#333;margin:0 2px}');
+    w.document.write('</style>');
     w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script></head><body>');
+    w.document.write('<div id="toolbar"></div>');
     w.document.write('<canvas id="cv"></canvas><div id="inf">'+
       (entry?entry[0].slice(0,80):'')+'</div><div id="hint">drag: orbit | right-drag: pan | scroll: zoom</div>');
-    // Inline a minimal renderer that reads the data
-    w.document.write('<script>const _D='+dataJSON+';<\/script>');
-    // Write the self-contained renderer
+    // Inline data and BASES ramp definitions
+    w.document.write('<script>const _D='+dataJSON+';');
+    // Also inline the BASES ramp functions (serialize them as strings and re-eval)
+    let baseSrc='const BASES={';
+    for(const[k,def]of Object.entries(BASES)){
+      baseSrc+=`${k}:{label:${JSON.stringify(def.label)},base:${def.base.toString()},inst:${def.inst?def.inst.toString():'null'},spine:${def.spine?def.spine.toString():'null'}},`;
+    }
+    baseSrc+='};';
+    w.document.write(baseSrc+'<\/script>');
+    // Write the self-contained renderer with full control panel
     const rendererSrc=`
-const D=_D.D,curCat=_D.cat,curIdx=_D.idx;
-const entry=D[curCat][curIdx];if(!entry)document.body.innerHTML='<p style="color:#888;padding:20px">No data</p>';
-const[prompt,toks,rows]=entry;const nT=toks.length;
-function S(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
-const BFn=t=>S(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]]);
+const D=_D.D;let curCat=_D.cat,curIdx=_D.idx,curBase=_D.base;
+function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
 const BG=[.047,.047,.07],FY=-2.2,SCX=.55,COLS=17,HS=180,XM=8*SCX;
+function _rampFor(ci){const p=BASES[curBase];if(ci===8&&p.spine)return p.spine;if(ci>8&&p.inst)return p.inst;return p.base}
+function mixC(mg,mn,mx,klT,xA,ci){const t=Math.max(0,Math.min(1,(mg-mn)/(mx-mn||1)));let[r,g,b]=_rampFor(ci)(t);const k=1+klT*.3;r=Math.min(1,r*k);g=Math.min(1,g*k);b=Math.min(1,b*k);const f=Math.pow(xA/XM,1.6);return[r*(1-f)+BG[0]*f,g*(1-f)+BG[1]*f,b*(1-f)+BG[2]*f]}
 const cv=document.getElementById('cv'),sc=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(44,innerWidth/innerHeight,.1,200);
 const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
@@ -2264,31 +2324,34 @@ onR();addEventListener('resize',onR);
 sc.add(new THREE.AmbientLight(0x667788,.6));
 const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
 sc.add(new THREE.DirectionalLight(0x445566,.25)).position.set(-4,5,-3);
-let aM=[];for(const r of rows){r[0].forEach(v=>aM.push(v));r[1].forEach(v=>aM.push(v))}
-const mn=Math.min(...aM),mx=Math.max(...aM),scZ=12/Math.max(nT-1,1);
-const klV=rows.map(r=>r[2]),klMn=Math.min(...klV),klMx=Math.max(...klV);
-const vs=[],cs=[],ix=[],vtx=[];
-for(let t=0;t<nT;t++){vtx.push([]);const[bm,im,kl]=rows[t];const z=-t*scZ+6,klT=(kl-klMn)/(klMx-klMn||1);
-const sM=(bm.reduce((a,v)=>a+v,0)+im.reduce((a,v)=>a+v,0))/(bm.length+im.length);
-for(let c=0;c<COLS;c++){let x,mg;if(c<8){x=(c-8)*SCX;mg=bm[c]}else if(c===8){x=0;mg=sM}else{x=(c-8)*SCX;mg=im[c-9]}
-const y=FY+(mg-mn)*HS;vtx[t].push({x,y,z});vs.push(x,y,z);
-const tt=Math.max(0,Math.min(1,(mg-mn)/(mx-mn||1)));let[r,g,b]=BFn(tt);
-const fade=Math.pow(Math.abs(x)/XM,1.6);r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
-cs.push(r,g,b)}}
-for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ix.push(a,b,cc,b,dd,cc)}
-const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vs,3));
-geo.setAttribute('color',new THREE.Float32BufferAttribute(cs,3));geo.setIndex(ix);geo.computeVertexNormals();
-sc.add(new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30})));
-const gP=[],gC=[];const pS=(ax,ay,az,bx,by,bz,r,g,b)=>{gP.push(ax,ay+.032,az,bx,by+.032,bz);gC.push(r,g,b,r,g,b)};
-for(let t=0;t<nT;t++)for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const n=(c===7||c===8)?.3:.14;pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,n*.55,n*.65,n)}
-for(let c=0;c<COLS;c++){const sp=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(sp)pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62);else{const f=1-Math.pow(Math.abs(c-8)/8,.7);pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,f*.22,f*.26,f*.38)}}}
-const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gP,3));gg.setAttribute('color',new THREE.Float32BufferAttribute(gC,3));
-sc.add(new THREE.LineSegments(gg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82})));
-const spts=[];for(let t=0;t<nT;t++){const sv=vtx[t][8];spts.push(new THREE.Vector3(sv.x,sv.y+.07,sv.z))}
-sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(spts),new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:.85})));
-const dg=new THREE.SphereGeometry(.035,6,6),dm=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:.7});
-for(let t=0;t<nT;t++){const sv=vtx[t][8];const d=new THREE.Mesh(dg,dm);d.position.set(sv.x,sv.y+.07,sv.z);sc.add(d)}
-let th=0,ph=.08,rad=14;const tgt=new THREE.Vector3(0,FY+1,6-(nT-1)*scZ/2);
+let msh=null,wir=null;
+function build(){
+  [msh,wir].forEach(m=>{if(!m)return;sc.remove(m);m.geometry.dispose();m.material.dispose()});
+  msh=wir=null;
+  const entries=D[curCat];if(!entries||!entries[curIdx])return;
+  const[prompt,toks,rows]=entries[curIdx];const nT=toks.length;
+  let aM=[];for(const r of rows){r[0].forEach(v=>aM.push(v));r[1].forEach(v=>aM.push(v))}
+  const mn=Math.min(...aM),mx=Math.max(...aM),scZ=12/Math.max(nT-1,1);
+  const klV=rows.map(r=>r[2]),klMn=Math.min(...klV),klMx=Math.max(...klV);
+  const vs=[],cs=[],ix=[],vtx=[];
+  for(let t=0;t<nT;t++){vtx.push([]);const[bm,im,kl]=rows[t];const z=-t*scZ+6,klT=(kl-klMn)/(klMx-klMn||1);
+  const sM=(bm.reduce((a,v)=>a+v,0)+im.reduce((a,v)=>a+v,0))/(bm.length+im.length);
+  for(let c=0;c<COLS;c++){let x,mg;if(c<8){x=(c-8)*SCX;mg=bm[c]}else if(c===8){x=0;mg=sM}else{x=(c-8)*SCX;mg=im[c-9]}
+  const y=FY+(mg-mn)*HS;vtx[t].push({x,y,z});vs.push(x,y,z);
+  const[r,g,b]=mixC(mg,mn,mx,klT,Math.abs(x),c);cs.push(r,g,b)}}
+  for(let t=0;t<nT-1;t++)for(let c=0;c<COLS-1;c++){const a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ix.push(a,b,cc,b,dd,cc)}
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vs,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(cs,3));geo.setIndex(ix);geo.computeVertexNormals();
+  msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30}));sc.add(msh);
+  const gP=[],gC=[];const pS=(ax,ay,az,bx,by,bz,r,g,b)=>{gP.push(ax,ay+.032,az,bx,by+.032,bz);gC.push(r,g,b,r,g,b)};
+  for(let t=0;t<nT;t++)for(let c=0;c<COLS-1;c++){const v0=vtx[t][c],v1=vtx[t][c+1];const n=(c===7||c===8)?.3:.14;pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,n*.55,n*.65,n)}
+  for(let c=0;c<COLS;c++){const sp=(c===8);for(let t=0;t<nT-1;t++){const v0=vtx[t][c],v1=vtx[t+1][c];if(sp)pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62);else{const f=1-Math.pow(Math.abs(c-8)/8,.7);pS(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,f*.22,f*.26,f*.38)}}}
+  const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gP,3));gg.setAttribute('color',new THREE.Float32BufferAttribute(gC,3));
+  wir=new THREE.LineSegments(gg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));sc.add(wir);
+  document.getElementById('inf').textContent=nT+' tokens · '+(prompt||'').slice(0,80);
+  th=0;ph=.08;rad=14;tgt.set(0,FY+1,6-(nT-1)*scZ/2);uc();
+}
+let th=0,ph=.08,rad=14;const tgt=new THREE.Vector3(0,FY+1,0);
 function uc(){cam.position.set(tgt.x+rad*Math.sin(ph)*Math.cos(th),tgt.y+rad*Math.cos(ph),tgt.z+rad*Math.sin(ph)*Math.sin(th));cam.lookAt(tgt)}
 const pt={};cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pt[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY}});
@@ -2299,7 +2362,33 @@ const r=new THREE.Vector3();r.crossVectors(new THREE.Vector3(0,1,0),new THREE.Ve
 const fw=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
 const u=new THREE.Vector3().crossVectors(r,fw).normalize();tgt.addScaledVector(r,-dx*s);tgt.addScaledVector(u,dy*s)}uc()});
 cv.addEventListener('wheel',e=>{e.preventDefault();rad=Math.max(4,Math.min(30,rad+e.deltaY*.012));uc()},{passive:false});
-uc();(function a(){requestAnimationFrame(a);ren.render(sc,cam)})();`;
+// ─── Control panel ──
+let playing=false,speed=4,timer=null;
+function buildUI(){
+  const tb=document.getElementById('toolbar');let h='';
+  h+='<select onchange="selectCat(this.value)">';
+  for(const c of Object.keys(D)){h+='<option value="'+c+'"'+(c===curCat?' selected':'')+'>'+c+'</option>'}
+  h+='</select><span class="sep">|</span>';
+  h+='<select id="pSel" onchange="selectPrompt(+this.value)">';
+  (D[curCat]||[]).forEach((e,i)=>{h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,50)+'</option>'});
+  h+='</select>';
+  h+='<button onclick="nav(-1)">Prev</button><button onclick="togglePlay()">'+(playing?'Stop':'Play')+'</button><button onclick="nav(1)">Next</button>';
+  h+='<input type="range" min="1" max="10" value="'+speed+'" style="width:40px" oninput="speed=+this.value" title="Speed">';
+  h+='<span class="sep">|</span>';
+  h+='<select onchange="curBase=this.value;build()">';
+  for(const k of Object.keys(BASES)){h+='<option value="'+k+'"'+(k===curBase?' selected':'')+'>'+BASES[k].label+'</option>'}
+  h+='</select>';
+  h+='<span class="sep">|</span><button onclick="th=0;ph=.08;rad=14;uc()">Reset</button>';
+  tb.innerHTML=h;
+}
+function selectCat(c){curCat=c;curIdx=0;stopPlay();buildUI();build()}
+function selectPrompt(i){curIdx=i;stopPlay();build();const s=document.getElementById('pSel');if(s)s.value=i}
+function nav(d){const e=D[curCat]||[];if(!e.length)return;curIdx=(curIdx+d+e.length)%e.length;buildUI();build()}
+function togglePlay(){playing=!playing;buildUI();if(playing)advance();else stopPlay()}
+function stopPlay(){playing=false;if(timer){clearTimeout(timer);timer=null}}
+function advance(){if(!playing)return;nav(1);timer=setTimeout(advance,Math.max(500,4000-speed*350))}
+buildUI();build();uc();
+(function a(){requestAnimationFrame(a);ren.render(sc,cam)})();`;
     w.document.write('<script>'+rendererSrc+'<\/script></body></html>');
     w.document.close();
   };
