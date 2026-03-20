@@ -16,6 +16,8 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+import torch
+
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -1075,6 +1077,102 @@ async def save_config(request: Request):
         return JSONResponse(content={"ok": True})
     except Exception as e:
         return JSONResponse(content={"ok": False, "error": str(e)})
+
+
+@app.post("/api/chat")
+async def chat(request: Request):
+    """Generate text from the loaded instruct model, optionally with analysis."""
+    if analyzer is None or analyzer.state.model_instruct is None:
+        return JSONResponse(content={"ok": False, "error": "No model loaded"})
+
+    try:
+        body = await request.json()
+        messages = body.get("messages", [])
+        max_tokens = min(body.get("max_tokens", 256), 512)
+        do_analyze = body.get("analyze", False)
+        category = body.get("category", "")
+        compute_ltp = body.get("compute_ltp", True)
+        compute_sfd = body.get("compute_sfd", True)
+
+        if not messages:
+            return JSONResponse(content={"ok": False, "error": "No messages"})
+
+        prompt_text = messages[-1].get("content", "")
+
+        with _analysis_lock:
+            model = analyzer.state.model_instruct
+            tokenizer = analyzer.state.tokenizer
+            device = analyzer.state.device
+
+            # Build chat template from full history
+            text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True)
+            inputs = tokenizer(text, return_tensors="pt").to(device)
+
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    do_sample=True,
+                    temperature=0.7,
+                    top_p=0.9,
+                    pad_token_id=tokenizer.pad_token_id,
+                )
+
+            generated = outputs[0][inputs['input_ids'].shape[1]:]
+            response = tokenizer.decode(generated, skip_special_tokens=True).strip()
+
+        result = {"ok": True, "response": response}
+
+        # Optionally run analysis on the user's prompt
+        if do_analyze and prompt_text:
+            try:
+                result_dict, plots = _analyze_and_record(
+                    prompt_text, category=category,
+                    compute_kl=True, compute_trajectory=False,
+                    capture_responses=False,
+                    compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+                    skip_plots=True,
+                )
+                # Return a slim analysis payload
+                slim = {}
+                for k in ['stress_score', 'net_correction', 'entropy', 'middle_share',
+                          'interior_cv', 'gini', 'top2_share', 'kl_divergence',
+                          'seq_len', 'n_negative_tokens']:
+                    if k in result_dict:
+                        slim[k] = result_dict[k]
+                if result_dict.get('ltp'):
+                    slim['ltp'] = {k: result_dict['ltp'].get(k) for k in
+                                   ['mean_M', 'mean_C', 'mean_V', 'mean_L'] if result_dict['ltp'].get(k) is not None}
+                if result_dict.get('sfd'):
+                    slim['sfd'] = result_dict['sfd']
+                if result_dict.get('rank_displacement'):
+                    slim['rank_displacement'] = result_dict['rank_displacement']
+                if result_dict.get('classifiers'):
+                    slim['classifiers'] = {}
+                    for cid, cl in result_dict['classifiers'].items():
+                        slim['classifiers'][cid] = {
+                            'predicted': cl.get('predicted'),
+                            'confidence': cl.get('confidence'),
+                        }
+                result['analysis'] = slim
+            except Exception as e:
+                logging.exception("Chat analysis failed")
+                result['analysis_error'] = str(e)
+
+        return JSONResponse(content=result)
+    except Exception as e:
+        logging.exception("Chat generation failed")
+        return JSONResponse(content={"ok": False, "error": str(e)})
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page():
+    """Serve the chat interface."""
+    chat_html = Path(__file__).parent / "static" / "chat.html"
+    if chat_html.exists():
+        return HTMLResponse(content=chat_html.read_text())
+    return HTMLResponse(content="<p>chat.html not found</p>", status_code=404)
 
 
 if __name__ == "__main__":
