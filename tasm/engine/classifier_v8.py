@@ -303,4 +303,23 @@ def _build_contributions(f, predicted, is_adversarial):
             'explanation': f"Interior CV = {ic:.3f} ({'variable -> benign' if ic > 0.65 else 'concentrated -> mild'})",
         })
 
+        # v8 instrument readings — always present
+        sm = f['stress_max']
+        contributions.append({
+            'feature': 'stress_max', 'name': 'Stress Ceiling',
+            'value': round(sm, 4),
+            'favors': 'jailbreak' if sm > 3.75 else 'harmful',
+            'strength': 'strong' if abs(sm - 3.75) > 0.15 else 'moderate',
+            'explanation': f"Stress max = {sm:.3f} (adv threshold {ADV_THRESHOLD})",
+        })
+
+        km = f['kl_min']
+        contributions.append({
+            'feature': 'kl_min', 'name': 'KL Floor',
+            'value': round(km, 6),
+            'favors': 'jailbreak' if km > 0.02 else 'harmful',
+            'strength': 'strong' if km > 0.02 else ('moderate' if km > 0.005 else 'weak'),
+            'explanation': f"KL floor = {km:.5f} (adv score would be {sm + ADV_KL_FLOOR_WEIGHT * km:.3f})",
+        })
+
     return contributions
