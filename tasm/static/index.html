@@ -1594,6 +1594,15 @@ function renderDataTable(){
     ['_sfd_energy','QKE','f4',null,56],
     ['_rank_tau','Tau','f3',60,48],
     ['_rank_overlap','Ovlp','pct',null,48],
+    ['_cl_v1','v1','cl',null,48],
+    ['_cl_v2','v2','cl',null,48],
+    ['_cl_v3','v3','cl',null,48],
+    ['_cl_v4','v4','cl',null,48],
+    ['_cl_v5','v5','cl',null,48],
+    ['_cl_v6','v6','cl',null,48],
+    ['_cl_v7','v7','cl',null,48],
+    ['_cl_v8','v8','cl',null,48],
+    ['_cl_v9','v9','cl',null,48],
   ];
 
   // Compute ranges for heatmap columns
@@ -1622,6 +1631,10 @@ function renderDataTable(){
     if(format==='pct3') return (Number(val)*100).toFixed(1)+'%';
     if(format==='pct_pp') return (Number(val)*100).toFixed(1)+'pp';
     if(format==='cat') return val?`<span class="pill ${pillClass(val)}">${val.substring(0,4)}</span>`:'--';
+    if(format==='cl'){
+      if(!val||!val.pred) return'--';
+      return val.pred;
+    }
     if(format==='pred'){
       if(!val||!val.cl) return'--';
       const cl=val.cl,pred=cl.predicted,conf=Math.round((cl.probabilities[pred]||0)*100);
@@ -1649,6 +1662,13 @@ function renderDataTable(){
     if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
+    if(key.startsWith('_cl_')){
+      const cid=key.substring(4);
+      const cls=r.classifiers||{};
+      const cl=cls[cid];
+      if(!cl) return null;
+      return {pred:cl.predicted, cat:r.category};
+    }
     return r[key];
   }
 
