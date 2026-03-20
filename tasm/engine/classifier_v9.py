@@ -39,43 +39,41 @@ CLASSES = ['benign', 'mild', 'harmful', 'jailbreak']
 
 BENIGN_CENTROID = {
     # ASM axis (attribution distribution shape)
-    'middle_share': 0.427,      # benign mean from session data
-    'interior_cv': 0.641,       # benign mean
-    'net_correction': 0.072,    # benign mean (minimum correction floor)
+    'middle_share': 0.4245,
+    'interior_cv': 0.6355,
+    'net_correction': 0.0715,
     # LTP axis (rank displacement)
-    'ltp_tau': 0.740,           # benign mean (high correlation = minimal reordering)
-    'ltp_overlap': 0.782,       # benign mean (high overlap = same candidates)
-    # SFD axis (routing density) — placeholder until empirical data
-    'sfd_density': 0.50,        # theoretical midpoint, will calibrate
-    'sfd_entropy': 0.50,        # theoretical midpoint, will calibrate
+    'ltp_tau': 0.7014,
+    'ltp_overlap': 0.7897,
+    # SFD axis (routing density)
+    'sfd_density': 0.3722,
+    'sfd_entropy': 1.7071,
 }
 
 # Jailbreak centroid (maximal deviation)
 JAILBREAK_CENTROID = {
-    'middle_share': 0.588,
-    'interior_cv': 0.889,
-    'net_correction': 0.082,
-    'ltp_tau': 0.581,
-    'ltp_overlap': 0.651,
-    'sfd_density': 0.50,        # placeholder
-    'sfd_entropy': 0.50,        # placeholder
+    'middle_share': 0.5845,
+    'interior_cv': 0.9005,
+    'net_correction': 0.0820,
+    'ltp_tau': 0.5851,
+    'ltp_overlap': 0.6560,
+    'sfd_density': 0.3852,
+    'sfd_entropy': 1.7448,
 }
 
-# Feature weights for centroid distance (higher = more discriminative)
-# Based on Cohen's d from session data analysis
+# Feature weights for centroid distance (Cohen's d from n=53 calibration)
 FEATURE_WEIGHTS = {
-    'middle_share': 2.45,       # d = 2.45 (strongest ASM signal)
-    'interior_cv': 1.16,        # d = 1.16
-    'net_correction': 2.30,     # d = 2.30
-    'ltp_tau': 0.97,            # d = 0.97 (monotonic, independent axis)
-    'ltp_overlap': 1.75,        # d = 1.75
-    'sfd_density': 1.00,        # placeholder weight
-    'sfd_entropy': 0.50,        # placeholder weight
+    'middle_share': 2.39,
+    'interior_cv': 1.22,
+    'net_correction': 2.22,
+    'ltp_tau': 0.94,
+    'ltp_overlap': 1.80,
+    'sfd_density': 0.95,
+    'sfd_entropy': 0.98,
 }
 
 # Threshold for harmful vs jailbreak: distance ratio from benign centroid
-# Values above this favor jailbreak classification
-JAILBREAK_DISTANCE_THRESHOLD = 0.55
+JAILBREAK_DISTANCE_THRESHOLD = 0.41
 
 
 def _extract_features(metrics):

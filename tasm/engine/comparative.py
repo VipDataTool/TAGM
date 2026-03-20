@@ -449,6 +449,125 @@ def plot_key_scatters(results: list) -> str:
     return fig_to_base64(fig)
 
 
+def plot_sfd_category_comparison(results: list) -> str:
+    """Box plots of SFD density, entropy, and energy by category."""
+    cats_order = ["benign", "mild", "harmful", "jailbreak"]
+    has_sfd = [r for r in results if r.get("sfd")]
+    if not has_sfd:
+        return ""
+
+    available = [c for c in cats_order if any(r.get("category") == c for r in has_sfd)]
+    if not available:
+        return ""
+
+    sfd_keys = [("density_mean", "QK Density"), ("entropy_mean", "Spectral\nEntropy"),
+                ("energy_mean", "QK Energy")]
+
+    fig, axes = plt.subplots(1, len(sfd_keys), figsize=(4.5 * len(sfd_keys), 5))
+    fig.patch.set_facecolor("#121212")
+
+    for ax, (key, title) in zip(axes, sfd_keys):
+        _style_ax(ax, title)
+        box_data = []
+        box_labels = []
+        box_colors = []
+
+        for cat in available:
+            vals = [r["sfd"][key] for r in has_sfd
+                    if r.get("category") == cat and r.get("sfd") and r["sfd"].get(key) is not None]
+            if vals:
+                box_data.append(vals)
+                box_labels.append(cat.title())
+                box_colors.append(CAT_COLORS.get(cat, "#888"))
+
+        if box_data:
+            bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
+            for patch, color in zip(bp["boxes"], box_colors):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.75)
+                patch.set_edgecolor("#9CA3AF")
+            for element in ["whiskers", "caps", "medians"]:
+                for item in bp[element]:
+                    item.set_color("#9CA3AF")
+            for item in bp["fliers"]:
+                item.set_markeredgecolor("#9CA3AF")
+            ax.tick_params(axis="x", labelsize=13, colors="#9CA3AF")
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def plot_sfd_vs_asm(results: list) -> str:
+    """Scatter: SFD density vs ASM middle share, colored by category."""
+    has_sfd = [r for r in results if r.get("sfd") and r["sfd"].get("density_mean") is not None]
+    if len(has_sfd) < 2:
+        return ""
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "QK Density (SFD) vs Interior Share (ASM)")
+
+    for r in has_sfd:
+        color = CAT_COLORS.get(r.get("category", ""), "#888")
+        ax.scatter(r.get("middle_share", 0), r["sfd"]["density_mean"],
+                   c=color, s=60, alpha=0.8, edgecolors="#1E1E1E", linewidth=0.5)
+
+    ax.set_xlabel("Interior Share (ASM)", fontsize=13)
+    ax.set_ylabel("QK Density (SFD)", fontsize=13)
+    _cat_legend(ax, has_sfd)
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def plot_rank_displacement_by_category(results: list) -> str:
+    """Box plots of rank displacement (Kendall tau and overlap) by category."""
+    cats_order = ["benign", "mild", "harmful", "jailbreak"]
+    has_rd = [r for r in results if r.get("rank_displacement") and
+              r["rank_displacement"].get("mean_tau") is not None]
+    if not has_rd:
+        return ""
+
+    available = [c for c in cats_order if any(r.get("category") == c for r in has_rd)]
+    if not available:
+        return ""
+
+    rd_keys = [("mean_tau", "Kendall Tau"), ("mean_overlap", "Token Overlap")]
+
+    fig, axes = plt.subplots(1, len(rd_keys), figsize=(4.5 * len(rd_keys), 5))
+    fig.patch.set_facecolor("#121212")
+
+    for ax, (key, title) in zip(axes, rd_keys):
+        _style_ax(ax, title)
+        box_data = []
+        box_labels = []
+        box_colors = []
+
+        for cat in available:
+            vals = [r["rank_displacement"][key] for r in has_rd
+                    if r.get("category") == cat and r["rank_displacement"].get(key) is not None]
+            if vals:
+                box_data.append(vals)
+                box_labels.append(cat.title())
+                box_colors.append(CAT_COLORS.get(cat, "#888"))
+
+        if box_data:
+            bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
+            for patch, color in zip(bp["boxes"], box_colors):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.75)
+                patch.set_edgecolor("#9CA3AF")
+            for element in ["whiskers", "caps", "medians"]:
+                for item in bp[element]:
+                    item.set_color("#9CA3AF")
+            for item in bp["fliers"]:
+                item.set_markeredgecolor("#9CA3AF")
+            ax.tick_params(axis="x", labelsize=13, colors="#9CA3AF")
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
 def generate_all_comparative(results: list) -> dict:
     """Generate all comparative plots, organized into proven and experimental."""
     proven = {}
@@ -467,6 +586,9 @@ def generate_all_comparative(results: list) -> dict:
     experimental["ltp_category_comparison"] = plot_ltp_category_comparison(results)
     experimental["ltp_m_vs_stress"] = plot_ltp_m_vs_stress(results)
     experimental["ltp_profile_shapes"] = plot_ltp_profile_shape_distribution(results)
+    experimental["sfd_category_comparison"] = plot_sfd_category_comparison(results)
+    experimental["sfd_vs_asm"] = plot_sfd_vs_asm(results)
+    experimental["rank_displacement"] = plot_rank_displacement_by_category(results)
 
     # Flatten into single dict with prefix for experimental
     all_plots = {k: v for k, v in proven.items() if v}

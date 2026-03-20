@@ -185,6 +185,40 @@ def aggregate_batch(results: list) -> dict:
         if kl_vals:
             summary["metrics"]["kl_divergence"] = bootstrap_ci(kl_vals)
 
+        # SFD metrics (from sfd attribute or dict)
+        def _get_sfd_val(r, key):
+            if hasattr(r, 'sfd') and r.sfd is not None:
+                return getattr(r.sfd, key, None)
+            return None
+
+        sfd_metrics = {
+            "sfd_density_mean": "density_mean",
+            "sfd_entropy_mean": "entropy_mean",
+            "sfd_energy_mean": "energy_mean",
+        }
+        for stat_key, attr_key in sfd_metrics.items():
+            vals = []
+            for r in group:
+                v = _get_sfd_val(r, attr_key)
+                if v is not None:
+                    vals.append(float(v))
+            if vals:
+                summary["metrics"][stat_key] = bootstrap_ci(vals)
+
+        # Rank displacement (from rank_displacement dict)
+        rd_vals = []
+        rd_overlap_vals = []
+        for r in group:
+            rd = getattr(r, 'rank_displacement', None)
+            if isinstance(rd, dict) and rd.get('mean_tau') is not None:
+                rd_vals.append(float(rd['mean_tau']))
+                if rd.get('mean_overlap') is not None:
+                    rd_overlap_vals.append(float(rd['mean_overlap']))
+        if rd_vals:
+            summary["metrics"]["rank_displacement_tau"] = bootstrap_ci(rd_vals)
+        if rd_overlap_vals:
+            summary["metrics"]["rank_displacement_overlap"] = bootstrap_ci(rd_overlap_vals)
+
         # Mean seq length
         summary["mean_seq_len"] = float(np.mean([r.seq_len for r in group]))
 
