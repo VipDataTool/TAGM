@@ -11327,3 +11327,28 @@ TypeError: 'NoneType' object is not iterable
 2026-03-20 18:55:21,854 [INFO] [RANK] tau=+0.640, overlap=0.611, n=5/5
 2026-03-20 19:00:44,206 [INFO] Full reset performed
 2026-03-20 19:00:44,206 [INFO] [reset] All resources released. Session cleared.
+2026-03-20 19:02:48,894 [INFO] TASM Analyzer starting up
+2026-03-20 19:03:03,527 [INFO] [starting] Starting model load...
+2026-03-20 19:03:04,124 [INFO] [memory] [MEM] After unload | process=0.5GB, system=3.2/15.6GB (21%)
+2026-03-20 19:03:04,124 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-20 19:03:04,180 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:03:04,187 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-20 19:03:04,656 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:03:04,662 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-20 19:03:04,682 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:03:04,688 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-20 19:03:04,705 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:03:04,713 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-20 19:03:04,735 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-20 19:03:04,757 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-20 19:03:05,383 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-20 19:03:05,388 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=4.3/15.6GB (28%)
+2026-03-20 19:03:05,389 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-20 19:03:05,414 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-20 19:03:05,418 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=4.3/15.6GB (28%)
+2026-03-20 19:03:05,420 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=4.3/15.6GB (28%)
+2026-03-20 19:03:06,006 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=4.9/15.6GB (31%)
+2026-03-20 19:03:06,267 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=4.9/15.6GB (31%)
+2026-03-20 19:03:08,746 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-20 19:03:08,746 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.6s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-20 19:03:08,747 [INFO] [ready] Model loaded. Session started. Ready to analyze.
