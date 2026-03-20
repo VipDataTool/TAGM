@@ -1449,13 +1449,14 @@ function renderLatest(r,plots){
     function sfdBar(title,desc,arr,color,fmt){
       if(!arr||!arr.length)return'';
       const mx=Math.max(...arr.map(Math.abs))||1;
-      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body" style="padding:10px"><div style="display:flex;align-items:flex-end;gap:2px;height:120px;overflow-x:auto">`;
+      const barW=Math.max(28,Math.min(60,500/arr.length));
+      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body" style="padding:12px"><div style="display:flex;align-items:flex-end;gap:3px;height:220px;overflow-x:auto;padding-bottom:40px">`;
       for(let i=0;i<arr.length;i++){
         const pct=Math.abs(arr[i])/mx*100;
         const lbl=toks[i]||i;
-        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:24px"><div style="width:100%;max-width:40px;height:${pct}%;background:${color};border-radius:2px 2px 0 0;min-height:1px" title="${lbl}: ${fmt(arr[i])}"></div><div style="font-size:8px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;margin-top:2px;transform:rotate(-45deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
+        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:${barW}px"><div style="width:80%;max-width:56px;height:${pct}%;background:${color};border-radius:3px 3px 0 0;min-height:2px;opacity:0.85" title="${lbl}: ${fmt(arr[i])}"></div><div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;margin-top:6px;transform:rotate(-50deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
       }
-      bh+=`</div><div style="font-size:10px;color:var(--text-3);margin-top:4px">mean=${fmt(arr.reduce((a,b)=>a+b,0)/arr.length)} max=${fmt(Math.max(...arr))}</div></div></div>`;
+      bh+=`</div><div style="font-size:12px;color:var(--text-2);margin-top:4px;padding:4px 0;border-top:1px solid var(--bg-3)">mean = ${fmt(arr.reduce((a,b)=>a+b,0)/arr.length)} &nbsp;·&nbsp; max = ${fmt(Math.max(...arr))} &nbsp;·&nbsp; n = ${arr.length} tokens</div></div></div>`;
       return bh;
     }
     if(vizIsEnabled('sfd_density')&&sfd.per_token_density)
@@ -1470,14 +1471,15 @@ function renderLatest(r,plots){
     if(rd.per_position_tau&&rd.per_position_tau.length){
       const toks=r.tokens||[];
       const taus=rd.per_position_tau;
-      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">Rank Displacement (per position)</div><p class="feature-desc">Kendall tau between base and instruct alternative orderings. 1.0 = identical ranking. Lower = RLHF reordered the model's preferences at this position.</p></div><div class="feature-body" style="padding:10px"><div style="display:flex;align-items:flex-end;gap:2px;height:120px;overflow-x:auto">`;
+      const barW=Math.max(28,Math.min(60,500/taus.length));
+      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">Rank Displacement (per position)</div><p class="feature-desc">Kendall tau between base and instruct alternative orderings. 1.0 = identical ranking. Lower = RLHF reordered the model's preferences at this position.</p></div><div class="feature-body" style="padding:12px"><div style="display:flex;align-items:flex-end;gap:3px;height:220px;overflow-x:auto;padding-bottom:40px">`;
       for(let i=0;i<taus.length;i++){
         const pct=Math.max(0,(taus[i]+1)/2)*100;
         const col=taus[i]>0.5?'var(--green)':(taus[i]>0?'var(--orange)':'var(--red)');
         const lbl=toks[i]||i;
-        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:24px"><div style="width:100%;max-width:40px;height:${pct}%;background:${col};border-radius:2px 2px 0 0;min-height:1px" title="${lbl}: tau=${taus[i].toFixed(3)}"></div><div style="font-size:8px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;margin-top:2px;transform:rotate(-45deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
+        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:${barW}px"><div style="width:80%;max-width:56px;height:${pct}%;background:${col};border-radius:3px 3px 0 0;min-height:2px;opacity:0.85" title="${lbl}: tau=${taus[i].toFixed(3)}"></div><div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;margin-top:6px;transform:rotate(-50deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
       }
-      bh+=`</div><div style="font-size:10px;color:var(--text-3);margin-top:4px">mean tau=${rd.mean_tau!=null?rd.mean_tau.toFixed(3):'--'} overlap=${rd.mean_overlap!=null?(rd.mean_overlap*100).toFixed(1)+'%':'--'} (${rd.n_comparable}/${rd.n_positions} positions comparable)</div></div></div>`;
+      bh+=`</div><div style="font-size:12px;color:var(--text-2);margin-top:4px;padding:4px 0;border-top:1px solid var(--bg-3)">mean tau = ${rd.mean_tau!=null?rd.mean_tau.toFixed(3):'--'} &nbsp;·&nbsp; overlap = ${rd.mean_overlap!=null?(rd.mean_overlap*100).toFixed(1)+'%':'--'} &nbsp;·&nbsp; ${rd.n_comparable}/${rd.n_positions} positions comparable</div></div></div>`;
       h+=bh;
     }
   }
