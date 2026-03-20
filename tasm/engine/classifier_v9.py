@@ -114,9 +114,10 @@ def _weighted_distance(features, centroid, weights):
     return math.sqrt(dist_sq / total_w)
 
 
-def _softmax(distances):
-    """Convert distances to probabilities (closer = higher probability)."""
-    neg_sq = {k: -(v ** 2) for k, v in distances.items()}
+def _softmax(distances, scale=200.0):
+    """Convert distances to probabilities (closer = higher probability).
+    Scale controls temperature — higher = more peaked around nearest."""
+    neg_sq = {k: -scale * (v ** 2) for k, v in distances.items()}
     max_v = max(neg_sq.values())
     exps = {k: math.exp(v - max_v) for k, v in neg_sq.items()}
     total = sum(exps.values())

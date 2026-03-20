@@ -1216,10 +1216,10 @@ function renderClassifierCard(cl, r){
   if(cl.stages&&cl.stages.length){
     stagesHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:10px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Decision Path</div>`;
     for(const s of cl.stages){
-      const isRight=s.score>s.threshold;
       const leftC=catColor(s.left_class);
       const rightC=catColor(s.right_class);
-      const chosenC=isRight?rightC:leftC;
+      const chosenC=catColor(s.chosen||pClass);
+      const isRight=s.chosen===s.right_class;
       const marginPct=Math.min(50,Math.abs(s.margin||0)*500).toFixed(0);
       stagesHtml+=`<div style="padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenC}">
         <div style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4">${s.name||s.stage||'Stage'}: <span style="color:${chosenC}">${s.chosen||pClass}</span> <span style="color:var(--text-3)">(${Math.round((s.confidence||0)*100)}%)</span></div>
