@@ -318,7 +318,7 @@ class Analyzer:
                     act_key = f"layer_{layer_idx}_h"
                     act = self.mm.activations.get(act_key)
                     if act is not None:
-                        layer_acts[layer_idx] = act[0].cpu().numpy()
+                        layer_acts[layer_idx] = act[0, :seq_len].cpu().numpy()
 
                 if layer_acts:
                     result.sfd = compute_sfd_sequence(layer_acts, sfd_cache)
@@ -395,8 +395,8 @@ class Analyzer:
             if h_key not in self.mm.activations or a_key not in self.mm.attn_weights:
                 continue
 
-            h = self.mm.activations[h_key][0]
-            alpha = self.mm.attn_weights[a_key][0]
+            h = self.mm.activations[h_key][0, :seq_len]
+            alpha = self.mm.attn_weights[a_key][0, :, :seq_len, :seq_len]
             dw_v = state.v_delta(layer_idx)
             if dw_v is None:
                 continue
@@ -490,7 +490,7 @@ class Analyzer:
                     dw = state.deltas[dname]
                     fnorm = state.delta_frob_norms[dname]
                     if dw.shape[1] == h.shape[2] and fnorm > 0:
-                        projected = torch.matmul(h[0], dw.T)
+                        projected = torch.matmul(h[0, :seq_len], dw.T)
                         per_token_total += projected.norm(dim=-1) / fnorm
             n_layers += 1
 
@@ -531,7 +531,8 @@ class Analyzer:
                         dw = state.deltas[dname]
                         fnorm = state.delta_frob_norms[dname]
                         if dw.shape[1] == h.shape[2] and fnorm > 0:
-                            projected = torch.matmul(h[0], dw.T)
+                            h_slice = h[0, :seq_len]  # guard against stale activations
+                            projected = torch.matmul(h_slice, dw.T)
                             pn = projected.norm(dim=-1)
                             raw_sum += pn.mean().item()
                             norm_sum += (pn / fnorm).mean().item()
