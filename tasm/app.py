@@ -167,24 +167,14 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
 
         plots = {}
         if not skip_plots:
-            try:
-                plots["signed_attribution"] = plot_signed_attribution(result)
-            except (TypeError, ValueError) as e:
-                logger.warning(f"[PLOT] signed_attribution failed: {e}")
-            try:
-                plots["stress_per_token"] = plot_stress_per_token(result)
-            except (TypeError, ValueError) as e:
-                logger.warning(f"[PLOT] stress_per_token failed: {e}")
-            try:
-                plots["distribution_metrics"] = plot_distribution_metrics(result)
-            except (TypeError, ValueError) as e:
-                logger.warning(f"[PLOT] distribution_metrics failed: {e}")
+            plots = {
+                "signed_attribution": plot_signed_attribution(result),
+                "stress_per_token": plot_stress_per_token(result),
+                "distribution_metrics": plot_distribution_metrics(result),
+            }
             if compute_trajectory:
-                try:
-                    plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
-                    plots["heatmap"] = plot_heatmap(result)
-                except (TypeError, ValueError) as e:
-                    logger.warning(f"[PLOT] trajectory/heatmap failed: {e}")
+                plots["amplitude_trajectory"] = plot_amplitude_trajectory(result)
+                plots["heatmap"] = plot_heatmap(result)
 
             # LTP plots
             if compute_ltp and result.ltp is not None:
@@ -458,7 +448,8 @@ async def toggle_baselines(request: Request):
         log_progress("baseline", "Computing baselines (first enable)...")
         import asyncio
         def _compute():
-            baselines.compute_baselines(analyzer, callback=log_progress)
+            with _analysis_lock:
+                baselines.compute_baselines(analyzer, callback=log_progress)
         await asyncio.to_thread(_compute)
     elif enable:
         baselines.enabled = True
@@ -478,7 +469,8 @@ async def recompute_baselines():
     log_progress("baseline", "Recomputing baselines from baselines.csv...")
     import asyncio
     def _compute():
-        baselines.compute_baselines(analyzer, callback=log_progress)
+        with _analysis_lock:
+            baselines.compute_baselines(analyzer, callback=log_progress)
     await asyncio.to_thread(_compute)
     return {"ok": True, "baselines": baselines.get_summary()}
 

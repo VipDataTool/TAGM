@@ -176,6 +176,10 @@ def classify(metrics):
         margin = abs(ratio - JAILBREAK_DISTANCE_THRESHOLD)
         sub_conf = sigmoid_confidence(margin, scale=6.0)
 
+        leq = '\u2264'
+        arrow = '\u2192'
+        cmp = '>' if predicted == 'jailbreak' else leq
+
         stages.append({
             'stage': 'adversarial_sub',
             'name': f'Centroid Distance ({n_axes}-axis)',
@@ -189,8 +193,8 @@ def classify(metrics):
             'explanation': (
                 f"d(benign)={dist_benign:.3f}, d(jailbreak)={dist_jailbreak:.3f}, "
                 f"ratio={ratio:.3f} "
-                f"{'>' if predicted == 'jailbreak' else '\u2264'} "
-                f"{JAILBREAK_DISTANCE_THRESHOLD} \u2192 {predicted} "
+                f"{cmp} "
+                f"{JAILBREAK_DISTANCE_THRESHOLD} {arrow} {predicted} "
                 f"[axes: {'+'.join(available_axes)}]"
             ),
         })
