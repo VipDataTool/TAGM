@@ -1082,7 +1082,7 @@ async def save_config(request: Request):
 @app.post("/api/chat")
 async def chat(request: Request):
     """Generate text from the loaded instruct model, optionally with analysis."""
-    if analyzer is None or analyzer.state.model_instruct is None:
+    if analyzer is None or analyzer.mm.state is None or analyzer.mm.state.model_instruct is None:
         return JSONResponse(content={"ok": False, "error": "No model loaded"})
 
     try:
@@ -1100,9 +1100,10 @@ async def chat(request: Request):
         prompt_text = messages[-1].get("content", "")
 
         with _analysis_lock:
-            model = analyzer.state.model_instruct
-            tokenizer = analyzer.state.tokenizer
-            device = analyzer.state.device
+            state = analyzer.mm.state
+            model = state.model_instruct
+            tokenizer = state.tokenizer
+            device = state.device
 
             # Build chat template from full history
             text = tokenizer.apply_chat_template(
