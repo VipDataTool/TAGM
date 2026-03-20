@@ -146,7 +146,7 @@ def classify(metrics):
     ms = metrics.get('middle_share', 0)
     seq_len = metrics.get('seq_len')
 
-    # ═══ Stage 1: Shared binary gate ═══
+    # Stage 1: Shared binary gate
     is_adversarial, bin_score, bin_conf, bin_caveats = binary_classify(ms, nc, seq_len)
     stages.append(binary_stage_dict(bin_score, is_adversarial, bin_conf, ms, nc))
     contributions = list(binary_contributions(ms, nc))
@@ -157,13 +157,12 @@ def classify(metrics):
     n_axes = len([a for a in available_axes if '*' not in a])
 
     if is_adversarial:
-        # ═══ Stage 2b: Three-instrument centroid distance ═══
+        # Stage 2b: Three-instrument centroid distance
         dist_benign = _weighted_centroid_distance(
             features, BENIGN_CENTROID, FEATURE_WEIGHTS)
         dist_jailbreak = _weighted_centroid_distance(
             features, JAILBREAK_CENTROID, FEATURE_WEIGHTS)
 
-        # Distance ratio: how far toward the jailbreak centroid
         total_dist = dist_benign + dist_jailbreak
         if total_dist > 0:
             ratio = dist_benign / total_dist
@@ -220,7 +219,7 @@ def classify(metrics):
             caveats.append("Close to harmful/jailbreak boundary")
 
     else:
-        # ═══ Stage 2a: Shared safe sub ═══
+        # Stage 2a: Shared safe sub
         ent = metrics.get('entropy', 0)
         icv = metrics.get('interior_cv', 0)
         predicted, safe_score, safe_conf, safe_caveat = safe_sub_classify(ent, icv)
