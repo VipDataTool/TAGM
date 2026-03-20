@@ -493,3 +493,136 @@ def plot_ltp_profile_heatmap(ltp_result, tokens) -> str:
 
     plt.tight_layout()
     return _fig_to_base64(fig)
+
+
+# ─── SFD Visualizations ──────────────────────────────────────
+
+def plot_sfd_density(result) -> str:
+    """Per-token QK routing density — subspace filling ratio."""
+    sfd = result.sfd
+    if sfd is None or sfd.per_token_density is None:
+        return ""
+
+    tokens = result.tokens
+    vals = sfd.per_token_density
+    n = min(len(tokens), len(vals))
+
+    fig, ax = plt.subplots(figsize=(max(9, n * 0.65), 4.5))
+    fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "QK Routing Density (per token)")
+
+    ax.bar(range(n), vals[:n], color="#E69F00", width=0.75, edgecolor="none")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
+                       fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Density ratio", fontsize=13)
+
+    info = (f"mean={sfd.density_mean:.4f}  |  "
+            f"max={sfd.density_max:.4f}  |  "
+            f"erank={sfd.global_erank:.1f}")
+    ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",
+            fontsize=12, color="#9CA3AF",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def plot_sfd_energy(result) -> str:
+    """Per-token QK energy — projection magnitude into routing subspace."""
+    sfd = result.sfd
+    if sfd is None or sfd.per_token_energy is None:
+        return ""
+
+    tokens = result.tokens
+    vals = sfd.per_token_energy
+    n = min(len(tokens), len(vals))
+
+    fig, ax = plt.subplots(figsize=(max(9, n * 0.65), 4.5))
+    fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "QK Routing Energy (per token)")
+
+    ax.bar(range(n), vals[:n], color="#D55E00", width=0.75, edgecolor="none")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
+                       fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Energy", fontsize=13)
+
+    info = (f"mean={sfd.energy_mean:.4f}  |  "
+            f"max={sfd.energy_max:.4f}")
+    ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",
+            fontsize=12, color="#9CA3AF",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def plot_sfd_entropy(result) -> str:
+    """Per-token spectral entropy — evenness of activation across SVD directions."""
+    sfd = result.sfd
+    if sfd is None or sfd.per_token_entropy is None:
+        return ""
+
+    tokens = result.tokens
+    vals = sfd.per_token_entropy
+    n = min(len(tokens), len(vals))
+
+    fig, ax = plt.subplots(figsize=(max(9, n * 0.65), 4.5))
+    fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "QK Spectral Entropy (per token)")
+
+    ax.bar(range(n), vals[:n], color="#CC79A7", width=0.75, edgecolor="none")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
+                       fontsize=12, color="#9CA3AF")
+    ax.set_ylabel("Spectral entropy", fontsize=13)
+
+    info = (f"mean={sfd.entropy_mean:.4f}  |  "
+            f"max={sfd.entropy_max:.4f}")
+    ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",
+            fontsize=12, color="#9CA3AF",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)
+
+
+def plot_rank_displacement(result) -> str:
+    """Per-position Kendall tau — rank agreement between base and instruct."""
+    rd = result.rank_displacement
+    if rd is None or not rd.get("per_position_tau"):
+        return ""
+
+    tokens = result.tokens
+    taus = rd["per_position_tau"]
+    n = min(len(tokens), len(taus))
+
+    fig, ax = plt.subplots(figsize=(max(9, n * 0.65), 4.5))
+    fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "Rank Displacement (per position)")
+
+    colors = ["#009E73" if t > 0.5 else ("#E69F00" if t > 0 else "#D55E00")
+              for t in taus[:n]]
+    ax.bar(range(n), taus[:n], color=colors, width=0.75, edgecolor="none")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
+                       fontsize=12, color="#9CA3AF")
+    ax.axhline(y=0, color="#404040", linewidth=0.8)
+    ax.axhline(y=1.0, color="#333333", linewidth=0.5, linestyle="--")
+    ax.set_ylabel("Kendall tau", fontsize=13)
+    ax.set_ylim(-1.1, 1.1)
+
+    mean_tau = rd.get("mean_tau")
+    overlap = rd.get("mean_overlap")
+    n_comp = rd.get("n_comparable", 0)
+    n_pos = rd.get("n_positions", 0)
+    info = (f"mean tau={mean_tau:.3f}  |  "
+            f"overlap={overlap*100:.0f}%  |  "
+            f"{n_comp}/{n_pos} pos")
+    ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",
+            fontsize=12, color="#9CA3AF",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#1E1E1E", alpha=0.8))
+
+    plt.tight_layout()
+    return _fig_to_base64(fig)

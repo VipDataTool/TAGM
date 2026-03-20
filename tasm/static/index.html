@@ -406,10 +406,10 @@ const VIZ_REGISTRY = {
   counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', order:120, type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
 
   // ── Per-Prompt: SFD ──
-  sfd_density:         {cat:'SFD',        title:'Per-Token QK Density',        on:true,  scope:'prompt', order:130, type:'js',   needs:'sfd', desc:'How many dimensions of the QK routing subspace each token engages'},
-  sfd_energy:          {cat:'SFD',        title:'Per-Token QK Energy',         on:true,  scope:'prompt', order:140, type:'js',   needs:'sfd', desc:'Total projection magnitude into the QK routing subspace'},
-  sfd_entropy:         {cat:'SFD',        title:'Per-Token Spectral Entropy',  on:true,  scope:'prompt', order:150, type:'js',   needs:'sfd', desc:'How evenly the token activates across SVD directions'},
-  rank_displacement:   {cat:'SFD',        title:'Rank Displacement',           on:true,  scope:'prompt', order:160, type:'js',   needs:'sfd', desc:'Kendall tau between base and instruct alternative orderings per position'},
+  sfd_density:         {cat:'SFD',        title:'Per-Token QK Density',        on:true,  scope:'prompt', order:130, type:'plot',  needs:'sfd', desc:'How many dimensions of the QK routing subspace each token engages'},
+  sfd_energy:          {cat:'SFD',        title:'Per-Token QK Energy',         on:true,  scope:'prompt', order:140, type:'plot',  needs:'sfd', desc:'Total projection magnitude into the QK routing subspace'},
+  sfd_entropy:         {cat:'SFD',        title:'Per-Token Spectral Entropy',  on:true,  scope:'prompt', order:150, type:'plot',  needs:'sfd', desc:'How evenly the token activates across SVD directions'},
+  rank_displacement:   {cat:'SFD',        title:'Rank Displacement',           on:true,  scope:'prompt', order:160, type:'plot',  needs:'sfd', desc:'Kendall tau between base and instruct alternative orderings per position'},
 
   // ── Batch: Analysis tab ──
   separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
@@ -1352,6 +1352,26 @@ function renderLatest(r,plots){
       desc:'2D view of where each token receives alignment correction at each depth. Bright cells = strong correction. Benign prompts show bright boundary spots. Adversarial prompts show bright interior bands at middle layers.',
       legend:'Rows = tokens · Columns = sublayers · Brightness = correction magnitude'
     },
+    sfd_density:{
+      title:'QK Routing Density',
+      desc:'Subspace filling ratio: erank(token) / erank(global). Higher density means the token engages more dimensions of the QK routing correction RLHF applied. Tokens that trigger broad routing restructuring show high density.',
+      legend:'Height = density ratio · Orange bar = per-token density'
+    },
+    sfd_energy:{
+      title:'QK Routing Energy',
+      desc:'Total projection magnitude into the QK routing subspace. Higher energy means stronger engagement with the routing corrections RLHF learned. Boundary tokens typically show different energy patterns than interior framing tokens.',
+      legend:'Height = energy magnitude · Vermillion bar = per-token energy'
+    },
+    sfd_entropy:{
+      title:'QK Spectral Entropy',
+      desc:'How evenly the token activates across the SVD singular directions of the routing delta. High entropy = diffuse engagement across many directions. Low entropy = concentrated on a few dominant directions.',
+      legend:'Height = spectral entropy · Pink bar = per-token entropy'
+    },
+    rank_displacement:{
+      title:'Rank Displacement',
+      desc:'Kendall tau between base and instruct alternative orderings at each position. 1.0 = identical ranking (no RLHF reordering). Lower values = RLHF changed the priority structure among the model\'s own alternatives.',
+      legend:'Green = high agreement (tau > 0.5) · Amber = partial (0 < tau < 0.5) · Red = inverted (tau < 0)'
+    },
   };
   for(const[k,v]of Object.entries(plots)){
     if(!v||k.startsWith('ltp_'))continue;
@@ -1440,48 +1460,6 @@ function renderLatest(r,plots){
       h+=`</table></div></div>`;
     }
     h+=`</div>`;
-  }
-
-  // ═══ SFD PER-TOKEN VISUALIZATIONS ═══
-  if(r.sfd){
-    const sfd=r.sfd;
-    const toks=r.tokens||[];
-    function sfdBar(title,desc,arr,color,fmt){
-      if(!arr||!arr.length)return'';
-      const mx=Math.max(...arr.map(Math.abs))||1;
-      const barW=Math.max(28,Math.min(60,500/arr.length));
-      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body" style="padding:12px"><div style="display:flex;align-items:flex-end;gap:3px;height:220px;overflow-x:auto;padding-bottom:40px">`;
-      for(let i=0;i<arr.length;i++){
-        const pct=Math.abs(arr[i])/mx*100;
-        const lbl=toks[i]||i;
-        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:${barW}px"><div style="width:80%;max-width:56px;height:${pct}%;background:${color};border-radius:3px 3px 0 0;min-height:2px;opacity:0.85" title="${lbl}: ${fmt(arr[i])}"></div><div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;margin-top:6px;transform:rotate(-50deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
-      }
-      bh+=`</div><div style="font-size:12px;color:var(--text-2);margin-top:4px;padding:4px 0;border-top:1px solid var(--bg-3)">mean = ${fmt(arr.reduce((a,b)=>a+b,0)/arr.length)} &nbsp;·&nbsp; max = ${fmt(Math.max(...arr))} &nbsp;·&nbsp; n = ${arr.length} tokens</div></div></div>`;
-      return bh;
-    }
-    if(vizIsEnabled('sfd_density')&&sfd.per_token_density)
-      h+=sfdBar('Per-Token QK Density','Subspace filling ratio: erank(token) / erank(global). Higher = more routing dimensions engaged by this token.',sfd.per_token_density,'var(--orange)',v=>v.toFixed(4));
-    if(vizIsEnabled('sfd_energy')&&sfd.per_token_energy)
-      h+=sfdBar('Per-Token QK Energy','Total projection magnitude into the QK routing subspace. Higher = stronger engagement with RLHF routing corrections.',sfd.per_token_energy,'#E69F00',v=>v.toFixed(4));
-    if(vizIsEnabled('sfd_entropy')&&sfd.per_token_entropy)
-      h+=sfdBar('Per-Token Spectral Entropy','How evenly the token activates across SVD singular directions. Higher = more diffuse engagement.',sfd.per_token_entropy,'#CC79A7',v=>v.toFixed(4));
-  }
-  if(r.rank_displacement&&vizIsEnabled('rank_displacement')){
-    const rd=r.rank_displacement;
-    if(rd.per_position_tau&&rd.per_position_tau.length){
-      const toks=r.tokens||[];
-      const taus=rd.per_position_tau;
-      const barW=Math.max(28,Math.min(60,500/taus.length));
-      let bh=`<div class="feature" style="border-color:var(--orange)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--orange)">Rank Displacement (per position)</div><p class="feature-desc">Kendall tau between base and instruct alternative orderings. 1.0 = identical ranking. Lower = RLHF reordered the model's preferences at this position.</p></div><div class="feature-body" style="padding:12px"><div style="display:flex;align-items:flex-end;gap:3px;height:220px;overflow-x:auto;padding-bottom:40px">`;
-      for(let i=0;i<taus.length;i++){
-        const pct=Math.max(0,(taus[i]+1)/2)*100;
-        const col=taus[i]>0.5?'var(--green)':(taus[i]>0?'var(--orange)':'var(--red)');
-        const lbl=toks[i]||i;
-        bh+=`<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:${barW}px"><div style="width:80%;max-width:56px;height:${pct}%;background:${col};border-radius:3px 3px 0 0;min-height:2px;opacity:0.85" title="${lbl}: tau=${taus[i].toFixed(3)}"></div><div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;margin-top:6px;transform:rotate(-50deg);transform-origin:top left">${escHtml(String(lbl))}</div></div>`;
-      }
-      bh+=`</div><div style="font-size:12px;color:var(--text-2);margin-top:4px;padding:4px 0;border-top:1px solid var(--bg-3)">mean tau = ${rd.mean_tau!=null?rd.mean_tau.toFixed(3):'--'} &nbsp;·&nbsp; overlap = ${rd.mean_overlap!=null?(rd.mean_overlap*100).toFixed(1)+'%':'--'} &nbsp;·&nbsp; ${rd.n_comparable}/${rd.n_positions} positions comparable</div></div></div>`;
-      h+=bh;
-    }
   }
 
   // ═══ TOKEN TABLE ═══

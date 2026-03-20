@@ -34,6 +34,9 @@ from engine.visualizations import (
     plot_ltp_profiles, plot_ltp_tension_magnitudes,
     plot_ltp_dual_trajectory, plot_ltp_summary_stats,
     plot_ltp_profile_heatmap,
+    # SFD visualizations
+    plot_sfd_density, plot_sfd_energy, plot_sfd_entropy,
+    plot_rank_displacement,
 )
 from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
@@ -184,6 +187,14 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                 plots["ltp_summary_stats"] = plot_ltp_summary_stats(result.ltp)
                 plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(result.ltp, result.tokens)
 
+            # SFD plots
+            if compute_sfd and result.sfd is not None:
+                plots["sfd_density"] = plot_sfd_density(result)
+                plots["sfd_energy"] = plot_sfd_energy(result)
+                plots["sfd_entropy"] = plot_sfd_entropy(result)
+            if result.rank_displacement is not None:
+                plots["rank_displacement"] = plot_rank_displacement(result)
+
         result_dict = result_to_dict(result)
         if session:
             session.add_result(result_dict, plots)
@@ -227,6 +238,14 @@ def _generate_deferred_plots(sess):
                 plots["ltp_dual_trajectory"] = plot_ltp_dual_trajectory(pr.ltp)
                 plots["ltp_summary_stats"] = plot_ltp_summary_stats(pr.ltp)
                 plots["ltp_profile_heatmap"] = plot_ltp_profile_heatmap(pr.ltp, pr.tokens)
+
+            # SFD plots
+            if pr.sfd is not None:
+                plots["sfd_density"] = plot_sfd_density(pr)
+                plots["sfd_energy"] = plot_sfd_energy(pr)
+                plots["sfd_entropy"] = plot_sfd_entropy(pr)
+            if pr.rank_displacement is not None:
+                plots["rank_displacement"] = plot_rank_displacement(pr)
 
             # Write to disk
             for name, b64_str in plots.items():
