@@ -213,6 +213,7 @@ textarea{resize:vertical;min-height:44px}
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="ltp-badge" style="background:var(--orange)">SFD</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="enableBaselines" onchange="toggleBaselines(this.checked)"><label for="enableBaselines">Length normalization <span style="font-size:8px;color:var(--text-3)">(σ-deviation from baselines.csv)</span></label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
     <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
@@ -659,6 +660,7 @@ function _buildAnalysisFormData(){
   fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
   fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
+  fd.append('compute_sfd',$('computeSFD').checked);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
@@ -1682,6 +1684,7 @@ async function dtRerunSelected(){
     capture_responses:$('cfgCaptureResponses')&&$('cfgCaptureResponses').checked,
     full_capture:$('cfgFullCapture')&&$('cfgFullCapture').checked,
     compute_ltp:$('computeLTP')&&$('computeLTP').checked,
+    compute_sfd:$('computeSFD')&&$('computeSFD').checked,
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
     ltp_svd_rank:parseInt(($('cfgLtpSvdRank')&&$('cfgLtpSvdRank').value)||0),

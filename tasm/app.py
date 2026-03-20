@@ -140,6 +140,7 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         capture_responses, compute_ltp=False,
+                        compute_sfd=False,
                         full_capture=False,
                         ltp_k=8, ltp_layer_strategy="signal",
                         ltp_svd_rank=0, ltp_tuned_lens=False,
@@ -156,6 +157,7 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
             capture_responses=capture_responses,
             full_capture=full_capture,
             compute_ltp=compute_ltp,
+            compute_sfd=compute_sfd,
             ltp_k=ltp_k,
             ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank,
@@ -499,6 +501,7 @@ async def analyze_single(prompt: str = Form(...),
                          capture_responses: bool = Form(False),
                          full_capture: bool = Form(False),
                          compute_ltp: bool = Form(False),
+                         compute_sfd: bool = Form(False),
                          ltp_k: int = Form(8),
                          ltp_layer_strategy: str = Form("signal"),
                          ltp_svd_rank: int = Form(0),
@@ -513,14 +516,15 @@ async def analyze_single(prompt: str = Form(...),
     category = _validate_category(category)
 
     try:
-        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, SFD={compute_sfd}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         if compute_kl or capture_responses or compute_ltp:
             mm.load_base_for_kl(callback=log_progress)
 
         result_dict, plots = _analyze_and_record(
             prompt, category, compute_kl, compute_trajectory, capture_responses,
             full_capture=full_capture,
-            compute_ltp=compute_ltp, ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
+            compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+            ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
 
         if compute_kl or capture_responses or compute_ltp:
@@ -545,6 +549,7 @@ async def analyze_batch(file: UploadFile = File(...),
                         capture_responses: bool = Form(False),
                         full_capture: bool = Form(False),
                         compute_ltp: bool = Form(False),
+                        compute_sfd: bool = Form(False),
                         ltp_k: int = Form(8),
                         ltp_layer_strategy: str = Form("signal"),
                         ltp_svd_rank: int = Form(0),
@@ -579,7 +584,7 @@ async def analyze_batch(file: UploadFile = File(...),
         args=(content, bl_content, filename,
               compute_kl, compute_trajectory, capture_responses,
               full_capture,
-              compute_ltp, ltp_k, ltp_layer_strategy,
+              compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
               ltp_svd_rank, ltp_tuned_lens),
         daemon=True).start()
 
@@ -590,7 +595,7 @@ async def analyze_batch(file: UploadFile = File(...),
 def _run_batch_sync(content, bl_content, filename,
                     compute_kl, compute_trajectory, capture_responses,
                     full_capture,
-                    compute_ltp, ltp_k, ltp_layer_strategy,
+                    compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
                     ltp_svd_rank, ltp_tuned_lens):
     """Synchronous batch processing — runs in a background thread."""
     try:
@@ -606,7 +611,7 @@ def _run_batch_sync(content, bl_content, filename,
             log_progress("error", "No valid prompts found in CSV.")
             return
 
-        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, SFD={compute_sfd}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
 
         if bl_content:
@@ -626,7 +631,8 @@ def _run_batch_sync(content, bl_content, filename,
                 _analyze_and_record(
                     p["prompt"], p["category"],
                     compute_kl, compute_trajectory, capture_responses,
-                    compute_ltp=compute_ltp, full_capture=full_capture,
+                    compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+                    full_capture=full_capture,
                     ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
                     ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
@@ -744,6 +750,7 @@ async def rerun_prompts(request: Request):
     capture_responses = opts.get("capture_responses", False)
     full_capture = opts.get("full_capture", False)
     compute_ltp = opts.get("compute_ltp", False)
+    compute_sfd = opts.get("compute_sfd", False)
     ltp_k = opts.get("ltp_k", 8)
     ltp_layer_strategy = opts.get("ltp_layer_strategy", "signal")
     ltp_svd_rank = opts.get("ltp_svd_rank", 0)
@@ -781,7 +788,8 @@ async def rerun_prompts(request: Request):
                 item["prompt"], item["category"],
                 compute_kl, compute_trajectory, capture_responses,
                 full_capture=full_capture,
-                compute_ltp=compute_ltp, ltp_k=ltp_k,
+                compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+                ltp_k=ltp_k,
                 ltp_layer_strategy=ltp_layer_strategy,
                 ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
             rerun_count += 1
@@ -856,6 +864,18 @@ def _run_dashboard_sync():
                 "profiles", "base_profiles", "counterfactual_tokens",
                 "tension_magnitudes", "profile_shapes",
             ]}
+        # SFD data
+        sfd = r.get("sfd")
+        if sfd:
+            slim["sfd"] = {k: sfd.get(k) for k in [
+                "density_mean", "density_max", "density_var", "density_p90",
+                "entropy_mean", "entropy_max", "entropy_var", "entropy_p90",
+                "energy_mean", "energy_max", "energy_var", "energy_p90",
+                "global_erank", "n_layers_monitored", "k",
+                "per_token_density", "per_token_entropy", "per_token_energy",
+            ]}
+        # Rank displacement
+        slim["rank_displacement"] = r.get("rank_displacement")
         slim_results.append(slim)
 
     return sanitize_for_json({

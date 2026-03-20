@@ -14,6 +14,8 @@ logger = logging.getLogger("tasm")
 
 from engine.ltp import (LTPResult, compute_ltp, ltp_result_to_dict,
                         precompute_svd_cache, precompute_tuned_lens_cache)
+from engine.sfd import (SFDResult, SFDCache, precompute_sfd_cache,
+                        compute_sfd_sequence, compute_rank_displacement)
 
 
 @dataclass
@@ -87,6 +89,12 @@ class PromptResult:
     # LTP results
     ltp: Optional[LTPResult] = None
 
+    # SFD results
+    sfd: Optional[SFDResult] = None
+
+    # Rank displacement (LTP companion: base vs instruct ordering)
+    rank_displacement: Optional[dict] = None
+
     # ─── Field sets for from_dict reconstitution ──────────────────
     # Centralized here so every caller uses the same definitions.
     # "scalar" = what aggregate_batch and statistics need.
@@ -100,6 +108,11 @@ class PromptResult:
         "has_negative_tokens", "n_negative_tokens",
         # Length-normalized variants
         "entropy_ln", "top2_share_ln", "middle_share_ln", "stress_score_ln",
+    ]
+
+    # SFD scalar fields (kept separate for clarity, merged into reconstitution)
+    _SFD_SCALAR_FIELDS = [
+        "sfd", "rank_displacement",
     ]
 
     _PLOT_EXTRA_FIELDS = [
@@ -167,6 +180,16 @@ class PromptResult:
 
             pr.ltp = ltp_r
 
+        # SFD reconstitution
+        sfd_data = d.get("sfd")
+        if sfd_data:
+            pr.sfd = SFDResult.from_dict(sfd_data)
+
+        # Rank displacement reconstitution
+        rd_data = d.get("rank_displacement")
+        if rd_data:
+            pr.rank_displacement = rd_data
+
         return pr
 
 
@@ -176,6 +199,8 @@ class Analyzer:
         # LTP enhancement caches (lazily initialized, persist for model lifetime)
         self._svd_caches = {}    # {rank: {layer_idx: tensor}}
         self._tuned_lens_cache = None  # {layer_idx: tensor} or None
+        # SFD cache (lazily initialized)
+        self._sfd_cache = None   # SFDCache or None
 
     def _get_svd_cache(self, rank: int):
         """Get or build SVD cache for the given rank."""
@@ -196,10 +221,19 @@ class Analyzer:
                 self.mm, cal_prompts, layer_indices=layer_indices)
         return self._tuned_lens_cache
 
+    def _get_sfd_cache(self, k: int = 16):
+        """Get or build SFD cache for the QK delta subspace."""
+        if self._sfd_cache is None:
+            layer_indices = list(self.mm.state.signal_layers) if self.mm.state else None
+            self._sfd_cache = precompute_sfd_cache(
+                self.mm.state, layer_indices=layer_indices, k=k)
+        return self._sfd_cache
+
     def clear_ltp_caches(self):
-        """Clear LTP caches (e.g. on model reload)."""
+        """Clear LTP and SFD caches (e.g. on model reload)."""
         self._svd_caches.clear()
         self._tuned_lens_cache = None
+        self._sfd_cache = None
 
     def analyze_prompt(self, prompt: str, category: str = "",
                        compute_kl: bool = False,
@@ -207,6 +241,7 @@ class Analyzer:
                        capture_responses: bool = False,
                        full_capture: bool = False,
                        compute_ltp: bool = False,
+                       compute_sfd: bool = False,
                        ltp_k: int = 8,
                        ltp_layer_strategy: str = "signal",
                        ltp_svd_rank: int = 0,
@@ -273,6 +308,26 @@ class Analyzer:
                 svd_rank=ltp_svd_rank, use_tuned_lens=ltp_tuned_lens,
                 base_logits=base_logits)
 
+        # SFD computation (uses same cached activations as ASM — no extra hooks)
+        if compute_sfd:
+            try:
+                sfd_cache = self._get_sfd_cache()
+                # Gather activations at signal layers (already captured by ASM hooks)
+                layer_acts = {}
+                for layer_idx in sfd_cache.layers:
+                    act_key = f"layer_{layer_idx}_h"
+                    act = self.mm.activations.get(act_key)
+                    if act is not None:
+                        layer_acts[layer_idx] = act[0].cpu().numpy()
+
+                if layer_acts:
+                    result.sfd = compute_sfd_sequence(layer_acts, sfd_cache)
+                    logger.info(f"[SFD] density_mean={result.sfd.density_mean:.4f}, "
+                                f"energy_mean={result.sfd.energy_mean:.6f}, "
+                                f"entropy_mean={result.sfd.entropy_mean:.4f}")
+            except Exception as e:
+                logger.warning(f"[SFD] Computation failed: {e}")
+
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
         self.mm._remove_hooks()
@@ -288,6 +343,21 @@ class Analyzer:
                 compute_kl=compute_kl,
                 capture_base=capture_responses,
                 topk=response_topk)
+
+        # Rank displacement: compare base vs instruct counterfactual orderings
+        if (compute_sfd or compute_ltp) and result.ltp is not None:
+            try:
+                inst_cf = result.ltp.counterfactual_tokens if hasattr(result.ltp, 'counterfactual_tokens') else []
+                base_cf = result.base_counterfactual_tokens
+                if inst_cf and base_cf:
+                    result.rank_displacement = compute_rank_displacement(inst_cf, base_cf)
+                    rd = result.rank_displacement
+                    if rd and rd.get('mean_tau') is not None:
+                        logger.info(f"[RANK] tau={rd['mean_tau']:+.3f}, "
+                                    f"overlap={rd['mean_overlap']:.3f}, "
+                                    f"n={rd['n_comparable']}/{rd['n_positions']}")
+            except Exception as e:
+                logger.warning(f"[RANK] Displacement computation failed: {e}")
 
         return result
 
@@ -687,6 +757,15 @@ def result_to_dict(r: PromptResult) -> dict:
     else:
         d["ltp"] = None
 
+    # SFD data
+    if r.sfd is not None:
+        d["sfd"] = r.sfd.to_dict()
+    else:
+        d["sfd"] = None
+
+    # Rank displacement data
+    d["rank_displacement"] = r.rank_displacement
+
     # Classification -- run all available classifiers
     # Each classifier is wrapped individually so one failure doesn't block
     # the rest.  Failures are logged and an error stub is inserted so the
@@ -702,6 +781,7 @@ def result_to_dict(r: PromptResult) -> dict:
         ('v6', 'engine.classifier_v6',  'classify', None),
         ('v7', 'engine.classifier_v7',  'classify', None),
         ('v8', 'engine.classifier_v8',  'classify', None),
+        ('v9', 'engine.classifier_v9',  'classify', None),
     ]
 
     import importlib
