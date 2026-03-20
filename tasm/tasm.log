@@ -11536,3 +11536,100 @@ TypeError: 'NoneType' object is not iterable
 2026-03-20 19:37:02,285 [INFO] [RANK] tau=+0.677, overlap=0.859, n=12/12
 2026-03-20 19:55:21,852 [INFO] Full reset performed
 2026-03-20 19:55:21,852 [INFO] [reset] All resources released. Session cleared.
+2026-03-20 19:57:49,812 [INFO] TASM Analyzer starting up
+2026-03-20 19:58:10,865 [INFO] [starting] Starting model load...
+2026-03-20 19:58:11,467 [INFO] [memory] [MEM] After unload | process=0.5GB, system=3.6/15.6GB (23%)
+2026-03-20 19:58:11,468 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-20 19:58:11,539 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:11,549 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,105 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:12,111 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,132 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:12,138 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,158 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:12,166 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,194 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-20 19:58:12,219 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,915 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,922 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=4.6/15.6GB (30%)
+2026-03-20 19:58:12,922 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-20 19:58:12,958 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-20 19:58:12,963 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=4.6/15.6GB (30%)
+2026-03-20 19:58:12,965 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=4.6/15.6GB (30%)
+2026-03-20 19:58:13,353 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=5.2/15.6GB (33%)
+2026-03-20 19:58:13,504 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=5.2/15.6GB (33%)
+2026-03-20 19:58:16,004 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-20 19:58:16,004 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.5s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-20 19:58:16,005 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-20 19:58:24,115 [INFO] [baseline] Computing baselines (first enable)...
+2026-03-20 19:58:24,115 [INFO] [baseline] Computing baselines from 45 prompts (baselines.csv)...
+2026-03-20 19:58:24,365 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:24,623 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:24,929 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:25,164 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:25,513 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:25,831 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:26,140 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:26,564 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:26,871 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:27,188 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:27,188 [INFO] [baseline]   Processed 10/45 baselines
+2026-03-20 19:58:27,681 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:28,099 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:28,571 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:28,819 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:29,236 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:29,535 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:29,994 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:30,454 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:31,092 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:31,480 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:31,481 [INFO] [baseline]   Processed 20/45 baselines
+2026-03-20 19:58:31,930 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:32,449 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:33,025 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:33,457 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:34,061 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:34,637 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:35,422 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:36,131 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:36,980 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:37,694 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:37,694 [INFO] [baseline]   Processed 30/45 baselines
+2026-03-20 19:58:38,445 [INFO] Analyzing: [benign] Name three primary colors.... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-20 19:58:38,445 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-20 19:58:38,474 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:38,484 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:38,685 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=False
+2026-03-20 19:58:39,171 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-20 19:58:39,177 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-20 19:58:39,793 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:40,743 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:41,603 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:42,643 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:43,667 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:44,879 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:45,935 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:47,128 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:48,783 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:48,783 [INFO] [baseline]   Processed 40/45 baselines
+2026-03-20 19:58:50,447 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:52,369 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:54,176 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:58:56,511 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:59:00,126 [INFO] [BASE PASS] needs=False (kl=False, cap=False, ltp=False), model_base loaded=True
+2026-03-20 19:59:00,128 [INFO] [baseline] Baselines ready: 45 prompts across token lengths 5-60 (23 unique lengths)
+2026-03-20 19:59:01,184 [INFO] [LTP] base_profiles: 5 entries, mean |instruct - base| = 0.00342331 (asymmetric ✓)
+2026-03-20 19:59:01,191 [INFO] [SFD] Layer 8: QK delta 1024x896, erank=15.4, H_norm=0.987, stable_rank=5.3
+2026-03-20 19:59:01,195 [INFO] [SFD] Layer 9: QK delta 1024x896, erank=15.7, H_norm=0.993, stable_rank=8.2
+2026-03-20 19:59:01,200 [INFO] [SFD] Layer 10: QK delta 1024x896, erank=15.9, H_norm=0.999, stable_rank=11.4
+2026-03-20 19:59:01,204 [INFO] [SFD] Layer 11: QK delta 1024x896, erank=15.7, H_norm=0.993, stable_rank=6.4
+2026-03-20 19:59:01,208 [INFO] [SFD] Layer 12: QK delta 1024x896, erank=15.9, H_norm=0.999, stable_rank=11.3
+2026-03-20 19:59:01,212 [INFO] [SFD] Layer 13: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=8.3
+2026-03-20 19:59:01,216 [INFO] [SFD] Layer 14: QK delta 1024x896, erank=15.7, H_norm=0.994, stable_rank=7.2
+2026-03-20 19:59:01,221 [INFO] [SFD] Layer 15: QK delta 1024x896, erank=15.9, H_norm=0.998, stable_rank=10.6
+2026-03-20 19:59:01,221 [INFO] [SFD] Cache built: 8 layers, k=16, mean erank=15.8
+2026-03-20 19:59:01,223 [INFO] [SFD] density_mean=0.4069, energy_mean=0.962321, entropy_mean=1.7717
+2026-03-20 19:59:01,223 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-20 19:59:01,494 [INFO] [BASE CF] Generated 5 base counterfactual token sets (k=8)
+2026-03-20 19:59:01,497 [INFO] [RANK] tau=+0.263, overlap=0.696, n=5/5

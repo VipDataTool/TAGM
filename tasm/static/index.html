@@ -1202,86 +1202,111 @@ function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVa
 // ─── Classification Display ─────────────────────────────────────
 function renderClassifierCard(cl, r){
   if(!cl) return '';
-  const pClass=cl.predicted;
-  const pConf=Math.round(cl.confidence*100);
-  const borderColor=(pClass==='benign'||pClass==='mild')?'var(--cat-benign)':'var(--cat-harmful)';
-  const cName=cl.classifier_name||'Classifier';
-  const cId=cl.classifier||'';
+  const pClass=cl.predicted||'unknown';
+  const pConf=Math.round((cl.confidence||0)*100);
+  const catColor=c=>({safe:'var(--cat-benign)',benign:'var(--cat-benign)',mild:'var(--cat-mild)',harmful:'var(--cat-harmful)',adversarial:'var(--cat-harmful)',jailbreak:'var(--cat-jailbreak)'})[c]||'var(--text-3)';
+  const borderColor=catColor(pClass);
+  const cName=cl.classifier_name||cl.classifier||'Classifier';
+  const cId=(cl.classifier||'').toUpperCase();
+  const match=r.category?(pClass===r.category?'✓':'✗'):'';
+  const matchColor=match==='✓'?'var(--green)':'var(--red)';
 
-  // Decision tree stages
+  // ═══ Section: Decision stages (v2,v4-v9) ═══
   let stagesHtml='';
   if(cl.stages&&cl.stages.length){
-    stagesHtml=`<div style="margin-bottom:12px">
-      <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Decision Path</div>`;
+    stagesHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:10px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Decision Path</div>`;
     for(const s of cl.stages){
       const isRight=s.score>s.threshold;
-      const leftColor=s.left_class==='safe'?'var(--cat-benign)':s.left_class==='mild'?'var(--cat-mild)':s.left_class==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
-      const rightColor=s.right_class==='adversarial'?'var(--cat-harmful)':s.right_class==='jailbreak'?'var(--cat-jailbreak)':s.right_class==='benign'?'var(--cat-benign)':'var(--cat-mild)';
-      const chosenColor=isRight?rightColor:leftColor;
-      const conf=Math.round(s.confidence*100);
-      const marginAbs=Math.abs(s.margin);
-      const barMax=Math.max(marginAbs*800,1);
-      stagesHtml+=`<div style="padding:8px 10px;margin:4px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenColor}">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0)">${s.explanation}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-          <span style="font-family:var(--mono);font-size:10px;color:${leftColor}">${s.left_class}</span>
-          <div style="flex:1;height:6px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
+      const leftC=catColor(s.left_class);
+      const rightC=catColor(s.right_class);
+      const chosenC=isRight?rightC:leftC;
+      const marginPct=Math.min(50,Math.abs(s.margin||0)*500).toFixed(0);
+      stagesHtml+=`<div style="padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenC}">
+        <div style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4">${s.name||s.stage||'Stage'}: <span style="color:${chosenC}">${s.chosen||pClass}</span> <span style="color:var(--text-3)">(${Math.round((s.confidence||0)*100)}%)</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+          <span style="font-family:var(--mono);font-size:9px;color:${leftC}">${s.left_class||'left'}</span>
+          <div style="flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
             <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)"></div>
-            <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenColor};border-radius:3px;width:${Math.min(50,marginAbs*500).toFixed(0)}%;opacity:0.7"></div>
+            <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenC};border-radius:3px;width:${marginPct}%;opacity:0.7"></div>
           </div>
-          <span style="font-family:var(--mono);font-size:10px;color:${rightColor}">${s.right_class}</span>
+          <span style="font-family:var(--mono);font-size:9px;color:${rightC}">${s.right_class||'right'}</span>
         </div>
+        ${s.explanation?`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4">${s.explanation}</div>`:''}
       </div>`;
     }
     stagesHtml+=`</div>`;
   }
 
-  // Probability bars
-  let probBars='';
-  const sorted=Object.entries(cl.probabilities).sort((a,b)=>b[1]-a[1]);
-  for(const[c,p]of sorted){
-    const color=c==='benign'?'var(--cat-benign)':c==='mild'?'var(--cat-mild)':c==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
-    const w=(p*100).toFixed(0);
-    probBars+=`<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="font-family:var(--mono);font-size:12px;color:var(--text-2);width:70px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:18px;overflow:hidden"><div style="width:${w}%;height:100%;background:${color};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--text-1);width:40px">${w}%</span></div>`;
+  // ═══ Section: Probability bars (v1-v3,v7,v8) ═══
+  let probHtml='';
+  if(cl.probabilities&&Object.keys(cl.probabilities).length){
+    const sorted=Object.entries(cl.probabilities).sort((a,b)=>b[1]-a[1]);
+    let bars='';
+    for(const[c,p]of sorted){
+      const w=Math.max(1,(p*100)).toFixed(0);
+      bars+=`<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="font-family:var(--mono);font-size:10px;color:var(--text-2);width:60px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden"><div style="width:${w}%;height:100%;background:${catColor(c)};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:10px;color:var(--text-1);width:32px">${w}%</span></div>`;
+    }
+    probHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:10px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Class Probabilities</div>${bars}</div>`;
   }
 
-  // Feature contributions
-  let contribs='';
-  if(cl.contributions){
+  // ═══ Section: Feature contributions (all versions) ═══
+  let contribHtml='';
+  if(cl.contributions&&cl.contributions.length){
+    let rows='';
     for(const c of cl.contributions){
       const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
-      const fColor=c.favors==='benign'?'var(--cat-benign)':c.favors==='mild'?'var(--cat-mild)':c.favors==='harmful'?'var(--cat-harmful)':'var(--cat-jailbreak)';
+      const fColor=catColor(c.favors);
       const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
-      contribs+=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:12px;width:14px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${c.explanation}</span><span class="pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span></div>`;
+      let text=c.explanation||'';
+      if(!text){
+        const label=c.name||c.feature||'feature';
+        const val=c.value!=null?(typeof c.value==='number'?c.value.toFixed(4):c.value):'';
+        const extra=c.z!=null?` (z=${c.z.toFixed(2)})`:c.deviation!=null?` (dev=${c.deviation.toFixed(4)})`:'';
+        const axis=c.axis?` [${c.axis}]`:'';
+        text=`${label} = ${val}${extra}${axis}`;
+      }
+      rows+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:11px;width:12px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${text}</span>${c.favors?`<span class="pill" style="border-color:${fColor};color:${fColor};font-size:9px">${c.favors}</span>`:''}</div>`;
     }
+    contribHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:10px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Feature Contributions</div>${rows}</div>`;
   }
 
-  // Caveats
+  // ═══ Section: Extra metadata (version-specific) ═══
+  let extraHtml='';
+  if(cl.available_axes)
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)">Instruments: ${cl.available_axes.join(' + ')} (${cl.n_axes||0}/3)</div>`;
+  if(cl.distances){
+    const dStr=Object.entries(cl.distances).map(([c,d])=>`${c}: ${typeof d==='number'?d.toFixed(3):d}`).join(' · ');
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Distances: ${dStr}</div>`;
+  }
+  if(cl.features_used!=null)
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Features used: ${cl.features_used}</div>`;
+  if(cl.layers_active!=null)
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Active layers: ${cl.layers_active}</div>`;
+  if(extraHtml) extraHtml=`<div style="margin-bottom:8px">${extraHtml}</div>`;
+
+  // ═══ Section: Caveats ═══
   let caveatHtml='';
-  if(cl.caveats&&cl.caveats.length){
-    caveatHtml=`<div style="margin-top:10px;padding:8px 10px;background:rgba(230,159,0,0.08);border:1px solid var(--orange);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.map(c=>'⚠ '+c).join('<br>')}</div>`;
+  if(cl.caveats&&cl.caveats.length&&cl.caveats.some(c=>c)){
+    caveatHtml=`<div style="margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.filter(c=>c).map(c=>'⚠ '+c).join('<br>')}</div>`;
   }
 
+  // ═══ Assemble card ═══
   return `<div class="feature" style="border-color:${borderColor};border-width:2px">
     <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="feature-title">Classification (${cId.toUpperCase()}): <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span> <span style="color:var(--text-2);font-size:13px;font-weight:400">${pConf}% confidence</span></div>
-      <p class="feature-desc">${cName}: ${cl.summary}</p>
-      <div class="feature-legend">🔑 Decision tree: binary split → sub-classify · Bars show margin from boundary · ● strong · ◐ moderate · ○ weak</div>
-    </div>
-    <div class="feature-body" style="padding:14px">
-      ${stagesHtml}
-      <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:20px">
-        <div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Gaussian Probabilities</div>
-          ${probBars}
-        </div>
-        <div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Feature Contributions</div>
-          ${contribs}
-        </div>
+      <div class="feature-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px">${cId}</span>
+        <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span>
+        <span style="color:var(--text-2);font-size:13px">${pConf}%</span>
+        ${match?`<span style="color:${matchColor};font-size:14px;font-weight:600">${match}</span>`:''}
+        <span style="color:var(--text-3);font-size:11px;margin-left:auto">${cName}</span>
       </div>
+      <p class="feature-desc">${cl.summary||''}</p>
+    </div>
+    <div class="feature-body" style="padding:12px">
+      ${stagesHtml}
+      ${probHtml}
+      ${contribHtml}
+      ${extraHtml}
       ${caveatHtml}
     </div>
   </div>`;
