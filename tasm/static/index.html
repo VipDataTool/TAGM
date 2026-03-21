@@ -414,7 +414,7 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Analysis tab ──
   separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
-  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — midpoint tension decomposition. Each bank shows ±ΔW/2 projected through its own W_O. Asymmetry reveals directional alignment geometry.'},
+  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — probability displacement between base and instruct models. Surface height = per-candidate displacement magnitude. Instruct bank (right, warm) shows promoted candidates and reweighting. Base bank (left, cool) shows demoted candidates. Asymmetry reveals where alignment training reshaped the vocabulary distribution.'},
   batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
   key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
   discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
@@ -786,12 +786,12 @@ async function loadDashboard(force){
     for(const[key,v]of batchItems) h+=plotCard(key,v.title,v.desc,plots);
 
     // Terrain viewer (batch JS viz — needs LTP data)
-    const hasLtpData=sessionResults.some(r=>r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0);
+    const hasLtpData=sessionResults.some(r=>(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||(r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0));
     if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
       h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
-          <p class="feature-desc">3D dual-bank terrain map. Surface height = lateral tension magnitude from midpoint decomposition (±ΔW/2 projected through each model's own O-projection). Instruct bank (right, warm tones) shows alignment field built by training. Base bank (left, cool tones) shows alignment field carved from the base model. Dual palette mode uses separate color ramps so the two banks are distinguishable at a glance. Left-drag orbit, right-drag pan, scroll zoom.</p>
+          <p class="feature-desc">3D dual-bank terrain map. Surface height = probability displacement per candidate between base and instruct models. Instruct bank (right, warm tones) shows instruct-ranked candidates: matched show |Δprob|, promoted show full probability. Base bank (left, cool tones) shows base-ranked candidates: matched show |Δprob|, demoted show full probability. High terrain = strong model disagreement. Left-drag orbit, right-drag pan, scroll zoom.</p>
         </div>
         <div class="feature-body" id="terrainFeatureBody" style="padding:0"><div id="terrainContainer"></div></div>
       </div>`;
@@ -1871,47 +1871,63 @@ let _terrainState = null;
 
 function _terrainTransformData(results){
   const cats={};
-  const diag={total:0,hasBaseProfiles:0,hasBaseCf:0,missingBaseProfiles:0,missingBaseCf:0};
+  const diag={total:0,hasDispProfiles:0,hasLtpFallback:0,hasBaseCf:0,missingData:0};
   for(const r of results){
     const cat=r.category||'unknown';
     const ltp=r.ltp||{};
-    const profiles=ltp.profiles||[];
-    if(!profiles.length) continue;
+    const rd=r.rank_displacement||{};
+
+    // Prefer displacement profiles; fall back to LTP tension profiles
+    const useDisp=rd.instruct_disp_profiles&&rd.instruct_disp_profiles.length>0;
+    const useLtp=!useDisp&&ltp.profiles&&ltp.profiles.length>0;
+    if(!useDisp&&!useLtp) continue;
+
     if(!cats[cat]) cats[cat]=[];
     const toks=r.tokens||[];
-    const baseProfiles=ltp.base_profiles||[];
     const cf=ltp.counterfactual_tokens||[];
     const baseCf=r.base_counterfactual_tokens||[];
     const kls=r.per_token_kl||[];
     const nT=toks.length;
+    const perPos=rd.per_position||[];
     diag.total++;
 
-    // Diagnose what data arrived
-    if(baseProfiles.length>0&&baseProfiles[0]&&baseProfiles[0].length>=8) diag.hasBaseProfiles++;
-    else diag.missingBaseProfiles++;
+    if(useDisp) diag.hasDispProfiles++;
+    else if(useLtp) diag.hasLtpFallback++;
     if(baseCf.length>0&&baseCf[0]&&baseCf[0].length>=1) diag.hasBaseCf++;
-    else diag.missingBaseCf++;
 
     const rows=[];
     for(let i=0;i<nT;i++){
       const cands=cf[i]||[];
       const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
+      const posData=perPos[i]||{};
+      const replRatio=posData.replacement_ratio||0;
 
-      // Instruct bank: LTP tension magnitudes
-      const prof=profiles[i]||new Array(8).fill(0.01);
-      const im=[];
-      for(let j=0;j<8;j++) im.push(prof[j]!=null?prof[j]:0.01);
+      let im,bm;
 
-      // Base bank: real base tension magnitudes — NO MIRROR FALLBACK
-      let bm;
-      const bprof=baseProfiles[i];
-      if(bprof&&bprof.length>=8){
+      if(useDisp){
+        // ── Displacement profiles: height = probability displacement per candidate ──
+        const iDisp=rd.instruct_disp_profiles[i]||[];
+        im=[];
+        for(let j=0;j<8;j++) im.push(iDisp[j]!=null?iDisp[j]:0);
+
+        const bDisp=rd.base_disp_profiles[i]||[];
         bm=[];
-        for(let j=7;j>=0;j--) bm.push(bprof[j]!=null?bprof[j]:0.01);
+        for(let j=7;j>=0;j--) bm.push(bDisp[j]!=null?bDisp[j]:0);
       }else{
-        // No fallback — flat zeros so missing data is visually obvious
-        bm=new Array(8).fill(0);
+        // ── Legacy fallback: LTP tension magnitudes ──
+        const prof=ltp.profiles[i]||new Array(8).fill(0.01);
+        im=[];
+        for(let j=0;j<8;j++) im.push(prof[j]!=null?prof[j]:0.01);
+
+        const baseProfiles=ltp.base_profiles||[];
+        const bprof=baseProfiles[i];
+        if(bprof&&bprof.length>=8){
+          bm=[];
+          for(let j=7;j>=0;j--) bm.push(bprof[j]!=null?bprof[j]:0.01);
+        }else{
+          bm=new Array(8).fill(0);
+        }
       }
 
       // Instruct labels
@@ -1921,7 +1937,7 @@ function _terrainTransformData(results){
           ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
         }else ctoks.push('');
       }
-      // Base labels — NO MIRROR FALLBACK
+      // Base labels
       if(baseCands.length>0){
         for(let j=7;j>=0;j--){
           if(j<baseCands.length&&baseCands[j]){
@@ -1930,34 +1946,31 @@ function _terrainTransformData(results){
           }else ctoks.push('\u00B7');
         }
       }else{
-        // No fallback — empty labels so missing data is visible
         for(let j=0;j<8;j++) ctoks.push('\u00B7?');
       }
-      rows.push([bm,im,Math.round(kl*1e4)/1e4,0,ctoks]);
+      rows.push([bm,im,Math.round(kl*1e4)/1e4,Math.round(replRatio*1e4)/1e4,ctoks]);
     }
     cats[cat].push([r.prompt||'',toks,rows]);
   }
   // Diagnostic dump
   console.log('[Terrain] DATA DIAGNOSTIC:',JSON.stringify(diag));
-  if(diag.missingBaseProfiles>0) console.error('[Terrain] MISSING base_profiles on '+diag.missingBaseProfiles+'/'+diag.total+' prompts. Check: 1) Model reloaded after deploy? (o_proj deltas need reload) 2) LTP enabled? 3) base_profiles in dashboard LTP whitelist?');
-  if(diag.missingBaseCf>0) console.error('[Terrain] MISSING base_counterfactual_tokens on '+diag.missingBaseCf+'/'+diag.total+' prompts. Check: 1) Base model loaded? (need KL or capture or LTP enabled) 2) base_counterfactual_tokens in dashboard slim whitelist?');
-  if(diag.total>0&&diag.hasBaseProfiles===diag.total&&diag.hasBaseCf===diag.total) console.log('[Terrain] All base data present.');
+  if(diag.hasDispProfiles>0) console.log('[Terrain] Using displacement profiles for '+diag.hasDispProfiles+'/'+diag.total+' prompts');
+  if(diag.hasLtpFallback>0) console.log('[Terrain] Using LTP tension fallback for '+diag.hasLtpFallback+'/'+diag.total+' prompts');
   // Dump first prompt raw data to confirm what the terrain actually renders
   const firstCat=Object.keys(cats)[0];
   if(firstCat&&cats[firstCat][0]){
     const[prompt,toks,rows]=cats[firstCat][0];
     if(rows[0]){
-      const[bm,im,kl,_,ctoks]=rows[0];
+      const[bm,im,kl,rr,ctoks]=rows[0];
       console.log('[Terrain] FIRST TOKEN "'+toks[0]+'":');
-      console.log('  im (instruct mags):', JSON.stringify(im));
-      console.log('  bm (base mags):    ', JSON.stringify(bm));
-      console.log('  bm===all zeros?', bm.every(v=>v===0));
-      console.log('  bm===im reversed?', JSON.stringify(bm)===JSON.stringify([...im].reverse()));
+      console.log('  im (instruct disp):', JSON.stringify(im));
+      console.log('  bm (base disp):    ', JSON.stringify(bm));
+      console.log('  replacement_ratio:', rr);
       console.log('  instruct labels:', JSON.stringify(ctoks.slice(0,8)));
       console.log('  base labels:    ', JSON.stringify(ctoks.slice(8)));
     }
   }
-  console.log('[Terrain] VERSION: v3.18a — if you do not see this, browser is cached');
+  console.log('[Terrain] VERSION: v4.0 — displacement profiles');
   return cats;
 }
 

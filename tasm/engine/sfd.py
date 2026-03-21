@@ -368,15 +368,25 @@ def compute_sfd_sequence(activations: np.ndarray, cache: SFDCache) -> SFDResult:
 # ═══ Rank displacement (LTP companion measure) ═══
 
 def compute_rank_displacement(instruct_cf, base_cf):
-    """Compute Kendall's tau rank correlation between instruct and base
-    counterfactual token rankings at each position.
+    """Compute vocabulary-space displacement between instruct and base model
+    counterfactual candidate sets at each token position.
+
+    Decomposes displacement into three pools per position:
+      - Matched: candidates in both top-k. Displacement = |Δprob|.
+      - Promoted: instruct-only candidates. Displacement = full inst prob.
+      - Demoted: base-only candidates. Displacement = full base prob.
+
+    Also produces per-position displacement profiles (8 values per bank)
+    suitable for the terrain viewer, where each height is a candidate's
+    contribution to the total displacement.
 
     Args:
         instruct_cf: list of [(token, prob), ...] per position (from LTP).
         base_cf: list of [(token, prob), ...] per position (from base pass).
 
     Returns:
-        dict with mean_tau, mean_overlap, per_position_tau, per_position_overlap.
+        dict with per-position and aggregate match-concentration metrics,
+        displacement profiles for terrain rendering, and legacy tau/overlap.
     """
     from scipy.stats import kendalltau
 
@@ -384,27 +394,96 @@ def compute_rank_displacement(instruct_cf, base_cf):
         return None
 
     n_pos = min(len(instruct_cf), len(base_cf))
-    taus = []
-    overlaps = []
+    k = 8  # expected candidates per bank
+
+    # Per-position accumulators
+    per_pos = []
+    taus = []          # legacy: Kendall's tau
+    overlaps = []      # legacy: Jaccard overlap
+
+    # Terrain-compatible displacement profiles: 8 values per bank per position
+    instruct_disp_profiles = []  # list of 8-element lists
+    base_disp_profiles = []      # list of 8-element lists
 
     for pos in range(n_pos):
         i_alts = instruct_cf[pos]
         b_alts = base_cf[pos]
 
         if not i_alts or not b_alts:
+            per_pos.append({
+                'n_matched': 0, 'n_promoted': 0, 'n_demoted': 0,
+                'matched_disp': 0.0, 'promoted_mass': 0.0, 'demoted_mass': 0.0,
+                'total_disp': 0.0, 'replacement_ratio': 0.0, 'concentration': 0.0,
+            })
+            instruct_disp_profiles.append([0.0] * k)
+            base_disp_profiles.append([0.0] * k)
             overlaps.append(0.0)
             continue
 
+        # Build token -> (rank, prob) lookups
+        inst = {t: (rank, p) for rank, (t, p) in enumerate(i_alts)}
+        base = {t: (rank, p) for rank, (t, p) in enumerate(b_alts)}
+
+        matched_tokens = set(inst.keys()) & set(base.keys())
+        promoted_tokens = set(inst.keys()) - set(base.keys())
+        demoted_tokens = set(base.keys()) - set(inst.keys())
+
+        n_matched = len(matched_tokens)
+        n_promoted = len(promoted_tokens)
+        n_demoted = len(demoted_tokens)
+
+        matched_disp = sum(abs(inst[t][1] - base[t][1]) for t in matched_tokens)
+        promoted_mass = sum(inst[t][1] for t in promoted_tokens)
+        demoted_mass = sum(base[t][1] for t in demoted_tokens)
+        total_disp = matched_disp + promoted_mass + demoted_mass
+
+        replacement_ratio = ((promoted_mass + demoted_mass) / total_disp
+                             if total_disp > 0 else 0.0)
+        concentration = total_disp / n_matched if n_matched > 0 else 0.0
+
+        per_pos.append({
+            'n_matched': n_matched,
+            'n_promoted': n_promoted,
+            'n_demoted': n_demoted,
+            'matched_disp': round(matched_disp, 6),
+            'promoted_mass': round(promoted_mass, 6),
+            'demoted_mass': round(demoted_mass, 6),
+            'total_disp': round(total_disp, 6),
+            'replacement_ratio': round(replacement_ratio, 4),
+            'concentration': round(concentration, 6),
+        })
+
+        # ── Terrain displacement profiles ──
+        # Instruct bank: each instruct candidate's displacement contribution
+        i_profile = []
+        for t, p in i_alts[:k]:
+            if t in base:
+                i_profile.append(abs(p - base[t][1]))  # matched: |Δp|
+            else:
+                i_profile.append(p)  # promoted: full prob
+        while len(i_profile) < k:
+            i_profile.append(0.0)
+        instruct_disp_profiles.append(i_profile)
+
+        # Base bank: each base candidate's displacement contribution
+        b_profile = []
+        for t, p in b_alts[:k]:
+            if t in inst:
+                b_profile.append(abs(p - inst[t][1]))  # matched: |Δp|
+            else:
+                b_profile.append(p)  # demoted: full prob
+        while len(b_profile) < k:
+            b_profile.append(0.0)
+        base_disp_profiles.append(b_profile)
+
+        # ── Legacy metrics ──
         i_tokens = [tok for tok, prob in i_alts]
         b_tokens = [tok for tok, prob in b_alts]
-
-        # Token overlap
-        shared = [tok for tok in i_tokens if tok in b_tokens]
         all_tokens = set(i_tokens) | set(b_tokens)
-        overlap = len(shared) / len(all_tokens) if all_tokens else 0.0
+        overlap = len(matched_tokens) / len(all_tokens) if all_tokens else 0.0
         overlaps.append(overlap)
 
-        # Rank correlation on shared tokens
+        shared = [tok for tok in i_tokens if tok in b_tokens]
         if len(shared) >= 3:
             i_ranks = [i_tokens.index(tok) for tok in shared]
             b_ranks = [b_tokens.index(tok) for tok in shared]
@@ -412,7 +491,34 @@ def compute_rank_displacement(instruct_cf, base_cf):
             if not np.isnan(tau):
                 taus.append(tau)
 
+    # ── Aggregate statistics ──
+    n = len(per_pos)
+    mean_matched = sum(p['n_matched'] for p in per_pos) / n if n else 0
+    mean_replacement = sum(p['replacement_ratio'] for p in per_pos) / n if n else 0
+    mean_concentration = sum(p['concentration'] for p in per_pos) / n if n else 0
+    mean_disp_per_token = sum(p['total_disp'] for p in per_pos) / n if n else 0
+    total_displacement = sum(p['total_disp'] for p in per_pos)
+    high_replacement_frac = (sum(1 for p in per_pos if p['replacement_ratio'] > 0.5) / n
+                             if n else 0)
+    low_match_frac = (sum(1 for p in per_pos if p['n_matched'] < 5) / n
+                      if n else 0)
+
     return {
+        # ── New match-concentration metrics ──
+        'mean_matched': round(mean_matched, 2),
+        'mean_replacement': round(mean_replacement, 4),
+        'mean_concentration': round(mean_concentration, 6),
+        'mean_disp_per_token': round(mean_disp_per_token, 4),
+        'total_displacement': round(total_displacement, 4),
+        'high_replacement_frac': round(high_replacement_frac, 4),
+        'low_match_frac': round(low_match_frac, 4),
+        'per_position': per_pos,
+
+        # ── Terrain displacement profiles (8 per bank per position) ──
+        'instruct_disp_profiles': instruct_disp_profiles,
+        'base_disp_profiles': base_disp_profiles,
+
+        # ── Legacy (backward compat) ──
         'mean_tau': float(np.mean(taus)) if taus else None,
         'mean_overlap': float(np.mean(overlaps)) if overlaps else None,
         'per_position_tau': [round(t, 4) for t in taus] if taus else [],
