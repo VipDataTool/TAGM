@@ -1,36 +1,92 @@
 """
-Dataset Manager: accumulates analysis results into a persistent session.
-Writes CSV incrementally, saves plots to disk, generates comparative analytics.
-Extended with LTP metrics in CSV export.
+Dataset Manager: single-session storage for TASM analysis results.
+
+Architecture:
+  - One session directory: datasets/current/
+  - New session wipes prior data automatically
+  - results.json is the single source of truth (full per-token data)
+  - summary.csv provides scalar-only view for quick inspection
+  - No plot files on disk — all rendering is client-side
+  - session.json stores metadata (model, timestamp)
 """
 
-import os
-import io
 import csv
 import json
 import time
 import shutil
 import zipfile
-import base64
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 import numpy as np
+import logging
+
+logger = logging.getLogger("tasm")
+
+
+def _sanitize(obj):
+    """Make numpy types JSON-serializable."""
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        v = float(obj)
+        if np.isnan(v) or np.isinf(v):
+            return None
+        return v
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, dict):
+        return {str(k): _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+    return obj
 
 
 class DatasetSession:
-    """A single experimental session that accumulates prompt results."""
+    """A single experimental session that accumulates prompt results.
+
+    Only one session exists at a time. Starting a new session clears
+    the previous one. All data lives in datasets/current/.
+    """
+
+    SESSION_DIR_NAME = "current"
 
     def __init__(self, base_dir: str = "datasets"):
+        self.base_dir = Path(base_dir)
+        self.session_dir = self.base_dir / self.SESSION_DIR_NAME
         self.timestamp = time.strftime("%Y%m%d_%H%M%S")
-        self.session_dir = Path(base_dir) / self.timestamp
-        self.session_dir.mkdir(parents=True, exist_ok=True)
-        (self.session_dir / "plots" / "individual").mkdir(parents=True, exist_ok=True)
-        (self.session_dir / "plots" / "comparative").mkdir(parents=True, exist_ok=True)
 
-        self.results: list = []  # list of result dicts
-        self.csv_path = self.session_dir / "results.csv"
+        # Wipe prior session
+        if self.session_dir.exists():
+            shutil.rmtree(self.session_dir, ignore_errors=True)
+            logger.info(f"[SESSION] Cleared previous session at {self.session_dir}")
+
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clean up any old timestamped dirs from prior versions
+        self._cleanup_old_sessions()
+
+        self.results: list = []
+        self.csv_path = self.session_dir / "summary.csv"
+        self.json_path = self.session_dir / "results.json"
         self.model_name = ""
         self._csv_initialized = False
+
+    def _cleanup_old_sessions(self):
+        """Remove any timestamped session directories from prior versions."""
+        if not self.base_dir.exists():
+            return
+        for child in self.base_dir.iterdir():
+            if child.is_dir() and child.name != self.SESSION_DIR_NAME:
+                try:
+                    shutil.rmtree(child)
+                    logger.info(f"[SESSION] Removed old session: {child.name}")
+                except Exception as e:
+                    logger.warning(f"[SESSION] Could not remove {child.name}: {e}")
+
+    # ─── Properties ───
 
     @property
     def n_results(self):
@@ -44,9 +100,10 @@ class DatasetSession:
             cats[c] = cats.get(c, 0) + 1
         return cats
 
+    # ─── Session lifecycle ───
+
     def set_model(self, name: str):
         self.model_name = name
-        # Write session metadata
         meta = {
             "model": name,
             "started": self.timestamp,
@@ -56,29 +113,23 @@ class DatasetSession:
             json.dump(meta, f, indent=2)
 
     def add_result(self, result_dict: dict, plots: dict = None):
-        """Add an analyzed prompt to the session."""
+        """Add an analyzed prompt to the session.
+
+        Plots dict is accepted for API compatibility but not written
+        to disk — all plot rendering happens client-side.
+        """
         idx = len(self.results)
         result_dict["_index"] = idx
         self.results.append(result_dict)
-
-        # Append to CSV
         self._write_csv_row(result_dict)
-
-        # Save per-prompt plots
-        if plots:
-            for name, b64 in plots.items():
-                if b64:
-                    path = self.session_dir / "plots" / "individual" / f"{idx:04d}_{name}.png"
-                    path.write_bytes(base64.b64decode(b64))
-
         return idx
 
     def save_comparative_plots(self, plots: dict):
-        """Save comparative/aggregate plots."""
-        for name, b64 in plots.items():
-            if b64:
-                path = self.session_dir / "plots" / "comparative" / f"{name}.png"
-                path.write_bytes(base64.b64decode(b64))
+        """No-op. Comparative plots are rendered client-side.
+
+        Kept for API compatibility with app.py dashboard pipeline.
+        """
+        pass
 
     def save_aggregate_json(self, agg: dict):
         """Save aggregate statistics."""
@@ -87,32 +138,8 @@ class DatasetSession:
             json.dump(agg, f, indent=2, default=str)
 
     def save_results_json(self):
-        """Save the full per-prompt result dicts (including per-token arrays,
-        LTP profiles, counterfactual tokens, heatmaps, trajectories, etc.).
-        This preserves all data the analyzer produces, not just scalar summaries."""
-        path = self.session_dir / "results.json"
-
-        def _sanitize(obj):
-            """Make numpy types JSON-serializable."""
-            if isinstance(obj, (np.integer,)):
-                return int(obj)
-            if isinstance(obj, (np.floating,)):
-                v = float(obj)
-                if np.isnan(v) or np.isinf(v):
-                    return None
-                return v
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, dict):
-                return {str(k): _sanitize(v) for k, v in obj.items()}
-            if isinstance(obj, (list, tuple)):
-                return [_sanitize(v) for v in obj]
-            if isinstance(obj, float):
-                if np.isnan(obj) or np.isinf(obj):
-                    return None
-            return obj
-
-        with open(path, "w") as f:
+        """Save the full per-prompt results to a single JSON file."""
+        with open(self.json_path, "w") as f:
             json.dump(_sanitize(self.results), f, indent=1, default=str)
 
     def get_results_by_category(self):
@@ -125,52 +152,55 @@ class DatasetSession:
             groups[cat].append(r)
         return groups
 
+    # ─── Export ───
+
     def export_zip(self, exclude_plots=False, exclude_pdf=False, exclude_json=False) -> bytes:
-        """Package the session as a ZIP, optionally excluding heavy artifacts."""
+        """Package the session as a ZIP, written to disk for download endpoint."""
+        if not exclude_json:
+            self.save_results_json()
+
         zip_path = self.session_dir / "tasm_session.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(self.session_dir):
-                # Prune plots directory tree entirely if charts excluded
-                if exclude_plots and "plots" in dirs:
-                    dirs.remove("plots")
-
-                for file in files:
-                    if file == "tasm_session.zip":
-                        continue
-                    # Skip PDF report
-                    if exclude_pdf and file == "report.pdf":
-                        continue
-                    # Skip results JSON (but keep aggregate_statistics.json, session.json)
-                    if exclude_json and file == "results.json":
-                        continue
-
-                    filepath = Path(root) / file
-                    arcname = filepath.relative_to(self.session_dir)
-                    zf.write(filepath, arcname)
+            for filepath in self.session_dir.rglob("*"):
+                if not filepath.is_file():
+                    continue
+                if filepath.name == "tasm_session.zip":
+                    continue
+                if exclude_json and filepath.name == "results.json":
+                    continue
+                arcname = filepath.relative_to(self.session_dir)
+                zf.write(filepath, arcname)
         return zip_path.read_bytes()
 
-    def _write_csv_row(self, result_dict: dict):
-        """Append a result to the CSV file."""
-        fieldnames = [
-            "index", "prompt", "category", "seq_len",
-            "stress_score", "net_correction",
-            "entropy", "gini", "top2_share", "middle_share", "interior_cv",
-            "n_negative_tokens", "has_negative_tokens",
-            "kl_divergence",
-            "stress_score_ln", "entropy_ln", "top2_share_ln", "middle_share_ln",
-            "instruct_top1", "instruct_top1_prob",
-            "base_top1", "base_top1_prob",
-            # LTP summary statistics
-            "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
-            "ltp_max_prc", "ltp_n_directional",
-            "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
-            # Classification
-            "predicted_class", "prediction_confidence",
-            # Full capture
-            "full_capture",
-            "mean_coherence", "mean_spectral_rank", "mean_attn_frac",
-        ]
+    # ─── CSV (scalar summary only) ───
 
+    CSV_FIELDS = [
+        "index", "prompt", "category", "seq_len",
+        "stress_score", "net_correction",
+        "entropy", "gini", "top2_share", "middle_share", "interior_cv",
+        "n_negative_tokens", "has_negative_tokens",
+        "kl_divergence",
+        "stress_score_ln", "entropy_ln", "top2_share_ln", "middle_share_ln",
+        "instruct_top1", "instruct_top1_prob",
+        "base_top1", "base_top1_prob",
+        # LTP summary
+        "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
+        "ltp_max_prc", "ltp_n_directional",
+        "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
+        # Rank displacement
+        "rd_mean_matched", "rd_mean_replacement", "rd_mean_concentration",
+        "rd_mean_tau", "rd_mean_overlap",
+        # SFD summary
+        "sfd_density_mean", "sfd_energy_mean", "sfd_entropy_mean",
+        # Classification
+        "predicted_class", "prediction_confidence",
+        # Full capture
+        "full_capture",
+        "mean_coherence", "mean_spectral_rank", "mean_attn_frac",
+    ]
+
+    def _write_csv_row(self, result_dict: dict):
+        """Append a scalar summary row to the CSV."""
         row = {
             "index": result_dict.get("_index", ""),
             "prompt": result_dict.get("prompt", ""),
@@ -216,13 +246,29 @@ class DatasetSession:
             row["ltp_svd_rank"] = ltp.get("svd_rank", "")
             row["ltp_tuned_lens"] = ltp.get("tuned_lens", "")
 
+        # Rank displacement summary
+        rd = result_dict.get("rank_displacement")
+        if rd:
+            row["rd_mean_matched"] = rd.get("mean_matched", "")
+            row["rd_mean_replacement"] = rd.get("mean_replacement", "")
+            row["rd_mean_concentration"] = rd.get("mean_concentration", "")
+            row["rd_mean_tau"] = rd.get("mean_tau", "")
+            row["rd_mean_overlap"] = rd.get("mean_overlap", "")
+
+        # SFD summary
+        sfd = result_dict.get("sfd")
+        if sfd:
+            row["sfd_density_mean"] = sfd.get("density_mean", "")
+            row["sfd_energy_mean"] = sfd.get("energy_mean", "")
+            row["sfd_entropy_mean"] = sfd.get("entropy_mean", "")
+
         # Classification
         cl = result_dict.get("classification")
         if cl:
             row["predicted_class"] = cl.get("predicted", "")
             row["prediction_confidence"] = cl.get("confidence", "")
 
-        # Full capture summary metrics
+        # Full capture summary
         row["full_capture"] = result_dict.get("full_capture_enabled", False)
         coherence = result_dict.get("per_token_coherence", [])
         if coherence:
@@ -236,11 +282,14 @@ class DatasetSession:
 
         mode = "a" if self._csv_initialized else "w"
         with open(self.csv_path, mode, newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer = csv.DictWriter(f, fieldnames=self.CSV_FIELDS,
+                                    extrasaction="ignore")
             if not self._csv_initialized:
                 writer.writeheader()
                 self._csv_initialized = True
             writer.writerow(row)
+
+    # ─── Cleanup ───
 
     def clear(self):
         """Remove session data from disk and reset."""
