@@ -102,7 +102,7 @@ def _validate_prompt(prompt: str) -> Optional[str]:
 
 def _validate_category(category: str) -> str:
     """Normalize and validate category."""
-    valid = {"benign", "mild", "harmful", "jailbreak", "adversarial", ""}
+    valid = {"benign", "mild", "harmful", "jailbreak", "adversarial", "dual-use", ""}
     cat = category.strip().lower()
     return cat if cat in valid else "unknown"
 

@@ -14,7 +14,7 @@
   --text-0:#DEE2E6;--text-1:#9CA3AF;--text-2:#6B7280;--text-3:#4B5563;
   --blue:#58a6ff;--green:#009E73;--orange:#E69F00;--red:#D55E00;--purple:#CC79A7;
   --cyan:#56B4E9;
-  --cat-benign:#0072B2;--cat-mild:#E69F00;--cat-harmful:#D55E00;--cat-jailbreak:#CC79A7;
+  --cat-benign:#0072B2;--cat-mild:#E69F00;--cat-harmful:#D55E00;--cat-jailbreak:#CC79A7;--cat-dual-use:#009E73;--cat-adversarial:#882255;
   --font-desc:13px;--font-legend:11px;--font-table:11px;--font-card-title:24px;
   --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
 }
@@ -93,6 +93,7 @@ textarea{resize:vertical;min-height:44px}
 .pill{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:8px;border:1px solid}
 .pill-benign{border-color:var(--cat-benign);color:var(--cat-benign)}.pill-mild{border-color:var(--cat-mild);color:var(--cat-mild)}
 .pill-harmful{border-color:var(--cat-harmful);color:var(--cat-harmful)}.pill-jailbreak{border-color:var(--cat-jailbreak);color:var(--cat-jailbreak)}
+.pill-dual-use{border-color:var(--cat-dual-use);color:var(--cat-dual-use)}.pill-adversarial{border-color:var(--cat-adversarial);color:var(--cat-adversarial)}
 .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:5px;margin-bottom:10px}
 .metric-cell{background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:7px}
 .metric-cell .metric-label{font-size:10px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
@@ -342,7 +343,7 @@ function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.t
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
 function clearLog(){$('progressLog').innerHTML=''}
 function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
-function pillClass(c){return({benign:'pill-benign',baseline:'pill-benign',mild:'pill-mild',harmful:'pill-harmful',jailbreak:'pill-jailbreak',adversarial:'pill-jailbreak'})[c]||''}
+function pillClass(c){return({'benign':'pill-benign','baseline':'pill-benign','mild':'pill-mild','harmful':'pill-harmful','jailbreak':'pill-jailbreak','adversarial':'pill-adversarial','dual-use':'pill-dual-use'})[c]||''}
 function toggleFeature(el){
   const f=el.closest('.feature');if(!f)return;
   const b=f.querySelector('.feature-body');if(!b)return;
@@ -1214,7 +1215,7 @@ function renderClassifierCard(cl, r){
   if(!cl) return '';
   const pClass=cl.predicted||'unknown';
   const pConf=Math.round((cl.confidence||0)*100);
-  const catColor=c=>({safe:'var(--cat-benign)',benign:'var(--cat-benign)',mild:'var(--cat-mild)',harmful:'var(--cat-harmful)',adversarial:'var(--cat-harmful)',jailbreak:'var(--cat-jailbreak)'})[c]||'var(--text-3)';
+  const catColor=c=>({safe:'var(--cat-benign)',benign:'var(--cat-benign)',mild:'var(--cat-mild)',harmful:'var(--cat-harmful)',adversarial:'var(--cat-adversarial)','dual-use':'var(--cat-dual-use)',jailbreak:'var(--cat-jailbreak)'})[c]||'var(--text-3)';
   const borderColor=catColor(pClass);
   const cName=cl.classifier_name||cl.classifier||'Classifier';
   const cId=(cl.classifier||'').toUpperCase();
@@ -2502,9 +2503,9 @@ function _buildCandidateGraphAggregate(results){
   if(graphs.length<2)return'';
 
   // Group by category
-  var catOrder=['benign','mild','harmful','jailbreak'];
+  var catOrder=['benign','dual-use','mild','harmful','adversarial','jailbreak'];
   var catGraphs={};catOrder.forEach(function(c){catGraphs[c]=[]});
-  graphs.forEach(function(g){if(catGraphs[g.category])catGraphs[g.category].push(g)});
+  graphs.forEach(function(g){if(catGraphs[g.category])catGraphs[g.category].push(g);else{if(!catGraphs['unknown'])catGraphs['unknown']=[];catGraphs['unknown'].push(g)}});
 
   // Helper: mean and std
   function stats(arr){
@@ -2535,7 +2536,7 @@ function _buildCandidateGraphAggregate(results){
   tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Unique Cands</th>';
   tblS+='</tr>';
 
-  var catColors={benign:'#3fb950',mild:'#58a6ff',harmful:'#d29a22',jailbreak:'#f85149'};
+  var catColors={benign:'#3fb950','dual-use':'#009E73',mild:'#58a6ff',harmful:'#d29a22',adversarial:'#882255',jailbreak:'#f85149'};
 
   catOrder.forEach(function(cat){
     var gs=catGraphs[cat];if(!gs.length)return;
