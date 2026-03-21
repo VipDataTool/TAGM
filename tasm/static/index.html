@@ -1545,6 +1545,7 @@ function renderLatest(r,plots){
 
   area.innerHTML=h+area.innerHTML;
   if(_tunnelState) _tunnelDraw();
+  if(_pendingNetGraphs.length) setTimeout(_initNetGraphs,0);
 }
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
@@ -2061,7 +2062,7 @@ function _terrainRendererCore(container, D, opts){
   onResize();
   new ResizeObserver(onResize).observe(wrap);
 
-  sc.add(new THREE.AmbientLight(0x667788,.6));
+  sc.add(new THREE.AmbientLight(0x667788,.75));
   const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
   const dl2=new THREE.DirectionalLight(0x445566,.25);dl2.position.set(-4,5,-3);sc.add(dl2);
 
@@ -2147,7 +2148,7 @@ function _terrainRendererCore(container, D, opts){
     }else{
       for(var t=0;t<nT-1;t++)for(var c=0;c<COLS-1;c++){var a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
       geo.setIndex(ixArr);geo.computeVertexNormals();
-      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30}));
+      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30,emissive:0x222222,emissiveIntensity:0.2}));
       sc.add(msh);
     }
 
@@ -2454,6 +2455,7 @@ function computeCandidateGraph(r){
   const nContested=posStats.filter(p=>p.contested).length;
   return{nPositions:nPos,tokens,posStats,candidates,dualRole,roleSwitches,trajectories:trajectories.slice(0,20),nContested,contestedFrac:nContested/nPos,nDualRole:dualRole.length,nRoleSwitches:roleSwitches.length,switchRate:roleSwitches.length/nPos,nUniqueCandidates:Object.keys(candidates).length,nMultiPosition:trajectories.length}
 }
+var _pendingNetGraphs=[];
 function renderCandidateGraphSection(r){
   const g=computeCandidateGraph(r);if(!g)return'';
   const uid='cg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
@@ -2470,7 +2472,8 @@ function renderCandidateGraphSection(r){
   let dH='';if(g.dualRole.length>0){dH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:6px">DUAL-ROLE CANDIDATES</div>';for(const dr of g.dualRole){if(dr.token.trim()==='')continue;const pc=dr.promotedAt.map(x=>'<span style="color:var(--green)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');const dc=dr.demotedAt.map(x=>'<span style="color:var(--red)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');dH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)">"${escHtml(dr.token)}"</div><div style="font-size:9px;margin-top:3px">↑ promoted: ${pc}</div><div style="font-size:9px;margin-top:2px">↓ demoted: ${dc}</div>${dr.matchedAt.length?'<div style="font-size:9px;margin-top:2px;color:var(--text-3)">= matched: '+dr.matchedAt.length+' positions</div>':''}</div>`}dH+='</div>'}
   let sH='';if(g.roleSwitches.length>0){sH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--orange);margin-bottom:6px">ROLE SWITCHES</div><div style="max-height:180px;overflow-y:auto"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td style="font-family:var(--mono)">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span style="color:var(--text-3)">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td style="color:var(--text-3)">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span style="color:var(--text-3)">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
   let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--cyan);margin-bottom:6px">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span style="color:var(--purple);font-size:8px">DUAL</span>':'';tH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px"><div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-0)">"${escHtml(tr.candidate)}" <span style="color:var(--text-3);font-weight:400">${tr.nAppearances} pos</span>${lb}</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span style="font-size:8px;padding:2px 4px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span style="color:var(--text-3)">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
-  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}">${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
+  _pendingNetGraphs.push({uid:uid+'_net',graph:g});
+  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}"><div id="${uid}_net" class="terrain-wrap" style="padding-bottom:35%;min-height:240px;margin-bottom:14px;border:1px solid var(--border);border-radius:6px"></div>${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
 }
 function popoutCandidateGraph(uid){
   const el=document.getElementById(uid);if(!el)return;
@@ -2479,6 +2482,147 @@ function popoutCandidateGraph(uid){
   const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]')).map(s=>s.outerHTML).join('\n');
   w.document.write(`<!DOCTYPE html><html><head><title>TASM — Candidate Graph</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">${styles}<style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}.feature-body.collapsed{display:block!important}</style></head><body><div style="max-width:960px;margin:0 auto">${el.outerHTML}</div></body></html>`);
   w.document.close();
+}
+
+function _initNetGraphs(){
+  while(_pendingNetGraphs.length){
+    const item=_pendingNetGraphs.shift();
+    const container=document.getElementById(item.uid);
+    if(container) _buildNetGraph(container,item.graph);
+  }
+}
+
+function _buildNetGraph(container,g){
+  // Build node/edge data from candidate graph
+  const cands=g.candidates;const posStats=g.posStats;const nPos=g.nPositions;
+  // Determine threshold: prefer >=3 positions, fallback to >=2
+  let minApp=3;
+  let nodeTokens=[];
+  for(const t in cands){
+    const c=cands[t];const ap=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]);
+    if(ap.size>=minApp) nodeTokens.push(t);
+  }
+  if(nodeTokens.length<5){minApp=2;nodeTokens=[];for(const t in cands){const c=cands[t];const ap=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]);if(ap.size>=minApp) nodeTokens.push(t)}}
+  if(nodeTokens.length>40) nodeTokens=nodeTokens.slice(0,40);
+  if(nodeTokens.length<2){container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:11px">Not enough multi-position candidates for graph</div>';return}
+
+  // Build nodes
+  const nodeSet=new Set(nodeTokens);
+  const nodes=nodeTokens.map(function(t){
+    const c=cands[t];const nApp=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]).size;
+    const role=c.promoted.length>0&&c.demoted.length>0?'dual':(c.promoted.length>c.demoted.length?'promoted':(c.demoted.length>c.promoted.length?'demoted':'matched'));
+    return{id:t,label:t.trim()||'⎵',nApp:nApp,role:role,x:(Math.random()-0.5)*8,y:(Math.random()-0.5)*8,z:(Math.random()-0.5)*4,vx:0,vy:0,vz:0}
+  });
+  const nodeMap={};nodes.forEach(function(n,i){nodeMap[n.id]=i});
+
+  // Build edges: co-occurrence at same position
+  const edgeMap={};
+  for(var pos=0;pos<nPos;pos++){
+    var here=[];
+    var iAlts=g.posStats[pos].promoted.concat(g.posStats[pos].demoted).concat(g.posStats[pos].matched);
+    for(var j=0;j<iAlts.length;j++){if(nodeSet.has(iAlts[j]))here.push(iAlts[j])}
+    for(var a=0;a<here.length;a++)for(var b=a+1;b<here.length;b++){
+      var key=here[a]<here[b]?here[a]+'|||'+here[b]:here[b]+'|||'+here[a];
+      edgeMap[key]=(edgeMap[key]||0)+1;
+    }
+  }
+  const edges=[];for(var key in edgeMap){var parts=key.split('|||');if(nodeMap[parts[0]]!==undefined&&nodeMap[parts[1]]!==undefined)edges.push({a:nodeMap[parts[0]],b:nodeMap[parts[1]],w:edgeMap[key]})}
+
+  // Force simulation (synchronous, ~150 iterations)
+  const kR=2.0,kA=0.08,kG=0.01,damp=0.92;
+  for(var iter=0;iter<150;iter++){
+    // Repulsion
+    for(var i=0;i<nodes.length;i++)for(var j=i+1;j<nodes.length;j++){
+      var dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,dz=nodes[i].z-nodes[j].z;
+      var d2=dx*dx+dy*dy+dz*dz+0.01;var f=kR/d2;
+      nodes[i].vx+=dx*f;nodes[i].vy+=dy*f;nodes[i].vz+=dz*f;
+      nodes[j].vx-=dx*f;nodes[j].vy-=dy*f;nodes[j].vz-=dz*f;
+    }
+    // Attraction along edges
+    for(var e=0;e<edges.length;e++){
+      var na=nodes[edges[e].a],nb=nodes[edges[e].b];
+      var dx=nb.x-na.x,dy=nb.y-na.y,dz=nb.z-na.z;
+      var d=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.01;
+      var f=kA*(d-1.5)*edges[e].w;
+      na.vx+=dx/d*f;na.vy+=dy/d*f;na.vz+=dz/d*f;
+      nb.vx-=dx/d*f;nb.vy-=dy/d*f;nb.vz-=dz/d*f;
+    }
+    // Center gravity + damping
+    for(var i=0;i<nodes.length;i++){
+      nodes[i].vx-=nodes[i].x*kG;nodes[i].vy-=nodes[i].y*kG;nodes[i].vz-=nodes[i].z*kG;
+      nodes[i].vx*=damp;nodes[i].vy*=damp;nodes[i].vz*=damp;
+      nodes[i].x+=nodes[i].vx;nodes[i].y+=nodes[i].vy;nodes[i].z+=nodes[i].vz;
+    }
+  }
+
+  // Three.js rendering
+  var cv=document.createElement('canvas');
+  cv.style.cssText='position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab';
+  container.appendChild(cv);
+  var sc=new THREE.Scene();
+  var cam=new THREE.PerspectiveCamera(50,1,0.1,200);
+  cam.position.set(0,0,18);cam.lookAt(0,0,0);
+  var ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+  ren.setClearColor(0x0c0c12,1);ren.setPixelRatio(Math.min(devicePixelRatio,2));
+
+  function resize(){var w=container.clientWidth,h=container.clientHeight;if(w<10||h<10)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+  resize();window.addEventListener('resize',resize);
+
+  sc.add(new THREE.AmbientLight(0xffffff,0.6));
+  var dl=new THREE.DirectionalLight(0xffffff,0.5);dl.position.set(5,8,10);sc.add(dl);
+
+  // Role colors
+  var roleColors={promoted:0x3fb950,demoted:0xf85149,matched:0x58a6ff,dual:0xbc8cff};
+
+  // Draw edges
+  var edgeGeo=new THREE.BufferGeometry();var edgeVerts=[];var edgeColors=[];
+  var maxW=Math.max.apply(null,edges.map(function(e){return e.w}));
+  for(var e=0;e<edges.length;e++){
+    var na=nodes[edges[e].a],nb=nodes[edges[e].b];
+    edgeVerts.push(na.x,na.y,na.z,nb.x,nb.y,nb.z);
+    var bright=0.15+0.35*(edges[e].w/(maxW||1));
+    edgeColors.push(bright,bright,bright*1.2,bright,bright,bright*1.2);
+  }
+  edgeGeo.setAttribute('position',new THREE.Float32BufferAttribute(edgeVerts,3));
+  edgeGeo.setAttribute('color',new THREE.Float32BufferAttribute(edgeColors,3));
+  sc.add(new THREE.LineSegments(edgeGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.5})));
+
+  // Draw nodes
+  for(var i=0;i<nodes.length;i++){
+    var n=nodes[i];var radius=0.15+Math.sqrt(n.nApp)*0.12;
+    var geo=new THREE.SphereGeometry(radius,12,8);
+    var mat=new THREE.MeshPhongMaterial({color:roleColors[n.role]||0x888888,emissive:roleColors[n.role]||0x888888,emissiveIntensity:0.3});
+    var mesh=new THREE.Mesh(geo,mat);mesh.position.set(n.x,n.y,n.z);sc.add(mesh);
+
+    // Label sprite
+    var canvas2=document.createElement('canvas');canvas2.width=256;canvas2.height=64;
+    var ctx=canvas2.getContext('2d');ctx.fillStyle='rgba(0,0,0,0)';ctx.fillRect(0,0,256,64);
+    ctx.font='bold 28px monospace';ctx.fillStyle='#ccc';ctx.textAlign='center';ctx.textBaseline='middle';
+    var lbl=n.label.length>12?n.label.substr(0,12)+'…':n.label;
+    ctx.fillText(lbl,128,32);
+    var tex=new THREE.CanvasTexture(canvas2);tex.minFilter=THREE.LinearFilter;
+    var spMat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
+    var sp=new THREE.Sprite(spMat);sp.scale.set(radius*6,radius*1.5,1);
+    sp.position.set(n.x,n.y+radius+0.25,n.z);sc.add(sp);
+  }
+
+  // Simple orbit controls (consistent with terrain viewer)
+  var isDragging=false,prevX=0,prevY=0,theta=0,phi=Math.PI/2,dist=18;
+  function updateCam(){cam.position.set(dist*Math.sin(phi)*Math.cos(theta),dist*Math.cos(phi),dist*Math.sin(phi)*Math.sin(theta));cam.lookAt(0,0,0)}
+  cv.addEventListener('mousedown',function(e){isDragging=true;prevX=e.clientX;prevY=e.clientY;cv.style.cursor='grabbing'});
+  window.addEventListener('mouseup',function(){isDragging=false;cv.style.cursor='grab'});
+  window.addEventListener('mousemove',function(e){if(!isDragging)return;theta+=(e.clientX-prevX)*0.01;phi=Math.max(0.1,Math.min(Math.PI-0.1,phi-(e.clientY-prevY)*0.01));prevX=e.clientX;prevY=e.clientY;updateCam()});
+  cv.addEventListener('wheel',function(e){dist=Math.max(5,Math.min(50,dist+e.deltaY*0.02));updateCam();e.preventDefault()},{passive:false});
+
+  // Legend
+  var leg=document.createElement('div');
+  leg.style.cssText='position:absolute;top:6px;right:8px;font-family:monospace;font-size:9px;background:rgba(8,8,18,.75);padding:4px 8px;border-radius:4px;z-index:5;color:#999;line-height:1.6';
+  leg.innerHTML='<span style="color:#3fb950">●</span> promoted <span style="color:#f85149">●</span> demoted <span style="color:#58a6ff">●</span> matched <span style="color:#bc8cff">●</span> dual<br>'+nodes.length+' nodes, '+edges.length+' edges (≥'+minApp+' positions)';
+  container.appendChild(leg);
+
+  // Render loop
+  function animate(){requestAnimationFrame(animate);ren.render(sc,cam)}
+  animate();
 }
 </script>
 </body>
