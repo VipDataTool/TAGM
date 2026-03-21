@@ -799,6 +799,15 @@ async function loadDashboard(force){
 
     dc.innerHTML=h;
 
+    // ═══ CANDIDATE GRAPH AGGREGATE (client-side JS) ═══
+    if(sessionResults.length>1){
+      var cgAgg=_buildCandidateGraphAggregate(sessionResults);
+      if(cgAgg){
+        var cgEl=document.createElement('div');cgEl.innerHTML=cgAgg;
+        dc.appendChild(cgEl);
+      }
+    }
+
     // Initialize terrain after DOM is set
     if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
       try{initTerrainViewer(sessionResults)}catch(e){console.error('Terrain init error:',e)}
@@ -1545,7 +1554,6 @@ function renderLatest(r,plots){
 
   area.innerHTML=h+area.innerHTML;
   if(_tunnelState) _tunnelDraw();
-  if(_pendingNetGraphs.length) setTimeout(_initNetGraphs,0);
 }
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
@@ -2455,7 +2463,6 @@ function computeCandidateGraph(r){
   const nContested=posStats.filter(p=>p.contested).length;
   return{nPositions:nPos,tokens,posStats,candidates,dualRole,roleSwitches,trajectories:trajectories.slice(0,20),nContested,contestedFrac:nContested/nPos,nDualRole:dualRole.length,nRoleSwitches:roleSwitches.length,switchRate:roleSwitches.length/nPos,nUniqueCandidates:Object.keys(candidates).length,nMultiPosition:trajectories.length}
 }
-var _pendingNetGraphs=[];
 function renderCandidateGraphSection(r){
   const g=computeCandidateGraph(r);if(!g)return'';
   const uid='cg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
@@ -2472,8 +2479,7 @@ function renderCandidateGraphSection(r){
   let dH='';if(g.dualRole.length>0){dH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:6px">DUAL-ROLE CANDIDATES</div>';for(const dr of g.dualRole){if(dr.token.trim()==='')continue;const pc=dr.promotedAt.map(x=>'<span style="color:var(--green)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');const dc=dr.demotedAt.map(x=>'<span style="color:var(--red)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');dH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)">"${escHtml(dr.token)}"</div><div style="font-size:9px;margin-top:3px">↑ promoted: ${pc}</div><div style="font-size:9px;margin-top:2px">↓ demoted: ${dc}</div>${dr.matchedAt.length?'<div style="font-size:9px;margin-top:2px;color:var(--text-3)">= matched: '+dr.matchedAt.length+' positions</div>':''}</div>`}dH+='</div>'}
   let sH='';if(g.roleSwitches.length>0){sH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--orange);margin-bottom:6px">ROLE SWITCHES</div><div style="max-height:180px;overflow-y:auto"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td style="font-family:var(--mono)">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span style="color:var(--text-3)">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td style="color:var(--text-3)">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span style="color:var(--text-3)">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
   let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--cyan);margin-bottom:6px">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span style="color:var(--purple);font-size:8px">DUAL</span>':'';tH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px"><div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-0)">"${escHtml(tr.candidate)}" <span style="color:var(--text-3);font-weight:400">${tr.nAppearances} pos</span>${lb}</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span style="font-size:8px;padding:2px 4px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span style="color:var(--text-3)">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
-  _pendingNetGraphs.push({uid:uid+'_net',graph:g});
-  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}"><div id="${uid}_net" style="position:relative;width:100%;height:320px;background:#0a0a14;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px"></div>${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
+  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}">${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
 }
 function popoutCandidateGraph(uid){
   const el=document.getElementById(uid);if(!el)return;
@@ -2484,187 +2490,205 @@ function popoutCandidateGraph(uid){
   w.document.close();
 }
 
-function _initNetGraphs(){
-  while(_pendingNetGraphs.length){
-    const item=_pendingNetGraphs.shift();
-    const container=document.getElementById(item.uid);
-    if(container) _buildNetGraph(container,item.graph);
+function _buildCandidateGraphAggregate(results){
+  // Compute graph for each result
+  var graphs=[];
+  for(var i=0;i<results.length;i++){
+    var r=results[i];
+    if(!r.ltp||!r.ltp.counterfactual_tokens||!r.base_counterfactual_tokens)continue;
+    var g=computeCandidateGraph(r);
+    if(g){g.category=r.category||'unknown';g.prompt=r.prompt||'';graphs.push(g)}
   }
+  if(graphs.length<2)return'';
+
+  // Group by category
+  var catOrder=['benign','mild','harmful','jailbreak'];
+  var catGraphs={};catOrder.forEach(function(c){catGraphs[c]=[]});
+  graphs.forEach(function(g){if(catGraphs[g.category])catGraphs[g.category].push(g)});
+
+  // Helper: mean and std
+  function stats(arr){
+    if(!arr.length)return{mean:0,std:0,n:0};
+    var m=arr.reduce(function(a,v){return a+v},0)/arr.length;
+    var v=arr.reduce(function(a,v){return a+(v-m)*(v-m)},0)/arr.length;
+    return{mean:m,std:Math.sqrt(v),n:arr.length};
+  }
+
+  // Cohen's d
+  function cohend(a,b){
+    var sa=stats(a),sb=stats(b);
+    if(sa.n<2||sb.n<2)return 0;
+    var pooled=Math.sqrt((sa.std*sa.std+sb.std*sb.std)/2);
+    return pooled>0?Math.abs(sa.mean-sb.mean)/pooled:0;
+  }
+
+  // ── Category summary table ──
+  var tblS='';
+  tblS+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+  tblS+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)">';
+  tblS+='<th style="text-align:left;padding:8px 10px;color:#e6edf3">Category</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">N</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Contested %</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Dual-Role</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Switches</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Sw/token</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Unique Cands</th>';
+  tblS+='</tr>';
+
+  var catColors={benign:'#3fb950',mild:'#58a6ff',harmful:'#d29a22',jailbreak:'#f85149'};
+
+  catOrder.forEach(function(cat){
+    var gs=catGraphs[cat];if(!gs.length)return;
+    var cf=stats(gs.map(function(g){return g.contestedFrac}));
+    var dr=stats(gs.map(function(g){return g.nDualRole}));
+    var sw=stats(gs.map(function(g){return g.nRoleSwitches}));
+    var sr=stats(gs.map(function(g){return g.switchRate}));
+    var uc=stats(gs.map(function(g){return g.nUniqueCandidates}));
+    var cc=catColors[cat]||'#b1bac4';
+
+    tblS+='<tr style="border-bottom:1px solid rgba(255,255,255,0.06)">';
+    tblS+='<td style="padding:6px 10px"><span style="color:'+cc+';font-weight:600">'+cat+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#b1bac4">'+gs.length+'</td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3;font-weight:600">'+(cf.mean*100).toFixed(1)+'%<span style="color:#8b949e;font-weight:400"> ±'+(cf.std*100).toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+dr.mean.toFixed(1)+'<span style="color:#8b949e"> ±'+dr.std.toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+sw.mean.toFixed(1)+'<span style="color:#8b949e"> ±'+sw.std.toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+sr.mean.toFixed(3)+'</td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#b1bac4">'+uc.mean.toFixed(0)+'</td>';
+    tblS+='</tr>';
+  });
+  tblS+='</table>';
+
+  // ── Effect sizes ──
+  var benignGraphs=catGraphs['benign']||[];
+  var jailGraphs=catGraphs['jailbreak']||[];
+  var effH='';
+  if(benignGraphs.length>=2&&jailGraphs.length>=2){
+    var metrics=[
+      {name:'Contested %',fn:function(g){return g.contestedFrac}},
+      {name:'Switch rate',fn:function(g){return g.switchRate}},
+      {name:'Dual-role count',fn:function(g){return g.nDualRole}},
+      {name:'Role switches',fn:function(g){return g.nRoleSwitches}},
+      {name:'Multi-pos cands',fn:function(g){return g.nMultiPosition}},
+    ];
+    var effRows='';
+    metrics.forEach(function(m){
+      var bVals=benignGraphs.map(m.fn),jVals=jailGraphs.map(m.fn);
+      var d=cohend(bVals,jVals);
+      var bm=stats(bVals),jm=stats(jVals);
+      var dir=jm.mean>bm.mean?'↑':'↓';
+      var barW=Math.min(d/3*100,100);
+      var barCol=d>1.5?'#3fb950':(d>0.8?'#58a6ff':(d>0.5?'#d29a22':'#8b949e'));
+
+      effRows+='<tr style="border-bottom:1px solid rgba(255,255,255,0.06)">';
+      effRows+='<td style="padding:5px 10px;color:#e6edf3">'+m.name+'</td>';
+      effRows+='<td style="padding:5px 6px;text-align:right;color:#b1bac4">'+bm.mean.toFixed(3)+'</td>';
+      effRows+='<td style="padding:5px 6px;text-align:right;color:#b1bac4">'+jm.mean.toFixed(3)+'</td>';
+      effRows+='<td style="padding:5px 6px;text-align:right;font-weight:600;color:'+barCol+'">'+d.toFixed(2)+' '+dir+'</td>';
+      effRows+='<td style="padding:5px 6px;width:120px"><div style="width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px"><div style="width:'+barW+'%;height:100%;background:'+barCol+';border-radius:4px"></div></div></td>';
+      effRows+='</tr>';
+    });
+
+    effH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Separation Power (benign vs jailbreak)</div>';
+    effH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+    effH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)"><th style="text-align:left;padding:5px 10px;color:#8b949e">Metric</th><th style="text-align:right;padding:5px 6px;color:#3fb950">Benign</th><th style="text-align:right;padding:5px 6px;color:#f85149">Jailbreak</th><th style="text-align:right;padding:5px 6px;color:#8b949e">Cohen\'s d</th><th style="padding:5px 6px;color:#8b949e"></th></tr>';
+    effH+=effRows+'</table></div>';
+  }
+
+  // ── Cross-prompt candidate frequency ──
+  var candFreq={};// token -> {promoted:n, demoted:n, matched:n, dual:n, prompts:n, categories:{}}
+  graphs.forEach(function(g){
+    for(var t in g.candidates){
+      var c=g.candidates[t];
+      if(!candFreq[t])candFreq[t]={promoted:0,demoted:0,matched:0,dual:0,prompts:0,categories:{}};
+      var cf=candFreq[t];
+      cf.prompts++;
+      cf.promoted+=c.promoted.length;
+      cf.demoted+=c.demoted.length;
+      cf.matched+=c.matched.length;
+      if(c.promoted.length>0&&c.demoted.length>0)cf.dual++;
+      cf.categories[g.category]=(cf.categories[g.category]||0)+1;
+    }
+  });
+
+  // Most contested: highest (promoted+demoted) / total appearances
+  var candList=[];
+  for(var t in candFreq){
+    var cf=candFreq[t];
+    if(cf.prompts<2)continue;// skip single-prompt
+    var contestRatio=(cf.promoted+cf.demoted)/(cf.promoted+cf.demoted+cf.matched+0.001);
+    candList.push({token:t,label:t.trim()||'⎵',freq:cf,contestRatio:contestRatio});
+  }
+  candList.sort(function(a,b){return b.freq.dual-a.freq.dual||(b.contestRatio-a.contestRatio)});
+
+  var candH='';
+  if(candList.length>0){
+    candH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Most Contested Candidates (across all prompts)</div>';
+    candH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+    candH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)"><th style="text-align:left;padding:5px 10px;color:#8b949e">Token</th><th style="text-align:right;padding:5px 6px;color:#8b949e">Prompts</th><th style="text-align:right;padding:5px 6px;color:#3fb950">+Prom</th><th style="text-align:right;padding:5px 6px;color:#f85149">-Demo</th><th style="text-align:right;padding:5px 6px;color:#58a6ff">=Match</th><th style="text-align:right;padding:5px 6px;color:#bc8cff">Dual</th><th style="text-align:left;padding:5px 6px;color:#8b949e">Categories</th></tr>';
+    var shown=0;
+    for(var ci=0;ci<candList.length&&shown<15;ci++){
+      var cl=candList[ci];
+      if(cl.label==='⎵')continue;// skip EOS
+      var catStr=catOrder.filter(function(c){return cl.freq.categories[c]}).map(function(c){
+        return '<span style="color:'+catColors[c]+'">'+c.substr(0,3)+':'+cl.freq.categories[c]+'</span>';
+      }).join(' ');
+      candH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">';
+      candH+='<td style="padding:4px 10px;color:#e6edf3;font-weight:600">"'+escHtml(cl.label)+'"</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#b1bac4">'+cl.freq.prompts+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#3fb950">'+cl.freq.promoted+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#f85149">'+cl.freq.demoted+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#58a6ff">'+cl.freq.matched+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:'+(cl.freq.dual>0?'#bc8cff':'#8b949e')+'">'+cl.freq.dual+'</td>';
+      candH+='<td style="padding:4px 6px;font-size:9px">'+catStr+'</td>';
+      candH+='</tr>';
+      shown++;
+    }
+    candH+='</table></div>';
+  }
+
+  // ── Per-prompt breakdown ──
+  var promptH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Per-Prompt Candidate Graph Metrics</div>';
+  promptH+='<div style="max-height:300px;overflow-y:auto">';
+  promptH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px">';
+  promptH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)"><th style="text-align:left;padding:4px 8px;color:#8b949e">Prompt</th><th style="text-align:left;padding:4px 4px;color:#8b949e">Cat</th><th style="text-align:right;padding:4px 4px;color:#8b949e">Contest</th><th style="text-align:right;padding:4px 4px;color:#8b949e">Dual</th><th style="text-align:right;padding:4px 4px;color:#8b949e">Sw/tok</th><th style="padding:4px 4px;color:#8b949e;width:80px">Map</th></tr>';
+
+  // Sort by contested fraction descending
+  var sorted=graphs.slice().sort(function(a,b){return b.contestedFrac-a.contestedFrac});
+  sorted.forEach(function(g){
+    var cc=catColors[g.category]||'#b1bac4';
+    var cfCol=g.contestedFrac>0.85?'#f85149':(g.contestedFrac>0.7?'#d29a22':'#3fb950');
+    // Build mini contestation map
+    var miniMap='';
+    for(var i=0;i<g.posStats.length;i++){
+      var ps=g.posStats[i];
+      if(!ps.contested)miniMap+='<span style="color:#333">·</span>';
+      else if(ps.intensity>=6)miniMap+='<span style="color:#f85149">▓</span>';
+      else if(ps.intensity>=3)miniMap+='<span style="color:#d29a22">▒</span>';
+      else miniMap+='<span style="color:#8b949e">░</span>';
+    }
+    promptH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">';
+    promptH+='<td style="padding:3px 8px;color:#b1bac4;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(g.prompt)+'">'+escHtml(g.prompt.substr(0,40))+'</td>';
+    promptH+='<td style="padding:3px 4px;color:'+cc+'">'+g.category.substr(0,4)+'</td>';
+    promptH+='<td style="text-align:right;padding:3px 4px;color:'+cfCol+';font-weight:600">'+(g.contestedFrac*100).toFixed(0)+'%</td>';
+    promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.nDualRole+'</td>';
+    promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.switchRate.toFixed(2)+'</td>';
+    promptH+='<td style="padding:3px 4px;font-family:var(--mono);font-size:9px;letter-spacing:0.5px">'+miniMap+'</td>';
+    promptH+='</tr>';
+  });
+  promptH+='</table></div></div>';
+
+  // ── Assemble ──
+  var h='<div class="feature" style="border-color:var(--purple);margin-top:16px">';
+  h+='<div class="feature-header" onclick="toggleFeature(this)">';
+  h+='<div class="feature-title" style="color:#bc8cff">Candidate Graph Topology</div>';
+  h+='<p class="feature-desc" style="color:#b1bac4">Cross-prompt analysis of alignment decision stability. Contested = both models swapping candidates at that position. Dual-role = same token promoted at some positions, demoted at others. Switch rate = role changes per token.</p>';
+  h+='</div>';
+  h+='<div class="feature-body" style="padding:16px">';
+  h+=tblS+effH+candH+promptH;
+  h+='</div></div>';
+  return h;
 }
 
-function _buildNetGraph(container,g){
-  var cands=g.candidates,nPos=g.nPositions,tokens=g.tokens;
-  // Collect multi-position candidates (appear at >=2 positions)
-  var flows=[];
-  for(var t in cands){
-    var c=cands[t];
-    var allPos=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));
-    if(allPos.size<2)continue;
-    var instMap={},baseMap={};
-    c.inst.forEach(function(x){instMap[x.pos]=x});
-    c.base.forEach(function(x){baseMap[x.pos]=x});
-    var positions=[];
-    allPos.forEach(function(p){positions.push(p)});
-    positions.sort(function(a,b){return a-b});
-    var segs=[];
-    for(var i=0;i<positions.length;i++){
-      var p=positions[i];
-      var role=c.promoted.indexOf(p)>=0?'promoted':(c.demoted.indexOf(p)>=0?'demoted':'matched');
-      var prob=0;
-      if(instMap[p])prob=Math.max(prob,instMap[p].prob);
-      if(baseMap[p])prob=Math.max(prob,baseMap[p].prob);
-      segs.push({pos:p,role:role,prob:prob});
-    }
-    var isDual=c.promoted.length>0&&c.demoted.length>0;
-    flows.push({token:t,label:(t.trim()||'⎵'),segs:segs,isDual:isDual,maxProb:Math.max.apply(null,segs.map(function(s){return s.prob}))});
-  }
-  flows.sort(function(a,b){return b.maxProb-a.maxProb});
-  if(flows.length>25)flows=flows.slice(0,25);
-  if(flows.length<1){container.innerHTML='<div style="text-align:center;padding:40px;color:#556;font:11px monospace">No multi-position candidates</div>';return}
-
-  // Canvas setup
-  var cv=document.createElement('canvas');
-  cv.style.cssText='width:100%;height:100%';
-  container.appendChild(cv);
-  var dpr=Math.min(devicePixelRatio,2);
-  function resize(){
-    var w=container.clientWidth,h=container.clientHeight;
-    cv.width=w*dpr;cv.height=h*dpr;
-    cv.style.width=w+'px';cv.style.height=h+'px';
-    draw();
-  }
-
-  var roleColor={promoted:'#3fb950',demoted:'#f85149',matched:'#58a6ff',dual:'#bc8cff'};
-  var roleColorFade={promoted:'rgba(63,185,80,0.15)',demoted:'rgba(248,81,73,0.15)',matched:'rgba(88,166,255,0.12)',dual:'rgba(188,140,255,0.15)'};
-
-  // Pan/zoom state
-  var panX=0,panY=0,zoom=1,isDrag=false,dragX=0,dragY=0;
-  cv.addEventListener('mousedown',function(e){isDrag=true;dragX=e.clientX;dragY=e.clientY;cv.style.cursor='grabbing';e.preventDefault()});
-  window.addEventListener('mouseup',function(){isDrag=false;cv.style.cursor='grab'});
-  window.addEventListener('mousemove',function(e){if(!isDrag)return;panX+=(e.clientX-dragX);panY+=(e.clientY-dragY);dragX=e.clientX;dragY=e.clientY;draw()});
-  cv.addEventListener('wheel',function(e){var oz=zoom;zoom=Math.max(0.3,Math.min(4,zoom*(e.deltaY>0?0.92:1.08)));var rect=cv.getBoundingClientRect();var mx=e.clientX-rect.left,my=e.clientY-rect.top;panX=mx-(mx-panX)*zoom/oz;panY=my-(my-panY)*zoom/oz;draw();e.preventDefault()},{passive:false});
-
-  function draw(){
-    var W=cv.width/dpr,H=cv.height/dpr;
-    var ctx=cv.getContext('2d');
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,W,H);
-    ctx.save();
-    ctx.translate(panX,panY);
-    ctx.scale(zoom,zoom);
-
-    // Layout constants
-    var padL=60,padR=30,padT=40,padB=20;
-    var colW=(W-padL-padR)/Math.max(nPos-1,1);
-    var laneH=Math.min(22,Math.max(10,(H-padT-padB-40)/flows.length));
-    var ribbonMax=laneH*0.8;
-
-    // Draw column headers (token labels)
-    ctx.font='bold 11px monospace';ctx.textAlign='center';
-    for(var p=0;p<nPos;p++){
-      var x=padL+p*colW;
-      // Vertical guide line
-      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(x,padT-5);ctx.lineTo(x,padT+flows.length*laneH+10);ctx.stroke();
-      // Token label
-      var ps=g.posStats[p];
-      var labelCol=ps.contested?(ps.intensity>=6?'#f85149':(ps.intensity>=3?'#d29a22':'#888')):'#556';
-      ctx.fillStyle=labelCol;
-      var tok=tokens[p]||'';if(tok.length>6)tok=tok.substr(0,6)+'…';
-      ctx.fillText(tok,x,padT-10);
-    }
-
-    // Draw flows
-    for(var fi=0;fi<flows.length;fi++){
-      var flow=flows[fi];
-      var y=padT+fi*laneH+laneH/2;
-
-      // Row label (candidate token)
-      ctx.font='10px monospace';ctx.textAlign='right';
-      var labelRole=flow.isDual?'dual':(flow.segs[0]?flow.segs[0].role:'matched');
-      ctx.fillStyle=roleColor[labelRole]||'#888';
-      var lbl=flow.label.length>7?flow.label.substr(0,7)+'…':flow.label;
-      ctx.fillText(lbl,padL-8,y+3);
-
-      // Draw ribbon segments between consecutive appearances
-      for(var si=0;si<flow.segs.length;si++){
-        var seg=flow.segs[si];
-        var x=padL+seg.pos*colW;
-        var thick=2+ribbonMax*(seg.prob/0.5);thick=Math.min(thick,ribbonMax);
-
-        // Node dot at this position
-        ctx.beginPath();ctx.arc(x,y,Math.max(3,thick/2+1),0,Math.PI*2);
-        ctx.fillStyle=roleColor[seg.role];ctx.fill();
-        ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=0.5;ctx.stroke();
-
-        // Ribbon to next segment
-        if(si<flow.segs.length-1){
-          var next=flow.segs[si+1];
-          var x2=padL+next.pos*colW;
-          var thick2=2+ribbonMax*(next.prob/0.5);thick2=Math.min(thick2,ribbonMax);
-
-          // Bezier ribbon with color transition
-          var midX=(x+x2)/2;
-          var c1=roleColor[seg.role],c2=roleColor[next.role];
-          var roleChanged=(seg.role!==next.role);
-
-          // Draw ribbon as filled bezier path
-          ctx.beginPath();
-          ctx.moveTo(x,y-thick/2);
-          ctx.bezierCurveTo(midX,y-thick/2,midX,y-thick2/2,x2,y-thick2/2);
-          ctx.lineTo(x2,y+thick2/2);
-          ctx.bezierCurveTo(midX,y+thick2/2,midX,y+thick/2,x,y+thick/2);
-          ctx.closePath();
-
-          if(roleChanged){
-            // Gradient for role transition
-            var grad=ctx.createLinearGradient(x,0,x2,0);
-            grad.addColorStop(0,c1);grad.addColorStop(1,c2);
-            ctx.fillStyle=grad;ctx.globalAlpha=0.4;ctx.fill();
-            ctx.strokeStyle=grad;ctx.globalAlpha=0.7;ctx.lineWidth=1;ctx.stroke();
-            ctx.globalAlpha=1;
-            // Role switch marker
-            ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';
-            ctx.fillText('⟳',midX,y-thick/2-4);
-          }else{
-            ctx.fillStyle=c1;ctx.globalAlpha=0.25;ctx.fill();
-            ctx.strokeStyle=c1;ctx.globalAlpha=0.6;ctx.lineWidth=1;ctx.stroke();
-            ctx.globalAlpha=1;
-          }
-
-          // Dashed line for position gaps (non-adjacent)
-          if(next.pos-seg.pos>1){
-            ctx.setLineDash([3,3]);
-            ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=0.5;
-            ctx.beginPath();ctx.moveTo(x+6,y);ctx.lineTo(x2-6,y);ctx.stroke();
-            ctx.setLineDash([]);
-          }
-        }
-      }
-    }
-
-    // Legend
-    ctx.restore();
-    ctx.font='10px monospace';ctx.textAlign='left';
-    var lx=8,ly=H-8;
-    ctx.fillStyle='rgba(10,10,20,0.85)';ctx.fillRect(lx-4,ly-26,260,30);
-    var items=[['promoted','#3fb950'],['demoted','#f85149'],['matched','#58a6ff'],['dual','#bc8cff']];
-    var ox=lx;
-    for(var i=0;i<items.length;i++){
-      ctx.fillStyle=items[i][1];ctx.beginPath();ctx.arc(ox+4,ly-10,4,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#999';ctx.fillText(items[i][0],ox+12,ly-6);
-      ox+=ctx.measureText(items[i][0]).width+22;
-    }
-    ctx.fillStyle='#556';ctx.fillText(flows.length+' flows · '+nPos+' positions',ox+4,ly-6);
-
-    // Info
-    ctx.fillStyle='#445';ctx.textAlign='right';
-    ctx.fillText('drag: pan · scroll: zoom',W-8,ly-6);
-  }
-
-  resize();
-  window.addEventListener('resize',resize);
-}
 </script>
 </body>
 </html>
