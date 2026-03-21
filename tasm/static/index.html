@@ -1336,6 +1336,7 @@ function renderLatest(r,plots){
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
+  if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){const _cg=computeCandidateGraph(r);if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
@@ -1486,6 +1487,11 @@ function renderLatest(r,plots){
       h+=`</table></div></div>`;
     }
     h+=`</div>`;
+  }
+
+  // ═══ CANDIDATE GRAPH ═══
+  if(r.ltp&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length&&r.base_counterfactual_tokens&&r.base_counterfactual_tokens.length){
+    h+=renderCandidateGraphSection(r);
   }
 
   // ═══ TOKEN TABLE ═══
@@ -2425,6 +2431,55 @@ function initTerrainViewer(results){
     if(st.baseline_summary&&st.baseline_summary.enabled&&$('enableBaselines'))$('enableBaselines').checked=true;
   }catch(e){}
 })();
+
+// ─── Candidate Graph Topology ──────────────────────────────────
+function computeCandidateGraph(r){
+  const tokens=r.tokens||[];const instCf=(r.ltp&&r.ltp.counterfactual_tokens)||[];const baseCf=r.base_counterfactual_tokens||[];
+  const nPos=Math.min(instCf.length,baseCf.length,tokens.length);if(nPos===0)return null;
+  const candidates={};const posStats=[];
+  function ec(t){if(!candidates[t])candidates[t]={inst:[],base:[],promoted:[],demoted:[],matched:[]};return candidates[t]}
+  for(let pos=0;pos<nPos;pos++){
+    const iAlts=instCf[pos]||[];const bAlts=baseCf[pos]||[];const instSet={};const baseSet={};
+    for(let j=0;j<iAlts.length;j++){const t=Array.isArray(iAlts[j])?iAlts[j][0]:iAlts[j];const p=Array.isArray(iAlts[j])?iAlts[j][1]:0;instSet[t]={rank:j,prob:p}}
+    for(let j=0;j<bAlts.length;j++){const t=Array.isArray(bAlts[j])?bAlts[j][0]:bAlts[j];const p=Array.isArray(bAlts[j])?bAlts[j][1]:0;baseSet[t]={rank:j,prob:p}}
+    let nP=0,nD=0,nM=0;const prom=[],demo=[],match=[];
+    for(const t in instSet){const c=ec(t);c.inst.push({pos,rank:instSet[t].rank,prob:instSet[t].prob});if(baseSet[t]!==undefined){c.matched.push(pos);match.push(t);nM++}else{c.promoted.push(pos);prom.push(t);nP++}}
+    for(const t in baseSet){const c=ec(t);c.base.push({pos,rank:baseSet[t].rank,prob:baseSet[t].prob});if(instSet[t]===undefined){c.demoted.push(pos);demo.push(t);nD++}}
+    posStats.push({pos,token:tokens[pos],nPromoted:nP,nDemoted:nD,nMatched:nM,contested:nP>0&&nD>0,intensity:nP+nD,promoted:prom,demoted:demo,matched:match})
+  }
+  const dualRole=[];for(const t in candidates){const c=candidates[t];if(c.promoted.length>0&&c.demoted.length>0)dualRole.push({token:t,promotedAt:c.promoted.map(p=>({pos:p,tok:tokens[p]})),demotedAt:c.demoted.map(p=>({pos:p,tok:tokens[p]})),matchedAt:c.matched.map(p=>({pos:p,tok:tokens[p]}))})}
+  const roleSwitches=[];for(const t in candidates){const c=candidates[t];const ap=[...new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)])].sort((a,b)=>a-b);if(ap.length<2)continue;for(let i=0;i<ap.length-1;i++){if(ap[i+1]-ap[i]>2)continue;const p1=ap[i],p2=ap[i+1];const r1=c.promoted.includes(p1)?'promoted':(c.demoted.includes(p1)?'demoted':'matched');const r2=c.promoted.includes(p2)?'promoted':(c.demoted.includes(p2)?'demoted':'matched');if(r1!==r2)roleSwitches.push({candidate:t,fromPos:p1,fromTok:tokens[p1]||'?',fromRole:r1,toPos:p2,toTok:tokens[p2]||'?',toRole:r2})}}
+  const trajectories=[];for(const t in candidates){const c=candidates[t];const aps=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]);if(aps.size<2)continue;const im={};c.inst.forEach(x=>im[x.pos]=x);const bm={};c.base.forEach(x=>bm[x.pos]=x);const positions=[...aps].sort((a,b)=>a-b).map(pos=>({pos,tok:tokens[pos]||'?',role:c.promoted.includes(pos)?'promoted':(c.demoted.includes(pos)?'demoted':'matched'),inst:im[pos]||null,base:bm[pos]||null}));trajectories.push({candidate:t,nAppearances:aps.size,positions,isDualRole:c.promoted.length>0&&c.demoted.length>0})}
+  trajectories.sort((a,b)=>b.nAppearances-a.nAppearances);
+  const nContested=posStats.filter(p=>p.contested).length;
+  return{nPositions:nPos,tokens,posStats,candidates,dualRole,roleSwitches,trajectories:trajectories.slice(0,20),nContested,contestedFrac:nContested/nPos,nDualRole:dualRole.length,nRoleSwitches:roleSwitches.length,switchRate:roleSwitches.length/nPos,nUniqueCandidates:Object.keys(candidates).length,nMultiPosition:trajectories.length}
+}
+function renderCandidateGraphSection(r){
+  const g=computeCandidateGraph(r);if(!g)return'';
+  const uid='cg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
+  let mapH='<div style="font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0">';
+  for(let i=0;i<g.posStats.length;i++){const ps=g.posStats[i];let ch,col,title;if(!ps.contested){ch='·';col='var(--text-3)';title=ps.token+': stable ('+ps.nMatched+' matched)'}else if(ps.intensity>=6){ch='▓';col='var(--red)';title=ps.token+': heavy (+'+ps.nPromoted+' -'+ps.nDemoted+')'}else if(ps.intensity>=3){ch='▒';col='var(--orange)';title=ps.token+': moderate (+'+ps.nPromoted+' -'+ps.nDemoted+')'}else{ch='░';col='#e3b341';title=ps.token+': light (+'+ps.nPromoted+' -'+ps.nDemoted+')'}mapH+='<span style="color:'+col+';cursor:help" title="'+escHtml(title)+'">'+ch+'</span>'}
+  mapH+='</div><div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px">';
+  for(let i=0;i<g.tokens.length;i++){const ps=g.posStats[i];const bg=ps.contested?(ps.intensity>=6?'rgba(248,81,73,0.15)':(ps.intensity>=3?'rgba(210,153,34,0.15)':'rgba(227,179,65,0.08)')):'transparent';mapH+='<span style="font-family:var(--mono);font-size:9px;padding:1px 3px;background:'+bg+';border-radius:2px;color:var(--text-2)">'+escHtml(g.tokens[i])+'</span>'}
+  mapH+='</div>';
+  const cp=(g.contestedFrac*100).toFixed(0),bw=Math.round(g.contestedFrac*100),bc=g.contestedFrac>0.85?'var(--red)':(g.contestedFrac>0.7?'var(--orange)':'var(--green)');
+  let mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px"><div><div style="font-size:9px;color:var(--text-3);margin-bottom:2px">CONTESTED</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:${bc}">${cp}%</div><div style="width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px"><div style="width:${bw}%;height:100%;background:${bc};border-radius:2px"></div></div></div><div><div style="font-size:9px;color:var(--text-3);margin-bottom:2px">DUAL-ROLE</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nDualRole}</div><div style="font-size:9px;color:var(--text-3)">candidates</div></div><div><div style="font-size:9px;color:var(--text-3);margin-bottom:2px">SWITCHES</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nRoleSwitches}</div><div style="font-size:9px;color:var(--text-3)">${g.switchRate.toFixed(2)}/token</div></div><div><div style="font-size:9px;color:var(--text-3);margin-bottom:2px">TRAJECTORIES</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nMultiPosition}</div><div style="font-size:9px;color:var(--text-3)">of ${g.nUniqueCandidates} unique</div></div></div>`;
+  let ptH='<div style="max-height:200px;overflow-y:auto;margin-bottom:14px"><table class="data-table"><tr><th>Pos</th><th>Token</th><th>Match</th><th>+Prom</th><th>-Demo</th><th>Status</th></tr>';
+  for(const ps of g.posStats){const st=ps.contested?'<span style="color:var(--red)">contested</span>':'<span style="color:var(--green)">stable</span>';ptH+=`<tr><td>${ps.pos}</td><td>${escHtml(ps.token)}</td><td>${ps.nMatched}</td><td>${ps.nPromoted}</td><td>${ps.nDemoted}</td><td>${st}</td></tr>`}
+  ptH+='</table></div>';
+  let dH='';if(g.dualRole.length>0){dH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--purple);margin-bottom:6px">DUAL-ROLE CANDIDATES</div>';for(const dr of g.dualRole){if(dr.token.trim()==='')continue;const pc=dr.promotedAt.map(x=>'<span style="color:var(--green)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');const dc=dr.demotedAt.map(x=>'<span style="color:var(--red)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');dH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)">"${escHtml(dr.token)}"</div><div style="font-size:9px;margin-top:3px">↑ promoted: ${pc}</div><div style="font-size:9px;margin-top:2px">↓ demoted: ${dc}</div>${dr.matchedAt.length?'<div style="font-size:9px;margin-top:2px;color:var(--text-3)">= matched: '+dr.matchedAt.length+' positions</div>':''}</div>`}dH+='</div>'}
+  let sH='';if(g.roleSwitches.length>0){sH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--orange);margin-bottom:6px">ROLE SWITCHES</div><div style="max-height:180px;overflow-y:auto"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td style="font-family:var(--mono)">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span style="color:var(--text-3)">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td style="color:var(--text-3)">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span style="color:var(--text-3)">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
+  let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--cyan);margin-bottom:6px">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span style="color:var(--purple);font-size:8px">DUAL</span>':'';tH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px"><div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-0)">"${escHtml(tr.candidate)}" <span style="color:var(--text-3);font-weight:400">${tr.nAppearances} pos</span>${lb}</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span style="font-size:8px;padding:2px 4px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span style="color:var(--text-3)">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
+  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}">${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
+}
+function popoutCandidateGraph(uid){
+  const el=document.getElementById(uid);if(!el)return;
+  const pw=1000,ph=850,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);if(!w)return;
+  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]')).map(s=>s.outerHTML).join('\n');
+  w.document.write(`<!DOCTYPE html><html><head><title>TASM — Candidate Graph</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">${styles}<style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}.feature-body.collapsed{display:block!important}</style></head><body><div style="max-width:960px;margin:0 auto">${el.outerHTML}</div></body></html>`);
+  w.document.close();
+}
 </script>
 </body>
 </html>
