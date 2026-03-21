@@ -2062,9 +2062,9 @@ function _terrainRendererCore(container, D, opts){
   onResize();
   new ResizeObserver(onResize).observe(wrap);
 
-  sc.add(new THREE.AmbientLight(0x667788,.75));
-  const dl=new THREE.DirectionalLight(0xccddff,.8);dl.position.set(3,10,6);sc.add(dl);
-  const dl2=new THREE.DirectionalLight(0x445566,.25);dl2.position.set(-4,5,-3);sc.add(dl2);
+  sc.add(new THREE.AmbientLight(0xaabbcc,1.0));
+  const dl=new THREE.DirectionalLight(0xccddff,1.0);dl.position.set(3,10,6);sc.add(dl);
+  const dl2=new THREE.DirectionalLight(0x667788,.5);dl2.position.set(-4,5,-3);sc.add(dl2);
 
   let msh=null,wir=null,flr=null,lbs=[];
 
@@ -2148,7 +2148,7 @@ function _terrainRendererCore(container, D, opts){
     }else{
       for(var t=0;t<nT-1;t++)for(var c=0;c<COLS-1;c++){var a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
       geo.setIndex(ixArr);geo.computeVertexNormals();
-      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30,emissive:0x222222,emissiveIntensity:0.2}));
+      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30,emissive:0x444444,emissiveIntensity:0.35}));
       sc.add(msh);
     }
 
@@ -2167,7 +2167,7 @@ function _terrainRendererCore(container, D, opts){
       var gridGeo=new THREE.BufferGeometry();
       gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridP,3));
       gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
-      wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.82}));
+      wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.92}));
       sc.add(wir);
     }
 
@@ -2493,136 +2493,62 @@ function _initNetGraphs(){
 }
 
 function _buildNetGraph(container,g){
-  // Build node/edge data from candidate graph
-  const cands=g.candidates;const posStats=g.posStats;const nPos=g.nPositions;
-  // Determine threshold: prefer >=3 positions, fallback to >=2
-  let minApp=3;
-  let nodeTokens=[];
-  for(const t in cands){
-    const c=cands[t];const ap=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]);
-    if(ap.size>=minApp) nodeTokens.push(t);
-  }
-  if(nodeTokens.length<5){minApp=2;nodeTokens=[];for(const t in cands){const c=cands[t];const ap=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]);if(ap.size>=minApp) nodeTokens.push(t)}}
-  if(nodeTokens.length>40) nodeTokens=nodeTokens.slice(0,40);
-  if(nodeTokens.length<2){container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:11px">Not enough multi-position candidates for graph</div>';return}
-
-  // Build nodes
-  const nodeSet=new Set(nodeTokens);
-  const nodes=nodeTokens.map(function(t){
-    const c=cands[t];const nApp=new Set([...c.inst.map(x=>x.pos),...c.base.map(x=>x.pos)]).size;
-    const role=c.promoted.length>0&&c.demoted.length>0?'dual':(c.promoted.length>c.demoted.length?'promoted':(c.demoted.length>c.promoted.length?'demoted':'matched'));
-    return{id:t,label:t.trim()||'⎵',nApp:nApp,role:role,x:(Math.random()-0.5)*8,y:(Math.random()-0.5)*8,z:(Math.random()-0.5)*4,vx:0,vy:0,vz:0}
-  });
-  const nodeMap={};nodes.forEach(function(n,i){nodeMap[n.id]=i});
-
-  // Build edges: co-occurrence at same position
-  const edgeMap={};
-  for(var pos=0;pos<nPos;pos++){
-    var here=[];
-    var iAlts=g.posStats[pos].promoted.concat(g.posStats[pos].demoted).concat(g.posStats[pos].matched);
-    for(var j=0;j<iAlts.length;j++){if(nodeSet.has(iAlts[j]))here.push(iAlts[j])}
-    for(var a=0;a<here.length;a++)for(var b=a+1;b<here.length;b++){
-      var key=here[a]<here[b]?here[a]+'|||'+here[b]:here[b]+'|||'+here[a];
-      edgeMap[key]=(edgeMap[key]||0)+1;
-    }
-  }
-  const edges=[];for(var key in edgeMap){var parts=key.split('|||');if(nodeMap[parts[0]]!==undefined&&nodeMap[parts[1]]!==undefined)edges.push({a:nodeMap[parts[0]],b:nodeMap[parts[1]],w:edgeMap[key]})}
-
-  // Force simulation (synchronous, ~150 iterations)
-  const kR=2.0,kA=0.08,kG=0.01,damp=0.92;
-  for(var iter=0;iter<150;iter++){
-    // Repulsion
-    for(var i=0;i<nodes.length;i++)for(var j=i+1;j<nodes.length;j++){
-      var dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,dz=nodes[i].z-nodes[j].z;
-      var d2=dx*dx+dy*dy+dz*dz+0.01;var f=kR/d2;
-      nodes[i].vx+=dx*f;nodes[i].vy+=dy*f;nodes[i].vz+=dz*f;
-      nodes[j].vx-=dx*f;nodes[j].vy-=dy*f;nodes[j].vz-=dz*f;
-    }
-    // Attraction along edges
-    for(var e=0;e<edges.length;e++){
-      var na=nodes[edges[e].a],nb=nodes[edges[e].b];
-      var dx=nb.x-na.x,dy=nb.y-na.y,dz=nb.z-na.z;
-      var d=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.01;
-      var f=kA*(d-1.5)*edges[e].w;
-      na.vx+=dx/d*f;na.vy+=dy/d*f;na.vz+=dz/d*f;
-      nb.vx-=dx/d*f;nb.vy-=dy/d*f;nb.vz-=dz/d*f;
-    }
-    // Center gravity + damping
-    for(var i=0;i<nodes.length;i++){
-      nodes[i].vx-=nodes[i].x*kG;nodes[i].vy-=nodes[i].y*kG;nodes[i].vz-=nodes[i].z*kG;
-      nodes[i].vx*=damp;nodes[i].vy*=damp;nodes[i].vz*=damp;
-      nodes[i].x+=nodes[i].vx;nodes[i].y+=nodes[i].vy;nodes[i].z+=nodes[i].vz;
-    }
-  }
-
-  // Three.js rendering
-  var cv=document.createElement('canvas');
-  cv.style.cssText='position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab';
-  container.appendChild(cv);
-  var sc=new THREE.Scene();
-  var cam=new THREE.PerspectiveCamera(50,1,0.1,200);
-  cam.position.set(0,0,18);cam.lookAt(0,0,0);
-  var ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
-  ren.setClearColor(0x0c0c12,1);ren.setPixelRatio(Math.min(devicePixelRatio,2));
-
-  function resize(){var w=container.clientWidth,h=container.clientHeight;if(w<10||h<10)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
-  resize();window.addEventListener('resize',resize);
-
-  sc.add(new THREE.AmbientLight(0xffffff,0.6));
-  var dl=new THREE.DirectionalLight(0xffffff,0.5);dl.position.set(5,8,10);sc.add(dl);
-
-  // Role colors
-  var roleColors={promoted:0x3fb950,demoted:0xf85149,matched:0x58a6ff,dual:0xbc8cff};
-
-  // Draw edges
-  var edgeGeo=new THREE.BufferGeometry();var edgeVerts=[];var edgeColors=[];
-  var maxW=Math.max.apply(null,edges.map(function(e){return e.w}));
-  for(var e=0;e<edges.length;e++){
-    var na=nodes[edges[e].a],nb=nodes[edges[e].b];
-    edgeVerts.push(na.x,na.y,na.z,nb.x,nb.y,nb.z);
-    var bright=0.15+0.35*(edges[e].w/(maxW||1));
-    edgeColors.push(bright,bright,bright*1.2,bright,bright,bright*1.2);
-  }
-  edgeGeo.setAttribute('position',new THREE.Float32BufferAttribute(edgeVerts,3));
-  edgeGeo.setAttribute('color',new THREE.Float32BufferAttribute(edgeColors,3));
-  sc.add(new THREE.LineSegments(edgeGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.5})));
-
-  // Draw nodes
-  for(var i=0;i<nodes.length;i++){
-    var n=nodes[i];var radius=0.15+Math.sqrt(n.nApp)*0.12;
-    var geo=new THREE.SphereGeometry(radius,12,8);
-    var mat=new THREE.MeshPhongMaterial({color:roleColors[n.role]||0x888888,emissive:roleColors[n.role]||0x888888,emissiveIntensity:0.3});
-    var mesh=new THREE.Mesh(geo,mat);mesh.position.set(n.x,n.y,n.z);sc.add(mesh);
-
-    // Label sprite
-    var canvas2=document.createElement('canvas');canvas2.width=256;canvas2.height=64;
-    var ctx=canvas2.getContext('2d');ctx.fillStyle='rgba(0,0,0,0)';ctx.fillRect(0,0,256,64);
-    ctx.font='bold 28px monospace';ctx.fillStyle='#ccc';ctx.textAlign='center';ctx.textBaseline='middle';
-    var lbl=n.label.length>12?n.label.substr(0,12)+'…':n.label;
-    ctx.fillText(lbl,128,32);
-    var tex=new THREE.CanvasTexture(canvas2);tex.minFilter=THREE.LinearFilter;
-    var spMat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
-    var sp=new THREE.Sprite(spMat);sp.scale.set(radius*6,radius*1.5,1);
-    sp.position.set(n.x,n.y+radius+0.25,n.z);sc.add(sp);
-  }
-
-  // Simple orbit controls (consistent with terrain viewer)
-  var isDragging=false,prevX=0,prevY=0,theta=0,phi=Math.PI/2,dist=18;
-  function updateCam(){cam.position.set(dist*Math.sin(phi)*Math.cos(theta),dist*Math.cos(phi),dist*Math.sin(phi)*Math.sin(theta));cam.lookAt(0,0,0)}
-  cv.addEventListener('mousedown',function(e){isDragging=true;prevX=e.clientX;prevY=e.clientY;cv.style.cursor='grabbing'});
-  window.addEventListener('mouseup',function(){isDragging=false;cv.style.cursor='grab'});
-  window.addEventListener('mousemove',function(e){if(!isDragging)return;theta+=(e.clientX-prevX)*0.01;phi=Math.max(0.1,Math.min(Math.PI-0.1,phi-(e.clientY-prevY)*0.01));prevX=e.clientX;prevY=e.clientY;updateCam()});
-  cv.addEventListener('wheel',function(e){dist=Math.max(5,Math.min(50,dist+e.deltaY*0.02));updateCam();e.preventDefault()},{passive:false});
-
-  // Legend
-  var leg=document.createElement('div');
-  leg.style.cssText='position:absolute;top:6px;right:8px;font-family:monospace;font-size:9px;background:rgba(8,8,18,.75);padding:4px 8px;border-radius:4px;z-index:5;color:#999;line-height:1.6';
-  leg.innerHTML='<span style="color:#3fb950">●</span> promoted <span style="color:#f85149">●</span> demoted <span style="color:#58a6ff">●</span> matched <span style="color:#bc8cff">●</span> dual<br>'+nodes.length+' nodes, '+edges.length+' edges (≥'+minApp+' positions)';
+  var cands=g.candidates,nPos=g.nPositions;
+  var minApp=3,nodeTokens=[];
+  for(var t in cands){var c=cands[t];var ap=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));if(ap.size>=minApp)nodeTokens.push(t)}
+  if(nodeTokens.length<5){minApp=2;nodeTokens=[];for(var t in cands){var c=cands[t];var ap=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));if(ap.size>=minApp)nodeTokens.push(t)}}
+  if(nodeTokens.length>50)nodeTokens=nodeTokens.slice(0,50);
+  if(nodeTokens.length<2){container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:11px">Not enough multi-position candidates</div>';return}
+  var nodeSet=new Set(nodeTokens);
+  var nodes=nodeTokens.map(function(t){var c=cands[t];var nApp=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos}))).size;var role=c.promoted.length>0&&c.demoted.length>0?'dual':(c.promoted.length>c.demoted.length?'promoted':(c.demoted.length>c.promoted.length?'demoted':'matched'));return{id:t,label:t.trim()||'⎵',nApp:nApp,role:role,x:(Math.random()-.5)*4,y:(Math.random()-.5)*4,z:0,vx:0,vy:0,vz:0}});
+  var nodeMap={};nodes.forEach(function(n,i){nodeMap[n.id]=i});
+  var edgeMap={};
+  for(var pos=0;pos<nPos;pos++){var here=[],iAlts=g.posStats[pos].promoted.concat(g.posStats[pos].demoted,g.posStats[pos].matched);for(var j=0;j<iAlts.length;j++){if(nodeSet.has(iAlts[j]))here.push(iAlts[j])}for(var a=0;a<here.length;a++)for(var b=a+1;b<here.length;b++){var key=here[a]<here[b]?here[a]+'|||'+here[b]:here[b]+'|||'+here[a];edgeMap[key]=(edgeMap[key]||0)+1}}
+  var edges=[];for(var key in edgeMap){var parts=key.split('|||');if(nodeMap[parts[0]]!==undefined&&nodeMap[parts[1]]!==undefined)edges.push({a:nodeMap[parts[0]],b:nodeMap[parts[1]],w:edgeMap[key]})}
+  var maxW=Math.max.apply(null,edges.map(function(e){return e.w}))||1;
+  // Force: tight 2D clustering
+  var kR=0.8,kA=0.25,kG=0.04,damp=0.88,restLen=0.8;
+  for(var iter=0;iter<250;iter++){for(var i=0;i<nodes.length;i++)for(var j=i+1;j<nodes.length;j++){var dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y;var d2=dx*dx+dy*dy+0.001;var f=kR/d2;nodes[i].vx+=dx*f;nodes[i].vy+=dy*f;nodes[j].vx-=dx*f;nodes[j].vy-=dy*f}for(var e=0;e<edges.length;e++){var na=nodes[edges[e].a],nb=nodes[edges[e].b];var dx=nb.x-na.x,dy=nb.y-na.y,d=Math.sqrt(dx*dx+dy*dy)+0.001;var strength=kA*(1+edges[e].w/maxW);var f=strength*(d-restLen);na.vx+=dx/d*f;na.vy+=dy/d*f;nb.vx-=dx/d*f;nb.vy-=dy/d*f}for(var i=0;i<nodes.length;i++){nodes[i].vx-=nodes[i].x*kG;nodes[i].vy-=nodes[i].y*kG;nodes[i].vx*=damp;nodes[i].vy*=damp;nodes[i].x+=nodes[i].vx;nodes[i].y+=nodes[i].vy;nodes[i].z=0}}
+  // Bounding box
+  var xMn=1e9,xMx=-1e9,yMn=1e9,yMx=-1e9;for(var i=0;i<nodes.length;i++){if(nodes[i].x<xMn)xMn=nodes[i].x;if(nodes[i].x>xMx)xMx=nodes[i].x;if(nodes[i].y<yMn)yMn=nodes[i].y;if(nodes[i].y>yMx)yMx=nodes[i].y}
+  var cx=(xMn+xMx)/2,cy=(yMn+yMx)/2,span=Math.max(xMx-xMn,yMx-yMn,3)+2;
+  // Scene
+  var cv=document.createElement('canvas');cv.style.cssText='position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab';container.appendChild(cv);
+  var sc=new THREE.Scene();var cam=new THREE.PerspectiveCamera(50,1,0.1,500);var camDist=span*1.2;cam.position.set(cx,cy,camDist);cam.lookAt(cx,cy,0);
+  var ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});ren.setClearColor(0x0a0a14,1);ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  function resize(){var w=container.clientWidth,h=container.clientHeight;if(w<10||h<10)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}resize();window.addEventListener('resize',resize);
+  sc.add(new THREE.AmbientLight(0xffffff,0.8));var dl=new THREE.DirectionalLight(0xffffff,0.4);dl.position.set(2,4,10);sc.add(dl);
+  var roleCol={promoted:0x3fb950,demoted:0xf85149,matched:0x58a6ff,dual:0xbc8cff};
+  var roleCSS={promoted:'#3fb950',demoted:'#f85149',matched:'#58a6ff',dual:'#bc8cff'};
+  // Edges: cylinder geometry for thickness
+  for(var e=0;e<edges.length;e++){var na=nodes[edges[e].a],nb=nodes[edges[e].b];var dx=nb.x-na.x,dy=nb.y-na.y;var d=Math.sqrt(dx*dx+dy*dy);if(d<0.001)continue;var thick=0.015+0.04*(edges[e].w/maxW);var eG=new THREE.CylinderGeometry(thick,thick,d,4,1);eG.rotateX(Math.PI/2);var br=0.25+0.45*(edges[e].w/maxW);var eM=new THREE.Mesh(eG,new THREE.MeshBasicMaterial({color:new THREE.Color(br*.7,br*.8,br)}));eM.position.set((na.x+nb.x)/2,(na.y+nb.y)/2,0);eM.lookAt(nb.x,nb.y,0);sc.add(eM)}
+  // Nodes + labels
+  for(var i=0;i<nodes.length;i++){var n=nodes[i];var rad=0.12+Math.sqrt(n.nApp)*0.08;var col=roleCol[n.role]||0x888888;
+    sc.add(new THREE.Mesh(new THREE.SphereGeometry(rad,16,12),new THREE.MeshPhongMaterial({color:col,emissive:col,emissiveIntensity:0.4,shininess:60})).translateX(n.x).translateY(n.y));
+    // Label sprite with background pill
+    var lc=document.createElement('canvas');lc.width=512;lc.height=80;var lx=lc.getContext('2d');
+    var lbl=n.label.length>10?n.label.substr(0,10)+'…':n.label;
+    lx.font='bold 40px monospace';var tw=lx.measureText(lbl).width;var bW=tw+24,bH=52,bX=(512-bW)/2,bY=14;
+    lx.fillStyle='rgba(12,12,20,0.85)';lx.beginPath();lx.roundRect(bX,bY,bW,bH,6);lx.fill();
+    lx.strokeStyle=roleCSS[n.role]||'#666';lx.lineWidth=2;lx.beginPath();lx.roundRect(bX,bY,bW,bH,6);lx.stroke();
+    lx.fillStyle='#e0e0e0';lx.textAlign='center';lx.textBaseline='middle';lx.fillText(lbl,256,40);
+    var tex=new THREE.CanvasTexture(lc);tex.minFilter=THREE.LinearFilter;
+    var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
+    var ss=span*0.12;sp.scale.set(ss,ss*80/512,1);sp.position.set(n.x,n.y-rad-ss*0.06,0.1);sc.add(sp)}
+  // Controls: drag=pan, scroll=zoom
+  var isDrag=false,pX=0,pY=0,panX=cx,panY=cy,zD=camDist;
+  function uCam(){cam.position.set(panX,panY,zD);cam.lookAt(panX,panY,0)}
+  cv.addEventListener('mousedown',function(e){isDrag=true;pX=e.clientX;pY=e.clientY;cv.style.cursor='grabbing';e.preventDefault()});
+  cv.addEventListener('contextmenu',function(e){e.preventDefault()});
+  window.addEventListener('mouseup',function(){isDrag=false;cv.style.cursor='grab'});
+  window.addEventListener('mousemove',function(e){if(!isDrag)return;var s=zD*0.003;panX-=(e.clientX-pX)*s;panY+=(e.clientY-pY)*s;pX=e.clientX;pY=e.clientY;uCam()});
+  cv.addEventListener('wheel',function(e){zD=Math.max(1,Math.min(100,zD+e.deltaY*0.03));uCam();e.preventDefault()},{passive:false});
+  // Legend + info
+  var leg=document.createElement('div');leg.style.cssText='position:absolute;top:6px;right:8px;font:10px monospace;background:rgba(8,8,18,.85);padding:6px 10px;border-radius:4px;z-index:5;color:#bbb;line-height:1.8';
+  leg.innerHTML='<span style="color:#3fb950">●</span> promoted <span style="color:#f85149">●</span> demoted <span style="color:#58a6ff">●</span> matched <span style="color:#bc8cff">●</span> dual<br><span style="color:#888">'+nodes.length+' nodes · '+edges.length+' edges · ≥'+minApp+' pos</span>';
   container.appendChild(leg);
-
-  // Render loop
-  function animate(){requestAnimationFrame(animate);ren.render(sc,cam)}
-  animate();
+  var inf=document.createElement('div');inf.style.cssText='position:absolute;bottom:6px;left:8px;font:9px monospace;color:#556;z-index:5';inf.textContent='drag: pan · scroll: zoom';container.appendChild(inf);
+  function animate(){requestAnimationFrame(animate);ren.render(sc,cam)}animate();
 }
 </script>
 </body>
