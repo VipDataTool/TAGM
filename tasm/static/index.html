@@ -2473,7 +2473,7 @@ function renderCandidateGraphSection(r){
   let sH='';if(g.roleSwitches.length>0){sH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--orange);margin-bottom:6px">ROLE SWITCHES</div><div style="max-height:180px;overflow-y:auto"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td style="font-family:var(--mono)">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span style="color:var(--text-3)">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td style="color:var(--text-3)">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span style="color:var(--text-3)">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
   let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--cyan);margin-bottom:6px">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span style="color:var(--purple);font-size:8px">DUAL</span>':'';tH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px"><div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-0)">"${escHtml(tr.candidate)}" <span style="color:var(--text-3);font-weight:400">${tr.nAppearances} pos</span>${lb}</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span style="font-size:8px;padding:2px 4px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span style="color:var(--text-3)">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
   _pendingNetGraphs.push({uid:uid+'_net',graph:g});
-  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}"><div id="${uid}_net" class="terrain-wrap" style="padding-bottom:35%;min-height:240px;margin-bottom:14px;border:1px solid var(--border);border-radius:6px"></div>${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
+  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}"><div id="${uid}_net" style="position:relative;width:100%;height:320px;background:#0a0a14;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px"></div>${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
 }
 function popoutCandidateGraph(uid){
   const el=document.getElementById(uid);if(!el)return;
@@ -2493,62 +2493,178 @@ function _initNetGraphs(){
 }
 
 function _buildNetGraph(container,g){
-  var cands=g.candidates,nPos=g.nPositions;
-  var minApp=3,nodeTokens=[];
-  for(var t in cands){var c=cands[t];var ap=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));if(ap.size>=minApp)nodeTokens.push(t)}
-  if(nodeTokens.length<5){minApp=2;nodeTokens=[];for(var t in cands){var c=cands[t];var ap=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));if(ap.size>=minApp)nodeTokens.push(t)}}
-  if(nodeTokens.length>50)nodeTokens=nodeTokens.slice(0,50);
-  if(nodeTokens.length<2){container.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-3);font-size:11px">Not enough multi-position candidates</div>';return}
-  var nodeSet=new Set(nodeTokens);
-  var nodes=nodeTokens.map(function(t){var c=cands[t];var nApp=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos}))).size;var role=c.promoted.length>0&&c.demoted.length>0?'dual':(c.promoted.length>c.demoted.length?'promoted':(c.demoted.length>c.promoted.length?'demoted':'matched'));return{id:t,label:t.trim()||'⎵',nApp:nApp,role:role,x:(Math.random()-.5)*4,y:(Math.random()-.5)*4,z:0,vx:0,vy:0,vz:0}});
-  var nodeMap={};nodes.forEach(function(n,i){nodeMap[n.id]=i});
-  var edgeMap={};
-  for(var pos=0;pos<nPos;pos++){var here=[],iAlts=g.posStats[pos].promoted.concat(g.posStats[pos].demoted,g.posStats[pos].matched);for(var j=0;j<iAlts.length;j++){if(nodeSet.has(iAlts[j]))here.push(iAlts[j])}for(var a=0;a<here.length;a++)for(var b=a+1;b<here.length;b++){var key=here[a]<here[b]?here[a]+'|||'+here[b]:here[b]+'|||'+here[a];edgeMap[key]=(edgeMap[key]||0)+1}}
-  var edges=[];for(var key in edgeMap){var parts=key.split('|||');if(nodeMap[parts[0]]!==undefined&&nodeMap[parts[1]]!==undefined)edges.push({a:nodeMap[parts[0]],b:nodeMap[parts[1]],w:edgeMap[key]})}
-  var maxW=Math.max.apply(null,edges.map(function(e){return e.w}))||1;
-  // Force: tight 2D clustering
-  var kR=0.8,kA=0.25,kG=0.04,damp=0.88,restLen=0.8;
-  for(var iter=0;iter<250;iter++){for(var i=0;i<nodes.length;i++)for(var j=i+1;j<nodes.length;j++){var dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y;var d2=dx*dx+dy*dy+0.001;var f=kR/d2;nodes[i].vx+=dx*f;nodes[i].vy+=dy*f;nodes[j].vx-=dx*f;nodes[j].vy-=dy*f}for(var e=0;e<edges.length;e++){var na=nodes[edges[e].a],nb=nodes[edges[e].b];var dx=nb.x-na.x,dy=nb.y-na.y,d=Math.sqrt(dx*dx+dy*dy)+0.001;var strength=kA*(1+edges[e].w/maxW);var f=strength*(d-restLen);na.vx+=dx/d*f;na.vy+=dy/d*f;nb.vx-=dx/d*f;nb.vy-=dy/d*f}for(var i=0;i<nodes.length;i++){nodes[i].vx-=nodes[i].x*kG;nodes[i].vy-=nodes[i].y*kG;nodes[i].vx*=damp;nodes[i].vy*=damp;nodes[i].x+=nodes[i].vx;nodes[i].y+=nodes[i].vy;nodes[i].z=0}}
-  // Bounding box
-  var xMn=1e9,xMx=-1e9,yMn=1e9,yMx=-1e9;for(var i=0;i<nodes.length;i++){if(nodes[i].x<xMn)xMn=nodes[i].x;if(nodes[i].x>xMx)xMx=nodes[i].x;if(nodes[i].y<yMn)yMn=nodes[i].y;if(nodes[i].y>yMx)yMx=nodes[i].y}
-  var cx=(xMn+xMx)/2,cy=(yMn+yMx)/2,span=Math.max(xMx-xMn,yMx-yMn,3)+2;
-  // Scene
-  var cv=document.createElement('canvas');cv.style.cssText='position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab';container.appendChild(cv);
-  var sc=new THREE.Scene();var cam=new THREE.PerspectiveCamera(50,1,0.1,500);var camDist=span*1.2;cam.position.set(cx,cy,camDist);cam.lookAt(cx,cy,0);
-  var ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});ren.setClearColor(0x0a0a14,1);ren.setPixelRatio(Math.min(devicePixelRatio,2));
-  function resize(){var w=container.clientWidth,h=container.clientHeight;if(w<10||h<10)return;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}resize();window.addEventListener('resize',resize);
-  sc.add(new THREE.AmbientLight(0xffffff,0.8));var dl=new THREE.DirectionalLight(0xffffff,0.4);dl.position.set(2,4,10);sc.add(dl);
-  var roleCol={promoted:0x3fb950,demoted:0xf85149,matched:0x58a6ff,dual:0xbc8cff};
-  var roleCSS={promoted:'#3fb950',demoted:'#f85149',matched:'#58a6ff',dual:'#bc8cff'};
-  // Edges: cylinder geometry for thickness
-  for(var e=0;e<edges.length;e++){var na=nodes[edges[e].a],nb=nodes[edges[e].b];var dx=nb.x-na.x,dy=nb.y-na.y;var d=Math.sqrt(dx*dx+dy*dy);if(d<0.001)continue;var thick=0.015+0.04*(edges[e].w/maxW);var eG=new THREE.CylinderGeometry(thick,thick,d,4,1);eG.rotateX(Math.PI/2);var br=0.25+0.45*(edges[e].w/maxW);var eM=new THREE.Mesh(eG,new THREE.MeshBasicMaterial({color:new THREE.Color(br*.7,br*.8,br)}));eM.position.set((na.x+nb.x)/2,(na.y+nb.y)/2,0);eM.lookAt(nb.x,nb.y,0);sc.add(eM)}
-  // Nodes + labels
-  for(var i=0;i<nodes.length;i++){var n=nodes[i];var rad=0.12+Math.sqrt(n.nApp)*0.08;var col=roleCol[n.role]||0x888888;
-    sc.add(new THREE.Mesh(new THREE.SphereGeometry(rad,16,12),new THREE.MeshPhongMaterial({color:col,emissive:col,emissiveIntensity:0.4,shininess:60})).translateX(n.x).translateY(n.y));
-    // Label sprite with background pill
-    var lc=document.createElement('canvas');lc.width=512;lc.height=80;var lx=lc.getContext('2d');
-    var lbl=n.label.length>10?n.label.substr(0,10)+'…':n.label;
-    lx.font='bold 40px monospace';var tw=lx.measureText(lbl).width;var bW=tw+24,bH=52,bX=(512-bW)/2,bY=14;
-    lx.fillStyle='rgba(12,12,20,0.85)';lx.beginPath();lx.roundRect(bX,bY,bW,bH,6);lx.fill();
-    lx.strokeStyle=roleCSS[n.role]||'#666';lx.lineWidth=2;lx.beginPath();lx.roundRect(bX,bY,bW,bH,6);lx.stroke();
-    lx.fillStyle='#e0e0e0';lx.textAlign='center';lx.textBaseline='middle';lx.fillText(lbl,256,40);
-    var tex=new THREE.CanvasTexture(lc);tex.minFilter=THREE.LinearFilter;
-    var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
-    var ss=span*0.12;sp.scale.set(ss,ss*80/512,1);sp.position.set(n.x,n.y-rad-ss*0.06,0.1);sc.add(sp)}
-  // Controls: drag=pan, scroll=zoom
-  var isDrag=false,pX=0,pY=0,panX=cx,panY=cy,zD=camDist;
-  function uCam(){cam.position.set(panX,panY,zD);cam.lookAt(panX,panY,0)}
-  cv.addEventListener('mousedown',function(e){isDrag=true;pX=e.clientX;pY=e.clientY;cv.style.cursor='grabbing';e.preventDefault()});
-  cv.addEventListener('contextmenu',function(e){e.preventDefault()});
+  var cands=g.candidates,nPos=g.nPositions,tokens=g.tokens;
+  // Collect multi-position candidates (appear at >=2 positions)
+  var flows=[];
+  for(var t in cands){
+    var c=cands[t];
+    var allPos=new Set([].concat(c.inst.map(function(x){return x.pos}),c.base.map(function(x){return x.pos})));
+    if(allPos.size<2)continue;
+    var instMap={},baseMap={};
+    c.inst.forEach(function(x){instMap[x.pos]=x});
+    c.base.forEach(function(x){baseMap[x.pos]=x});
+    var positions=[];
+    allPos.forEach(function(p){positions.push(p)});
+    positions.sort(function(a,b){return a-b});
+    var segs=[];
+    for(var i=0;i<positions.length;i++){
+      var p=positions[i];
+      var role=c.promoted.indexOf(p)>=0?'promoted':(c.demoted.indexOf(p)>=0?'demoted':'matched');
+      var prob=0;
+      if(instMap[p])prob=Math.max(prob,instMap[p].prob);
+      if(baseMap[p])prob=Math.max(prob,baseMap[p].prob);
+      segs.push({pos:p,role:role,prob:prob});
+    }
+    var isDual=c.promoted.length>0&&c.demoted.length>0;
+    flows.push({token:t,label:(t.trim()||'⎵'),segs:segs,isDual:isDual,maxProb:Math.max.apply(null,segs.map(function(s){return s.prob}))});
+  }
+  flows.sort(function(a,b){return b.maxProb-a.maxProb});
+  if(flows.length>25)flows=flows.slice(0,25);
+  if(flows.length<1){container.innerHTML='<div style="text-align:center;padding:40px;color:#556;font:11px monospace">No multi-position candidates</div>';return}
+
+  // Canvas setup
+  var cv=document.createElement('canvas');
+  cv.style.cssText='width:100%;height:100%';
+  container.appendChild(cv);
+  var dpr=Math.min(devicePixelRatio,2);
+  function resize(){
+    var w=container.clientWidth,h=container.clientHeight;
+    cv.width=w*dpr;cv.height=h*dpr;
+    cv.style.width=w+'px';cv.style.height=h+'px';
+    draw();
+  }
+
+  var roleColor={promoted:'#3fb950',demoted:'#f85149',matched:'#58a6ff',dual:'#bc8cff'};
+  var roleColorFade={promoted:'rgba(63,185,80,0.15)',demoted:'rgba(248,81,73,0.15)',matched:'rgba(88,166,255,0.12)',dual:'rgba(188,140,255,0.15)'};
+
+  // Pan/zoom state
+  var panX=0,panY=0,zoom=1,isDrag=false,dragX=0,dragY=0;
+  cv.addEventListener('mousedown',function(e){isDrag=true;dragX=e.clientX;dragY=e.clientY;cv.style.cursor='grabbing';e.preventDefault()});
   window.addEventListener('mouseup',function(){isDrag=false;cv.style.cursor='grab'});
-  window.addEventListener('mousemove',function(e){if(!isDrag)return;var s=zD*0.003;panX-=(e.clientX-pX)*s;panY+=(e.clientY-pY)*s;pX=e.clientX;pY=e.clientY;uCam()});
-  cv.addEventListener('wheel',function(e){zD=Math.max(1,Math.min(100,zD+e.deltaY*0.03));uCam();e.preventDefault()},{passive:false});
-  // Legend + info
-  var leg=document.createElement('div');leg.style.cssText='position:absolute;top:6px;right:8px;font:10px monospace;background:rgba(8,8,18,.85);padding:6px 10px;border-radius:4px;z-index:5;color:#bbb;line-height:1.8';
-  leg.innerHTML='<span style="color:#3fb950">●</span> promoted <span style="color:#f85149">●</span> demoted <span style="color:#58a6ff">●</span> matched <span style="color:#bc8cff">●</span> dual<br><span style="color:#888">'+nodes.length+' nodes · '+edges.length+' edges · ≥'+minApp+' pos</span>';
-  container.appendChild(leg);
-  var inf=document.createElement('div');inf.style.cssText='position:absolute;bottom:6px;left:8px;font:9px monospace;color:#556;z-index:5';inf.textContent='drag: pan · scroll: zoom';container.appendChild(inf);
-  function animate(){requestAnimationFrame(animate);ren.render(sc,cam)}animate();
+  window.addEventListener('mousemove',function(e){if(!isDrag)return;panX+=(e.clientX-dragX);panY+=(e.clientY-dragY);dragX=e.clientX;dragY=e.clientY;draw()});
+  cv.addEventListener('wheel',function(e){var oz=zoom;zoom=Math.max(0.3,Math.min(4,zoom*(e.deltaY>0?0.92:1.08)));var rect=cv.getBoundingClientRect();var mx=e.clientX-rect.left,my=e.clientY-rect.top;panX=mx-(mx-panX)*zoom/oz;panY=my-(my-panY)*zoom/oz;draw();e.preventDefault()},{passive:false});
+
+  function draw(){
+    var W=cv.width/dpr,H=cv.height/dpr;
+    var ctx=cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    ctx.translate(panX,panY);
+    ctx.scale(zoom,zoom);
+
+    // Layout constants
+    var padL=60,padR=30,padT=40,padB=20;
+    var colW=(W-padL-padR)/Math.max(nPos-1,1);
+    var laneH=Math.min(22,Math.max(10,(H-padT-padB-40)/flows.length));
+    var ribbonMax=laneH*0.8;
+
+    // Draw column headers (token labels)
+    ctx.font='bold 11px monospace';ctx.textAlign='center';
+    for(var p=0;p<nPos;p++){
+      var x=padL+p*colW;
+      // Vertical guide line
+      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,padT-5);ctx.lineTo(x,padT+flows.length*laneH+10);ctx.stroke();
+      // Token label
+      var ps=g.posStats[p];
+      var labelCol=ps.contested?(ps.intensity>=6?'#f85149':(ps.intensity>=3?'#d29a22':'#888')):'#556';
+      ctx.fillStyle=labelCol;
+      var tok=tokens[p]||'';if(tok.length>6)tok=tok.substr(0,6)+'…';
+      ctx.fillText(tok,x,padT-10);
+    }
+
+    // Draw flows
+    for(var fi=0;fi<flows.length;fi++){
+      var flow=flows[fi];
+      var y=padT+fi*laneH+laneH/2;
+
+      // Row label (candidate token)
+      ctx.font='10px monospace';ctx.textAlign='right';
+      var labelRole=flow.isDual?'dual':(flow.segs[0]?flow.segs[0].role:'matched');
+      ctx.fillStyle=roleColor[labelRole]||'#888';
+      var lbl=flow.label.length>7?flow.label.substr(0,7)+'…':flow.label;
+      ctx.fillText(lbl,padL-8,y+3);
+
+      // Draw ribbon segments between consecutive appearances
+      for(var si=0;si<flow.segs.length;si++){
+        var seg=flow.segs[si];
+        var x=padL+seg.pos*colW;
+        var thick=2+ribbonMax*(seg.prob/0.5);thick=Math.min(thick,ribbonMax);
+
+        // Node dot at this position
+        ctx.beginPath();ctx.arc(x,y,Math.max(3,thick/2+1),0,Math.PI*2);
+        ctx.fillStyle=roleColor[seg.role];ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=0.5;ctx.stroke();
+
+        // Ribbon to next segment
+        if(si<flow.segs.length-1){
+          var next=flow.segs[si+1];
+          var x2=padL+next.pos*colW;
+          var thick2=2+ribbonMax*(next.prob/0.5);thick2=Math.min(thick2,ribbonMax);
+
+          // Bezier ribbon with color transition
+          var midX=(x+x2)/2;
+          var c1=roleColor[seg.role],c2=roleColor[next.role];
+          var roleChanged=(seg.role!==next.role);
+
+          // Draw ribbon as filled bezier path
+          ctx.beginPath();
+          ctx.moveTo(x,y-thick/2);
+          ctx.bezierCurveTo(midX,y-thick/2,midX,y-thick2/2,x2,y-thick2/2);
+          ctx.lineTo(x2,y+thick2/2);
+          ctx.bezierCurveTo(midX,y+thick2/2,midX,y+thick/2,x,y+thick/2);
+          ctx.closePath();
+
+          if(roleChanged){
+            // Gradient for role transition
+            var grad=ctx.createLinearGradient(x,0,x2,0);
+            grad.addColorStop(0,c1);grad.addColorStop(1,c2);
+            ctx.fillStyle=grad;ctx.globalAlpha=0.4;ctx.fill();
+            ctx.strokeStyle=grad;ctx.globalAlpha=0.7;ctx.lineWidth=1;ctx.stroke();
+            ctx.globalAlpha=1;
+            // Role switch marker
+            ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';
+            ctx.fillText('⟳',midX,y-thick/2-4);
+          }else{
+            ctx.fillStyle=c1;ctx.globalAlpha=0.25;ctx.fill();
+            ctx.strokeStyle=c1;ctx.globalAlpha=0.6;ctx.lineWidth=1;ctx.stroke();
+            ctx.globalAlpha=1;
+          }
+
+          // Dashed line for position gaps (non-adjacent)
+          if(next.pos-seg.pos>1){
+            ctx.setLineDash([3,3]);
+            ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=0.5;
+            ctx.beginPath();ctx.moveTo(x+6,y);ctx.lineTo(x2-6,y);ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+    }
+
+    // Legend
+    ctx.restore();
+    ctx.font='10px monospace';ctx.textAlign='left';
+    var lx=8,ly=H-8;
+    ctx.fillStyle='rgba(10,10,20,0.85)';ctx.fillRect(lx-4,ly-26,260,30);
+    var items=[['promoted','#3fb950'],['demoted','#f85149'],['matched','#58a6ff'],['dual','#bc8cff']];
+    var ox=lx;
+    for(var i=0;i<items.length;i++){
+      ctx.fillStyle=items[i][1];ctx.beginPath();ctx.arc(ox+4,ly-10,4,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#999';ctx.fillText(items[i][0],ox+12,ly-6);
+      ox+=ctx.measureText(items[i][0]).width+22;
+    }
+    ctx.fillStyle='#556';ctx.fillText(flows.length+' flows · '+nPos+' positions',ox+4,ly-6);
+
+    // Info
+    ctx.fillStyle='#445';ctx.textAlign='right';
+    ctx.fillText('drag: pan · scroll: zoom',W-8,ly-6);
+  }
+
+  resize();
+  window.addEventListener('resize',resize);
+}
 }
 </script>
 </body>
