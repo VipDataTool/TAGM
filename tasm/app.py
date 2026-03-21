@@ -869,7 +869,7 @@ def _run_dashboard_sync():
     slim_results = []
     for r in results:
         slim = {k: r.get(k) for k in [
-            "prompt", "category", "seq_len", "stress_score", "net_correction",
+            "prompt", "category", "role", "seq_len", "stress_score", "net_correction",
             "entropy", "gini", "top2_share", "middle_share", "interior_cv",
             "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
             "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
@@ -899,6 +899,11 @@ def _run_dashboard_sync():
             ]}
         # Rank displacement
         slim["rank_displacement"] = r.get("rank_displacement")
+        # Classifiers
+        if r.get("classifiers"):
+            slim["classifiers"] = r["classifiers"]
+        if r.get("classification"):
+            slim["classification"] = r["classification"]
         slim_results.append(slim)
 
     return sanitize_for_json({
@@ -1081,7 +1086,7 @@ async def save_config(request: Request):
 
 @app.post("/api/chat")
 async def chat(request: Request):
-    """Generate text from the loaded instruct model, optionally with analysis."""
+    """Generate text from the loaded instruct model, optionally analyzing prompts/responses."""
     if analyzer is None or analyzer.mm.state is None or analyzer.mm.state.model_instruct is None:
         return JSONResponse(content={"ok": False, "error": "No model loaded"})
 
@@ -1090,6 +1095,7 @@ async def chat(request: Request):
         messages = body.get("messages", [])
         max_tokens = min(body.get("max_tokens", 256), 512)
         do_analyze = body.get("analyze", False)
+        do_analyze_response = body.get("analyze_response", False)
         category = body.get("category", "")
         compute_ltp = body.get("compute_ltp", True)
         compute_sfd = body.get("compute_sfd", True)
@@ -1099,13 +1105,13 @@ async def chat(request: Request):
 
         prompt_text = messages[-1].get("content", "")
 
+        # Generate response
         with _analysis_lock:
             state = analyzer.mm.state
             model = state.model_instruct
             tokenizer = state.tokenizer
             device = state.device
 
-            # Build chat template from full history
             text = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True)
             inputs = tokenizer(text, return_tensors="pt").to(device)
@@ -1125,41 +1131,40 @@ async def chat(request: Request):
 
         result = {"ok": True, "response": response}
 
-        # Optionally run analysis on the user's prompt
+        # Analyze user prompt — goes into session as a regular result
         if do_analyze and prompt_text:
             try:
-                result_dict, plots = _analyze_and_record(
+                rd, _ = _analyze_and_record(
                     prompt_text, category=category,
                     compute_kl=True, compute_trajectory=False,
                     capture_responses=False,
                     compute_ltp=compute_ltp, compute_sfd=compute_sfd,
                     skip_plots=True,
                 )
-                # Return a slim analysis payload
-                slim = {}
-                for k in ['stress_score', 'net_correction', 'entropy', 'middle_share',
-                          'interior_cv', 'gini', 'top2_share', 'kl_divergence',
-                          'seq_len', 'n_negative_tokens']:
-                    if k in result_dict:
-                        slim[k] = result_dict[k]
-                if result_dict.get('ltp'):
-                    slim['ltp'] = {k: result_dict['ltp'].get(k) for k in
-                                   ['mean_M', 'mean_C', 'mean_V', 'mean_L'] if result_dict['ltp'].get(k) is not None}
-                if result_dict.get('sfd'):
-                    slim['sfd'] = result_dict['sfd']
-                if result_dict.get('rank_displacement'):
-                    slim['rank_displacement'] = result_dict['rank_displacement']
-                if result_dict.get('classifiers'):
-                    slim['classifiers'] = {}
-                    for cid, cl in result_dict['classifiers'].items():
-                        slim['classifiers'][cid] = {
-                            'predicted': cl.get('predicted'),
-                            'confidence': cl.get('confidence'),
-                        }
-                result['analysis'] = slim
+                # Tag it
+                if session and session.results:
+                    session.results[-1]['role'] = 'user'
+                result['prompt_analyzed'] = True
             except Exception as e:
-                logging.exception("Chat analysis failed")
-                result['analysis_error'] = str(e)
+                logging.exception("Chat prompt analysis failed")
+                result['prompt_analysis_error'] = str(e)
+
+        # Analyze model response — also goes into session
+        if do_analyze_response and response:
+            try:
+                rd, _ = _analyze_and_record(
+                    response, category='model_response',
+                    compute_kl=True, compute_trajectory=False,
+                    capture_responses=False,
+                    compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+                    skip_plots=True,
+                )
+                if session and session.results:
+                    session.results[-1]['role'] = 'assistant'
+                result['response_analyzed'] = True
+            except Exception as e:
+                logging.exception("Chat response analysis failed")
+                result['response_analysis_error'] = str(e)
 
         return JSONResponse(content=result)
     except Exception as e:
