@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from engine.model_manager import ModelManager, KNOWN_PAIRS, _load_model_registry, _save_model_registry
 from engine.analyzer import Analyzer, result_to_dict
 from engine.baselines import BaselineManager, get_all_prompts, add_prompt as csv_add_prompt
-from engine.statistics import aggregate_batch
+from engine.statistics import aggregate_batch, length_residualize
 from engine.visualizations import (
     plot_signed_attribution, plot_stress_per_token,
     plot_amplitude_trajectory, plot_heatmap,
@@ -861,6 +861,9 @@ def _run_dashboard_sync():
 
     agg = aggregate_batch(pr_list)
 
+    # ── Compute per-result length residuals for table display ──
+    resid_data = length_residualize(pr_list)
+
     # ── Generate plots and save to disk ──
     agg_plots = {"batch_summary": plot_batch_summary(agg),
                  "separability": plot_separability(agg)}
@@ -917,6 +920,13 @@ def _run_dashboard_sync():
 
         # Pre-computed candidate graph summary
         slim["candidate_graph"] = _compute_candidate_graph_summary(r)
+
+        # Length-residualized values (regression-based, all instruments)
+        slim["length_residuals"] = {}
+        for stat_key, rd_info in resid_data.items():
+            rv = rd_info["residuals"][i]
+            if rv is not None:
+                slim["length_residuals"][stat_key] = round(rv, 8)
 
         # Classifier prediction only
         if r.get("classifiers"):

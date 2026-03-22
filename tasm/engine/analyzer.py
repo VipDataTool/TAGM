@@ -158,6 +158,8 @@ class PromptResult:
             ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
             ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
             ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
+            ltp_r.n_directional = ltp_data.get("n_directional", 0)
+            ltp_r.max_prc = ltp_data.get("max_prc", 0.0) or 0.0
 
             if mode == "plot":
                 ltp_r.profiles = [np.array(p) for p in ltp_data.get("profiles", [])]

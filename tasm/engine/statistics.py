@@ -125,153 +125,297 @@ def best_threshold(benign_vals: list, harmful_vals: list) -> dict:
             "direction": best_dir}
 
 
+# ─── Metric extraction helpers ────────────────────────────────────
+
+# Every metric we want to residualize: (stat_key, extractor_function)
+# Extractors take a PromptResult and return float | None.
+
+def _get_ltp_val_generic(r, ltp_key):
+    """Extract an LTP scalar from a PromptResult (handles both live and reconstituted)."""
+    if hasattr(r, 'ltp') and r.ltp is not None:
+        obj = r.ltp
+        if isinstance(obj, dict):
+            return obj.get(ltp_key)
+        return getattr(obj, ltp_key, None)
+    if hasattr(r, ltp_key):
+        return getattr(r, ltp_key, None)
+    return None
+
+
+def _get_sfd_val_generic(r, sfd_key):
+    """Extract an SFD scalar from a PromptResult."""
+    if hasattr(r, 'sfd') and r.sfd is not None:
+        obj = r.sfd
+        if isinstance(obj, dict):
+            return obj.get(sfd_key)
+        return getattr(obj, sfd_key, None)
+    return None
+
+
+def _get_rd_val(r, rd_key):
+    """Extract a rank-displacement scalar from a PromptResult."""
+    rd = getattr(r, 'rank_displacement', None)
+    if isinstance(rd, dict):
+        return rd.get(rd_key)
+    return None
+
+
+# Registry of all metrics eligible for length residualization.
+# Each entry: (stat_key, extractor) where extractor(r) -> float | None.
+ALL_METRICS_REGISTRY = [
+    # ASM
+    ("stress_score",   lambda r: getattr(r, 'stress_score', None)),
+    ("entropy",        lambda r: getattr(r, 'entropy', None)),
+    ("gini",           lambda r: getattr(r, 'gini', None)),
+    ("top2_share",     lambda r: getattr(r, 'top2_share', None)),
+    ("middle_share",   lambda r: getattr(r, 'middle_share', None)),
+    ("interior_cv",    lambda r: getattr(r, 'interior_cv', None)),
+    ("net_correction", lambda r: getattr(r, 'net_correction', None)),
+    # KL
+    ("kl_divergence",  lambda r: getattr(r, 'kl_divergence', None)),
+    # LTP
+    ("ltp_mean_M",     lambda r: _get_ltp_val_generic(r, 'mean_M')),
+    ("ltp_mean_C",     lambda r: _get_ltp_val_generic(r, 'mean_C')),
+    ("ltp_mean_V",     lambda r: _get_ltp_val_generic(r, 'mean_V')),
+    ("ltp_mean_L",     lambda r: _get_ltp_val_generic(r, 'mean_L')),
+    ("ltp_n_dir",      lambda r: _get_ltp_val_generic(r, 'n_directional')),
+    # SFD (match existing key names used in category summaries and frontend)
+    ("sfd_density_mean",  lambda r: _get_sfd_val_generic(r, 'density_mean')),
+    ("sfd_entropy_mean",  lambda r: _get_sfd_val_generic(r, 'entropy_mean')),
+    ("sfd_energy_mean",   lambda r: _get_sfd_val_generic(r, 'energy_mean')),
+    # Rank displacement (match existing key names)
+    ("rank_displacement_tau",     lambda r: _get_rd_val(r, 'mean_tau')),
+    ("rank_displacement_overlap", lambda r: _get_rd_val(r, 'mean_overlap')),
+    ("rd_replacement",            lambda r: _get_rd_val(r, 'mean_replacement')),
+    ("rd_disp_per_tok",           lambda r: _get_rd_val(r, 'mean_disp_per_token')),
+]
+
+
+# ─── Regression-based length residualization ──────────────────────
+
+def length_residualize(results: list, fit_categories: Optional[set] = None) -> dict:
+    """Fit OLS regression of each metric against seq_len, return residuals.
+
+    Args:
+        results: list of PromptResult objects.
+        fit_categories: if provided, fit the regression only on results in these
+            categories (e.g. {"benign"} to use the benign trendline).  Residuals
+            are still computed for ALL results.  If None, fits on the full batch.
+
+    Returns:
+        dict mapping stat_key -> {
+            "residuals": list of float|None (one per result, None if metric missing),
+            "slope": float,
+            "intercept": float,
+            "r": float (Pearson r of metric vs length),
+            "r_sq": float,
+        }
+    """
+    lengths = np.array([float(r.seq_len) for r in results])
+    out = {}
+
+    for stat_key, extractor in ALL_METRICS_REGISTRY:
+        # Extract values (None where missing)
+        raw = [extractor(r) for r in results]
+
+        # Build mask of valid values
+        valid = [(i, float(v)) for i, v in enumerate(raw)
+                 if v is not None and not (math.isnan(float(v)) or math.isinf(float(v)))]
+        if len(valid) < 5:
+            continue
+
+        # Skip degenerate metrics (constant or near-constant values)
+        all_valid_y_check = np.array([v for _, v in valid])
+        if all_valid_y_check.std() < 1e-12:
+            continue
+
+        # Determine fit subset
+        if fit_categories is not None:
+            fit_idx = [i for i, v in valid
+                       if (results[i].category or "unknown") in fit_categories]
+        else:
+            fit_idx = [i for i, _ in valid]
+
+        if len(fit_idx) < 3:
+            # Not enough data in fit subset, fall back to full
+            fit_idx = [i for i, _ in valid]
+
+        valid_map = {i: v for i, v in valid}
+        fit_x = np.array([lengths[i] for i in fit_idx])
+        fit_y = np.array([valid_map[i] for i in fit_idx])
+
+        # OLS: y = slope * x + intercept
+        if fit_x.std() == 0 or fit_y.std() == 0:
+            continue
+        slope, intercept = np.polyfit(fit_x, fit_y, 1)
+        predicted_all = slope * lengths + intercept
+
+        # Pearson r on full valid set
+        all_valid_x = np.array([lengths[i] for i, _ in valid])
+        all_valid_y = np.array([v for _, v in valid])
+        if len(all_valid_x) >= 3 and all_valid_x.std() > 0 and all_valid_y.std() > 0:
+            r_val = float(np.corrcoef(all_valid_x, all_valid_y)[0, 1])
+        else:
+            r_val = 0.0
+
+        # Compute residuals for all results
+        residuals = [None] * len(results)
+        for i, v in valid:
+            residuals[i] = float(v) - float(predicted_all[i])
+
+        out[stat_key] = {
+            "residuals": residuals,
+            "slope": _safe_float(slope),
+            "intercept": _safe_float(intercept),
+            "r": _safe_float(r_val),
+            "r_sq": _safe_float(r_val ** 2),
+        }
+
+    return out
+
+
 def aggregate_batch(results: list) -> dict:
     """
     Aggregate a batch of PromptResult objects into summary statistics.
-    Groups by category and computes effect sizes between benign and harmful.
-    Includes LTP metrics (M, C, V, L) when available.
+    Groups by category and computes effect sizes between categories.
+    Includes ALL metrics (ASM, LTP, SFD, rank displacement).
+
+    Length residualization: fits OLS regression of each metric against
+    seq_len across the full batch, then computes Cohen's d on residuals.
+    Both raw and residualized effect sizes are reported.
     """
-    # Group by category
-    groups: Dict[str, list] = {}
-    for r in results:
+    # ── Compute length residuals for all metrics ──────────────────
+    resid_data = length_residualize(results)
+
+    # ── Build result-index lookup ─────────────────────────────────
+    result_indices: Dict[str, List[int]] = {}
+    for i, r in enumerate(results):
         cat = r.category or "unknown"
-        if cat not in groups:
-            groups[cat] = []
-        groups[cat].append(r)
+        if cat not in result_indices:
+            result_indices[cat] = []
+        result_indices[cat].append(i)
 
-    # Per-category summary
+    # ── Per-category summary ──────────────────────────────────────
     cat_summaries = {}
-    metrics = ["stress_score", "entropy", "gini", "top2_share",
-               "middle_share", "interior_cv", "net_correction"]
 
-    # LTP metrics (extracted from ltp attribute or dict)
-    ltp_metrics = ["ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L"]
+    for cat, indices in result_indices.items():
+        group = [results[i] for i in indices]
+        summary = {"n": len(group), "metrics": {},
+                   "mean_seq_len": float(np.mean([r.seq_len for r in group]))}
 
-    def _get_ltp_val(r, metric_name):
-        """Extract LTP metric from PromptResult or dict."""
-        ltp_key = metric_name.replace("ltp_", "")  # e.g. "mean_M"
-        if hasattr(r, 'ltp') and r.ltp is not None:
-            return getattr(r.ltp, ltp_key, None)
-        # If r is a reconstituted PromptResult from dict
-        if hasattr(r, ltp_key):
-            return getattr(r, ltp_key, None)
-        return None
+        # Negative token frequency
+        n_with_neg = sum(1 for r in group if r.has_negative_tokens)
+        summary["negative_token_rate"] = n_with_neg / len(group) if group else 0
 
-    for cat, group in groups.items():
-        summary = {"n": len(group), "metrics": {}}
-        for m in metrics:
-            vals = [float(getattr(r, m)) for r in group if getattr(r, m) is not None]
+        # Raw metric summaries
+        for stat_key, extractor in ALL_METRICS_REGISTRY:
+            vals = [float(v) for r in group
+                    for v in [extractor(r)] if v is not None
+                    and not (math.isnan(float(v)) or math.isinf(float(v)))]
             if vals:
-                summary["metrics"][m] = bootstrap_ci(vals)
-            # Length-normalized version
+                summary["metrics"][stat_key] = bootstrap_ci(vals)
+
+            # Length-residualized summary
+            if stat_key in resid_data:
+                resid_vals = [resid_data[stat_key]["residuals"][i]
+                              for i in indices
+                              if resid_data[stat_key]["residuals"][i] is not None]
+                if resid_vals:
+                    summary["metrics"][stat_key + "_resid"] = bootstrap_ci(resid_vals)
+
+        # Legacy _ln fields (from baseline manager z-scores, if present)
+        for m in ["stress_score", "entropy", "gini", "top2_share",
+                   "middle_share", "interior_cv", "net_correction"]:
             ln_attr = m + "_ln"
             ln_vals = [float(getattr(r, ln_attr)) for r in group
                        if hasattr(r, ln_attr) and getattr(r, ln_attr) is not None]
             if ln_vals:
                 summary["metrics"][m + "_ln"] = bootstrap_ci(ln_vals)
 
-        # LTP metrics
-        for lm in ltp_metrics:
-            vals = []
-            for r in group:
-                v = _get_ltp_val(r, lm)
-                if v is not None:
-                    vals.append(float(v))
-            if vals:
-                summary["metrics"][lm] = bootstrap_ci(vals)
-
-        # KL if available
-        kl_vals = [float(r.kl_divergence) for r in group if r.kl_divergence is not None]
-        if kl_vals:
-            summary["metrics"]["kl_divergence"] = bootstrap_ci(kl_vals)
-
-        # SFD metrics (from sfd attribute or dict)
-        def _get_sfd_val(r, key):
-            if hasattr(r, 'sfd') and r.sfd is not None:
-                return getattr(r.sfd, key, None)
-            return None
-
-        sfd_metrics = {
-            "sfd_density_mean": "density_mean",
-            "sfd_entropy_mean": "entropy_mean",
-            "sfd_energy_mean": "energy_mean",
-        }
-        for stat_key, attr_key in sfd_metrics.items():
-            vals = []
-            for r in group:
-                v = _get_sfd_val(r, attr_key)
-                if v is not None:
-                    vals.append(float(v))
-            if vals:
-                summary["metrics"][stat_key] = bootstrap_ci(vals)
-
-        # Rank displacement (from rank_displacement dict)
-        rd_vals = []
-        rd_overlap_vals = []
-        for r in group:
-            rd = getattr(r, 'rank_displacement', None)
-            if isinstance(rd, dict) and rd.get('mean_tau') is not None:
-                rd_vals.append(float(rd['mean_tau']))
-                if rd.get('mean_overlap') is not None:
-                    rd_overlap_vals.append(float(rd['mean_overlap']))
-        if rd_vals:
-            summary["metrics"]["rank_displacement_tau"] = bootstrap_ci(rd_vals)
-        if rd_overlap_vals:
-            summary["metrics"]["rank_displacement_overlap"] = bootstrap_ci(rd_overlap_vals)
-
-        # Mean seq length
-        summary["mean_seq_len"] = float(np.mean([r.seq_len for r in group]))
-
-        # Negative token frequency
-        n_with_neg = sum(1 for r in group if r.has_negative_tokens)
-        summary["negative_token_rate"] = n_with_neg / len(group) if group else 0
-
         cat_summaries[cat] = summary
 
-    # Effect sizes: benign-ish vs harmful-ish
+    # ── Pairwise separability ─────────────────────────────────────
+    # Compute effect sizes for ALL category pairs, not just benign-vs-harmful.
+    # Primary comparisons: benign vs each other category.
     benign_cats = {"benign", "baseline", "mild", "user_baseline"}
-    harmful_cats = {"harmful", "jailbreak", "adversarial"}
+    target_cats = {"harmful", "adversarial", "jailbreak", "dual-use"}
 
-    benign_results = [r for r in results if r.category in benign_cats]
-    harmful_results = [r for r in results if r.category in harmful_cats]
+    benign_idx = [i for i, r in enumerate(results) if r.category in benign_cats]
 
     separability = {}
-    all_sep_metrics = metrics + ltp_metrics
-    if benign_results and harmful_results:
-        for m in all_sep_metrics:
-            if m in ltp_metrics:
-                b_vals = [float(v) for r in benign_results
-                          for v in [_get_ltp_val(r, m)] if v is not None]
-                h_vals = [float(v) for r in harmful_results
-                          for v in [_get_ltp_val(r, m)] if v is not None]
-            else:
-                b_vals = [float(getattr(r, m)) for r in benign_results if getattr(r, m) is not None]
-                h_vals = [float(getattr(r, m)) for r in harmful_results if getattr(r, m) is not None]
+    separability_resid = {}
+
+    for target_cat in target_cats:
+        target_idx = result_indices.get(target_cat, [])
+        if not benign_idx or not target_idx:
+            continue
+
+        pair_key = f"benign_vs_{target_cat}"
+        separability[pair_key] = {}
+        separability_resid[pair_key] = {}
+
+        for stat_key, extractor in ALL_METRICS_REGISTRY:
+            # Raw values
+            b_vals = [float(v) for i in benign_idx
+                      for v in [extractor(results[i])] if v is not None
+                      and not (math.isnan(float(v)) or math.isinf(float(v)))]
+            t_vals = [float(v) for i in target_idx
+                      for v in [extractor(results[i])] if v is not None
+                      and not (math.isnan(float(v)) or math.isinf(float(v)))]
+
+            if b_vals and t_vals:
+                separability[pair_key][stat_key] = {
+                    "effect_size": bootstrap_effect_size(b_vals, t_vals),
+                    "threshold": best_threshold(b_vals, t_vals),
+                    "benign_mean": float(np.mean(b_vals)),
+                    "target_mean": float(np.mean(t_vals)),
+                }
+
+            # Residualized values
+            if stat_key in resid_data:
+                rd = resid_data[stat_key]["residuals"]
+                b_resid = [rd[i] for i in benign_idx if rd[i] is not None]
+                t_resid = [rd[i] for i in target_idx if rd[i] is not None]
+                if b_resid and t_resid:
+                    separability_resid[pair_key][stat_key] = {
+                        "effect_size": bootstrap_effect_size(b_resid, t_resid),
+                        "threshold": best_threshold(b_resid, t_resid),
+                    }
+
+    # ── Legacy flat separability (benign-ish vs harmful-ish pooled) ──
+    harmful_cats_all = {"harmful", "jailbreak", "adversarial"}
+    harmful_idx = [i for i, r in enumerate(results) if r.category in harmful_cats_all]
+
+    separability_legacy = {}
+    if benign_idx and harmful_idx:
+        for stat_key, extractor in ALL_METRICS_REGISTRY:
+            b_vals = [float(v) for i in benign_idx
+                      for v in [extractor(results[i])] if v is not None
+                      and not (math.isnan(float(v)) or math.isinf(float(v)))]
+            h_vals = [float(v) for i in harmful_idx
+                      for v in [extractor(results[i])] if v is not None
+                      and not (math.isnan(float(v)) or math.isinf(float(v)))]
             if b_vals and h_vals:
-                separability[m] = {
+                entry = {
                     "effect_size": bootstrap_effect_size(b_vals, h_vals),
                     "threshold": best_threshold(b_vals, h_vals),
                     "benign_mean": float(np.mean(b_vals)),
                     "harmful_mean": float(np.mean(h_vals)),
                 }
+                separability_legacy[stat_key] = entry
 
-                # Length-normalized version (only for ASM metrics)
-                if m not in ltp_metrics:
-                    ln_attr = m + "_ln"
-                    b_ln = [float(getattr(r, ln_attr)) for r in benign_results
-                            if hasattr(r, ln_attr) and getattr(r, ln_attr) is not None]
-                    h_ln = [float(getattr(r, ln_attr)) for r in harmful_results
-                            if hasattr(r, ln_attr) and getattr(r, ln_attr) is not None]
-                    if b_ln and h_ln:
-                        separability[m + "_ln"] = {
-                            "effect_size": bootstrap_effect_size(b_ln, h_ln),
-                            "threshold": best_threshold(b_ln, h_ln),
+                # Residualized
+                if stat_key in resid_data:
+                    rd = resid_data[stat_key]["residuals"]
+                    b_r = [rd[i] for i in benign_idx if rd[i] is not None]
+                    h_r = [rd[i] for i in harmful_idx if rd[i] is not None]
+                    if b_r and h_r:
+                        separability_legacy[stat_key + "_resid"] = {
+                            "effect_size": bootstrap_effect_size(b_r, h_r),
+                            "threshold": best_threshold(b_r, h_r),
                         }
 
-    # Correlation between stress_score and kl_divergence
-    # Filter at the prompt level to keep pairs aligned — independent NaN
-    # filtering on separate lists can misalign which prompt each value
-    # belongs to, producing correlations on mismatched data.
+    # ── Correlations ──────────────────────────────────────────────
     correlations = {}
     corr_pairs = [
         (float(r.stress_score), float(r.kl_divergence))
@@ -286,9 +430,22 @@ def aggregate_batch(results: list) -> dict:
         correlations["stress_vs_kl"] = {"r": _safe_float(r_val), "p": _safe_float(p_val),
                                          "n": len(corr_pairs)}
 
+    # ── Length regression diagnostics ─────────────────────────────
+    length_regressions = {}
+    for stat_key, info in resid_data.items():
+        length_regressions[stat_key] = {
+            "slope": info["slope"],
+            "intercept": info["intercept"],
+            "r": info["r"],
+            "r_sq": info["r_sq"],
+        }
+
     return {
         "n_total": len(results),
         "categories": cat_summaries,
-        "separability": separability,
+        "separability": separability_legacy,          # backward compat
+        "separability_pairwise": separability,        # raw, per-pair
+        "separability_residualized": separability_resid,  # length-controlled
+        "length_regressions": length_regressions,     # regression diagnostics
         "correlations": correlations,
     }
