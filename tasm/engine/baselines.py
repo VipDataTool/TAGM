@@ -16,12 +16,9 @@ BASELINES_FILE = Path(__file__).parent.parent / "baselines.csv"
 PROMPTS_FILE = Path(__file__).parent.parent / "prompts.csv"
 
 
-# ─── Baseline source ─────────────────────────────────────────────
-
 def load_baselines_csv() -> List[str]:
     """Load baseline prompts from baselines.csv (single column: prompt).
-    These are known-benign reference prompts. They can be used as a prompt
-    source for batch runs but are no longer used for z-score normalization."""
+    These are known-benign reference prompts."""
     if not BASELINES_FILE.exists():
         return []
     prompts = []
@@ -33,8 +30,6 @@ def load_baselines_csv() -> List[str]:
                 prompts.append(p)
     return prompts
 
-
-# ─── Prompt library (separate from baselines) ────────────────────
 
 def load_prompts_csv() -> list:
     """Load the prompt library from prompts.csv."""
@@ -60,7 +55,4 @@ def add_prompt(prompt: str, category: str = "benign", baseline: bool = False):
     """Append a prompt to prompts.csv."""
     with open(PROMPTS_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["prompt", "category"])
-        writer.writerow({
-            "prompt": prompt,
-            "category": category,
-        })
+        writer.writerow({"prompt": prompt, "category": category})

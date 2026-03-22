@@ -882,7 +882,7 @@ def _run_dashboard_sync():
             if rv is not None:
                 slim["length_residuals"][stat_key] = round(rv, 8)
 
-        # Classifier prediction only
+        # Classifier prediction only (stored data uses "predicted" key)
         if r.get("classifiers"):
             slim["classifiers"] = {}
             for cid, cl in r["classifiers"].items():

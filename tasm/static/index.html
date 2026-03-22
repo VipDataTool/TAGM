@@ -8,7 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-
 :root {
   --bg-0:#121212;--bg-1:#1E1E1E;--bg-2:#252525;--bg-3:#2d2d2d;
   --border:#3d3d3d;--border-accent:#505050;
@@ -60,7 +59,7 @@ textarea{resize:vertical;min-height:44px}
 .btn-sm{font-size:11px;padding:4px 8px;width:auto}
 .file-input-wrapper{margin-bottom:6px}
 .file-input-wrapper input[type="file"]{width:100%;font-size:12px;font-family:var(--mono);color:var(--text-1)}
-.file-input-wrapper input[type="file"]::file-selector-button{font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:3px;background:var(--bg-3);color:var(--text-1);cursor:pointer;margin-right:5px}
+.file-input-wrapper input[type="file"]::file-selector-button{font-family:var(--mono);font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:3px;background:var(--bg-3);color:var(--text-0);cursor:pointer;margin-right:5px}
 .progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--text-2)}
 .progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
 .error-msg{background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--red);margin-bottom:8px;font-family:var(--mono)}
@@ -164,208 +163,13 @@ textarea{resize:vertical;min-height:44px}
 .terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}
 .terrain-leg canvas{height:5px;width:100px;border-radius:2px}
 .terrain-leg span{font-size:11px;color:#bbc}
-
-
-/* ─── Utility classes (extracted from inline styles) ──────────── */
-.agg-bar-fill{height:100%;border-radius:4px}
-.agg-bar-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px}
-.agg-map-cell{padding:4px 4px;color:#B8BFC6;width:80px}
-.agg-mini-map{padding:3px 4px;font-family:var(--mono);font-size:11px;letter-spacing:0.5px}
-.agg-prompt-cell{padding:5px 8px;font-size:11px}
-.agg-sticky-header{border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)}
-.agg-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
-.agg-td-bar{padding:5px 6px;width:120px}
-.agg-td-header{padding:4px 10px;color:var(--text-0);font-weight:600}
-.agg-td-l-light{text-align:left;padding:5px 6px;color:#B8BFC6}
-.agg-td-l-sm{text-align:left;padding:4px 8px;color:#B8BFC6}
-.agg-td-l-xs{text-align:left;padding:4px 4px;color:#B8BFC6}
-.agg-td-light{padding:5px 6px;color:#B8BFC6}
-.agg-td-l{text-align:left;padding:5px 10px;color:#B8BFC6}
-.agg-td-r-blue-sm{text-align:right;padding:4px 6px;color:#58a6ff}
-.agg-td-r-blue{text-align:right;padding:5px 6px;color:#58a6ff}
-.agg-td-r-dim{padding:5px 6px;text-align:right;color:var(--text-1)}
-.agg-td-r-green-sm{text-align:right;padding:4px 6px;color:#3fb950}
-.agg-td-r-green{text-align:right;padding:5px 6px;color:#3fb950}
-.agg-td-r-purple{text-align:right;padding:5px 6px;color:#bc8cff}
-.agg-td-r-red-sm{text-align:right;padding:4px 6px;color:#f85149}
-.agg-td-r-red{text-align:right;padding:5px 6px;color:#f85149}
-.agg-td-r-sec{text-align:right;padding:4px 6px;color:var(--text-1)}
-.agg-td-r-text{text-align:right;padding:5px 6px;color:#B8BFC6}
-.agg-td-r{text-align:right;padding:6px;color:var(--text-0)}
-.agg-td-sm-text{text-align:right;padding:4px 4px;color:#B8BFC6}
-.agg-td-sm{text-align:right;padding:3px 4px;color:var(--text-1)}
-.agg-td-truncate{padding:3px 8px;color:var(--text-1);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.agg-td-wide{padding:5px 10px;color:var(--text-0)}
-.agg-th-l{text-align:left;padding:8px 10px;color:var(--text-0)}
-.agg-th-r-bold{text-align:right;padding:6px;color:var(--text-0);font-weight:600}
-.agg-th-r{text-align:right;padding:8px 6px;color:var(--text-0)}
-.badge-purple{color:var(--purple);font-size:11px;font-weight:600}
-.bg-orange{background:var(--orange)}
-.border-cyan{border-color:var(--cyan)}
-.border-purple-mt{border-color:var(--purple);margin-top:16px}
-.border-purple{border-color:var(--purple)}
-.btn-cyan-sm{min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.btn-cyan{background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.btn-fixed{flex:0 0 auto;width:auto;padding:7px 14px}
-.btn-sm-pad{font-size:11px;padding:3px 10px}
-.btn-wide{width:auto;padding:8px 20px}
-.card-inner-accent{margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)}
-.card-inner{margin-bottom:10px;padding:8px 10px;background:var(--bg-2);border-radius:4px}
-.center-pad{padding:20px;text-align:center}
-.cfg-grid-mb{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px}
-.cfg-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px}
-.cfg-label{font-size:12px;color:var(--text-1)}
-.cfg-max{max-width:540px}
-.cfg-scope-label{color:var(--text-3);text-transform:none;letter-spacing:0}
-.cfg-section-title{font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.chevron{color:var(--text-2);font-size:12px;margin-right:6px}
-.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.chip{font-size:11px;padding:3px 6px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)}
-.cl-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)}
-.cl-bar-label{font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right}
-.cl-bar-track{flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden}
-.cl-bar-value{font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px}
-.cl-caveat{margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5}
-.cl-contrib-dot{font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px}
-.cl-contrib-icon{font-size:11px;width:12px}
-.cl-contrib-text{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4}
-.cl-favors-pill{font-size:11px}
-.cl-main-label{font-family:var(--mono);font-size:16px;color:var(--text-0)}
-.cl-match-label{font-size:14px;font-weight:600}
-.cl-mono-sub{font-size:11px;color:var(--text-2);font-family:var(--mono)}
-.cl-prob-bar{flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden}
-.cl-prob-fill{height:100%;border-radius:3px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
-.cl-stage-card{padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid}
-.cl-stage-label{font-family:var(--mono);font-size:11px}
-.cl-sub-label{font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px}
-.cl-summary{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4}
-.container{max-width:960px;margin:0 auto}
-.contrib-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)}
-.d-none{display:none}
-.desc-body-lg{font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5}
-.desc-body-md{font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5}
-.desc-body{font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5}
-.desc-indent{font-size:12px;color:var(--text-2);margin:4px 0 0 22px;line-height:1.4}
-.desc-text{font-size:13px;color:var(--text-0);margin-bottom:8px;line-height:1.5}
-.dr-matched{font-size:11px;margin-top:3px;color:var(--text-3)}
-.feature-body-text{font-size:var(--font-desc);color:var(--text-1);line-height:1.6}
-.flex-1-center{flex:1;text-align:center}
-.flex-1{flex:1}
-.flex-center-gap6-mb10{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
-.flex-center{display:flex;justify-content:center}
-.flex-row-clickable{margin:0;display:flex;align-items:center;gap:4px;cursor:pointer}
-.flex-row-gap10-mb10{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.flex-row-gap4-mt6{margin-top:6px;display:flex;gap:4px;align-items:center}
-.flex-row-gap4{display:flex;gap:4px;align-items:center}
-.flex-row-gap6-mt3{display:flex;align-items:center;gap:6px;margin-top:3px}
-.flex-row-gap6-my2{display:flex;align-items:center;gap:6px;margin:2px 0}
-.flex-row-gap8-mt10{margin-top:10px;display:flex;gap:8px}
-.flex-wrap-center-mt10{display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center}
-.flex-wrap-gap8{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.fs-11{font-size:11px}
-.glyph-map{font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0}
-.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
-.info-text{font-size:11px;color:var(--text-2);line-height:1.6}
-.input-sm{width:60px;font-size:11px;padding:3px}
-.input-xs-center{width:42px;font-size:11px;padding:3px;text-align:center}
-.label-cyan{font-size:12px;color:var(--cyan)}
-.link-right{float:right;font-size:12px;color:var(--blue);text-decoration:none}
-.load-msg{margin-top:8px;color:var(--text-3);font:11px monospace}
-.max-w-500{max-width:500px}
-.max-w-full{max-width:100%}
-.mb-0{margin-bottom:0}
-.mb-10{margin-bottom:10px}
-.mb-14{margin-bottom:14px}
-.mb-8{margin-bottom:8px}
-.min-w-32{min-width:32px}
-.min-w-80{min-width:80px}
-.mono-bold-sm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)}
-.mono-bold{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
-.mono-text{font-family:var(--mono);font-size:12px;color:var(--text-1)}
-.mono-title{font-family:var(--mono);font-size:14px;font-weight:600}
-.mono{font-family:var(--mono)}
-.mt-12{margin-top:12px}
-.mt-16{margin-top:16px}
-.mt-3-sm{font-size:11px;margin-top:3px}
-.mt-4-sm{font-size:11px;margin-top:4px}
-.mt-4{margin-top:4px}
-.nav-link{font-family:var(--mono);font-size:11px;color:var(--text-2);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;margin-left:8px}
-.note-purple{margin-bottom:8px;font-size:11px;color:var(--purple)}
-.overlay-full{position:absolute;inset:0}
-.p-0{padding:0}
-.p-10{padding:10px}
-.p-12{padding:12px}
-.p-14{padding:14px}
-.p-16-8{padding:8px 16px;min-width:0}
-.p-16{padding:16px}
-.page-btn{width:auto;padding:2px 6px}
-.page-current{color:var(--blue);font-weight:600;padding:0 4px}
-.pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono)}
-.progress-bar-track{width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px}
-.progress-fill{height:100%;border-radius:2px}
-.progress-log .entry{padding:1px 0}.progress-log .entry.done{color:var(--green)}.progress-log .entry.error{color:var(--red)}
-.progress-log{background:var(--bg-0);border:1px solid var(--border);border-radius:4px;padding:5px;max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--text-2)}
-.px-10-py-6{padding:6px 10px}
-.px-14-py-10{padding:10px 14px}
-.range-md{width:36px;vertical-align:middle}
-.range-sm{width:32px;vertical-align:middle}
-.row-border-faintest{border-bottom:1px solid rgba(255,255,255,0.03)}
-.row-border-faint{border-bottom:1px solid rgba(255,255,255,0.04)}
-.row-border-light{border-bottom:1px solid rgba(255,255,255,0.06)}
-.row-border{border-bottom:1px solid rgba(255,255,255,0.12)}
-.scrollbox-lg{max-height:300px;overflow-y:auto}
-.scrollbox-sm{max-height:180px;overflow-y:auto}
-.scrollbox{max-height:200px;overflow-y:auto;margin-bottom:14px}
-.section-divider{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.section-header-flex{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.section-label-cyan{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px}
-.section-label-orange{font-size:12px;font-weight:600;color:var(--orange);margin-bottom:8px}
-.section-label-purple{font-size:12px;font-weight:600;color:var(--purple);margin-bottom:8px}
-.section-label{font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:8px}
-.section-title-cyan{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px}
-.section-title-purple{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)}
-.section-top-cyan{margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)}
-.section-top-purple{margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
-.stat-label{font-size:11px;color:var(--text-2);margin-bottom:3px}
-.stat-sub{font-size:11px;color:var(--text-2)}
-.stat-value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
-.text-bright{color:var(--text-0)}
-.text-cyan{color:var(--cyan)}
-.text-danger{color:#f85149}
-.text-dark{color:#333}
-.text-green{color:var(--green)}
-.text-light-normal{color:#B8BFC6;font-weight:400}
-.text-light{color:#B8BFC6}
-.text-muted-ml{color:var(--text-3);margin-left:8px}
-.text-muted-right{color:var(--text-3);font-size:11px;margin-left:auto}
-.text-muted-sm{color:var(--text-3);font-size:11px}
-.text-muted-table{color:var(--text-3);font-size:var(--font-table)}
-.text-muted{color:var(--text-3)}
-.text-orange{color:var(--orange)}
-.text-primary-light{color:var(--text-1);font-weight:400}
-.text-primary-right{margin-left:auto;color:var(--text-1);font-size:11px}
-.text-primary{color:var(--text-1)}
-.text-purple{color:var(--purple)}
-.text-red{color:var(--red)}
-.text-secondary-lg{color:var(--text-2);font-size:13px}
-.text-secondary-md{color:var(--text-2);font-size:12px}
-.text-secondary{color:var(--text-2)}
-.text-violet{color:#bc8cff}
-.text-warn{color:#d29a22}
-.token-map{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px}
-.w-70{width:70px}
-.w-auto{width:auto}
-.w-full{width:100%}
 </style>
 </head>
 <body>
 <div class="header">
   <h1><span>TASM</span> Analyzer</h1>
   <span class="subtitle">Alignment Stress Map + Lateral Tension Profile</span>
-  <a href="/chat" target="_blank" class="nav-link">Chat ↗</a>
+  <a href="/chat" target="_blank" style="font-family:var(--mono);font-size:11px;color:var(--text-2);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;margin-left:8px">Chat ↗</a>
   <span class="session-badge" id="sessionBadge">No session</span>
   <div class="status-pill idle" id="statusPill">NO MODEL</div>
 </div>
@@ -387,7 +191,7 @@ textarea{resize:vertical;min-height:44px}
       <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
       <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
     </div>
-    <button class="btn btn-sm btn-secondary mt-4" onclick="toggleAddModel()">+ Add model pair</button>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="toggleAddModel()">+ Add model pair</button>
     <div class="add-model-form" id="addModelForm">
       <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
       <input type="text" id="newModelName" placeholder="Display name">
@@ -413,14 +217,13 @@ textarea{resize:vertical;min-height:44px}
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="ltp-badge bg-orange">SFD</span></label></div>
-    
+    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="ltp-badge" style="background:var(--orange)">SFD</span></label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
-    <div class="flex-row-gap4-mt6">
-      <div class="file-input-wrapper flex-1"><input type="file" id="csvFile" accept=".csv"></div>
-      <button class="btn btn-primary btn-fixed" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
+    <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
+      <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
+      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
     </div>
-    <button class="btn btn-sm btn-secondary mt-4" onclick="addCurrentToLibrary()">Save to Library</button>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
 
 
@@ -434,7 +237,7 @@ textarea{resize:vertical;min-height:44px}
 
   <!-- Log -->
   <div class="section">
-    <div class="section-title">Log <a href="/api/log" target="_blank" class="link-right">download</a></div>
+    <div class="section-title">Log <a href="/api/log" target="_blank" style="float:right;font-size:12px;color:var(--blue);text-decoration:none">download</a></div>
     <div class="progress-log" id="progressLog"><div class="entry">Ready.</div></div>
   </div>
 
@@ -453,30 +256,30 @@ textarea{resize:vertical;min-height:44px}
   </div>
   <div class="tab-panel" id="panel-dashboard">
     <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
-    <div id="dashContent" class="d-none"></div>
+    <div id="dashContent" style="display:none"></div>
   </div>
-  <div class="tab-panel p-16-8" id="panel-data">
-    <div id="dataTableContainer"><p class="text-muted-sm">No data yet.</p></div>
+  <div class="tab-panel" id="panel-data" style="padding:8px 16px;min-width:0">
+    <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-experimental">
     <div class="empty-state" id="expEmpty"><h2>No disabled visualizations</h2><p>Visualizations you disable in the Configuration tab will appear here.</p></div>
-    <div id="expContent" class="d-none"></div>
+    <div id="expContent" style="display:none"></div>
   </div>
   <div class="tab-panel" id="panel-config">
     <div class="card">
       <div class="card-header"><h3>LTP Configuration</h3></div>
       <div class="card-body">
-        <div class="desc-body">Fine-tuning for the Lateral Tension Profile measurement. Default settings (late layers, k=8, no SVD, no tuned-lens) are optimal for Qwen 2.5 0.5B based on A/B testing across 8 configurations. Change these only for research exploration on different model architectures.</div>
-        <div class="grid-2col">
+        <div style="font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5">Fine-tuning for the Lateral Tension Profile measurement. Default settings (late layers, k=8, no SVD, no tuned-lens) are optimal for Qwen 2.5 0.5B based on A/B testing across 8 configurations. Change these only for research exploration on different model architectures.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
           <div>
-            <label class="label-cyan">Layer strategy</label>
+            <label style="font-size:12px;color:var(--cyan)">Layer strategy</label>
             <select id="cfgLtpLayerStrategy" onchange="saveConfig()">
               <option value="late" selected>Late layers (final third)</option>
               <option value="signal">Signal layers (middle third)</option>
             </select>
           </div>
           <div>
-            <label class="label-cyan">Counterfactual k</label>
+            <label style="font-size:12px;color:var(--cyan)">Counterfactual k</label>
             <select id="cfgLtpK" onchange="saveConfig()">
               <option value="4">k=4</option>
               <option value="6">k=6</option>
@@ -484,7 +287,7 @@ textarea{resize:vertical;min-height:44px}
             </select>
           </div>
           <div>
-            <label class="label-cyan">SVD truncation</label>
+            <label style="font-size:12px;color:var(--cyan)">SVD truncation</label>
             <select id="cfgLtpSvdRank" onchange="saveConfig()">
               <option value="0" selected>Off (full delta)</option>
               <option value="3">Rank 3</option>
@@ -493,34 +296,34 @@ textarea{resize:vertical;min-height:44px}
             </select>
           </div>
           <div>
-            <label class="label-cyan">Tuned-lens</label>
+            <label style="font-size:12px;color:var(--cyan)">Tuned-lens</label>
             <select id="cfgLtpTunedLens" onchange="saveConfig()">
               <option value="false" selected>Off</option>
               <option value="true">On</option>
             </select>
           </div>
         </div>
-        <button class="btn btn-sm btn-secondary mt-12" onclick="resetLtpConfig()">Reset to defaults</button>
+        <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="resetLtpConfig()">Reset to defaults</button>
       </div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Analysis Options</h3></div>
       <div class="card-body">
-        <div class="desc-body-md">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
-        <div class="max-w-500">
+        <div style="font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
+        <div style="max-width:500px">
           <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
           <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
           <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full capture (derived metrics: coherence, spectral, similarity, attn/MLP)</label></div>
-          <div class="desc-indent">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
+          <div style="font-size:12px;color:var(--text-2);margin:4px 0 0 22px;line-height:1.4">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
         </div>
       </div>
     </div>
     <div class="card">
       <div class="card-header"><h3>Prompt Visualizations</h3></div>
       <div class="card-body">
-        <div class="desc-body-lg">Toggle which features render in the Prompt tab. Changes apply to the next analysis.</div>
+        <div style="font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5">Toggle which features render in the Prompt tab. Changes apply to the next analysis.</div>
         <div id="vizConfigPanel"></div>
-        <div class="flex-row-gap8-mt10">
+        <div style="margin-top:10px;display:flex;gap:8px">
           <button class="btn btn-sm btn-secondary" onclick="vizResetDefaults()">Reset to defaults</button>
           <button class="btn btn-sm btn-secondary" onclick="vizEnableAll()">Enable all</button>
           <button class="btn btn-sm btn-secondary" onclick="vizDisableAll()">Disable all</button>
@@ -646,38 +449,38 @@ function vizRenderConfig(){
   }
   let h='';
   // Font size config
-  h+=`<div class="section-divider">
-    <div class="cfg-section-title">Font Sizes</div>
-    <div class="cfg-grid">
-      <div><label class="cfg-label">Card titles</label><select id="cfgFontCardTitle" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24" selected>24px</option><option value="28">28px</option><option value="32">32px</option><option value="36">36px</option></select></div>
-      <div><label class="cfg-label">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
-      <div><label class="cfg-label">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11">11px</option><option value="12" selected>12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
-      <div><label class="cfg-label">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11">11px</option><option value="12" selected>12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
+      <div><label style="font-size:12px;color:var(--text-1)">Card titles</label><select id="cfgFontCardTitle" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24" selected>24px</option><option value="28">28px</option><option value="32">32px</option><option value="36">36px</option></select></div>
+      <div><label style="font-size:12px;color:var(--text-1)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
+      <div><label style="font-size:12px;color:var(--text-1)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+      <div><label style="font-size:12px;color:var(--text-1)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
     </div>
   </div>`;
   // Card collapse defaults per tab
-  h+=`<div class="section-divider">
-    <div class="cfg-section-title">Card Default State</div>
-    <div class="desc-text">Whether cards on each tab start expanded or collapsed.</div>
-    <div class="cfg-grid">`;
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Card Default State</div>
+    <div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Whether cards on each tab start expanded or collapsed.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">`;
   for(const[tab,label]of Object.entries(CARD_COLLAPSE_LABELS)){
     const cur=CARD_COLLAPSE_DEFAULTS[tab];
-    h+=`<div><label class="cfg-label">${label}</label><select id="cfgCardDefault_${tab}" onchange="CARD_COLLAPSE_DEFAULTS['${tab}']=this.value;saveConfig()"><option value="expanded"${cur==='expanded'?' selected':''}>Expanded</option><option value="collapsed"${cur==='collapsed'?' selected':''}>Collapsed</option></select></div>`;
+    h+=`<div><label style="font-size:12px;color:var(--text-1)">${label}</label><select id="cfgCardDefault_${tab}" onchange="CARD_COLLAPSE_DEFAULTS['${tab}']=this.value;saveConfig()"><option value="expanded"${cur==='expanded'?' selected':''}>Expanded</option><option value="collapsed"${cur==='collapsed'?' selected':''}>Collapsed</option></select></div>`;
   }
   h+=`</div></div>`;
   // Export options
-  h+=`<div class="section-divider">
-    <div class="cfg-section-title">Export Options</div>
-    <div class="desc-text">Select which formats to include when exporting. CSV is always generated.</div>
-    <div class="cfg-grid-mb">
-      <div class="checkbox-row"><input type="checkbox" id="cfgExportCsv" checked disabled><label for="cfgExportCsv" class="text-secondary">CSV (always)</label></div>
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Export Options</div>
+    <div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Select which formats to include when exporting. CSV is always generated.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px">
+      <div class="checkbox-row"><input type="checkbox" id="cfgExportCsv" checked disabled><label for="cfgExportCsv" style="color:var(--text-2)">CSV (always)</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportPdf" ${EXPORT_DEFAULTS.pdf?'checked':''} onchange="EXPORT_DEFAULTS.pdf=this.checked;saveConfig()"><label for="cfgExportPdf">PDF report</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportJson" ${EXPORT_DEFAULTS.json?'checked':''} onchange="EXPORT_DEFAULTS.json=this.checked;saveConfig()"><label for="cfgExportJson">JSON results</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportCharts" ${EXPORT_DEFAULTS.charts?'checked':''} onchange="EXPORT_DEFAULTS.charts=this.checked;saveConfig()"><label for="cfgExportCharts">Charts &amp; plots</label></div>
     </div>
-    <div class="cfg-max">
-      <label class="cfg-label">Export path <span class="text-muted">(optional — leave blank to download via browser)</span></label>
-      <input type="text" id="cfgExportPath" value="${EXPORT_DEFAULTS.exportPath}" placeholder="/path/to/export/directory" onchange="EXPORT_DEFAULTS.exportPath=this.value.trim();saveConfig()" class="mb-0">
+    <div style="max-width:540px">
+      <label style="font-size:12px;color:var(--text-1)">Export path <span style="color:var(--text-3)">(optional — leave blank to download via browser)</span></label>
+      <input type="text" id="cfgExportPath" value="${EXPORT_DEFAULTS.exportPath}" placeholder="/path/to/export/directory" onchange="EXPORT_DEFAULTS.exportPath=this.value.trim();saveConfig()" style="margin-bottom:0">
     </div>
   </div>`;
   // Viz toggles by category
@@ -685,16 +488,16 @@ function vizRenderConfig(){
     const color=cat.includes('LTP')?'var(--cyan)':cat.includes('SFD')?'var(--orange)':cat.includes('Fusion')?'var(--green)':cat.includes('Experimental')?'var(--orange)':'var(--text-2)';
     const scope=items[0].scope;
     const scopeLabel=scope==='prompt'?'per-prompt':(scope==='batch'?'analysis tab':'experimental tab');
-    h+=`<div class="mb-14"><div style="font-size:12px;font-family:var(--mono);color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${cat} <span class="cfg-scope-label">(${scopeLabel})</span></div>`;
+    h+=`<div style="margin-bottom:14px"><div style="font-size:12px;font-family:var(--mono);color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${cat} <span style="color:var(--text-3);text-transform:none;letter-spacing:0">(${scopeLabel})</span></div>`;
     for(const item of items){
       h+=`<div class="viz-config-row">
         <input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()">
-        <label for="viz_${item.key}" class="flex-1"><span class="text-bright">${item.title}</span> <span class="text-secondary-md">— ${item.desc}</span></label>
-        <select class="input-sm" onchange="VIZ_REGISTRY['${item.key}'].scope=this.value;saveConfig();vizRenderConfig()">
+        <label for="viz_${item.key}" style="flex:1"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-2);font-size:12px">— ${item.desc}</span></label>
+        <select style="width:60px;font-size:11px;padding:3px" onchange="VIZ_REGISTRY['${item.key}'].scope=this.value;saveConfig();vizRenderConfig()">
           <option value="prompt" ${item.scope==='prompt'?'selected':''}>Prompt</option>
           <option value="batch" ${item.scope==='batch'?'selected':''}>Batch</option>
         </select>
-        <input type="number" value="${item.order}" min="1" max="999" class="input-xs-center" onchange="VIZ_REGISTRY['${item.key}'].order=parseInt(this.value)||0;saveConfig()">
+        <input type="number" value="${item.order}" min="1" max="999" style="width:42px;font-size:11px;padding:3px;text-align:center" onchange="VIZ_REGISTRY['${item.key}'].order=parseInt(this.value)||0;saveConfig()">
       </div>`;
     }
     h+=`</div>`;
@@ -726,7 +529,7 @@ async function saveConfig(){
       fonts:{
         cardTitle: $('cfgFontCardTitle')?$('cfgFontCardTitle').value:'24',
         desc: $('cfgFontDesc')?$('cfgFontDesc').value:'13',
-        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'12',
+        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'11',
         table: $('cfgFontTable')?$('cfgFontTable').value:'11',
       },
       ltp:{
@@ -861,7 +664,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p class="text-muted-sm">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -880,9 +683,7 @@ function _buildAnalysisFormData(){
   return fd;
 }
 
-async function toggleBaselines(enabled){
-  // Legacy — length normalization is now handled by regression residualization in the dashboard
-}
+async function toggleBaselines(enabled){}
 
 async function analyzePrompt(){
   const prompt=$('promptInput').value.trim();
@@ -972,7 +773,7 @@ async function loadDashboard(force){
 
     // Category summary table
     if(Object.keys(cats).length){
-      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body${cardDefault('dashboard')}"><div class="desc-text">Bootstrapped estimates (5000 resamples, 95% CI). Three instruments: ASM (disruption), LTP (selectivity), SFD (subspace).</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th><th class="text-orange">Density</th><th class="text-orange">Tau</th></tr>`;
+      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body${cardDefault('dashboard')}"><div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Three instruments: ASM (disruption), LTP (selectivity), SFD (subspace).</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th><th style="color:var(--orange)">Density</th><th style="color:var(--orange)">Tau</th></tr>`;
       for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(5):'--'}</td><td>${m.interior_cv?m.interior_cv.estimate.toFixed(4):'--'}</td><td>${m.sfd_density_mean?m.sfd_density_mean.estimate.toFixed(4):'--'}</td><td>${m.rank_displacement_tau?m.rank_displacement_tau.estimate.toFixed(3):'--'}</td></tr>`}
       h+=`</table></div></div>`;
     }
@@ -984,16 +785,16 @@ async function loadDashboard(force){
 
     // Terrain viewer — click to load, not auto-fetch
     if(vizIsEnabled('terrain_viewer')&&dashResults.length>0){
-      h+=`<div class="border-cyan">
+      h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="text-cyan">Alignment Terrain</div>
+          <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
           <p class="feature-desc">3D dual-bank terrain map. Click "Load Terrain" to fetch per-token displacement profiles from the server.</p>
         </div>
-        <div id="terrainFeatureBody" class="p-0">
+        <div class="feature-body" id="terrainFeatureBody" style="padding:0">
           <div id="terrainContainer">
-            <div class="center-pad">
-              <button onclick="_lazyLoadTerrain(${info.n_results||0})" class="btn-wide">Load Terrain Viewer</button>
-              <div id="terrainLoadMsg" class="load-msg"></div>
+            <div style="padding:20px;text-align:center">
+              <button class="btn btn-secondary" onclick="_lazyLoadTerrain(${info.n_results||0})" style="width:auto;padding:8px 20px">Load Terrain Viewer</button>
+              <div id="terrainLoadMsg" style="margin-top:8px;color:var(--text-3);font:11px monospace"></div>
             </div>
           </div>
         </div>
@@ -1012,7 +813,7 @@ async function loadDashboard(force){
 
     // ═══ EXPERIMENTAL TAB ═══
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
-    let eh=`<div class="card"><div class="px-14-py-10"><div class="feature-body-text"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
+    let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
 
     const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
     for(const[key,v]of disabledBatch) eh+=plotCardUrl(key,v.title,v.desc,true);
@@ -1030,11 +831,11 @@ async function loadDashboard(force){
 
 function plotCard(key,title,desc,plots,collapsed){
   const chevron=collapsed?'▶':'▼';
-  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
 }
 function plotCardUrl(key,title,desc,collapsed){
   const chevron=collapsed?'▶':'▼';
-  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="/api/plots/${key}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="/api/plots/${key}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
 }
 
 async function exportSession(){
@@ -1103,207 +904,7 @@ function popoutRecord(rid){
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     ${styles}
     <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
-    .card{max-width:960px;margin:0 auto}
-/* ─── Extracted utility classes ────────────────────────────────── */
-.mb-14{margin-bottom:14px}
-.mb-10{margin-bottom:10px}
-.mb-8{margin-bottom:8px}
-.mt-16{margin-top:16px}
-.mt-4{margin-top:4px}
-.p-16{padding:16px}
-.p-10{padding:10px}
-.px-14-py-10{padding:10px 14px}
-.d-none{display:none}
-.flex-1{flex:1}
-.w-auto{width:auto}
-.mb-0{margin-bottom:0}
-.section-divider{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.scrollbox{max-height:200px;overflow-y:auto;margin-bottom:14px}
-.scrollbox-sm{max-height:180px;overflow-y:auto}
-.text-cyan{color:var(--cyan)}
-.text-muted{color:var(--text-3)}
-.text-secondary{color:var(--text-2)}
-.text-primary{color:var(--text-1)}
-.text-bright{color:var(--text-0)}
-.text-orange{color:var(--orange)}
-.text-red{color:var(--red)}
-.text-green{color:var(--green)}
-.text-purple{color:var(--purple)}
-.border-cyan{border-color:var(--cyan)}
-.border-purple{border-color:var(--purple)}
-.section-label-cyan{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px}
-.section-label-purple{font-size:12px;font-weight:600;color:var(--purple);margin-bottom:8px}
-.section-label-orange{font-size:12px;font-weight:600;color:var(--orange);margin-bottom:8px}
-.section-label{font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:8px}
-.stat-label{font-size:11px;color:var(--text-2);margin-bottom:3px}
-.stat-value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
-.stat-sub{font-size:11px;color:var(--text-2)}
-.card-inner{margin-bottom:10px;padding:8px 10px;background:var(--bg-2);border-radius:4px}
-.card-inner-accent{margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)}
-.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.chip{font-size:11px;padding:3px 6px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)}
-.token-map{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
-.section-top-purple{margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)}
-.section-top-cyan{margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)}
-.cfg-section-title{font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.cfg-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px}
-.cfg-label{font-size:12px;color:var(--text-1)}
-.cfg-max{max-width:540px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4}
-.cl-bar-label{font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right}
-.cl-bar-value{font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px}
-.cl-contrib-text{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1}
-.desc-text{font-size:13px;color:var(--text-0);margin-bottom:8px;line-height:1.5}
-.info-text{font-size:11px;color:var(--text-2);line-height:1.6}
-.feature-body-text{font-size:var(--font-desc);color:var(--text-1);line-height:1.6}
-.chevron{color:var(--text-2);font-size:12px;margin-right:6px}
-.agg-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
-.agg-th-r{text-align:right;padding:8px 6px;color:var(--text-0)}
-.agg-td-r{text-align:right;padding:6px;color:var(--text-0)}
-.agg-td-r-dim{text-align:right;padding:6px;color:var(--text-1)}
-.agg-td-l{text-align:left;padding:5px 10px;color:#B8BFC6}
-.agg-td-r-text{text-align:right;padding:5px 6px;color:#B8BFC6}
-.agg-td-r-green{text-align:right;padding:5px 6px;color:#3fb950}
-.agg-td-r-red{text-align:right;padding:5px 6px;color:#f85149}
-.agg-td-sm{text-align:right;padding:3px 4px;color:var(--text-1)}
-.agg-td-sm-text{text-align:right;padding:4px 4px;color:#B8BFC6}
-.row-border{border-bottom:1px solid rgba(255,255,255,0.12)}
-.row-border-light{border-bottom:1px solid rgba(255,255,255,0.06)}
-.mono-text{font-family:var(--mono);font-size:12px;color:var(--text-1)}
-.mono-bold{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
-.mono-title{font-family:var(--mono);font-size:14px;font-weight:600}
-.glyph-map{font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0}
-.label-cyan{font-size:12px;color:var(--cyan)}
-.min-w-32{min-width:32px}
-/* ─── Pass 2 utility classes ──────────────────────────────────── */
-.agg-td-r-dim{padding:5px 6px;text-align:right;color:var(--text-1)}
-.text-light{color:#B8BFC6}
-.text-muted-sm{color:var(--text-3);font-size:11px}
-.text-secondary-md{color:var(--text-2);font-size:12px}
-.fs-11{font-size:11px}
-.mono{font-family:var(--mono)}
-.mt-4-sm{font-size:11px;margin-top:4px}
-.mt-3-sm{font-size:11px;margin-top:3px}
-.text-primary-light{color:var(--text-1);font-weight:400}
-.badge-purple{color:var(--purple);font-size:11px;font-weight:600}
-.section-header-flex{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.section-title-purple{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)}
-.section-title-cyan{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px}
-.p-12{padding:12px}
-.p-14{padding:14px}
-.px-10-py-6{padding:6px 10px}
-.mt-12{margin-top:12px}
-.note-purple{margin-bottom:8px;font-size:11px;color:var(--purple)}
-.w-full{width:100%}
-.max-w-full{max-width:100%}
-.max-w-500{max-width:500px}
-.flex-center{display:flex;justify-content:center}
-.btn-sm-pad{font-size:11px;padding:3px 10px}
-.scrollbox-lg{max-height:300px;overflow-y:auto}
-.agg-th-l{text-align:left;padding:8px 10px;color:var(--text-0)}
-.agg-th-r-bold{text-align:right;padding:6px;color:var(--text-0);font-weight:600}
-.text-light-normal{color:#B8BFC6;font-weight:400}
-.agg-td-wide{padding:5px 10px;color:var(--text-0)}
-.agg-td-bar{padding:5px 6px;width:120px}
-.agg-td-light{padding:5px 6px;color:#B8BFC6}
-.agg-td-r-blue{text-align:right;padding:5px 6px;color:#58a6ff}
-.agg-td-r-purple{text-align:right;padding:5px 6px;color:#bc8cff}
-.agg-td-l-light{text-align:left;padding:5px 6px;color:#B8BFC6}
-.agg-td-header{padding:4px 10px;color:var(--text-0);font-weight:600}
-.agg-td-r-sec{text-align:right;padding:4px 6px;color:var(--text-1)}
-.agg-td-r-green-sm{text-align:right;padding:4px 6px;color:#3fb950}
-.agg-td-r-red-sm{text-align:right;padding:4px 6px;color:#f85149}
-.agg-td-r-blue-sm{text-align:right;padding:4px 6px;color:#58a6ff}
-.row-border-faint{border-bottom:1px solid rgba(255,255,255,0.04)}
-.row-border-faintest{border-bottom:1px solid rgba(255,255,255,0.03)}
-.agg-td-l-sm{text-align:left;padding:4px 8px;color:#B8BFC6}
-.agg-td-l-xs{text-align:left;padding:4px 4px;color:#B8BFC6}
-.agg-td-truncate{padding:3px 8px;color:var(--text-1);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.text-dark{color:#333}
-.text-danger{color:#f85149}
-.text-warn{color:#d29a22}
-.text-violet{color:#bc8cff}
-.bg-orange{background:var(--orange)}
-.btn-cyan{background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
-/* ─── Pass 3 utility classes ──────────────────────────────────── */
-.nav-link{font-family:var(--mono);font-size:11px;color:var(--text-2);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;margin-left:8px}
-.flex-row-gap4-mt6{margin-top:6px;display:flex;gap:4px;align-items:center}
-.flex-row-gap8-mt10{margin-top:10px;display:flex;gap:8px}
-.flex-row-gap10-mb10{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.flex-wrap-gap8{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.flex-center-gap6-mb10{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
-.flex-wrap-center-mt10{display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center}
-.flex-row-gap6-mt3{display:flex;align-items:center;gap:6px;margin-top:3px}
-.flex-row-gap6-my2{display:flex;align-items:center;gap:6px;margin:2px 0}
-.contrib-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)}
-.flex-row-gap4{display:flex;gap:4px;align-items:center}
-.flex-row-clickable{margin:0;display:flex;align-items:center;gap:4px;cursor:pointer}
-.pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono)}
-.desc-body{font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5}
-.desc-body-md{font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5}
-.desc-indent{font-size:12px;color:var(--text-2);margin:4px 0 0 22px;line-height:1.4}
-.desc-body-lg{font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5}
-.btn-fixed{flex:0 0 auto;width:auto;padding:7px 14px}
-.input-sm{width:60px;font-size:11px;padding:3px}
-.input-xs-center{width:42px;font-size:11px;padding:3px;text-align:center}
-.w-70{width:70px}
-.min-w-80{min-width:80px}
-.p-16-8{padding:8px 16px;min-width:0}
-.p-0{padding:0}
-.center-pad{padding:20px;text-align:center}
-.btn-wide{width:auto;padding:8px 20px}
-.load-msg{margin-top:8px;color:var(--text-3);font:11px monospace}
-.btn-cyan-sm{min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.flex-1-center{flex:1;text-align:center}
-.link-right{float:right;font-size:12px;color:var(--blue);text-decoration:none}
-.cfg-scope-label{color:var(--text-3);text-transform:none;letter-spacing:0}
-.cfg-grid-mb{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px}
-.cl-main-label{font-family:var(--mono);font-size:16px;color:var(--text-0)}
-.cl-sub-label{font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px}
-.cl-mono-sub{font-size:11px;color:var(--text-2);font-family:var(--mono)}
-.cl-summary{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4}
-.cl-bar-track{flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden}
-.cl-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)}
-.cl-prob-bar{flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden}
-.cl-caveat{margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5}
-.cl-contrib-dot{font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px}
-.text-secondary-lg{color:var(--text-2);font-size:13px}
-.text-muted-right{color:var(--text-3);font-size:11px;margin-left:auto}
-.text-muted-table{color:var(--text-3);font-size:var(--font-table)}
-.text-primary-right{margin-left:auto;color:var(--text-1);font-size:11px}
-.page-current{color:var(--blue);font-weight:600;padding:0 4px}
-.page-btn{width:auto;padding:2px 6px}
-.text-muted-ml{color:var(--text-3);margin-left:8px}
-.range-sm{width:32px;vertical-align:middle}
-.terrain-label{font-size:11px;color:#bbc}
-.range-md{width:36px;vertical-align:middle}
-.overlay-full{position:absolute;inset:0}
-.progress-bar-track{width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px}
-.mono-bold-sm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)}
-.dr-matched{font-size:11px;margin-top:3px;color:var(--text-3)}
-.container{max-width:960px;margin:0 auto}
-.agg-bar-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px}
-.agg-prompt-cell{padding:5px 8px;font-size:11px}
-.agg-sticky-header{border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)}
-.agg-map-cell{padding:4px 4px;color:#B8BFC6;width:80px}
-.agg-mini-map{padding:3px 4px;font-family:var(--mono);font-size:11px;letter-spacing:0.5px}
-.border-purple-mt{border-color:var(--purple);margin-top:16px}
-/* ─── Dynamic style base classes ──────────────────────────────── */
-.progress-fill{height:100%;border-radius:2px}
-.cl-stage-card{padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid}
-.cl-stage-label{font-family:var(--mono);font-size:11px}
-.cl-prob-fill{height:100%;border-radius:3px}
-.cl-contrib-icon{font-size:11px;width:12px}
-.cl-favors-pill{font-size:11px}
-.cl-match-label{font-size:14px;font-weight:600}
-.agg-bar-fill{height:100%;border-radius:4px}
-</style>
+    .card{max-width:960px;margin:0 auto}</style>
     </head><body>${el.outerHTML}</body></html>`);
   w.document.close();
 }
@@ -1349,35 +950,35 @@ function renderTunnelViewer(r){
     timeline+=`<span class="tv-tok" id="${id}_tok${i}" onclick="_tunnelGo(${i})" title="${escHtml(tokens[i])}">${escHtml(t.length>6?t.slice(0,5)+'…':t)}</span>`;
   }
 
-  return `<div class="border-cyan">
+  return `<div class="feature" style="border-color:var(--cyan)">
     <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="text-cyan">Alignment Tunnel</div>
+      <div class="feature-title" style="color:var(--cyan)">Alignment Tunnel</div>
       <p class="feature-desc">Step through each token to see the alignment field's cross-section. <strong>Shape mode</strong> normalizes each token's profile so the polygon fills the chart — you see pure directional structure. <strong>Deviation mode</strong> subtracts the uniform baseline so flat profiles collapse to the center and any directional concentration becomes the entire signal. <strong>Absolute mode</strong> shows raw magnitudes. Temperature (point color and background glow) reflects stress intensity.</p>
       <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Point color = stress temperature (blue→amber→red) · Shape: octagon=uniform, spike=directional · Mode toggle changes normalization</div>
     </div>
-    <div class="p-14">
-      <div class="flex-row-gap10-mb10">
-        <button onclick="_tunnelGo(0)" class="btn btn-sm btn-secondary min-w-32" title="First">⏮</button>
-        <button onclick="_tunnelGo(_tunnelState.idx-1)" class="btn btn-sm btn-secondary min-w-32" title="Previous">◀</button>
-        <button id="${id}_playbtn" onclick="_tunnelPlayPause()" class="btn-cyan-sm" title="Play/Pause">▶ Play</button>
-        <button onclick="_tunnelGo(_tunnelState.idx+1)" class="btn btn-sm btn-secondary min-w-32" title="Next">▶</button>
-        <button onclick="_tunnelGo(_tunnelState.n-1)" class="btn btn-sm btn-secondary min-w-32" title="Last">⏭</button>
-        <div class="flex-1-center">
-          <span class="cl-main-label" id="${id}_label"></span>
-          <span class="cl-sub-label" id="${id}_meta"></span>
+    <div class="feature-body" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(0)" style="min-width:32px" title="First">⏮</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:32px" title="Previous">◀</button>
+        <button class="btn btn-sm" id="${id}_playbtn" onclick="_tunnelPlayPause()" style="min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)" title="Play/Pause">▶ Play</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:32px" title="Next">▶</button>
+        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.n-1)" style="min-width:32px" title="Last">⏭</button>
+        <div style="flex:1;text-align:center">
+          <span style="font-family:var(--mono);font-size:16px;color:var(--text-0)" id="${id}_label"></span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px" id="${id}_meta"></span>
         </div>
-        <label class="cl-mono-sub">Speed</label>
-        <input type="range" id="${id}_speed" min="1" max="10" value="4" class="w-70" oninput="_tunnelSetSpeed(this.value)" title="Animation speed">
+        <label style="font-size:11px;color:var(--text-2);font-family:var(--mono)">Speed</label>
+        <input type="range" id="${id}_speed" min="1" max="10" value="4" style="width:70px" oninput="_tunnelSetSpeed(this.value)" title="Animation speed">
       </div>
-      <div class="flex-center-gap6-mb10">
-        <button id="${id}_mode_shape" onclick="_tunnelMode('shape')" class="btn-cyan">Shape</button>
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:10px">
+        <button class="btn btn-sm" id="${id}_mode_shape" onclick="_tunnelMode('shape')" style="background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)">Shape</button>
         <button class="btn btn-sm btn-secondary" id="${id}_mode_deviation" onclick="_tunnelMode('deviation')">Deviation</button>
         <button class="btn btn-sm btn-secondary" id="${id}_mode_absolute" onclick="_tunnelMode('absolute')">Absolute</button>
       </div>
-      <div class="flex-center">
-        <svg id="${id}_svg" viewBox="0 0 400 420" width="640" height="672" class="max-w-full"></svg>
+      <div style="display:flex;justify-content:center">
+        <svg id="${id}_svg" viewBox="0 0 400 420" width="640" height="672" style="max-width:100%"></svg>
       </div>
-      <div class="flex-wrap-center-mt10" id="${id}_timeline">${timeline}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
     </div></div>`;
 }
 let _tunnelAnimFrame=null, _tunnelPlaying=false, _tunnelSpeed=4, _tunnelMorphProgress=1;
@@ -1602,7 +1203,7 @@ function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVa
 
   // Update header
   const label=document.getElementById(id+'_label');
-  if(label) label.innerHTML=`<span class="text-cyan">"${escHtml(token.trim())}"</span> <span class="text-secondary-md">[${idx+1}/${n}]</span>`;
+  if(label) label.innerHTML=`<span style="color:var(--cyan)">"${escHtml(token.trim())}"</span> <span style="color:var(--text-2);font-size:12px">[${idx+1}/${n}]</span>`;
   const meta=document.getElementById(id+'_meta');
   const prc=normProfile.length?((Math.max(...normProfile)-1/k)*100).toFixed(1):'?';
   if(meta) meta.textContent=`M=${mag.toFixed(5)}  PRC=${prc}pp  shape=${shape}  mode=${mode}`;
@@ -1628,24 +1229,24 @@ function renderClassifierCard(cl, r){
   // ═══ Section: Decision stages (v2,v4-v9) ═══
   let stagesHtml='';
   if(cl.stages&&cl.stages.length){
-    stagesHtml=`<div class="mb-10"><div class="cl-section-title">Decision Path</div>`;
+    stagesHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Decision Path</div>`;
     for(const s of cl.stages){
       const leftC=catColor(s.left_class);
       const rightC=catColor(s.right_class);
       const chosenC=catColor(s.chosen||pClass);
       const isRight=s.chosen===s.right_class;
       const marginPct=Math.min(50,Math.abs(s.margin||0)*500).toFixed(0);
-      stagesHtml+=`<div class="cl-stage-card" style="border-left-color:${chosenC}">
-        <div class="cl-summary">${s.name||s.stage||'Stage'}: <span style="color:${chosenC}">${s.chosen||pClass}</span> <span class="text-muted">(${Math.round((s.confidence||0)*100)}%)</span></div>
-        <div class="flex-row-gap6-mt3">
-          <span class="cl-stage-label" style="color:${leftC}">${s.left_class||'left'}</span>
-          <div class="cl-bar-track">
-            <div class="cl-bar-center"></div>
+      stagesHtml+=`<div style="padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenC}">
+        <div style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4">${s.name||s.stage||'Stage'}: <span style="color:${chosenC}">${s.chosen||pClass}</span> <span style="color:var(--text-3)">(${Math.round((s.confidence||0)*100)}%)</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+          <span style="font-family:var(--mono);font-size:11px;color:${leftC}">${s.left_class||'left'}</span>
+          <div style="flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
+            <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)"></div>
             <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenC};border-radius:3px;width:${marginPct}%;opacity:0.7"></div>
           </div>
-          <span class="cl-stage-label" style="color:${rightC}">${s.right_class||'right'}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:${rightC}">${s.right_class||'right'}</span>
         </div>
-        ${s.explanation?`<div class="cl-detail">${s.explanation}</div>`:''}
+        ${s.explanation?`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4">${s.explanation}</div>`:''}
       </div>`;
     }
     stagesHtml+=`</div>`;
@@ -1658,9 +1259,9 @@ function renderClassifierCard(cl, r){
     let bars='';
     for(const[c,p]of sorted){
       const w=Math.max(1,(p*100)).toFixed(0);
-      bars+=`<div class="flex-row-gap6-my2"><span class="cl-bar-label">${c}</span><div class="cl-prob-bar"><div class="cl-prob-fill" style="width:${w}%;background:${catColor(c)}"></div></div><span class="cl-bar-value">${w}%</span></div>`;
+      bars+=`<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden"><div style="width:${w}%;height:100%;background:${catColor(c)};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px">${w}%</span></div>`;
     }
-    probHtml=`<div class="mb-10"><div class="cl-section-title">Class Probabilities</div>${bars}</div>`;
+    probHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Class Probabilities</div>${bars}</div>`;
   }
 
   // ═══ Section: Feature contributions (all versions) ═══
@@ -1679,44 +1280,44 @@ function renderClassifierCard(cl, r){
         const axis=c.axis?` [${c.axis}]`:'';
         text=`${label} = ${val}${extra}${axis}`;
       }
-      rows+=`<div class="contrib-row"><span class="cl-contrib-icon" style="color:${sColor}">${dot}</span><span class="cl-contrib-text">${text}</span>${c.favors?`<span class="pill cl-favors-pill" style="border-color:${fColor};color:${fColor}">${c.favors}</span>`:''}</div>`;
+      rows+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:11px;width:12px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${text}</span>${c.favors?`<span class="pill" style="border-color:${fColor};color:${fColor};font-size:11px">${c.favors}</span>`:''}</div>`;
     }
-    contribHtml=`<div class="mb-10"><div class="cl-section-title">Feature Contributions</div>${rows}</div>`;
+    contribHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Feature Contributions</div>${rows}</div>`;
   }
 
   // ═══ Section: Extra metadata (version-specific) ═══
   let extraHtml='';
   if(cl.available_axes)
-    extraHtml+=`<div class="cl-detail">Instruments: ${cl.available_axes.join(' + ')} (${cl.n_axes||0}/3)</div>`;
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)">Instruments: ${cl.available_axes.join(' + ')} (${cl.n_axes||0}/3)</div>`;
   if(cl.distances){
     const dStr=Object.entries(cl.distances).map(([c,d])=>`${c}: ${typeof d==='number'?d.toFixed(3):d}`).join(' · ');
-    extraHtml+=`<div class="cl-detail">Distances: ${dStr}</div>`;
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Distances: ${dStr}</div>`;
   }
   if(cl.features_used!=null)
-    extraHtml+=`<div class="cl-detail">Features used: ${cl.features_used}</div>`;
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Features used: ${cl.features_used}</div>`;
   if(cl.layers_active!=null)
-    extraHtml+=`<div class="cl-detail">Active layers: ${cl.layers_active}</div>`;
-  if(extraHtml) extraHtml=`<div class="mb-8">${extraHtml}</div>`;
+    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Active layers: ${cl.layers_active}</div>`;
+  if(extraHtml) extraHtml=`<div style="margin-bottom:8px">${extraHtml}</div>`;
 
   // ═══ Section: Caveats ═══
   let caveatHtml='';
   if(cl.caveats&&cl.caveats.length&&cl.caveats.some(c=>c)){
-    caveatHtml=`<div class="cl-caveat">${cl.caveats.filter(c=>c).map(c=>'⚠ '+c).join('<br>')}</div>`;
+    caveatHtml=`<div style="margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.filter(c=>c).map(c=>'⚠ '+c).join('<br>')}</div>`;
   }
 
   // ═══ Assemble card ═══
   return `<div class="feature" style="border-color:${borderColor};border-width:2px">
     <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="flex-wrap-gap8">
-        <span class="cl-contrib-dot">${cId}</span>
-        <span class="btn-sm-pad">${pClass.toUpperCase()}</span>
-        <span class="text-secondary-lg">${pConf}%</span>
-        ${match?`<span class="cl-match-label" style="color:${matchColor}">${match}</span>`:''}
-        <span class="text-muted-right">${cName}</span>
+      <div class="feature-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px">${cId}</span>
+        <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span>
+        <span style="color:var(--text-2);font-size:13px">${pConf}%</span>
+        ${match?`<span style="color:${matchColor};font-size:14px;font-weight:600">${match}</span>`:''}
+        <span style="color:var(--text-3);font-size:11px;margin-left:auto">${cName}</span>
       </div>
       <p class="feature-desc">${cl.summary||''}</p>
     </div>
-    <div class="p-12">
+    <div class="feature-body" style="padding:12px">
       ${stagesHtml}
       ${probHtml}
       ${contribHtml}
@@ -1737,7 +1338,7 @@ function renderLatest(r,plots){
       <h3>${escHtml(r.prompt)}</h3>
       <div class="record-meta">
         ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
-        <span class="mono-text">${r.seq_len} tokens</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text-1)">${r.seq_len} tokens</span>
         ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
         <button class="btn-popout" onclick="popoutRecord('${rid}')" title="Open in new window">↗ Pop out</button>
       </div>
@@ -1745,14 +1346,14 @@ function renderLatest(r,plots){
     <div class="card-body${cardDefault('prompt')}">`;
 
   // ═══ SUMMARY METRICS ═══
-  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
   if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}
   else if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){if(!r._cachedCG)r._cachedCG=computeCandidateGraph(r);const _cg=r._cachedCG;if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
   h+=`</div>`;
-  if(r.has_negative_tokens)h+=`<div class="note-purple">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
   // ═══ CLASSIFIER RESULTS (v1, v2, v3) ═══
   if(vizIsEnabled('classification') && r.classifiers){
@@ -1832,8 +1433,8 @@ function renderLatest(r,plots){
   // ═══ LTP SECTION ═══
   const hasLtp=r.ltp&&Object.keys(VIZ_REGISTRY).some(k=>VIZ_REGISTRY[k].needs==='ltp'&&VIZ_REGISTRY[k].on);
   if(r.ltp&&hasLtp){
-    h+=`<div class="section-top-cyan">
-      <div class="section-title-cyan">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
+    h+=`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)">
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
 
     // Tunnel viewer (JS-rendered, with fused stress+attribution)
     if(vizIsEnabled('tunnel_viewer')) h+=renderTunnelViewer(r);
@@ -1865,9 +1466,9 @@ function renderLatest(r,plots){
       if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
       if(!vizIsEnabled(k))continue;
       const f=ltpMeta[k];
-      h+=`<div class="border-cyan">
+      h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="text-cyan">${f?f.title:k}</div>
+          <div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>
           ${f?`<p class="feature-desc">${f.desc}</p>`:''}
           ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
         </div>
@@ -1877,13 +1478,13 @@ function renderLatest(r,plots){
 
     // Counterfactual table
     if(vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      h+=`<div class="border-cyan">
+      h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="text-cyan">Counterfactual Neighborhood</div>
+          <div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div>
           <p class="feature-desc">The alternative tokens the model considered at each position — the paths not taken. These define the probing directions for lateral tension measurement.</p>
           <div class="feature-legend">🔑 Shape = profile type · Alt tokens sorted by probability · Higher probability = closer semantic neighbor</div>
         </div>
-        <div class="p-10">
+        <div class="feature-body" style="padding:10px">
         <table class="data-table"><tr><th>Token</th><th>Shape</th>`;
       const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)h+=`<th>Alt ${i+1}</th>`;
       h+=`</tr>`;
@@ -1893,7 +1494,7 @@ function renderLatest(r,plots){
         const shapeColor=shape==='steep'?'var(--orange)':(shape==='inverted'?'var(--red)':'var(--blue)');
         h+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
         for(let j=0;j<Math.min(kVal,4);j++){
-          if(cf&&j<cf.length)h+=`<td><span class="text-bright">${escHtml(cf[j][0])}</span> <span class="text-muted">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
+          if(cf&&j<cf.length)h+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
           else h+=`<td>--</td>`;
         }
         h+=`</tr>`;
@@ -1930,22 +1531,22 @@ function renderLatest(r,plots){
       if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
       if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
         const f=ltpMeta[k];
-        expH+=`<div class="border-cyan"><div class="feature-header" onclick="toggleFeature(this)"><div class="text-cyan">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
       }
     }
     // Disabled JS vizs that have LTP data
     if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
-      expH+=`<div class="border-cyan"><div class="feature-header" onclick="toggleFeature(this)"><div class="text-cyan"><span class="chevron">▶</span>Alignment Tunnel (disabled)</div><p class="feature-desc">Interactive per-token alignment field cross-section viewer.</p></div><div class="p-16"><p class="info-text">This visualization is currently disabled. Enable <strong>Alignment Tunnel</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Alignment Tunnel (disabled)</div><p class="feature-desc">Interactive per-token alignment field cross-section viewer.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Alignment Tunnel</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
     }
     if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      expH+=`<div class="border-cyan"><div class="feature-header" onclick="toggleFeature(this)"><div class="text-cyan"><span class="chevron">▶</span>Counterfactual Table (disabled)</div><p class="feature-desc">Alternative tokens at each position with probabilities and profile shapes.</p></div><div class="p-16"><p class="info-text">This visualization is currently disabled. Enable <strong>Counterfactual Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
+      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Counterfactual Table (disabled)</div><p class="feature-desc">Alternative tokens at each position with probabilities and profile shapes.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Counterfactual Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
     }
   }
   if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron">▶</span>Model Predictions (disabled)</div><p class="feature-desc">Side-by-side instruct vs base top-k next-token predictions.</p></div><div class="p-16"><p class="info-text">This visualization is currently disabled. Enable <strong>Model Predictions</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Model Predictions (disabled)</div><p class="feature-desc">Side-by-side instruct vs base top-k next-token predictions.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Model Predictions</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
   }
   if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron">▶</span>Attribution Table (disabled)</div><p class="feature-desc">Raw per-token signed attribution and stress values with inline bars.</p></div><div class="p-16"><p class="info-text">This visualization is currently disabled. Enable <strong>Attribution Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
+    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Attribution Table (disabled)</div><p class="feature-desc">Raw per-token signed attribution and stress values with inline bars.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Attribution Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
   }
 
   // Append disabled items to experimental tab
@@ -1964,18 +1565,18 @@ function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
   const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
   for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
-  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="p-10"><table class="w-full"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
 }
 function renderTokenTable(r){
   if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
   const mx=Math.max(...r.signed_attr.map(Math.abs)),ms=r.per_token_stress?Math.max(...r.per_token_stress):1;let rows='';
-  for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="bar-fill" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="bar-fill" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
-  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="p-10"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
+  for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
+  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
 var _dtPage=1,_dtPageSize=25,_dtSorted=[];
 function renderDataTable(){
   var source=dashResults.length?dashResults:sessionResults;
-  if(!source.length){$('dataTableContainer').innerHTML='<p class="text-muted-table">No data yet.</p>';return}
+  if(!source.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
   const catOrd={benign:0,'dual-use':1,mild:2,harmful:3,adversarial:4,jailbreak:5};
   _dtSorted=[...source].map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i})).sort((a,b)=>{
@@ -2012,9 +1613,9 @@ function _renderDataTablePage(){
     ['gini','Gini','f4',null,52],
     ['kl_divergence','KL','f4',null,52],
     ['n_negative_tokens','Neg','i',null,34],
-    ['_resid_stress','ΔStress','f3',null,60],
-    ['_resid_top2','ΔBnd%','f3',null,52],
-    ['_resid_ltp_M','ΔM','f6',null,56],
+    ['stress_score_ln','StressLN','f2',null,60],
+    ['entropy_ln','EntLN','f2',null,52],
+    ['middle_share_ln','Int%LN','f2',null,56],
     ['_inst_top1','InstTop1','s',null,70],
     ['_inst_prob','InstP','pct3',null,50],
     ['_base_top1','BaseTop1','s',null,70],
@@ -2053,7 +1654,7 @@ function _renderDataTablePage(){
   }
 
   function fmt(val,format){
-    if(val==null||val===''||val===undefined) return'<span class="text-muted">--</span>';
+    if(val==null||val===''||val===undefined) return'<span style="color:var(--text-3)">--</span>';
     if(format==='s') return escHtml(String(val).substring(0,30));
     if(format==='i') return Math.round(val);
     if(format==='f2') return Number(val).toFixed(2);
@@ -2074,7 +1675,7 @@ function _renderDataTablePage(){
       const cl=val.cl,pred=cl.predicted_class||cl.predicted,conf=Math.round((cl.confidence||0)*100);
       const match=val.cat&&pred&&(val.cat===pred?'✓':'✗');
       const mc=match==='✓'?'var(--green)':'var(--red)';
-      return`<span class="fs-11">${(pred||'').substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
+      return`<span class="pill ${pillClass(pred||'')}" style="font-size:11px">${(pred||'').substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
     }
     return val;
   }
@@ -2096,9 +1697,6 @@ function _renderDataTablePage(){
     if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
-    if(key==='_resid_stress') return r.length_residuals?r.length_residuals.stress_score:null;
-    if(key==='_resid_top2') return r.length_residuals?r.length_residuals.top2_share:null;
-    if(key==='_resid_ltp_M') return r.length_residuals?r.length_residuals.ltp_mean_M:null;
     if(key.startsWith('_cl_')){
       const cid=key.substring(4);
       const cls=r.classifiers||{};
@@ -2111,13 +1709,13 @@ function _renderDataTablePage(){
 
   // ─── Toolbar ──────────────────────────────────────────────────
   let h=`<div class="dt-toolbar">
-    <label class="flex-row-clickable">
-      <input type="checkbox" id="dtSelectAll" onchange="dtToggleAll(this.checked)"> <span class="fs-11">All</span>
+    <label style="margin:0;display:flex;align-items:center;gap:4px;cursor:pointer">
+      <input type="checkbox" id="dtSelectAll" onchange="dtToggleAll(this.checked)"> <span style="font-size:11px">All</span>
     </label>
     <span class="dt-sel-count" id="dtSelCount">0 selected</span>
     <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
     <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
-    <span class="text-primary-right">${sorted.length} records · page ${_dtPage}/${totalPages}</span>
+    <span style="margin-left:auto;color:var(--text-1);font-size:11px">${sorted.length} records · page ${_dtPage}/${totalPages}</span>
   </div>`;
 
   // ─── Table ────────────────────────────────────────────────────
@@ -2126,7 +1724,7 @@ function _renderDataTablePage(){
   for(let ci=0;ci<cols.length;ci++){
     const[key,label,format,,w]=cols[ci];
     const isCheckbox = key==='_cb';
-    const cls = isCheckbox ? '' : '';
+    const cls = isCheckbox ? ' class="dt-cb"' : '';
     const content = isCheckbox
       ? ''
       : `${label}<div class="dt-resize" data-col="${ci}" onmousedown="dtStartResize(event,${ci})"></div>`;
@@ -2154,18 +1752,18 @@ function _renderDataTablePage(){
 
   // ─── Pagination controls ──────────────────────────────────────
   if(totalPages>1){
-    h+=`<div class="pagination fs-11">`;
-    h+=`<button onclick="dtGoPage(1)" ${_dtPage<=1?'disabled':''} class="btn btn-secondary btn-sm w-auto">⟨⟨</button>`;
-    h+=`<button onclick="dtGoPage(${_dtPage-1})" ${_dtPage<=1?'disabled':''} class="btn btn-secondary btn-sm w-auto">⟨ Prev</button>`;
+    h+=`<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono);font-size:11px">`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(1)" ${_dtPage<=1?'disabled':''} style="width:auto">⟨⟨</button>`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${_dtPage-1})" ${_dtPage<=1?'disabled':''} style="width:auto">⟨ Prev</button>`;
     // Page numbers
     var startP=Math.max(1,_dtPage-2),endP=Math.min(totalPages,_dtPage+2);
     for(var p=startP;p<=endP;p++){
-      if(p===_dtPage) h+=`<span class="page-current">${p}</span>`;
-      else h+=`<button onclick="dtGoPage(${p})" class="page-btn">${p}</button>`;
+      if(p===_dtPage) h+=`<span style="color:var(--blue);font-weight:600;padding:0 4px">${p}</span>`;
+      else h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${p})" style="width:auto;padding:2px 6px">${p}</button>`;
     }
-    h+=`<button class="btn btn-secondary btn-sm w-auto" onclick="dtGoPage(${_dtPage+1})" ${_dtPage>=totalPages?'disabled':''}>Next ⟩</button>`;
-    h+=`<button class="btn btn-secondary btn-sm w-auto" onclick="dtGoPage(${totalPages})" ${_dtPage>=totalPages?'disabled':''}>⟩⟩</button>`;
-    h+=`<span class="text-muted-ml">${sorted.length} rows · ${_dtPageSize}/page</span>`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${_dtPage+1})" ${_dtPage>=totalPages?'disabled':''} style="width:auto">Next ⟩</button>`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${totalPages})" ${_dtPage>=totalPages?'disabled':''} style="width:auto">⟩⟩</button>`;
+    h+=`<span style="color:var(--text-3);margin-left:8px">${sorted.length} rows · ${_dtPageSize}/page</span>`;
     h+=`</div>`;
   }
 
@@ -2496,7 +2094,7 @@ function _terrainRendererCore(container, D, opts){
     +'<div class="terrain-ui" id="tUI"></div>'
     +'<div class="terrain-inf" id="tInf"></div>'
     +'<div class="terrain-leg" id="tLeg">'
-    +'<div class="flex-row-gap4"><span id="tLegMin">0</span><canvas id="tLegBase"></canvas><span id="tLegMax">0</span></div>'
+    +'<div style="display:flex;gap:4px;align-items:center"><span id="tLegMin">0</span><canvas id="tLegBase"></canvas><span id="tLegMax">0</span></div>'
     +'</div></div>';
 
   const cv=document.getElementById('tCv');
@@ -2727,7 +2325,7 @@ function _terrainRendererCore(container, D, opts){
     var ui=document.getElementById('tUI');
     if(!ui) return;
     var h='';
-    h+='<select onchange="window._terrainSelectCat(this.value)" class="min-w-80">';
+    h+='<select onchange="window._terrainSelectCat(this.value)" style="min-width:80px">';
     for(var c in D){if(D.hasOwnProperty(c))h+='<option value="'+c+'"'+(c===curCat?' selected':'')+'>'+c+'</option>'}
     h+='</select><span class="tsep">|</span>';
     h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
@@ -2738,7 +2336,7 @@ function _terrainRendererCore(container, D, opts){
     var playLabel=slideshowPlaying?'Stop':'Play';
     h+='<button class="tb'+(slideshowPlaying?' on':'')+'" id="tPlayBtn" onclick="window._terrainPlayPause()">'+playLabel+'</button>';
     h+='<button class="tb" onclick="window._terrainNext()">Next</button>';
-    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" class="range-sm" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
+    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
     h+='<span class="tsep">|</span>';
     h+='<select onchange="window._terrainSetBase(this.value)" title="Color ramp">';
     for(var k in BASES){if(BASES.hasOwnProperty(k))h+='<option value="'+k+'"'+(k===curBase?' selected':'')+'>'+BASES[k].label+'</option>'}
@@ -2755,7 +2353,7 @@ function _terrainRendererCore(container, D, opts){
       h+='</select>';
     }
     h+='<span class="tsep">|</span>';
-    h+='<span class="terrain-label">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" class="range-md" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
+    h+='<span style="font-size:11px;color:#bbc">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
     h+='<span class="tsep">|</span>';
     h+='<button class="tb" onclick="window._terrainResetView()">Reset</button>';
     if(!isPopout) h+='<button class="tb" onclick="window._terrainPopout()">Pop out</button>';
@@ -2881,215 +2479,15 @@ function initTerrainViewer(results){
     w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
     w.document.write('.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}.terrain-wrap canvas:active{cursor:grabbing}');
     w.document.write('.terrain-ui{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;background:rgba(8,8,18,.75);padding:3px 7px;border-radius:6px;max-width:calc(100% - 16px);z-index:5}');
-    w.document.write('.terrain-ui .tb{font-size:11px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:4px;color:#aaa;cursor:pointer;font-family:monospace}.terrain-ui .tb:hover{background:rgba(255,255,255,.05)}.terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB}');
+    w.document.write('.terrain-ui .tb{font-size:11px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:4px;color:#888;cursor:pointer;font-family:monospace}.terrain-ui .tb:hover{background:rgba(255,255,255,.05)}.terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB}');
     w.document.write('.terrain-ui .tsep{color:rgba(255,255,255,.12);margin:0 2px;font-size:11px}');
     w.document.write('.terrain-ui select{background:rgba(255,255,255,.05);border:.5px solid rgba(255,255,255,.15);border-radius:3px;color:#ccc;font-size:11px;padding:2px 5px;cursor:pointer;max-width:200px;font-family:monospace}');
     w.document.write('.terrain-inf{position:absolute;top:6px;left:8px;font-size:11px;color:#bbc;background:rgba(8,8,18,.55);padding:2px 6px;border-radius:4px;z-index:5;font-family:monospace}');
     w.document.write('.terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}.terrain-leg canvas{height:5px;width:100px;border-radius:2px}.terrain-leg span{font-size:11px;color:#bbc}');
-    w.document.write('
-/* ─── Extracted utility classes ────────────────────────────────── */
-.mb-14{margin-bottom:14px}
-.mb-10{margin-bottom:10px}
-.mb-8{margin-bottom:8px}
-.mt-16{margin-top:16px}
-.mt-4{margin-top:4px}
-.p-16{padding:16px}
-.p-10{padding:10px}
-.px-14-py-10{padding:10px 14px}
-.d-none{display:none}
-.flex-1{flex:1}
-.w-auto{width:auto}
-.mb-0{margin-bottom:0}
-.section-divider{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.scrollbox{max-height:200px;overflow-y:auto;margin-bottom:14px}
-.scrollbox-sm{max-height:180px;overflow-y:auto}
-.text-cyan{color:var(--cyan)}
-.text-muted{color:var(--text-3)}
-.text-secondary{color:var(--text-2)}
-.text-primary{color:var(--text-1)}
-.text-bright{color:var(--text-0)}
-.text-orange{color:var(--orange)}
-.text-red{color:var(--red)}
-.text-green{color:var(--green)}
-.text-purple{color:var(--purple)}
-.border-cyan{border-color:var(--cyan)}
-.border-purple{border-color:var(--purple)}
-.section-label-cyan{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px}
-.section-label-purple{font-size:12px;font-weight:600;color:var(--purple);margin-bottom:8px}
-.section-label-orange{font-size:12px;font-weight:600;color:var(--orange);margin-bottom:8px}
-.section-label{font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:8px}
-.stat-label{font-size:11px;color:var(--text-2);margin-bottom:3px}
-.stat-value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
-.stat-sub{font-size:11px;color:var(--text-2)}
-.card-inner{margin-bottom:10px;padding:8px 10px;background:var(--bg-2);border-radius:4px}
-.card-inner-accent{margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)}
-.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.chip{font-size:11px;padding:3px 6px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)}
-.token-map{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
-.section-top-purple{margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)}
-.section-top-cyan{margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)}
-.cfg-section-title{font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.cfg-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px}
-.cfg-label{font-size:12px;color:var(--text-1)}
-.cfg-max{max-width:540px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4}
-.cl-bar-label{font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right}
-.cl-bar-value{font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px}
-.cl-contrib-text{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1}
-.desc-text{font-size:13px;color:var(--text-0);margin-bottom:8px;line-height:1.5}
-.info-text{font-size:11px;color:var(--text-2);line-height:1.6}
-.feature-body-text{font-size:var(--font-desc);color:var(--text-1);line-height:1.6}
-.chevron{color:var(--text-2);font-size:12px;margin-right:6px}
-.agg-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
-.agg-th-r{text-align:right;padding:8px 6px;color:var(--text-0)}
-.agg-td-r{text-align:right;padding:6px;color:var(--text-0)}
-.agg-td-r-dim{text-align:right;padding:6px;color:var(--text-1)}
-.agg-td-l{text-align:left;padding:5px 10px;color:#B8BFC6}
-.agg-td-r-text{text-align:right;padding:5px 6px;color:#B8BFC6}
-.agg-td-r-green{text-align:right;padding:5px 6px;color:#3fb950}
-.agg-td-r-red{text-align:right;padding:5px 6px;color:#f85149}
-.agg-td-sm{text-align:right;padding:3px 4px;color:var(--text-1)}
-.agg-td-sm-text{text-align:right;padding:4px 4px;color:#B8BFC6}
-.row-border{border-bottom:1px solid rgba(255,255,255,0.12)}
-.row-border-light{border-bottom:1px solid rgba(255,255,255,0.06)}
-.mono-text{font-family:var(--mono);font-size:12px;color:var(--text-1)}
-.mono-bold{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
-.mono-title{font-family:var(--mono);font-size:14px;font-weight:600}
-.glyph-map{font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0}
-.label-cyan{font-size:12px;color:var(--cyan)}
-.min-w-32{min-width:32px}
-/* ─── Pass 2 utility classes ──────────────────────────────────── */
-.agg-td-r-dim{padding:5px 6px;text-align:right;color:var(--text-1)}
-.text-light{color:#B8BFC6}
-.text-muted-sm{color:var(--text-3);font-size:11px}
-.text-secondary-md{color:var(--text-2);font-size:12px}
-.fs-11{font-size:11px}
-.mono{font-family:var(--mono)}
-.mt-4-sm{font-size:11px;margin-top:4px}
-.mt-3-sm{font-size:11px;margin-top:3px}
-.text-primary-light{color:var(--text-1);font-weight:400}
-.badge-purple{color:var(--purple);font-size:11px;font-weight:600}
-.section-header-flex{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.section-title-purple{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)}
-.section-title-cyan{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px}
-.p-12{padding:12px}
-.p-14{padding:14px}
-.px-10-py-6{padding:6px 10px}
-.mt-12{margin-top:12px}
-.note-purple{margin-bottom:8px;font-size:11px;color:var(--purple)}
-.w-full{width:100%}
-.max-w-full{max-width:100%}
-.max-w-500{max-width:500px}
-.flex-center{display:flex;justify-content:center}
-.btn-sm-pad{font-size:11px;padding:3px 10px}
-.scrollbox-lg{max-height:300px;overflow-y:auto}
-.agg-th-l{text-align:left;padding:8px 10px;color:var(--text-0)}
-.agg-th-r-bold{text-align:right;padding:6px;color:var(--text-0);font-weight:600}
-.text-light-normal{color:#B8BFC6;font-weight:400}
-.agg-td-wide{padding:5px 10px;color:var(--text-0)}
-.agg-td-bar{padding:5px 6px;width:120px}
-.agg-td-light{padding:5px 6px;color:#B8BFC6}
-.agg-td-r-blue{text-align:right;padding:5px 6px;color:#58a6ff}
-.agg-td-r-purple{text-align:right;padding:5px 6px;color:#bc8cff}
-.agg-td-l-light{text-align:left;padding:5px 6px;color:#B8BFC6}
-.agg-td-header{padding:4px 10px;color:var(--text-0);font-weight:600}
-.agg-td-r-sec{text-align:right;padding:4px 6px;color:var(--text-1)}
-.agg-td-r-green-sm{text-align:right;padding:4px 6px;color:#3fb950}
-.agg-td-r-red-sm{text-align:right;padding:4px 6px;color:#f85149}
-.agg-td-r-blue-sm{text-align:right;padding:4px 6px;color:#58a6ff}
-.row-border-faint{border-bottom:1px solid rgba(255,255,255,0.04)}
-.row-border-faintest{border-bottom:1px solid rgba(255,255,255,0.03)}
-.agg-td-l-sm{text-align:left;padding:4px 8px;color:#B8BFC6}
-.agg-td-l-xs{text-align:left;padding:4px 4px;color:#B8BFC6}
-.agg-td-truncate{padding:3px 8px;color:var(--text-1);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.text-dark{color:#333}
-.text-danger{color:#f85149}
-.text-warn{color:#d29a22}
-.text-violet{color:#bc8cff}
-.bg-orange{background:var(--orange)}
-.btn-cyan{background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
-/* ─── Pass 3 utility classes ──────────────────────────────────── */
-.nav-link{font-family:var(--mono);font-size:11px;color:var(--text-2);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;margin-left:8px}
-.flex-row-gap4-mt6{margin-top:6px;display:flex;gap:4px;align-items:center}
-.flex-row-gap8-mt10{margin-top:10px;display:flex;gap:8px}
-.flex-row-gap10-mb10{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.flex-wrap-gap8{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.flex-center-gap6-mb10{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
-.flex-wrap-center-mt10{display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center}
-.flex-row-gap6-mt3{display:flex;align-items:center;gap:6px;margin-top:3px}
-.flex-row-gap6-my2{display:flex;align-items:center;gap:6px;margin:2px 0}
-.contrib-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)}
-.flex-row-gap4{display:flex;gap:4px;align-items:center}
-.flex-row-clickable{margin:0;display:flex;align-items:center;gap:4px;cursor:pointer}
-.pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono)}
-.desc-body{font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5}
-.desc-body-md{font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5}
-.desc-indent{font-size:12px;color:var(--text-2);margin:4px 0 0 22px;line-height:1.4}
-.desc-body-lg{font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5}
-.btn-fixed{flex:0 0 auto;width:auto;padding:7px 14px}
-.input-sm{width:60px;font-size:11px;padding:3px}
-.input-xs-center{width:42px;font-size:11px;padding:3px;text-align:center}
-.w-70{width:70px}
-.min-w-80{min-width:80px}
-.p-16-8{padding:8px 16px;min-width:0}
-.p-0{padding:0}
-.center-pad{padding:20px;text-align:center}
-.btn-wide{width:auto;padding:8px 20px}
-.load-msg{margin-top:8px;color:var(--text-3);font:11px monospace}
-.btn-cyan-sm{min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.flex-1-center{flex:1;text-align:center}
-.link-right{float:right;font-size:12px;color:var(--blue);text-decoration:none}
-.cfg-scope-label{color:var(--text-3);text-transform:none;letter-spacing:0}
-.cfg-grid-mb{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px}
-.cl-main-label{font-family:var(--mono);font-size:16px;color:var(--text-0)}
-.cl-sub-label{font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px}
-.cl-mono-sub{font-size:11px;color:var(--text-2);font-family:var(--mono)}
-.cl-summary{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4}
-.cl-bar-track{flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden}
-.cl-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)}
-.cl-prob-bar{flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden}
-.cl-caveat{margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5}
-.cl-contrib-dot{font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px}
-.text-secondary-lg{color:var(--text-2);font-size:13px}
-.text-muted-right{color:var(--text-3);font-size:11px;margin-left:auto}
-.text-muted-table{color:var(--text-3);font-size:var(--font-table)}
-.text-primary-right{margin-left:auto;color:var(--text-1);font-size:11px}
-.page-current{color:var(--blue);font-weight:600;padding:0 4px}
-.page-btn{width:auto;padding:2px 6px}
-.text-muted-ml{color:var(--text-3);margin-left:8px}
-.range-sm{width:32px;vertical-align:middle}
-.terrain-label{font-size:11px;color:#bbc}
-.range-md{width:36px;vertical-align:middle}
-.overlay-full{position:absolute;inset:0}
-.progress-bar-track{width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px}
-.mono-bold-sm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)}
-.dr-matched{font-size:11px;margin-top:3px;color:var(--text-3)}
-.container{max-width:960px;margin:0 auto}
-.agg-bar-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px}
-.agg-prompt-cell{padding:5px 8px;font-size:11px}
-.agg-sticky-header{border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)}
-.agg-map-cell{padding:4px 4px;color:#B8BFC6;width:80px}
-.agg-mini-map{padding:3px 4px;font-family:var(--mono);font-size:11px;letter-spacing:0.5px}
-.border-purple-mt{border-color:var(--purple);margin-top:16px}
-/* ─── Dynamic style base classes ──────────────────────────────── */
-.progress-fill{height:100%;border-radius:2px}
-.cl-stage-card{padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid}
-.cl-stage-label{font-family:var(--mono);font-size:11px}
-.cl-prob-fill{height:100%;border-radius:3px}
-.cl-contrib-icon{font-size:11px;width:12px}
-.cl-favors-pill{font-size:11px}
-.cl-match-label{font-size:14px;font-weight:600}
-.agg-bar-fill{height:100%;border-radius:4px}
-</style>');
+    w.document.write('</style>');
     w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
     w.document.write('</head><body>');
-    w.document.write('<div id="terrainContainer" class="overlay-full"></div>');
+    w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
     w.document.write('<script>var D='+dataJSON+';<\/script>');
     // Inline the renderer function source via toString()
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
@@ -3109,7 +2507,8 @@ function initTerrainViewer(results){
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
     if(st.session&&st.session.n_results>0)updateSessionBadge();
-    // (baseline toggle removed — length normalization uses regression)
+    // Restore baselines toggle from server state
+    // (baseline toggle removed)
   }catch(e){}
 })();
 
@@ -3138,227 +2537,27 @@ function computeCandidateGraph(r){
 function renderCandidateGraphSection(r){
   const g=computeCandidateGraph(r);if(!g)return'';
   const uid='cg_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
-  let mapH='<div class="glyph-map">';
+  let mapH='<div style="font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0">';
   for(let i=0;i<g.posStats.length;i++){const ps=g.posStats[i];let ch,col,title;if(!ps.contested){ch='·';col='var(--text-3)';title=ps.token+': stable ('+ps.nMatched+' matched)'}else if(ps.intensity>=6){ch='▓';col='var(--red)';title=ps.token+': heavy (+'+ps.nPromoted+' -'+ps.nDemoted+')'}else if(ps.intensity>=3){ch='▒';col='var(--orange)';title=ps.token+': moderate (+'+ps.nPromoted+' -'+ps.nDemoted+')'}else{ch='░';col='#e3b341';title=ps.token+': light (+'+ps.nPromoted+' -'+ps.nDemoted+')'}mapH+='<span style="color:'+col+';cursor:help" title="'+escHtml(title)+'">'+ch+'</span>'}
-  mapH+='</div><div class="token-map">';
+  mapH+='</div><div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px">';
   for(let i=0;i<g.tokens.length;i++){const ps=g.posStats[i];const bg=ps.contested?(ps.intensity>=6?'rgba(248,81,73,0.15)':(ps.intensity>=3?'rgba(210,153,34,0.15)':'rgba(227,179,65,0.08)')):'transparent';mapH+='<span style="font-family:var(--mono);font-size:12px;padding:2px 5px;background:'+bg+';border-radius:3px;color:var(--text-0)">'+escHtml(g.tokens[i])+'</span>'}
   mapH+='</div>';
   const cp=(g.contestedFrac*100).toFixed(0),bw=Math.round(g.contestedFrac*100),bc=g.contestedFrac>0.85?'var(--red)':(g.contestedFrac>0.7?'var(--orange)':'var(--green)');
-  let mH=`<div class="stat-grid"><div><div class="stat-label">CONTESTED</div><div class="stat-value" style="color:${bc}">${cp}%</div><div class="progress-bar-track"><div class="progress-fill" style="width:${bw}%;background:${bc}"></div></div></div><div><div class="stat-label">DUAL-ROLE</div><div class="stat-value">${g.nDualRole}</div><div class="stat-sub">candidates</div></div><div><div class="stat-label">SWITCHES</div><div class="stat-value">${g.nRoleSwitches}</div><div class="stat-sub">${g.switchRate.toFixed(2)}/token</div></div><div><div class="stat-label">TRAJECTORIES</div><div class="stat-value">${g.nMultiPosition}</div><div class="stat-sub">of ${g.nUniqueCandidates} unique</div></div></div>`;
-  let ptH='<div class="scrollbox"><table class="data-table"><tr><th>Pos</th><th>Token</th><th>Match</th><th>+Prom</th><th>-Demo</th><th>Status</th></tr>';
-  for(const ps of g.posStats){const st=ps.contested?'<span class="text-red">contested</span>':'<span class="text-green">stable</span>';ptH+=`<tr><td>${ps.pos}</td><td>${escHtml(ps.token)}</td><td>${ps.nMatched}</td><td>${ps.nPromoted}</td><td>${ps.nDemoted}</td><td>${st}</td></tr>`}
+  let mH=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px"><div><div style="font-size:11px;color:var(--text-2);margin-bottom:3px">CONTESTED</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:${bc}">${cp}%</div><div style="width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px"><div style="width:${bw}%;height:100%;background:${bc};border-radius:2px"></div></div></div><div><div style="font-size:11px;color:var(--text-2);margin-bottom:3px">DUAL-ROLE</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nDualRole}</div><div style="font-size:11px;color:var(--text-2)">candidates</div></div><div><div style="font-size:11px;color:var(--text-2);margin-bottom:3px">SWITCHES</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nRoleSwitches}</div><div style="font-size:11px;color:var(--text-2)">${g.switchRate.toFixed(2)}/token</div></div><div><div style="font-size:11px;color:var(--text-2);margin-bottom:3px">TRAJECTORIES</div><div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)">${g.nMultiPosition}</div><div style="font-size:11px;color:var(--text-2)">of ${g.nUniqueCandidates} unique</div></div></div>`;
+  let ptH='<div style="max-height:200px;overflow-y:auto;margin-bottom:14px"><table class="data-table"><tr><th>Pos</th><th>Token</th><th>Match</th><th>+Prom</th><th>-Demo</th><th>Status</th></tr>';
+  for(const ps of g.posStats){const st=ps.contested?'<span style="color:var(--red)">contested</span>':'<span style="color:var(--green)">stable</span>';ptH+=`<tr><td>${ps.pos}</td><td>${escHtml(ps.token)}</td><td>${ps.nMatched}</td><td>${ps.nPromoted}</td><td>${ps.nDemoted}</td><td>${st}</td></tr>`}
   ptH+='</table></div>';
-  let dH='';if(g.dualRole.length>0){dH='<div class="mb-14"><div class="section-label-purple">DUAL-ROLE CANDIDATES</div>';for(const dr of g.dualRole){if(dr.token.trim()==='')continue;const pc=dr.promotedAt.map(x=>'<span class="text-green">pos '+x.pos+'</span> <span class="text-muted">('+escHtml(x.tok)+')</span>').join(', ');const dc=dr.demotedAt.map(x=>'<span class="text-red">pos '+x.pos+'</span> <span class="text-muted">('+escHtml(x.tok)+')</span>').join(', ');dH+=`<div class="card-inner-accent"><div class="mono-bold-sm">"${escHtml(dr.token)}"</div><div class="mt-4-sm">↑ promoted: ${pc}</div><div class="mt-3-sm">↓ demoted: ${dc}</div>${dr.matchedAt.length?'<div class="dr-matched">= matched: '+dr.matchedAt.length+' positions</div>':''}</div>`}dH+='</div>'}
-  let sH='';if(g.roleSwitches.length>0){sH='<div class="mb-14"><div class="section-label-orange">ROLE SWITCHES</div><div class="scrollbox-sm"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td class="mono">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span class="text-primary">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td class="text-secondary">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span class="text-primary">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
-  let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div class="mb-14"><div class="section-label-cyan">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span class="badge-purple">DUAL</span>':'';tH+=`<div class="card-inner"><div class="mono-bold">"${escHtml(tr.candidate)}" <span class="text-primary-light">${tr.nAppearances} pos</span>${lb}</div><div class="chip-row">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span class="chip" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span class="text-primary">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
-  return`<div class="section-top-purple"><div class="section-header-flex"><div class="section-title-purple">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}">${mapH}${mH}<div class="border-purple"><div class="feature-header" onclick="toggleFeature(this)"><div class="text-purple">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="p-10">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
+  let dH='';if(g.dualRole.length>0){dH='<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--purple);margin-bottom:8px">DUAL-ROLE CANDIDATES</div>';for(const dr of g.dualRole){if(dr.token.trim()==='')continue;const pc=dr.promotedAt.map(x=>'<span style="color:var(--green)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');const dc=dr.demotedAt.map(x=>'<span style="color:var(--red)">pos '+x.pos+'</span> <span style="color:var(--text-3)">('+escHtml(x.tok)+')</span>').join(', ');dH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)"><div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)">"${escHtml(dr.token)}"</div><div style="font-size:11px;margin-top:4px">↑ promoted: ${pc}</div><div style="font-size:11px;margin-top:3px">↓ demoted: ${dc}</div>${dr.matchedAt.length?'<div style="font-size:11px;margin-top:3px;color:var(--text-3)">= matched: '+dr.matchedAt.length+' positions</div>':''}</div>`}dH+='</div>'}
+  let sH='';if(g.roleSwitches.length>0){sH='<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--orange);margin-bottom:8px">ROLE SWITCHES</div><div style="max-height:180px;overflow-y:auto"><table class="data-table"><tr><th>Candidate</th><th>From</th><th>→</th><th>To</th></tr>';for(const sw of g.roleSwitches.slice(0,20)){const fc=sw.fromRole==='promoted'?'var(--green)':(sw.fromRole==='demoted'?'var(--red)':'var(--text-2)');const tc=sw.toRole==='promoted'?'var(--green)':(sw.toRole==='demoted'?'var(--red)':'var(--text-2)');sH+=`<tr><td style="font-family:var(--mono)">"${escHtml(sw.candidate)}"</td><td><span style="color:${fc}">${sw.fromRole}</span> <span style="color:var(--text-3)">at ${sw.fromPos} (${escHtml(sw.fromTok)})</span></td><td style="color:var(--text-3)">→</td><td><span style="color:${tc}">${sw.toRole}</span> <span style="color:var(--text-3)">at ${sw.toPos} (${escHtml(sw.toTok)})</span></td></tr>`}sH+='</table></div></div>'}
+  let tH='';const topT=g.trajectories.filter(t=>t.nAppearances>=2).slice(0,8);if(topT.length>0){tH='<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px">CANDIDATE TRAJECTORIES</div>';for(const tr of topT){const lb=tr.isDualRole?' <span style="color:var(--purple);font-size:11px;font-weight:600">DUAL</span>':'';tH+=`<div style="margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px"><div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)">"${escHtml(tr.candidate)}" <span style="color:var(--text-3);font-weight:400">${tr.nAppearances} pos</span>${lb}</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">`;for(const p of tr.positions){const rc=p.role==='promoted'?'var(--green)':(p.role==='demoted'?'var(--red)':'var(--text-2)');const rs=p.role==='promoted'?'↑':(p.role==='demoted'?'↓':'=');const ip=p.inst?(p.inst.prob*100).toFixed(1)+'%':'—';const bp=p.base?(p.base.prob*100).toFixed(1)+'%':'—';tH+=`<span style="font-size:11px;padding:3px 6px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)" title="inst:${ip} base:${bp}"><span style="color:${rc}">${rs}</span> <span style="color:var(--text-1)">${p.pos}:${escHtml(p.tok)}</span></span>`}tH+='</div></div>'}tH+='</div>'}
+  return`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">Candidate Graph</div><button class="btn-popout" onclick="popoutCandidateGraph('${uid}')" title="Full graph in new window">↗ Pop out</button></div><div id="${uid}">${mapH}${mH}<div class="feature" style="border-color:var(--purple)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--purple)">Position Detail</div><p class="feature-desc">Per-token contested status. Contested = both models swapping candidates at this position.</p></div><div class="feature-body collapsed" style="padding:10px">${ptH}</div></div>${dH}${sH}${tH}</div></div>`
 }
 function popoutCandidateGraph(uid){
   const el=document.getElementById(uid);if(!el)return;
   const pw=1000,ph=850,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);if(!w)return;
   const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]')).map(s=>s.outerHTML).join('\n');
-  w.document.write(`<!DOCTYPE html><html><head><title>TASM — Candidate Graph</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">${styles}<style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}.feature-body.collapsed{display:block!important}
-/* ─── Extracted utility classes ────────────────────────────────── */
-.mb-14{margin-bottom:14px}
-.mb-10{margin-bottom:10px}
-.mb-8{margin-bottom:8px}
-.mt-16{margin-top:16px}
-.mt-4{margin-top:4px}
-.p-16{padding:16px}
-.p-10{padding:10px}
-.px-14-py-10{padding:10px 14px}
-.d-none{display:none}
-.flex-1{flex:1}
-.w-auto{width:auto}
-.mb-0{margin-bottom:0}
-.section-divider{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.scrollbox{max-height:200px;overflow-y:auto;margin-bottom:14px}
-.scrollbox-sm{max-height:180px;overflow-y:auto}
-.text-cyan{color:var(--cyan)}
-.text-muted{color:var(--text-3)}
-.text-secondary{color:var(--text-2)}
-.text-primary{color:var(--text-1)}
-.text-bright{color:var(--text-0)}
-.text-orange{color:var(--orange)}
-.text-red{color:var(--red)}
-.text-green{color:var(--green)}
-.text-purple{color:var(--purple)}
-.border-cyan{border-color:var(--cyan)}
-.border-purple{border-color:var(--purple)}
-.section-label-cyan{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:8px}
-.section-label-purple{font-size:12px;font-weight:600;color:var(--purple);margin-bottom:8px}
-.section-label-orange{font-size:12px;font-weight:600;color:var(--orange);margin-bottom:8px}
-.section-label{font-size:11px;font-weight:600;color:var(--text-0);margin-bottom:8px}
-.stat-label{font-size:11px;color:var(--text-2);margin-bottom:3px}
-.stat-value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0)}
-.stat-sub{font-size:11px;color:var(--text-2)}
-.card-inner{margin-bottom:10px;padding:8px 10px;background:var(--bg-2);border-radius:4px}
-.card-inner-accent{margin-bottom:8px;padding:6px 8px;background:var(--bg-2);border-radius:4px;border-left:3px solid var(--purple)}
-.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.chip{font-size:11px;padding:3px 6px;background:var(--bg-1);border-radius:3px;border:1px solid var(--border)}
-.token-map{display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
-.section-top-purple{margin-top:16px;padding-top:14px;border-top:2px solid var(--purple)}
-.section-top-cyan{margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)}
-.cfg-section-title{font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.cfg-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px}
-.cfg-label{font-size:12px;color:var(--text-1)}
-.cfg-max{max-width:540px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
-.cl-section-title{font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)}
-.cl-detail{font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4}
-.cl-bar-label{font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right}
-.cl-bar-value{font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px}
-.cl-contrib-text{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1}
-.desc-text{font-size:13px;color:var(--text-0);margin-bottom:8px;line-height:1.5}
-.info-text{font-size:11px;color:var(--text-2);line-height:1.6}
-.feature-body-text{font-size:var(--font-desc);color:var(--text-1);line-height:1.6}
-.chevron{color:var(--text-2);font-size:12px;margin-right:6px}
-.agg-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
-.agg-th-r{text-align:right;padding:8px 6px;color:var(--text-0)}
-.agg-td-r{text-align:right;padding:6px;color:var(--text-0)}
-.agg-td-r-dim{text-align:right;padding:6px;color:var(--text-1)}
-.agg-td-l{text-align:left;padding:5px 10px;color:#B8BFC6}
-.agg-td-r-text{text-align:right;padding:5px 6px;color:#B8BFC6}
-.agg-td-r-green{text-align:right;padding:5px 6px;color:#3fb950}
-.agg-td-r-red{text-align:right;padding:5px 6px;color:#f85149}
-.agg-td-sm{text-align:right;padding:3px 4px;color:var(--text-1)}
-.agg-td-sm-text{text-align:right;padding:4px 4px;color:#B8BFC6}
-.row-border{border-bottom:1px solid rgba(255,255,255,0.12)}
-.row-border-light{border-bottom:1px solid rgba(255,255,255,0.06)}
-.mono-text{font-family:var(--mono);font-size:12px;color:var(--text-1)}
-.mono-bold{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
-.mono-title{font-family:var(--mono);font-size:14px;font-weight:600}
-.glyph-map{font-family:var(--mono);font-size:12px;letter-spacing:1px;line-height:1.8;margin:8px 0}
-.label-cyan{font-size:12px;color:var(--cyan)}
-.min-w-32{min-width:32px}
-/* ─── Pass 2 utility classes ──────────────────────────────────── */
-.agg-td-r-dim{padding:5px 6px;text-align:right;color:var(--text-1)}
-.text-light{color:#B8BFC6}
-.text-muted-sm{color:var(--text-3);font-size:11px}
-.text-secondary-md{color:var(--text-2);font-size:12px}
-.fs-11{font-size:11px}
-.mono{font-family:var(--mono)}
-.mt-4-sm{font-size:11px;margin-top:4px}
-.mt-3-sm{font-size:11px;margin-top:3px}
-.text-primary-light{color:var(--text-1);font-weight:400}
-.badge-purple{color:var(--purple);font-size:11px;font-weight:600}
-.section-header-flex{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.section-title-purple{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)}
-.section-title-cyan{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px}
-.p-12{padding:12px}
-.p-14{padding:14px}
-.px-10-py-6{padding:6px 10px}
-.mt-12{margin-top:12px}
-.note-purple{margin-bottom:8px;font-size:11px;color:var(--purple)}
-.w-full{width:100%}
-.max-w-full{max-width:100%}
-.max-w-500{max-width:500px}
-.flex-center{display:flex;justify-content:center}
-.btn-sm-pad{font-size:11px;padding:3px 10px}
-.scrollbox-lg{max-height:300px;overflow-y:auto}
-.agg-th-l{text-align:left;padding:8px 10px;color:var(--text-0)}
-.agg-th-r-bold{text-align:right;padding:6px;color:var(--text-0);font-weight:600}
-.text-light-normal{color:#B8BFC6;font-weight:400}
-.agg-td-wide{padding:5px 10px;color:var(--text-0)}
-.agg-td-bar{padding:5px 6px;width:120px}
-.agg-td-light{padding:5px 6px;color:#B8BFC6}
-.agg-td-r-blue{text-align:right;padding:5px 6px;color:#58a6ff}
-.agg-td-r-purple{text-align:right;padding:5px 6px;color:#bc8cff}
-.agg-td-l-light{text-align:left;padding:5px 6px;color:#B8BFC6}
-.agg-td-header{padding:4px 10px;color:var(--text-0);font-weight:600}
-.agg-td-r-sec{text-align:right;padding:4px 6px;color:var(--text-1)}
-.agg-td-r-green-sm{text-align:right;padding:4px 6px;color:#3fb950}
-.agg-td-r-red-sm{text-align:right;padding:4px 6px;color:#f85149}
-.agg-td-r-blue-sm{text-align:right;padding:4px 6px;color:#58a6ff}
-.row-border-faint{border-bottom:1px solid rgba(255,255,255,0.04)}
-.row-border-faintest{border-bottom:1px solid rgba(255,255,255,0.03)}
-.agg-td-l-sm{text-align:left;padding:4px 8px;color:#B8BFC6}
-.agg-td-l-xs{text-align:left;padding:4px 4px;color:#B8BFC6}
-.agg-td-truncate{padding:3px 8px;color:var(--text-1);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.text-dark{color:#333}
-.text-danger{color:#f85149}
-.text-warn{color:#d29a22}
-.text-violet{color:#bc8cff}
-.bg-orange{background:var(--orange)}
-.btn-cyan{background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
-/* ─── Pass 3 utility classes ──────────────────────────────────── */
-.nav-link{font-family:var(--mono);font-size:11px;color:var(--text-2);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;margin-left:8px}
-.flex-row-gap4-mt6{margin-top:6px;display:flex;gap:4px;align-items:center}
-.flex-row-gap8-mt10{margin-top:10px;display:flex;gap:8px}
-.flex-row-gap10-mb10{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.flex-wrap-gap8{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.flex-center-gap6-mb10{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
-.flex-wrap-center-mt10{display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center}
-.flex-row-gap6-mt3{display:flex;align-items:center;gap:6px;margin-top:3px}
-.flex-row-gap6-my2{display:flex;align-items:center;gap:6px;margin:2px 0}
-.contrib-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)}
-.flex-row-gap4{display:flex;gap:4px;align-items:center}
-.flex-row-clickable{margin:0;display:flex;align-items:center;gap:4px;cursor:pointer}
-.pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono)}
-.desc-body{font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5}
-.desc-body-md{font-size:12px;color:var(--text-1);margin-bottom:8px;line-height:1.5}
-.desc-indent{font-size:12px;color:var(--text-2);margin:4px 0 0 22px;line-height:1.4}
-.desc-body-lg{font-size:12px;color:var(--text-1);margin-bottom:10px;line-height:1.5}
-.btn-fixed{flex:0 0 auto;width:auto;padding:7px 14px}
-.input-sm{width:60px;font-size:11px;padding:3px}
-.input-xs-center{width:42px;font-size:11px;padding:3px;text-align:center}
-.w-70{width:70px}
-.min-w-80{min-width:80px}
-.p-16-8{padding:8px 16px;min-width:0}
-.p-0{padding:0}
-.center-pad{padding:20px;text-align:center}
-.btn-wide{width:auto;padding:8px 20px}
-.load-msg{margin-top:8px;color:var(--text-3);font:11px monospace}
-.btn-cyan-sm{min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)}
-.flex-1-center{flex:1;text-align:center}
-.link-right{float:right;font-size:12px;color:var(--blue);text-decoration:none}
-.cfg-scope-label{color:var(--text-3);text-transform:none;letter-spacing:0}
-.cfg-grid-mb{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px}
-.cl-main-label{font-family:var(--mono);font-size:16px;color:var(--text-0)}
-.cl-sub-label{font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px}
-.cl-mono-sub{font-size:11px;color:var(--text-2);font-family:var(--mono)}
-.cl-summary{font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4}
-.cl-bar-track{flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden}
-.cl-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)}
-.cl-prob-bar{flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden}
-.cl-caveat{margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5}
-.cl-contrib-dot{font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px}
-.text-secondary-lg{color:var(--text-2);font-size:13px}
-.text-muted-right{color:var(--text-3);font-size:11px;margin-left:auto}
-.text-muted-table{color:var(--text-3);font-size:var(--font-table)}
-.text-primary-right{margin-left:auto;color:var(--text-1);font-size:11px}
-.page-current{color:var(--blue);font-weight:600;padding:0 4px}
-.page-btn{width:auto;padding:2px 6px}
-.text-muted-ml{color:var(--text-3);margin-left:8px}
-.range-sm{width:32px;vertical-align:middle}
-.terrain-label{font-size:11px;color:#bbc}
-.range-md{width:36px;vertical-align:middle}
-.overlay-full{position:absolute;inset:0}
-.progress-bar-track{width:100%;height:3px;background:var(--bg-3);border-radius:2px;margin-top:3px}
-.mono-bold-sm{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-0)}
-.dr-matched{font-size:11px;margin-top:3px;color:var(--text-3)}
-.container{max-width:960px;margin:0 auto}
-.agg-bar-track{width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px}
-.agg-prompt-cell{padding:5px 8px;font-size:11px}
-.agg-sticky-header{border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)}
-.agg-map-cell{padding:4px 4px;color:#B8BFC6;width:80px}
-.agg-mini-map{padding:3px 4px;font-family:var(--mono);font-size:11px;letter-spacing:0.5px}
-.border-purple-mt{border-color:var(--purple);margin-top:16px}
-/* ─── Dynamic style base classes ──────────────────────────────── */
-.progress-fill{height:100%;border-radius:2px}
-.cl-stage-card{padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid}
-.cl-stage-label{font-family:var(--mono);font-size:11px}
-.cl-prob-fill{height:100%;border-radius:3px}
-.cl-contrib-icon{font-size:11px;width:12px}
-.cl-favors-pill{font-size:11px}
-.cl-match-label{font-size:14px;font-weight:600}
-.agg-bar-fill{height:100%;border-radius:4px}
-</style></head><body><div class="container">${el.outerHTML}</div></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><title>TASM — Candidate Graph</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">${styles}<style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}.feature-body.collapsed{display:block!important}</style></head><body><div style="max-width:960px;margin:0 auto">${el.outerHTML}</div></body></html>`);
   w.document.close();
 }
 
@@ -3415,15 +2614,15 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
 
   // ── Category summary table ──
   var tblS='';
-  tblS+='<table class="agg-table">';
-  tblS+='<tr class="row-border">';
-  tblS+='<th class="agg-th-l">Category</th>';
-  tblS+='<th class="agg-th-r">N</th>';
-  tblS+='<th class="agg-th-r">Contested %</th>';
-  tblS+='<th class="agg-th-r">Dual-Role</th>';
-  tblS+='<th class="agg-th-r">Switches</th>';
-  tblS+='<th class="agg-th-r">Sw/token</th>';
-  tblS+='<th class="agg-th-r">Unique Cands</th>';
+  tblS+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+  tblS+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)">';
+  tblS+='<th style="text-align:left;padding:8px 10px;color:#e6edf3">Category</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">N</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Contested %</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Dual-Role</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Switches</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Sw/token</th>';
+  tblS+='<th style="text-align:right;padding:8px 6px;color:#e6edf3">Unique Cands</th>';
   tblS+='</tr>';
 
   var catColors={benign:'#3fb950','dual-use':'#009E73',mild:'#58a6ff',harmful:'#d29a22',adversarial:'#882255',jailbreak:'#f85149'};
@@ -3437,14 +2636,14 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
     var uc=stats(gs.map(function(g){return g.nUniqueCandidates}));
     var cc=catColors[cat]||'#b1bac4';
 
-    tblS+='<tr class="row-border-light">';
-    tblS+='<td class="px-10-py-6"><span style="color:'+cc+';font-weight:600">'+cat+'</span></td>';
-    tblS+='<td class="agg-td-r-dim">'+gs.length+'</td>';
-    tblS+='<td class="agg-th-r-bold">'+(cf.mean*100).toFixed(1)+'%<span class="text-light-normal"> ±'+(cf.std*100).toFixed(1)+'</span></td>';
-    tblS+='<td class="agg-td-r">'+dr.mean.toFixed(1)+'<span class="text-light"> ±'+dr.std.toFixed(1)+'</span></td>';
-    tblS+='<td class="agg-td-r">'+sw.mean.toFixed(1)+'<span class="text-light"> ±'+sw.std.toFixed(1)+'</span></td>';
-    tblS+='<td class="agg-td-r">'+sr.mean.toFixed(3)+'</td>';
-    tblS+='<td class="agg-td-r-dim">'+uc.mean.toFixed(0)+'</td>';
+    tblS+='<tr style="border-bottom:1px solid rgba(255,255,255,0.06)">';
+    tblS+='<td style="padding:6px 10px"><span style="color:'+cc+';font-weight:600">'+cat+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#b1bac4">'+gs.length+'</td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3;font-weight:600">'+(cf.mean*100).toFixed(1)+'%<span style="color:var(--text-1);font-weight:400"> ±'+(cf.std*100).toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+dr.mean.toFixed(1)+'<span style="color:var(--text-1)"> ±'+dr.std.toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+sw.mean.toFixed(1)+'<span style="color:var(--text-1)"> ±'+sw.std.toFixed(1)+'</span></td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#e6edf3">'+sr.mean.toFixed(3)+'</td>';
+    tblS+='<td style="text-align:right;padding:6px;color:#b1bac4">'+uc.mean.toFixed(0)+'</td>';
     tblS+='</tr>';
   });
   tblS+='</table>';
@@ -3470,18 +2669,18 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
       var barW=Math.min(d/3*100,100);
       var barCol=d>1.5?'#3fb950':(d>0.8?'#58a6ff':(d>0.5?'#d29a22':'#8b949e'));
 
-      effRows+='<tr class="row-border-light">';
-      effRows+='<td class="agg-td-wide">'+m.name+'</td>';
-      effRows+='<td class="agg-td-r-dim">'+bm.mean.toFixed(3)+'</td>';
-      effRows+='<td class="agg-td-r-dim">'+jm.mean.toFixed(3)+'</td>';
+      effRows+='<tr style="border-bottom:1px solid rgba(255,255,255,0.06)">';
+      effRows+='<td style="padding:5px 10px;color:#e6edf3">'+m.name+'</td>';
+      effRows+='<td style="padding:5px 6px;text-align:right;color:#b1bac4">'+bm.mean.toFixed(3)+'</td>';
+      effRows+='<td style="padding:5px 6px;text-align:right;color:#b1bac4">'+jm.mean.toFixed(3)+'</td>';
       effRows+='<td style="padding:5px 6px;text-align:right;font-weight:600;color:'+barCol+'">'+d.toFixed(2)+' '+dir+'</td>';
-      effRows+='<td class="agg-td-bar"><div class="agg-bar-track"><div class="agg-bar-fill" style="width:'+barW+'%;background:'+barCol+'"></div></div></td>';
+      effRows+='<td style="padding:5px 6px;width:120px"><div style="width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:4px"><div style="width:'+barW+'%;height:100%;background:'+barCol+';border-radius:4px"></div></div></td>';
       effRows+='</tr>';
     });
 
-    effH='<div class="mt-16"><div class="section-label">Separation Power (benign vs jailbreak)</div>';
-    effH+='<table class="agg-table">';
-    effH+='<tr class="row-border"><th class="agg-td-l">Metric</th><th class="agg-td-r-green">Benign</th><th class="agg-td-r-red">Jailbreak</th><th class="agg-td-r-text">Cohen\'s d</th><th class="agg-td-light"></th></tr>';
+    effH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Separation Power (benign vs jailbreak)</div>';
+    effH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+    effH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)"><th style="text-align:left;padding:5px 10px;color:var(--text-1)">Metric</th><th style="text-align:right;padding:5px 6px;color:#3fb950">Benign</th><th style="text-align:right;padding:5px 6px;color:#f85149">Jailbreak</th><th style="text-align:right;padding:5px 6px;color:var(--text-1)">Cohen\'s d</th><th style="padding:5px 6px;color:var(--text-1)"></th></tr>';
     effH+=effRows+'</table></div>';
   }
 
@@ -3517,9 +2716,9 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
 
   var candH='';
   if(candList.length>0){
-    candH='<div class="mt-16"><div class="section-label">Most Contested Candidates (across all prompts)</div>';
-    candH+='<table class="agg-table">';
-    candH+='<tr class="row-border"><th class="agg-td-l">Token</th><th class="agg-td-r-text">Prompts</th><th class="agg-td-r-green">+Prom</th><th class="agg-td-r-red">-Demo</th><th class="agg-td-r-blue">=Match</th><th class="agg-td-r-purple">Dual</th><th class="agg-td-l-light">Categories</th></tr>';
+    candH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Most Contested Candidates (across all prompts)</div>';
+    candH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+    candH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12)"><th style="text-align:left;padding:5px 10px;color:var(--text-1)">Token</th><th style="text-align:right;padding:5px 6px;color:var(--text-1)">Prompts</th><th style="text-align:right;padding:5px 6px;color:#3fb950">+Prom</th><th style="text-align:right;padding:5px 6px;color:#f85149">-Demo</th><th style="text-align:right;padding:5px 6px;color:#58a6ff">=Match</th><th style="text-align:right;padding:5px 6px;color:#bc8cff">Dual</th><th style="text-align:left;padding:5px 6px;color:var(--text-1)">Categories</th></tr>';
     var shown=0;
     for(var ci=0;ci<candList.length&&shown<15;ci++){
       var cl=candList[ci];
@@ -3527,14 +2726,14 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
       var catStr=catOrder.filter(function(c){return cl.freq.categories[c]}).map(function(c){
         return '<span style="color:'+catColors[c]+'">'+c.substr(0,3)+':'+cl.freq.categories[c]+'</span>';
       }).join(' ');
-      candH+='<tr class="row-border-faint">';
-      candH+='<td class="agg-td-header">"'+escHtml(cl.label)+'"</td>';
-      candH+='<td class="agg-td-r-sec">'+cl.freq.prompts+'</td>';
-      candH+='<td class="agg-td-r-green-sm">'+cl.freq.promoted+'</td>';
-      candH+='<td class="agg-td-r-red-sm">'+cl.freq.demoted+'</td>';
-      candH+='<td class="agg-td-r-blue-sm">'+cl.freq.matched+'</td>';
+      candH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">';
+      candH+='<td style="padding:4px 10px;color:#e6edf3;font-weight:600">"'+escHtml(cl.label)+'"</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#b1bac4">'+cl.freq.prompts+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#3fb950">'+cl.freq.promoted+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#f85149">'+cl.freq.demoted+'</td>';
+      candH+='<td style="text-align:right;padding:4px 6px;color:#58a6ff">'+cl.freq.matched+'</td>';
       candH+='<td style="text-align:right;padding:4px 6px;color:'+(cl.freq.dual>0?'#bc8cff':'#8b949e')+'">'+cl.freq.dual+'</td>';
-      candH+='<td class="agg-prompt-cell">'+catStr+'</td>';
+      candH+='<td style="padding:5px 8px;font-size:11px">'+catStr+'</td>';
       candH+='</tr>';
       shown++;
     }
@@ -3543,10 +2742,10 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
   } // end hasRawData
 
   // ── Per-prompt breakdown ──
-  var promptH='<div class="mt-16"><div class="section-label">Per-Prompt Candidate Graph Metrics</div>';
-  promptH+='<div class="scrollbox-lg">';
-  promptH+='<table class="agg-table">';
-  promptH+='<tr class="agg-sticky-header"><th class="agg-td-l-sm">Prompt</th><th class="agg-td-l-xs">Cat</th><th class="agg-td-sm-text">Contest</th><th class="agg-td-sm-text">Dual</th><th class="agg-td-sm-text">Sw/tok</th><th class="agg-map-cell">Map</th></tr>';
+  var promptH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Per-Prompt Candidate Graph Metrics</div>';
+  promptH+='<div style="max-height:300px;overflow-y:auto">';
+  promptH+='<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">';
+  promptH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.12);position:sticky;top:0;background:var(--bg-1)"><th style="text-align:left;padding:4px 8px;color:var(--text-1)">Prompt</th><th style="text-align:left;padding:4px 4px;color:var(--text-1)">Cat</th><th style="text-align:right;padding:4px 4px;color:var(--text-1)">Contest</th><th style="text-align:right;padding:4px 4px;color:var(--text-1)">Dual</th><th style="text-align:right;padding:4px 4px;color:var(--text-1)">Sw/tok</th><th style="padding:4px 4px;color:var(--text-1);width:80px">Map</th></tr>';
 
   // Sort by contested fraction descending
   var sorted=graphs.slice().sort(function(a,b){return b.contestedFrac-a.contestedFrac});
@@ -3557,29 +2756,29 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
     var miniMap='';
     for(var i=0;i<g.posStats.length;i++){
       var ps=g.posStats[i];
-      if(!ps.contested)miniMap+='<span class="text-dark">·</span>';
-      else if(ps.intensity>=6)miniMap+='<span class="text-danger">▓</span>';
-      else if(ps.intensity>=3)miniMap+='<span class="text-warn">▒</span>';
-      else miniMap+='<span class="text-light">░</span>';
+      if(!ps.contested)miniMap+='<span style="color:#333">·</span>';
+      else if(ps.intensity>=6)miniMap+='<span style="color:#f85149">▓</span>';
+      else if(ps.intensity>=3)miniMap+='<span style="color:#d29a22">▒</span>';
+      else miniMap+='<span style="color:var(--text-1)">░</span>';
     }
-    promptH+='<tr class="row-border-faintest">';
-    promptH+='<td class="agg-td-truncate" title="'+escHtml(g.prompt)+'">'+escHtml(g.prompt.substr(0,40))+'</td>';
+    promptH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">';
+    promptH+='<td style="padding:3px 8px;color:#b1bac4;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(g.prompt)+'">'+escHtml(g.prompt.substr(0,40))+'</td>';
     promptH+='<td style="padding:3px 4px;color:'+cc+'">'+g.category.substr(0,4)+'</td>';
     promptH+='<td style="text-align:right;padding:3px 4px;color:'+cfCol+';font-weight:600">'+(g.contestedFrac*100).toFixed(0)+'%</td>';
-    promptH+='<td class="agg-td-sm">'+g.nDualRole+'</td>';
-    promptH+='<td class="agg-td-sm">'+g.switchRate.toFixed(2)+'</td>';
-    promptH+='<td class="agg-mini-map">'+miniMap+'</td>';
+    promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.nDualRole+'</td>';
+    promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.switchRate.toFixed(2)+'</td>';
+    promptH+='<td style="padding:3px 4px;font-family:var(--mono);font-size:11px;letter-spacing:0.5px">'+miniMap+'</td>';
     promptH+='</tr>';
   });
   promptH+='</table></div></div>';
 
   // ── Assemble ──
-  var h='<div class="border-purple-mt">';
+  var h='<div class="feature" style="border-color:var(--purple);margin-top:16px">';
   h+='<div class="feature-header" onclick="toggleFeature(this)">';
-  h+='<div class="text-violet">Candidate Graph Topology</div>';
-  h+='<p class="text-primary">Cross-prompt analysis of alignment decision stability. Contested = both models swapping candidates at that position. Dual-role = same token promoted at some positions, demoted at others. Switch rate = role changes per token.</p>';
+  h+='<div class="feature-title" style="color:#bc8cff">Candidate Graph Topology</div>';
+  h+='<p class="feature-desc" style="color:#b1bac4">Cross-prompt analysis of alignment decision stability. Contested = both models swapping candidates at that position. Dual-role = same token promoted at some positions, demoted at others. Switch rate = role changes per token.</p>';
   h+='</div>';
-  h+='<div class="p-16">';
+  h+='<div class="feature-body" style="padding:16px">';
   h+=tblS+effH+candH+promptH;
   h+='</div></div>';
   return h;
