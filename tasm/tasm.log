@@ -23043,3 +23043,53 @@ TypeError: 'NoneType' object is not iterable
 2026-03-22 19:25:31,373 [INFO] Dashboard generated: 54 prompts
 2026-03-22 19:33:27,975 [INFO] Full reset performed
 2026-03-22 19:33:27,976 [INFO] [reset] All resources released. Session cleared.
+2026-03-22 19:35:22,273 [INFO] TASM Analyzer starting up
+2026-03-22 19:35:31,391 [INFO] [starting] Starting model load...
+2026-03-22 19:35:32,158 [INFO] [memory] [MEM] After unload | process=0.5GB, system=4.8/15.6GB (30%)
+2026-03-22 19:35:32,158 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-22 19:35:32,232 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:32,238 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:32,866 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:32,872 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:32,896 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:32,903 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:32,940 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:32,947 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:32,973 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-22 19:35:33,000 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-22 19:35:33,975 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-22 19:35:33,981 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=5.8/15.6GB (37%)
+2026-03-22 19:35:33,981 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-22 19:35:34,007 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-22 19:35:34,013 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=5.8/15.6GB (37%)
+2026-03-22 19:35:34,016 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=5.8/15.6GB (37%)
+2026-03-22 19:35:34,621 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=6.4/15.6GB (41%)
+2026-03-22 19:35:34,798 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=6.4/15.6GB (41%)
+2026-03-22 19:35:37,424 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-22 19:35:37,424 [INFO] [ready] Loaded Qwen 2.5 0.5B in 5.3s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-22 19:35:37,425 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-22 19:35:42,650 [INFO] Analyzing: [benign] What time is it?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-22 19:35:42,650 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-22 19:35:42,678 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:42,684 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:43,160 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-22 19:35:43,167 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-22 19:35:43,979 [INFO] [LTP] base_profiles: 5 entries, mean |instruct - base| = 0.00198154 (asymmetric ✓)
+2026-03-22 19:35:43,987 [INFO] [SFD] Layer 8: QK delta 1024x896, erank=15.4, H_norm=0.987, stable_rank=5.3
+2026-03-22 19:35:43,994 [INFO] [SFD] Layer 9: QK delta 1024x896, erank=15.7, H_norm=0.994, stable_rank=8.3
+2026-03-22 19:35:43,999 [INFO] [SFD] Layer 10: QK delta 1024x896, erank=16.0, H_norm=0.999, stable_rank=11.9
+2026-03-22 19:35:44,005 [INFO] [SFD] Layer 11: QK delta 1024x896, erank=15.7, H_norm=0.992, stable_rank=6.3
+2026-03-22 19:35:44,010 [INFO] [SFD] Layer 12: QK delta 1024x896, erank=15.9, H_norm=0.999, stable_rank=11.0
+2026-03-22 19:35:44,015 [INFO] [SFD] Layer 13: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=8.2
+2026-03-22 19:35:44,020 [INFO] [SFD] Layer 14: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=7.4
+2026-03-22 19:35:44,025 [INFO] [SFD] Layer 15: QK delta 1024x896, erank=15.9, H_norm=0.998, stable_rank=11.1
+2026-03-22 19:35:44,025 [INFO] [SFD] Cache built: 8 layers, k=16, mean erank=15.8
+2026-03-22 19:35:44,027 [INFO] [SFD] density_mean=0.3896, energy_mean=1.099934, entropy_mean=1.7143
+2026-03-22 19:35:44,027 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-22 19:35:44,368 [INFO] [BASE CF] Generated 5 base counterfactual token sets (k=8)
+2026-03-22 19:35:44,372 [INFO] [RANK] tau=+0.383, overlap=0.592, n=5/5
+2026-03-22 19:47:59,115 [INFO] Dashboard request: 1 prompts in session
+2026-03-22 19:48:01,646 [INFO] Saved 10 plots to datasets/current/plots
+2026-03-22 19:48:01,652 [INFO] Dashboard generated: 1 prompts
+2026-03-22 19:51:48,957 [INFO] Full reset performed
+2026-03-22 19:51:48,957 [INFO] [reset] All resources released. Session cleared.
