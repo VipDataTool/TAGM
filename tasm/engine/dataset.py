@@ -180,7 +180,6 @@ class DatasetSession:
         "entropy", "gini", "top2_share", "middle_share", "interior_cv",
         "n_negative_tokens", "has_negative_tokens",
         "kl_divergence",
-        "stress_score_ln", "entropy_ln", "top2_share_ln", "middle_share_ln",
         "instruct_top1", "instruct_top1_prob",
         "base_top1", "base_top1_prob",
         # LTP summary
@@ -216,10 +215,6 @@ class DatasetSession:
             "n_negative_tokens": result_dict.get("n_negative_tokens", ""),
             "has_negative_tokens": result_dict.get("has_negative_tokens", ""),
             "kl_divergence": result_dict.get("kl_divergence", ""),
-            "stress_score_ln": result_dict.get("stress_score_ln", ""),
-            "entropy_ln": result_dict.get("entropy_ln", ""),
-            "top2_share_ln": result_dict.get("top2_share_ln", ""),
-            "middle_share_ln": result_dict.get("middle_share_ln", ""),
         }
 
         # Top-1 predictions

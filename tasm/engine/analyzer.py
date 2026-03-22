@@ -51,12 +51,6 @@ class PromptResult:
     middle_share: float = 0.0
     interior_cv: float = 0.0
 
-    # Length-normalized metrics
-    entropy_ln: Optional[float] = None
-    top2_share_ln: Optional[float] = None
-    middle_share_ln: Optional[float] = None
-    stress_score_ln: Optional[float] = None
-
     # Behavioral divergence
     kl_divergence: Optional[float] = None
     per_token_kl: Optional[np.ndarray] = None  # KL(instruct||base) at each position
@@ -106,8 +100,6 @@ class PromptResult:
         "top2_share", "middle_share", "interior_cv",
         "kl_divergence", "category", "seq_len",
         "has_negative_tokens", "n_negative_tokens",
-        # Length-normalized variants
-        "entropy_ln", "top2_share_ln", "middle_share_ln", "stress_score_ln",
     ]
 
     # SFD scalar fields (kept separate for clarity, merged into reconstitution)
@@ -726,10 +718,6 @@ def result_to_dict(r: PromptResult) -> dict:
         "top2_share": _native(r.top2_share),
         "middle_share": _native(r.middle_share),
         "interior_cv": _native(r.interior_cv),
-        "entropy_ln": _native(r.entropy_ln),
-        "top2_share_ln": _native(r.top2_share_ln),
-        "middle_share_ln": _native(r.middle_share_ln),
-        "stress_score_ln": _native(r.stress_score_ln),
         "kl_divergence": _native(r.kl_divergence),
         "per_token_kl": _native(r.per_token_kl) if r.per_token_kl is not None else None,
         "instruct_topk": r.instruct_topk,

@@ -323,15 +323,6 @@ def aggregate_batch(results: list) -> dict:
                 if resid_vals:
                     summary["metrics"][stat_key + "_resid"] = bootstrap_ci(resid_vals)
 
-        # Legacy _ln fields (from baseline manager z-scores, if present)
-        for m in ["stress_score", "entropy", "gini", "top2_share",
-                   "middle_share", "interior_cv", "net_correction"]:
-            ln_attr = m + "_ln"
-            ln_vals = [float(getattr(r, ln_attr)) for r in group
-                       if hasattr(r, ln_attr) and getattr(r, ln_attr) is not None]
-            if ln_vals:
-                summary["metrics"][m + "_ln"] = bootstrap_ci(ln_vals)
-
         cat_summaries[cat] = summary
 
     # ── Pairwise separability ─────────────────────────────────────
