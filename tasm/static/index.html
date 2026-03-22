@@ -387,7 +387,7 @@ textarea{resize:vertical;min-height:44px}
       <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
       <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
     </div>
-    <button class="mt-4" onclick="toggleAddModel()">+ Add model pair</button>
+    <button class="btn btn-sm btn-secondary mt-4" onclick="toggleAddModel()">+ Add model pair</button>
     <div class="add-model-form" id="addModelForm">
       <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
       <input type="text" id="newModelName" placeholder="Display name">
@@ -413,14 +413,14 @@ textarea{resize:vertical;min-height:44px}
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="bg-orange">SFD</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="ltp-badge bg-orange">SFD</span></label></div>
     
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
     <div class="flex-row-gap4-mt6">
-      <div class="flex-1"><input type="file" id="csvFile" accept=".csv"></div>
-      <button id="batchBtn" onclick="analyzeBatch()" disabled class="btn-fixed">Run Batch</button>
+      <div class="file-input-wrapper flex-1"><input type="file" id="csvFile" accept=".csv"></div>
+      <button class="btn btn-primary btn-fixed" id="batchBtn" onclick="analyzeBatch()" disabled>Run Batch</button>
     </div>
-    <button class="mt-4" onclick="addCurrentToLibrary()">Save to Library</button>
+    <button class="btn btn-sm btn-secondary mt-4" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
 
 
@@ -455,7 +455,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
     <div id="dashContent" class="d-none"></div>
   </div>
-  <div id="panel-data" class="p-16-8">
+  <div class="tab-panel p-16-8" id="panel-data">
     <div id="dataTableContainer"><p class="text-muted-sm">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-experimental">
@@ -500,7 +500,7 @@ textarea{resize:vertical;min-height:44px}
             </select>
           </div>
         </div>
-        <button class="mt-12" onclick="resetLtpConfig()">Reset to defaults</button>
+        <button class="btn btn-sm btn-secondary mt-12" onclick="resetLtpConfig()">Reset to defaults</button>
       </div>
     </div>
     <div class="card">
@@ -1357,11 +1357,11 @@ function renderTunnelViewer(r){
     </div>
     <div class="p-14">
       <div class="flex-row-gap10-mb10">
-        <button onclick="_tunnelGo(0)" class="min-w-32" title="First">⏮</button>
-        <button onclick="_tunnelGo(_tunnelState.idx-1)" class="min-w-32" title="Previous">◀</button>
+        <button onclick="_tunnelGo(0)" class="btn btn-sm btn-secondary min-w-32" title="First">⏮</button>
+        <button onclick="_tunnelGo(_tunnelState.idx-1)" class="btn btn-sm btn-secondary min-w-32" title="Previous">◀</button>
         <button id="${id}_playbtn" onclick="_tunnelPlayPause()" class="btn-cyan-sm" title="Play/Pause">▶ Play</button>
-        <button onclick="_tunnelGo(_tunnelState.idx+1)" class="min-w-32" title="Next">▶</button>
-        <button onclick="_tunnelGo(_tunnelState.n-1)" class="min-w-32" title="Last">⏭</button>
+        <button onclick="_tunnelGo(_tunnelState.idx+1)" class="btn btn-sm btn-secondary min-w-32" title="Next">▶</button>
+        <button onclick="_tunnelGo(_tunnelState.n-1)" class="btn btn-sm btn-secondary min-w-32" title="Last">⏭</button>
         <div class="flex-1-center">
           <span class="cl-main-label" id="${id}_label"></span>
           <span class="cl-sub-label" id="${id}_meta"></span>
@@ -2155,16 +2155,16 @@ function _renderDataTablePage(){
   // ─── Pagination controls ──────────────────────────────────────
   if(totalPages>1){
     h+=`<div class="pagination fs-11">`;
-    h+=`<button onclick="dtGoPage(1)" ${_dtPage<=1?'disabled':''} class="w-auto">⟨⟨</button>`;
-    h+=`<button onclick="dtGoPage(${_dtPage-1})" ${_dtPage<=1?'disabled':''} class="w-auto">⟨ Prev</button>`;
+    h+=`<button onclick="dtGoPage(1)" ${_dtPage<=1?'disabled':''} class="btn btn-secondary btn-sm w-auto">⟨⟨</button>`;
+    h+=`<button onclick="dtGoPage(${_dtPage-1})" ${_dtPage<=1?'disabled':''} class="btn btn-secondary btn-sm w-auto">⟨ Prev</button>`;
     // Page numbers
     var startP=Math.max(1,_dtPage-2),endP=Math.min(totalPages,_dtPage+2);
     for(var p=startP;p<=endP;p++){
       if(p===_dtPage) h+=`<span class="page-current">${p}</span>`;
       else h+=`<button onclick="dtGoPage(${p})" class="page-btn">${p}</button>`;
     }
-    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${_dtPage+1})" ${_dtPage>=totalPages?'disabled':''} class="w-auto">Next ⟩</button>`;
-    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${totalPages})" ${_dtPage>=totalPages?'disabled':''} class="w-auto">⟩⟩</button>`;
+    h+=`<button class="btn btn-secondary btn-sm w-auto" onclick="dtGoPage(${_dtPage+1})" ${_dtPage>=totalPages?'disabled':''}>Next ⟩</button>`;
+    h+=`<button class="btn btn-secondary btn-sm w-auto" onclick="dtGoPage(${totalPages})" ${_dtPage>=totalPages?'disabled':''}>⟩⟩</button>`;
     h+=`<span class="text-muted-ml">${sorted.length} rows · ${_dtPageSize}/page</span>`;
     h+=`</div>`;
   }
