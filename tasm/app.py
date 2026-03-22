@@ -1047,7 +1047,7 @@ def _compute_candidate_graph_summary(r):
 
 
 @app.get("/api/results/detail")
-async def get_results_detail(start: int = 0, count: int = 50):
+async def get_results_detail(start: int = 0, count: int = 25):
     """Return heavy per-token arrays for a slice of results.
     Used by terrain viewer and other components that need raw data."""
     if not session or session.n_results == 0:
@@ -1062,6 +1062,7 @@ async def get_results_detail(start: int = 0, count: int = 50):
              "per_token_kl": r.get("per_token_kl"),
              "signed_attr": r.get("signed_attr"),
              "per_token_stress": r.get("per_token_stress"),
+             "base_counterfactual_tokens": r.get("base_counterfactual_tokens"),
              "prompt": r.get("prompt", ""), "category": r.get("category", "")}
         ltp = r.get("ltp")
         if ltp:
@@ -1073,7 +1074,7 @@ async def get_results_detail(start: int = 0, count: int = 50):
         rd = r.get("rank_displacement")
         if rd:
             d["rank_displacement"] = {}
-            for k in ["instruct_disp_profiles", "base_disp_profiles"]:
+            for k in ["instruct_disp_profiles", "base_disp_profiles", "per_position"]:
                 if rd.get(k):
                     d["rank_displacement"][k] = rd[k]
         detail.append(d)

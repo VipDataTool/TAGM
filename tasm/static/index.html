@@ -2445,7 +2445,7 @@ function _terrainRendererCore(container, D, opts){
 async function _lazyLoadTerrain(totalCount){
   var msg=document.getElementById('terrainLoadMsg');
   var allResults=[];
-  var CHUNK=50;
+  var CHUNK=25;
   try{
     for(var start=0;start<totalCount;start+=CHUNK){
       if(msg)msg.textContent='Loading terrain data... '+(start)+'/'+totalCount;
