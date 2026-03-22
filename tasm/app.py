@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 
 from engine.model_manager import ModelManager, KNOWN_PAIRS, _load_model_registry, _save_model_registry
 from engine.analyzer import Analyzer, result_to_dict
-from engine.baselines import BaselineManager, get_all_prompts, add_prompt as csv_add_prompt
+from engine.baselines import get_all_prompts, add_prompt as csv_add_prompt
 from engine.statistics import aggregate_batch, length_residualize
 from engine.visualizations import (
     plot_signed_attribution, plot_stress_per_token,
@@ -60,7 +60,6 @@ logger = logging.getLogger("tasm")
 # ─── Global state ────────────────────────────────────────────────
 mm = ModelManager()
 analyzer = None
-baselines = BaselineManager()
 session: Optional[DatasetSession] = None
 progress_log = []
 loading_state = {"active": False, "error": None}
@@ -123,14 +122,11 @@ app = FastAPI(title="TASM Analyzer", lifespan=lifespan)
 # ─── Background model loading ────────────────────────────────────
 
 def _load_model_worker(pair_id, base_id, instruct_id):
-    global analyzer, baselines, session
+    global analyzer, session
     try:
         mm.load_pair(pair_id=pair_id, base_id=base_id,
                      instruct_id=instruct_id, callback=log_progress)
         analyzer = Analyzer(mm)
-        baselines = BaselineManager()
-        # Baselines are NOT computed automatically — the user enables them
-        # via the toggle, which triggers /api/baselines/compute.
         session = DatasetSession()
         session.set_model(mm.state.display_name)
         loading_state["active"] = False
@@ -167,8 +163,6 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
             ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank,
             ltp_tuned_lens=ltp_tuned_lens)
-
-        baselines.normalize_result(result)
 
         plots = {}
         if not skip_plots:
@@ -299,7 +293,6 @@ async def get_status():
         "model_pair": mm.state.pair_id if mm.state else None,
         "model_name": mm.state.display_name if mm.state else None,
         "available_pairs": {k: v[2] for k, v in KNOWN_PAIRS.items()},
-        "baseline_summary": baselines.get_summary(),
         "session": {
             "n_results": session.n_results if session else 0,
             "categories": session.categories if session else {},
@@ -371,14 +364,13 @@ async def load_model(pair_id: str = Form(None),
 
 @app.post("/api/reset")
 async def reset_all():
-    global analyzer, baselines, session
+    global analyzer, session
     progress_log.clear()
     if session:
         session.clear()
         session = None
     mm.reset()
     analyzer = None
-    baselines = BaselineManager()
     loading_state["active"] = False
     loading_state["error"] = None
     logger.info("Full reset performed")
@@ -442,58 +434,6 @@ async def recalibrate_classifier():
 @app.get("/api/progress")
 async def get_progress():
     return {"log": progress_log}
-
-
-# ─── Baselines ────────────────────────────────────────────────────
-
-@app.get("/api/baselines")
-async def get_baselines():
-    """Return baseline system status."""
-    return {"ok": True, "baselines": baselines.get_summary()}
-
-
-@app.post("/api/baselines/toggle")
-async def toggle_baselines(request: Request):
-    """Enable or disable baseline length normalization.
-    When enabling for the first time, triggers computation from baselines.csv."""
-    if not analyzer:
-        return JSONResponse(status_code=400, content={"error": "No model loaded."})
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    enable = body.get("enabled", not baselines.enabled)
-
-    if enable and not baselines._computed:
-        # First time enabling — compute from baselines.csv
-        log_progress("baseline", "Computing baselines (first enable)...")
-        import asyncio
-        def _compute():
-            with _analysis_lock:
-                baselines.compute_baselines(analyzer, callback=log_progress)
-        await asyncio.to_thread(_compute)
-    elif enable:
-        baselines.enabled = True
-        log_progress("baseline", "Baselines enabled (already computed)")
-    else:
-        baselines.enabled = False
-        log_progress("baseline", "Baselines disabled — _ln fields will be None")
-
-    return {"ok": True, "baselines": baselines.get_summary()}
-
-
-@app.post("/api/baselines/recompute")
-async def recompute_baselines():
-    """Force recomputation of baselines from baselines.csv."""
-    if not analyzer:
-        return JSONResponse(status_code=400, content={"error": "No model loaded."})
-    log_progress("baseline", "Recomputing baselines from baselines.csv...")
-    import asyncio
-    def _compute():
-        with _analysis_lock:
-            baselines.compute_baselines(analyzer, callback=log_progress)
-    await asyncio.to_thread(_compute)
-    return {"ok": True, "baselines": baselines.get_summary()}
 
 
 # ─── Prompts ──────────────────────────────────────────────────────
@@ -576,16 +516,12 @@ async def analyze_batch(file: UploadFile = File(...),
                         ltp_k: int = Form(8),
                         ltp_layer_strategy: str = Form("signal"),
                         ltp_svd_rank: int = Form(0),
-                        ltp_tuned_lens: bool = Form(False),
-                        baseline_file: Optional[UploadFile] = File(None)):
+                        ltp_tuned_lens: bool = Form(False)):
     if not analyzer:
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
 
     # Read files on the event loop (fast async I/O)
     content = (await file.read()).decode("utf-8")
-    bl_content = None
-    if baseline_file:
-        bl_content = (await baseline_file.read()).decode("utf-8")
     filename = file.filename
 
     # Parse prompts synchronously (fast)
@@ -604,7 +540,7 @@ async def analyze_batch(file: UploadFile = File(...),
     # Fire off the heavy work in a background thread and return immediately
     threading.Thread(
         target=_run_batch_sync,
-        args=(content, bl_content, filename,
+        args=(content, filename,
               compute_kl, compute_trajectory, capture_responses,
               full_capture,
               compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
@@ -615,7 +551,7 @@ async def analyze_batch(file: UploadFile = File(...),
             "message": f"Batch started: {len(prompts)} prompts. Watch progress log."}
 
 
-def _run_batch_sync(content, bl_content, filename,
+def _run_batch_sync(content, filename,
                     compute_kl, compute_trajectory, capture_responses,
                     full_capture,
                     compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
@@ -636,14 +572,6 @@ def _run_batch_sync(content, bl_content, filename,
 
         logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, SFD={compute_sfd}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
-
-        if bl_content:
-            bl_reader = csv.DictReader(io.StringIO(bl_content))
-            bl_prompts = [(row.get("prompt") or row.get("Prompt") or "").strip()
-                          for row in bl_reader]
-            bl_prompts = [p for p in bl_prompts if p]
-            if bl_prompts:
-                baselines.add_user_baselines(bl_prompts, analyzer, callback=log_progress)
 
         if compute_kl or capture_responses or compute_ltp:
             mm.load_base_for_kl(callback=log_progress)
@@ -897,8 +825,7 @@ def _run_dashboard_sync():
         for k in ["prompt", "category", "role", "seq_len", "stress_score",
                    "net_correction", "entropy", "gini", "top2_share",
                    "middle_share", "interior_cv", "kl_divergence",
-                   "stress_score_ln", "entropy_ln", "top2_share_ln",
-                   "middle_share_ln", "n_negative_tokens", "has_negative_tokens"]:
+                   "n_negative_tokens", "has_negative_tokens"]:
             slim[k] = r.get(k)
 
         # Instrument scalars only
