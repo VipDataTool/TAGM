@@ -848,70 +848,239 @@ async def get_dashboard():
 
 
 def _run_dashboard_sync():
-    """Synchronous dashboard generation — runs in a thread."""
+    """Synchronous dashboard generation — runs in a thread.
+
+    Design: returns a lightweight response (~120KB for 200 prompts).
+    Plots are saved to disk and served as static files, not embedded in JSON.
+    Results contain only scalar metrics for the data table.
+    """
     logger.info(f"Dashboard request: {session.n_results} prompts in session")
     results = session.results
     from engine.analyzer import PromptResult
     pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
 
     agg = aggregate_batch(pr_list)
+
+    # ── Generate plots and save to disk ──
     agg_plots = {"batch_summary": plot_batch_summary(agg),
                  "separability": plot_separability(agg)}
     comp_plots = generate_all_comparative(results)
-    all_plots = {**agg_plots, **comp_plots}
+    all_plots_b64 = {**agg_plots, **comp_plots}
 
-    session.save_comparative_plots(all_plots)
+    plots_dir = session.session_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+    available_plots = []
+    for key, b64_data in all_plots_b64.items():
+        if not b64_data:
+            continue
+        try:
+            png_bytes = base64.b64decode(b64_data)
+            (plots_dir / f"{key}.png").write_bytes(png_bytes)
+            available_plots.append(key)
+        except Exception as e:
+            logger.warning(f"Failed to save plot {key}: {e}")
+
+    logger.info(f"Saved {len(available_plots)} plots to {plots_dir}")
+
     session.save_aggregate_json(agg)
     session.save_results_json()
 
     logger.info(f"Dashboard generated: {session.n_results} prompts")
 
+    # ── Build lightweight result list (scalars only) ──
     slim_results = []
-    for r in results:
-        slim = {k: r.get(k) for k in [
-            "prompt", "category", "role", "seq_len", "stress_score", "net_correction",
-            "entropy", "gini", "top2_share", "middle_share", "interior_cv",
-            "kl_divergence", "stress_score_ln", "entropy_ln", "top2_share_ln",
-            "middle_share_ln", "n_negative_tokens", "has_negative_tokens",
-            "instruct_topk", "base_topk", "base_counterfactual_tokens",
-            # Terrain viewer needs these per-token arrays
-            "tokens", "per_token_kl", "signed_attr", "per_token_stress",
-        ]}
+    for i, r in enumerate(results):
+        slim = {"_index": i}
+        for k in ["prompt", "category", "role", "seq_len", "stress_score",
+                   "net_correction", "entropy", "gini", "top2_share",
+                   "middle_share", "interior_cv", "kl_divergence",
+                   "stress_score_ln", "entropy_ln", "top2_share_ln",
+                   "middle_share_ln", "n_negative_tokens", "has_negative_tokens"]:
+            slim[k] = r.get(k)
+
+        # Instrument scalars only
         ltp = r.get("ltp")
         if ltp:
             slim["ltp"] = {k: ltp.get(k) for k in [
                 "mean_M", "mean_C", "mean_V", "mean_L",
-                "max_prc", "n_directional",
-                "layer_strategy", "k", "svd_rank", "tuned_lens",
-                # Terrain viewer needs these per-token arrays
-                "profiles", "base_profiles", "counterfactual_tokens",
-                "tension_magnitudes", "profile_shapes",
-            ]}
-        # SFD data
+                "max_prc", "n_directional"]}
         sfd = r.get("sfd")
         if sfd:
             slim["sfd"] = {k: sfd.get(k) for k in [
-                "density_mean", "density_max", "density_var", "density_p90",
-                "entropy_mean", "entropy_max", "entropy_var", "entropy_p90",
-                "energy_mean", "energy_max", "energy_var", "energy_p90",
-                "global_erank", "n_layers_monitored", "k",
-                "per_token_density", "per_token_entropy", "per_token_energy",
-            ]}
-        # Rank displacement
-        slim["rank_displacement"] = r.get("rank_displacement")
-        # Classifiers
+                "density_mean", "entropy_mean", "energy_mean"]}
+        rd = r.get("rank_displacement")
+        if rd:
+            slim["rank_displacement"] = {k: rd.get(k) for k in [
+                "mean_tau", "mean_overlap", "mean_matched", "mean_replacement",
+                "mean_concentration", "mean_disp_per_token", "total_displacement",
+                "high_replacement_frac", "low_match_frac"]}
+
+        # Pre-computed candidate graph summary
+        slim["candidate_graph"] = _compute_candidate_graph_summary(r)
+
+        # Classifier prediction only
         if r.get("classifiers"):
-            slim["classifiers"] = r["classifiers"]
-        if r.get("classification"):
-            slim["classification"] = r["classification"]
+            slim["classifiers"] = {}
+            for cid, cl in r["classifiers"].items():
+                slim["classifiers"][cid] = {
+                    "predicted_class": cl.get("predicted_class"),
+                    "confidence": cl.get("confidence")}
+
         slim_results.append(slim)
 
     return sanitize_for_json({
-        "ok": True, "aggregate": agg, "plots": all_plots, "results": slim_results,
+        "ok": True,
+        "aggregate": agg,
+        "plot_keys": available_plots,   # list of names, not image data
+        "results": slim_results,
         "session_info": {
-            "n_results": session.n_results, "categories": session.categories,
-            "model": session.model_name, "timestamp": session.timestamp,
+            "n_results": session.n_results,
+            "categories": session.categories,
+            "model": session.model_name,
+            "timestamp": session.timestamp,
         },
+    })
+
+
+@app.get("/api/plots/{plot_key}")
+async def get_plot(plot_key: str):
+    """Serve a pre-generated plot as a PNG file."""
+    if not session:
+        return JSONResponse(status_code=404, content={"error": "No session."})
+    # Sanitize key to prevent path traversal
+    safe_key = "".join(c for c in plot_key if c.isalnum() or c in "_-")
+    plot_path = session.session_dir / "plots" / f"{safe_key}.png"
+    if not plot_path.exists():
+        return JSONResponse(status_code=404, content={"error": f"Plot '{plot_key}' not found."})
+    return FileResponse(plot_path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+def _compute_candidate_graph_summary(r):
+    """Pre-compute candidate graph topology metrics for one result.
+    Returns lightweight summary dict — no raw arrays."""
+    tokens = r.get("tokens", [])
+    inst_cf = (r.get("ltp") or {}).get("counterfactual_tokens", [])
+    base_cf = r.get("base_counterfactual_tokens", [])
+    n_pos = min(len(inst_cf), len(base_cf), len(tokens))
+    if n_pos == 0:
+        return None
+
+    candidates = {}  # token -> {promoted: [], demoted: [], matched: []}
+    pos_stats = []
+
+    for pos in range(n_pos):
+        inst_set = {t: p for t, p in inst_cf[pos]} if inst_cf[pos] else {}
+        base_set = {t: p for t, p in base_cf[pos]} if base_cf[pos] else {}
+
+        n_prom, n_demo, n_match = 0, 0, 0
+        for t in inst_set:
+            if t not in candidates:
+                candidates[t] = {"promoted": [], "demoted": [], "matched": [], "inst": [], "base": []}
+            candidates[t]["inst"].append(pos)
+            if t in base_set:
+                candidates[t]["matched"].append(pos)
+                n_match += 1
+            else:
+                candidates[t]["promoted"].append(pos)
+                n_prom += 1
+        for t in base_set:
+            if t not in candidates:
+                candidates[t] = {"promoted": [], "demoted": [], "matched": [], "inst": [], "base": []}
+            candidates[t]["base"].append(pos)
+            if t not in inst_set:
+                candidates[t]["demoted"].append(pos)
+                n_demo += 1
+
+        contested = n_prom > 0 and n_demo > 0
+        pos_stats.append({"contested": contested, "intensity": n_prom + n_demo})
+
+    # Metrics
+    n_contested = sum(1 for ps in pos_stats if ps["contested"])
+    contested_frac = n_contested / n_pos if n_pos > 0 else 0
+
+    # Dual-role candidates
+    n_dual = sum(1 for c in candidates.values() if c["promoted"] and c["demoted"])
+
+    # Role switches
+    n_switches = 0
+    for t, c in candidates.items():
+        all_pos = sorted(set(c["inst"] + c["base"]))
+        if len(all_pos) < 2:
+            continue
+        for i in range(len(all_pos) - 1):
+            if all_pos[i + 1] - all_pos[i] > 2:
+                continue
+            p1, p2 = all_pos[i], all_pos[i + 1]
+            r1 = "P" if p1 in c["promoted"] else ("D" if p1 in c["demoted"] else "M")
+            r2 = "P" if p2 in c["promoted"] else ("D" if p2 in c["demoted"] else "M")
+            if r1 != r2:
+                n_switches += 1
+
+    # Multi-position count
+    n_multi = sum(1 for c in candidates.values() if len(set(c["inst"] + c["base"])) >= 2)
+
+    switch_rate = n_switches / n_pos if n_pos > 0 else 0
+
+    # Contestation map (compact string)
+    cmap = ""
+    for ps in pos_stats:
+        if not ps["contested"]:
+            cmap += "."
+        elif ps["intensity"] >= 6:
+            cmap += "H"
+        elif ps["intensity"] >= 3:
+            cmap += "M"
+        else:
+            cmap += "L"
+
+    return {
+        "contested_frac": round(contested_frac, 4),
+        "n_dual_role": n_dual,
+        "n_role_switches": n_switches,
+        "switch_rate": round(switch_rate, 4),
+        "n_multi_position": n_multi,
+        "n_unique_candidates": len(candidates),
+        "n_positions": n_pos,
+        "contest_map": cmap,
+    }
+
+
+@app.get("/api/results/detail")
+async def get_results_detail(start: int = 0, count: int = 50):
+    """Return heavy per-token arrays for a slice of results.
+    Used by terrain viewer and other components that need raw data."""
+    if not session or session.n_results == 0:
+        return {"ok": False, "error": "No data in session."}
+
+    results = session.results
+    end = min(start + count, len(results))
+    detail = []
+    for i in range(start, end):
+        r = results[i]
+        d = {"_index": i, "tokens": r.get("tokens", []),
+             "per_token_kl": r.get("per_token_kl"),
+             "signed_attr": r.get("signed_attr"),
+             "per_token_stress": r.get("per_token_stress"),
+             "prompt": r.get("prompt", ""), "category": r.get("category", "")}
+        ltp = r.get("ltp")
+        if ltp:
+            d["ltp"] = {}
+            for k in ["profiles", "base_profiles", "counterfactual_tokens",
+                       "tension_magnitudes", "profile_shapes"]:
+                if ltp.get(k):
+                    d["ltp"][k] = ltp[k]
+        rd = r.get("rank_displacement")
+        if rd:
+            d["rank_displacement"] = {}
+            for k in ["instruct_disp_profiles", "base_disp_profiles"]:
+                if rd.get(k):
+                    d["rank_displacement"][k] = rd[k]
+        detail.append(d)
+
+    return sanitize_for_json({
+        "ok": True, "start": start, "count": len(detail),
+        "total": len(results), "results": detail,
     })
 
 

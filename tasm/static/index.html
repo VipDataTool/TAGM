@@ -337,7 +337,7 @@ textarea{resize:vertical;min-height:44px}
 
 <script>
 const $=id=>document.getElementById(id);
-let modelLoaded=false, sessionResults=[], promptLibraryData=[], _busy=false;
+let modelLoaded=false, sessionResults=[], dashResults=[], promptLibraryData=[], _busy=false;
 
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
@@ -604,9 +604,10 @@ async function loadConfig(){
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
 
 function updateSessionBadge(){
-  $('sessionBadge').textContent=sessionResults.length?`Session: ${sessionResults.length} prompts`:'No session';
-  $('dashBtn').disabled=sessionResults.length<1;
-  $('exportBtn').disabled=sessionResults.length<1;
+  var n=dashResults.length||sessionResults.length;
+  $('sessionBadge').textContent=n?`Session: ${n} prompts`:'No session';
+  $('dashBtn').disabled=n<1;
+  $('exportBtn').disabled=n<1;
 }
 
 // ─── User Info ──────────────────────────────────────────────────
@@ -656,7 +657,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -664,7 +665,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -744,7 +745,9 @@ async function analyzeBatch(){
               sessionResults=sr.results;
               updateSessionBadge();
               $('latestResults').innerHTML='';$('emptyState').style.display='none';
-              for(const r of sr.results) renderLatest(r,r._plots||{});
+              // Show only last 5 prompts in Prompt tab to avoid DOM overload
+              var showResults=sr.results.slice(-5);
+              for(const r of showResults) renderLatest(r,r._plots||{});
               renderDataTable();
             }
           }catch(re){log('Results load: '+re.message,'error')}
@@ -766,71 +769,88 @@ async function loadDashboard(force){
   log('Loading dashboard...');
   try{
     const resp=await fetch('/api/dashboard');
-    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');_busy=false;return}
+    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');return}
     const data=await resp.json();
     if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
-    sessionResults=data.results||sessionResults;updateSessionBadge();renderDataTable();
+
+    // Store dashboard results separately from per-prompt session data
+    dashResults=data.results||[];
+    updateSessionBadge();
+    renderDataTable();
+
     const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
-    const info=data.session_info||{},agg=data.aggregate||{},plots=data.plots||{},cats=agg.categories||{},sep=agg.separability||{};
+    const info=data.session_info||{},agg=data.aggregate||{};
+    const plotKeys=data.plot_keys||[];
+    const cats=agg.categories||{};
 
     // ═══ ANALYSIS TAB ═══
     let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
 
+    // Category summary table
     if(Object.keys(cats).length){
       h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body${cardDefault('dashboard')}"><div style="font-size:11px;color:var(--text-1);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Three instruments: ASM (disruption), LTP (selectivity), SFD (subspace).</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th><th style="color:var(--orange)">Density</th><th style="color:var(--orange)">Tau</th></tr>`;
       for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(5):'--'}</td><td>${m.interior_cv?m.interior_cv.estimate.toFixed(4):'--'}</td><td>${m.sfd_density_mean?m.sfd_density_mean.estimate.toFixed(4):'--'}</td><td>${m.rank_displacement_tau?m.rank_displacement_tau.estimate.toFixed(3):'--'}</td></tr>`}
       h+=`</table></div></div>`;
     }
 
-    // Batch plots — sorted by registry order
-    const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
-    for(const[key,v]of batchItems) h+=plotCard(key,v.title,v.desc,plots);
+    // Batch plots — served as static files, loaded lazily
+    const plotKeySet=new Set(plotKeys);
+    const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of batchItems) h+=plotCardUrl(key,v.title,v.desc);
 
-    // Terrain viewer (batch JS viz — needs LTP data)
-    const hasLtpData=sessionResults.some(r=>(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||(r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0));
-    if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
+    // Terrain viewer — click to load, not auto-fetch
+    if(vizIsEnabled('terrain_viewer')&&dashResults.length>0){
       h+=`<div class="feature" style="border-color:var(--cyan)">
         <div class="feature-header" onclick="toggleFeature(this)">
           <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
-          <p class="feature-desc">3D dual-bank terrain map. Surface height = probability displacement per candidate between base and instruct models. Instruct bank (right, warm tones) shows instruct-ranked candidates: matched show |Δprob|, promoted show full probability. Base bank (left, cool tones) shows base-ranked candidates: matched show |Δprob|, demoted show full probability. High terrain = strong model disagreement. Left-drag orbit, right-drag pan, scroll zoom.</p>
+          <p class="feature-desc">3D dual-bank terrain map. Click "Load Terrain" to fetch per-token displacement profiles from the server.</p>
         </div>
-        <div class="feature-body" id="terrainFeatureBody" style="padding:0"><div id="terrainContainer"></div></div>
+        <div class="feature-body" id="terrainFeatureBody" style="padding:0">
+          <div id="terrainContainer">
+            <div style="padding:20px;text-align:center">
+              <button class="btn btn-secondary" onclick="_lazyLoadTerrain(${info.n_results||0})" style="width:auto;padding:8px 20px">Load Terrain Viewer</button>
+              <div id="terrainLoadMsg" style="margin-top:8px;color:var(--text-3);font:11px monospace"></div>
+            </div>
+          </div>
+        </div>
       </div>`;
     }
 
+    // Candidate graph aggregate — uses server pre-computed data
+    if(dashResults.length>1){
+      try{
+        var cgAgg=_computeGraphsChunked(dashResults);
+        if(cgAgg) h+=cgAgg;
+      }catch(e){console.error('Candidate graph aggregate:',e)}
+    }
+
     dc.innerHTML=h;
-
-    // ═══ CANDIDATE GRAPH AGGREGATE (deferred, chunked) ═══
-    if(sessionResults.length>1){
-      var cgContainer=document.createElement('div');
-      cgContainer.innerHTML='<div class="feature" style="border-color:var(--purple);margin-top:16px"><div class="feature-header"><div class="feature-title" style="color:#bc8cff">Candidate Graph Topology</div><p class="feature-desc" style="color:#b1bac4">Computing candidate graphs...</p></div><div class="feature-body" style="padding:16px"><div id="_cgProgress" style="font:11px monospace;color:#8b949e">Processing 0/'+sessionResults.length+'</div></div></div>';
-      dc.appendChild(cgContainer);
-      _computeGraphsChunked(sessionResults,cgContainer);
-    }
-
-    // Initialize terrain after DOM is set
-    if(vizIsEnabled('terrain_viewer')&&sessionResults.length>0&&hasLtpData){
-      try{initTerrainViewer(sessionResults)}catch(e){console.error('Terrain init error:',e)}
-    }
 
     // ═══ EXPERIMENTAL TAB ═══
     const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
     let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
 
-    // Experimental tab: disabled batch items (collapsed, sorted by order)
-    const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plots[k]).sort((a,b)=>a[1].order-b[1].order);
-    for(const[key,v]of disabledBatch) eh+=plotCard(key,v.title,v.desc,plots,true);
+    const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
+    for(const[key,v]of disabledBatch) eh+=plotCardUrl(key,v.title,v.desc,true);
 
     if(eh.indexOf('feature')>-1){ec.innerHTML=eh}else{ec.style.display='none';$('expEmpty').style.display=''}
     log('Dashboard loaded','done');
-    _busy=false;
     document.querySelectorAll('.main-tab')[1].click();
-  }catch(e){log('Dashboard error: '+e.message,'error');_busy=false}
+  }catch(e){
+    log('Dashboard error: '+e.message,'error');
+    console.error('Dashboard error:',e);
+  }finally{
+    _busy=false;
+  }
 }
 
 function plotCard(key,title,desc,plots,collapsed){
   const chevron=collapsed?'▶':'▼';
   return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+}
+function plotCardUrl(key,title,desc,collapsed){
+  const chevron=collapsed?'▶':'▼';
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-3);font-size:10px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="/api/plots/${key}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
 }
 
 async function exportSession(){
@@ -1345,7 +1365,8 @@ function renderLatest(r,plots){
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
-  if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){if(!r._cachedCG)r._cachedCG=computeCandidateGraph(r);const _cg=r._cachedCG;if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
+  if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}
+  else if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){if(!r._cachedCG)r._cachedCG=computeCandidateGraph(r);const _cg=r._cachedCG;if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
@@ -1567,15 +1588,27 @@ function renderTokenTable(r){
   for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
   return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
+var _dtPage=1,_dtPageSize=25,_dtSorted=[];
 function renderDataTable(){
-  if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
+  var source=dashResults.length?dashResults:sessionResults;
+  if(!source.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
   const catOrd={benign:0,'dual-use':1,mild:2,harmful:3,adversarial:4,jailbreak:5};
-  const sorted=[...sessionResults].map((r,i)=>({...r,_srcIdx:i})).sort((a,b)=>{
-    const ca=(catOrd[a.category]??4),cb=(catOrd[b.category]??4);
+  _dtSorted=[...source].map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i})).sort((a,b)=>{
+    const ca=(catOrd[a.category]??6),cb=(catOrd[b.category]??6);
     if(ca!==cb)return ca-cb;
     return(b.net_correction||0)-(a.net_correction||0);
   });
+
+  _dtPage=Math.min(_dtPage,Math.ceil(_dtSorted.length/_dtPageSize)||1);
+  _renderDataTablePage();
+}
+
+function _renderDataTablePage(){
+  const sorted=_dtSorted;
+  const totalPages=Math.ceil(sorted.length/_dtPageSize)||1;
+  const start=(_dtPage-1)*_dtPageSize;
+  const pageData=sorted.slice(start,start+_dtPageSize);
 
   // Column definitions: [key, label, format, heatHue, defaultWidth]
   const cols=[
@@ -1622,7 +1655,7 @@ function renderDataTable(){
     ['_cl_v9','v9','cl',null,48],
   ];
 
-  // Compute ranges for heatmap columns
+  // Compute ranges for heatmap columns (across ALL data, not just page)
   const ranges={};
   ['stress_score','net_correction','entropy','middle_share','_sfd_density','_rank_tau'].forEach(k=>{
     const vals=sorted.map(r=>getVal(r,k)).filter(v=>v!=null&&!isNaN(v));
@@ -1654,10 +1687,10 @@ function renderDataTable(){
     }
     if(format==='pred'){
       if(!val||!val.cl) return'--';
-      const cl=val.cl,pred=cl.predicted,conf=Math.round((cl.probabilities[pred]||0)*100);
-      const match=val.cat&&(val.cat===pred?'✓':'✗');
+      const cl=val.cl,pred=cl.predicted_class||cl.predicted,conf=Math.round((cl.confidence||0)*100);
+      const match=val.cat&&pred&&(val.cat===pred?'✓':'✗');
       const mc=match==='✓'?'var(--green)':'var(--red)';
-      return`<span class="pill ${pillClass(pred)}" style="font-size:8px">${pred.substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
+      return`<span class="pill ${pillClass(pred||'')}" style="font-size:8px">${(pred||'').substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
     }
     return val;
   }
@@ -1665,7 +1698,7 @@ function renderDataTable(){
   function getVal(r,key){
     if(key==='_cb') return r._srcIdx;
     if(key==='_index') return r._srcIdx+1;
-    if(key==='_pred') return{cl:r.classification,cat:r.category};
+    if(key==='_pred') return{cl:r.classifiers&&Object.values(r.classifiers)[0],cat:r.category};
     if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
     if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
     if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
@@ -1684,7 +1717,7 @@ function renderDataTable(){
       const cls=r.classifiers||{};
       const cl=cls[cid];
       if(!cl) return null;
-      return {pred:cl.predicted, cat:r.category};
+      return {pred:cl.predicted_class||cl.predicted, cat:r.category};
     }
     return r[key];
   }
@@ -1697,7 +1730,7 @@ function renderDataTable(){
     <span class="dt-sel-count" id="dtSelCount">0 selected</span>
     <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
     <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
-    <span style="margin-left:auto;color:var(--text-3);font-size:9px">${sorted.length} records · drag column edges to resize</span>
+    <span style="margin-left:auto;color:var(--text-3);font-size:9px">${sorted.length} records · page ${_dtPage}/${totalPages}</span>
   </div>`;
 
   // ─── Table ────────────────────────────────────────────────────
@@ -1714,7 +1747,7 @@ function renderDataTable(){
   }
   h+=`</tr></thead><tbody>`;
 
-  for(const r of sorted){
+  for(const r of pageData){
     const srcIdx = r._srcIdx;
     h+=`<tr data-idx="${srcIdx}" id="dtRow_${srcIdx}">`;
     for(const[key,label,format,hue,w]of cols){
@@ -1731,7 +1764,30 @@ function renderDataTable(){
     h+=`</tr>`;
   }
   h+=`</tbody></table></div></div>`;
+
+  // ─── Pagination controls ──────────────────────────────────────
+  if(totalPages>1){
+    h+=`<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono);font-size:10px">`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(1)" ${_dtPage<=1?'disabled':''} style="width:auto">⟨⟨</button>`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${_dtPage-1})" ${_dtPage<=1?'disabled':''} style="width:auto">⟨ Prev</button>`;
+    // Page numbers
+    var startP=Math.max(1,_dtPage-2),endP=Math.min(totalPages,_dtPage+2);
+    for(var p=startP;p<=endP;p++){
+      if(p===_dtPage) h+=`<span style="color:var(--blue);font-weight:600;padding:0 4px">${p}</span>`;
+      else h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${p})" style="width:auto;padding:2px 6px">${p}</button>`;
+    }
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${_dtPage+1})" ${_dtPage>=totalPages?'disabled':''} style="width:auto">Next ⟩</button>`;
+    h+=`<button class="btn btn-secondary btn-sm" onclick="dtGoPage(${totalPages})" ${_dtPage>=totalPages?'disabled':''} style="width:auto">⟩⟩</button>`;
+    h+=`<span style="color:var(--text-3);margin-left:8px">${sorted.length} rows · ${_dtPageSize}/page</span>`;
+    h+=`</div>`;
+  }
+
   $('dataTableContainer').innerHTML=h;
+}
+function dtGoPage(p){
+  var totalPages=Math.ceil(_dtSorted.length/_dtPageSize)||1;
+  _dtPage=Math.max(1,Math.min(totalPages,p));
+  _renderDataTablePage();
 }
 
 // ─── Data Table: Selection ──────────────────────────────────────
@@ -1772,9 +1828,9 @@ async function dtRemoveSelected(){
     const r=await(await fetch('/api/session/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})})).json();
     if(r.ok){
       log(`Removed ${r.removed} results (${r.remaining} remaining)`,'done');
-      // Reload session results
       const sr=await(await fetch('/api/session/results')).json();
       if(sr.ok) sessionResults=sr.results;
+      dashResults=[];  // Force refresh from server on next dashboard load
       updateSessionBadge();renderDataTable();
     } else { log('Remove failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Remove error: '+e.message,'error')}
@@ -1804,6 +1860,7 @@ async function dtRerunSelected(){
       log(`Reran ${r.rerun} prompts (${r.total} total in session)`,'done');
       const sr=await(await fetch('/api/session/results')).json();
       if(sr.ok) sessionResults=sr.results;
+      dashResults=[];
       updateSessionBadge();renderDataTable();
     } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Rerun error: '+e.message,'error')}
@@ -2385,6 +2442,35 @@ function _terrainRendererCore(container, D, opts){
 }
 
 
+async function _lazyLoadTerrain(totalCount){
+  var msg=document.getElementById('terrainLoadMsg');
+  var allResults=[];
+  var CHUNK=50;
+  try{
+    for(var start=0;start<totalCount;start+=CHUNK){
+      if(msg)msg.textContent='Loading terrain data... '+(start)+'/'+totalCount;
+      var resp=await fetch('/api/results/detail?start='+start+'&count='+CHUNK);
+      var data=await resp.json();
+      if(!data.ok)break;
+      allResults=allResults.concat(data.results);
+    }
+    if(msg)msg.textContent='Initializing terrain...';
+    // Check if we have terrain-compatible data
+    var hasData=allResults.some(function(r){
+      return(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||
+            (r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0);
+    });
+    if(hasData){
+      initTerrainViewer(allResults);
+    }else{
+      if(msg)msg.textContent='No terrain profile data available for this session.';
+    }
+  }catch(e){
+    console.error('Terrain lazy load error:',e);
+    if(msg)msg.textContent='Terrain load failed: '+e.message;
+  }
+}
+
 function initTerrainViewer(results){
   var container=document.getElementById('terrainContainer');
   if(!container) return;
@@ -2490,36 +2576,31 @@ function popoutCandidateGraph(uid){
   w.document.close();
 }
 
-function _computeGraphsChunked(results,container){
-  var graphs=[];var idx=0;var CHUNK=20;
-  var prog=document.getElementById('_cgProgress');
-  function processChunk(){
-    var end=Math.min(idx+CHUNK,results.length);
-    for(var i=idx;i<end;i++){
-      var r=results[i];
-      if(!r.ltp||!r.ltp.counterfactual_tokens||!r.base_counterfactual_tokens)continue;
-      // Cache on the result object
-      if(!r._cachedCG){r._cachedCG=computeCandidateGraph(r)}
-      var g=r._cachedCG;
-      if(g){g.category=r.category||'unknown';g.prompt=r.prompt||'';graphs.push(g)}
+function _computeGraphsChunked(results){
+  // Build graph objects from server pre-computed candidate_graph summaries
+  var graphs=[];
+  for(var i=0;i<results.length;i++){
+    var r=results[i];
+    var cg=r.candidate_graph;
+    if(!cg)continue;
+    cg.category=r.category||'unknown';
+    cg.prompt=r.prompt||'';
+    cg.contestedFrac=cg.contested_frac||0;
+    cg.nDualRole=cg.n_dual_role||0;
+    cg.nRoleSwitches=cg.n_role_switches||0;
+    cg.switchRate=cg.switch_rate||0;
+    cg.nMultiPosition=cg.n_multi_position||0;
+    cg.nUniqueCandidates=cg.n_unique_candidates||0;
+    cg.nPositions=cg.n_positions||0;
+    cg.posStats=[];
+    var cmap=cg.contest_map||'';
+    for(var j=0;j<cmap.length;j++){
+      var ch=cmap[j];
+      cg.posStats.push({contested:ch!=='.',intensity:ch==='H'?6:(ch==='M'?3:1)});
     }
-    idx=end;
-    if(prog)prog.textContent='Processing '+idx+'/'+results.length;
-    if(idx<results.length){
-      setTimeout(processChunk,0);
-    }else{
-      // All done — render aggregate
-      try{
-        var html=_buildCandidateGraphAggregateFromGraphs(graphs);
-        if(html)container.innerHTML=html;
-        else container.innerHTML='<div style="padding:16px;color:#8b949e;font:11px monospace">Not enough data for aggregate analysis.</div>';
-      }catch(e){
-        console.error('Candidate graph aggregate error:',e);
-        container.innerHTML='<div style="padding:16px;color:#f85149;font:11px monospace">Aggregate computation error: '+e.message+'</div>';
-      }
-    }
+    graphs.push(cg);
   }
-  setTimeout(processChunk,50);
+  return _buildCandidateGraphAggregateFromGraphs(graphs);
 }
 
 function _buildCandidateGraphAggregateFromGraphs(graphs){
@@ -2618,21 +2699,25 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
     effH+=effRows+'</table></div>';
   }
 
-  // ── Cross-prompt candidate frequency ──
-  var candFreq={};// token -> {promoted:n, demoted:n, matched:n, dual:n, prompts:n, categories:{}}
-  graphs.forEach(function(g){
-    for(var t in g.candidates){
-      var c=g.candidates[t];
-      if(!candFreq[t])candFreq[t]={promoted:0,demoted:0,matched:0,dual:0,prompts:0,categories:{}};
-      var cf=candFreq[t];
-      cf.prompts++;
-      cf.promoted+=c.promoted.length;
-      cf.demoted+=c.demoted.length;
-      cf.matched+=c.matched.length;
-      if(c.promoted.length>0&&c.demoted.length>0)cf.dual++;
-      cf.categories[g.category]=(cf.categories[g.category]||0)+1;
-    }
-  });
+  // ── Cross-prompt candidate frequency (requires raw data — skip for server summaries) ──
+  var hasRawData=graphs.some(function(g){return g.candidates&&typeof g.candidates==='object'&&Object.keys(g.candidates).length>0});
+  var candH='';
+  if(hasRawData){
+    var candFreq={};
+    graphs.forEach(function(g){
+      if(!g.candidates)return;
+      for(var t in g.candidates){
+        var c=g.candidates[t];
+        if(!candFreq[t])candFreq[t]={promoted:0,demoted:0,matched:0,dual:0,prompts:0,categories:{}};
+        var cf=candFreq[t];
+        cf.prompts++;
+        cf.promoted+=c.promoted.length;
+        cf.demoted+=c.demoted.length;
+        cf.matched+=c.matched.length;
+        if(c.promoted.length>0&&c.demoted.length>0)cf.dual++;
+        cf.categories[g.category]=(cf.categories[g.category]||0)+1;
+      }
+    });
 
   // Most contested: highest (promoted+demoted) / total appearances
   var candList=[];
@@ -2669,6 +2754,7 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
     }
     candH+='</table></div>';
   }
+  } // end hasRawData
 
   // ── Per-prompt breakdown ──
   var promptH='<div style="margin-top:16px"><div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px">Per-Prompt Candidate Graph Metrics</div>';
