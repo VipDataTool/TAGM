@@ -800,13 +800,12 @@ async function loadDashboard(force){
 
     dc.innerHTML=h;
 
-    // ═══ CANDIDATE GRAPH AGGREGATE (client-side JS) ═══
+    // ═══ CANDIDATE GRAPH AGGREGATE (deferred, chunked) ═══
     if(sessionResults.length>1){
-      var cgAgg=_buildCandidateGraphAggregate(sessionResults);
-      if(cgAgg){
-        var cgEl=document.createElement('div');cgEl.innerHTML=cgAgg;
-        dc.appendChild(cgEl);
-      }
+      var cgContainer=document.createElement('div');
+      cgContainer.innerHTML='<div class="feature" style="border-color:var(--purple);margin-top:16px"><div class="feature-header"><div class="feature-title" style="color:#bc8cff">Candidate Graph Topology</div><p class="feature-desc" style="color:#b1bac4">Computing candidate graphs...</p></div><div class="feature-body" style="padding:16px"><div id="_cgProgress" style="font:11px monospace;color:#8b949e">Processing 0/'+sessionResults.length+'</div></div></div>';
+      dc.appendChild(cgContainer);
+      _computeGraphsChunked(sessionResults,cgContainer);
     }
 
     // Initialize terrain after DOM is set
@@ -1346,7 +1345,7 @@ function renderLatest(r,plots){
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
-  if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){const _cg=computeCandidateGraph(r);if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
+  if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){if(!r._cachedCG)r._cachedCG=computeCandidateGraph(r);const _cg=r._cachedCG;if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
@@ -1571,7 +1570,7 @@ function renderTokenTable(r){
 function renderDataTable(){
   if(!sessionResults.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
-  const catOrd={benign:0,mild:1,harmful:2,jailbreak:3};
+  const catOrd={benign:0,'dual-use':1,mild:2,harmful:3,adversarial:4,jailbreak:5};
   const sorted=[...sessionResults].map((r,i)=>({...r,_srcIdx:i})).sort((a,b)=>{
     const ca=(catOrd[a.category]??4),cb=(catOrd[b.category]??4);
     if(ca!==cb)return ca-cb;
@@ -2491,15 +2490,39 @@ function popoutCandidateGraph(uid){
   w.document.close();
 }
 
-function _buildCandidateGraphAggregate(results){
-  // Compute graph for each result
-  var graphs=[];
-  for(var i=0;i<results.length;i++){
-    var r=results[i];
-    if(!r.ltp||!r.ltp.counterfactual_tokens||!r.base_counterfactual_tokens)continue;
-    var g=computeCandidateGraph(r);
-    if(g){g.category=r.category||'unknown';g.prompt=r.prompt||'';graphs.push(g)}
+function _computeGraphsChunked(results,container){
+  var graphs=[];var idx=0;var CHUNK=20;
+  var prog=document.getElementById('_cgProgress');
+  function processChunk(){
+    var end=Math.min(idx+CHUNK,results.length);
+    for(var i=idx;i<end;i++){
+      var r=results[i];
+      if(!r.ltp||!r.ltp.counterfactual_tokens||!r.base_counterfactual_tokens)continue;
+      // Cache on the result object
+      if(!r._cachedCG){r._cachedCG=computeCandidateGraph(r)}
+      var g=r._cachedCG;
+      if(g){g.category=r.category||'unknown';g.prompt=r.prompt||'';graphs.push(g)}
+    }
+    idx=end;
+    if(prog)prog.textContent='Processing '+idx+'/'+results.length;
+    if(idx<results.length){
+      setTimeout(processChunk,0);
+    }else{
+      // All done — render aggregate
+      try{
+        var html=_buildCandidateGraphAggregateFromGraphs(graphs);
+        if(html)container.innerHTML=html;
+        else container.innerHTML='<div style="padding:16px;color:#8b949e;font:11px monospace">Not enough data for aggregate analysis.</div>';
+      }catch(e){
+        console.error('Candidate graph aggregate error:',e);
+        container.innerHTML='<div style="padding:16px;color:#f85149;font:11px monospace">Aggregate computation error: '+e.message+'</div>';
+      }
+    }
   }
+  setTimeout(processChunk,50);
+}
+
+function _buildCandidateGraphAggregateFromGraphs(graphs){
   if(graphs.length<2)return'';
 
   // Group by category
