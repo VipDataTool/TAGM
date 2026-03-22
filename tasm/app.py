@@ -624,6 +624,18 @@ async def get_session_results():
     """Return all session results with per-prompt plots loaded from disk."""
     if not session or session.n_results == 0:
         return {"ok": False, "results": []}
+
+    # Compute length residuals across the full batch
+    resid_data = {}
+    if session.n_results >= 5:
+        try:
+            from engine.analyzer import PromptResult
+            pr_list = [PromptResult.from_dict(r, mode="scalar")
+                       for r in session.results]
+            resid_data = length_residualize(pr_list)
+        except Exception:
+            pass
+
     results = []
     for i, r in enumerate(session.results):
         r_copy = dict(r)
@@ -638,6 +650,15 @@ async def get_session_results():
                 except Exception:
                     pass
         r_copy["_plots"] = plots
+
+        # Attach length residuals
+        if resid_data:
+            r_copy["length_residuals"] = {}
+            for stat_key, rd_info in resid_data.items():
+                rv = rd_info["residuals"][i]
+                if rv is not None:
+                    r_copy["length_residuals"][stat_key] = round(rv, 8)
+
         results.append(r_copy)
     return {"ok": True, "results": results}
 
