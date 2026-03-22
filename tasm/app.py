@@ -869,6 +869,12 @@ def _run_dashboard_sync():
         # Pre-computed candidate graph summary
         slim["candidate_graph"] = _compute_candidate_graph_summary(r)
 
+        # Model predictions (top-k next token)
+        if r.get("instruct_topk"):
+            slim["instruct_topk"] = r["instruct_topk"]
+        if r.get("base_topk"):
+            slim["base_topk"] = r["base_topk"]
+
         # Length-residualized values (regression-based, all instruments)
         slim["length_residuals"] = {}
         for stat_key, rd_info in resid_data.items():
@@ -881,7 +887,7 @@ def _run_dashboard_sync():
             slim["classifiers"] = {}
             for cid, cl in r["classifiers"].items():
                 slim["classifiers"][cid] = {
-                    "predicted_class": cl.get("predicted_class"),
+                    "predicted_class": cl.get("predicted"),
                     "confidence": cl.get("confidence")}
 
         slim_results.append(slim)
