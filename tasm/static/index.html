@@ -695,7 +695,7 @@ async function analyzePrompt(){
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plots);renderDataTable()}
+    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plot_keys||[],data.session_n-1);renderDataTable()}
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -732,7 +732,7 @@ async function analyzeBatch(){
               $('latestResults').innerHTML='';$('emptyState').style.display='none';
               // Show only last 5 prompts in Prompt tab to avoid DOM overload
               var showResults=sr.results.slice(-5);
-              for(const r of showResults) renderLatest(r,r._plots||{});
+              for(const r of showResults) renderLatest(r,r._plot_keys||[],r._index);
               renderDataTable();
             }
           }catch(re){log('Results load: '+re.message,'error')}
@@ -829,9 +829,9 @@ async function loadDashboard(force){
   }
 }
 
-function plotCard(key,title,desc,plots,collapsed){
+function plotCard(key,title,desc,idx,collapsed){
   const chevron=collapsed?'▶':'▼';
-  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="data:image/png;base64,${plots[key]}"></div></div></div>`;
+  return `<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">${chevron}</span>${title}</div><p class="feature-desc">${desc}</p></div><div class="feature-body${collapsed?' collapsed':''}"><div class="plot-container"><img src="/api/plots/individual/${idx}/${key}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
 }
 function plotCardUrl(key,title,desc,collapsed){
   const chevron=collapsed?'▶':'▼';
@@ -1328,7 +1328,7 @@ function renderClassifierCard(cl, r){
 }
 
 // ─── Render ─────────────────────────────────────────────────────
-function renderLatest(r,plots){
+function renderLatest(r,plotKeys,idx){
   $('emptyState').style.display='none';const area=$('latestResults');
   const rid='rec_'+Date.now();
 
@@ -1346,7 +1346,7 @@ function renderLatest(r,plots){
     <div class="card-body${cardDefault('prompt')}">`;
 
   // ═══ SUMMARY METRICS ═══
-  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,r.stress_score_ln)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,r.entropy_ln)}${mc('Int%',r.middle_share,r.middle_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,r.top2_share_ln,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
   if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
@@ -1415,8 +1415,8 @@ function renderLatest(r,plots){
       legend:'Green = high agreement (tau > 0.5) · Amber = partial (0 < tau < 0.5) · Red = inverted (tau < 0)'
     },
   };
-  for(const[k,v]of Object.entries(plots)){
-    if(!v||k.startsWith('ltp_'))continue;
+  for(const k of plotKeys){
+    if(k.startsWith('ltp_'))continue;
     if(!vizIsEnabled(k))continue;
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
     const f=featureMeta[k];
@@ -1426,7 +1426,7 @@ function renderLatest(r,plots){
         ${f?`<p class="feature-desc">${f.desc}</p>`:''}
         ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
       </div>
-      <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+      <div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div>
     </div>`;
   }
 
@@ -1462,8 +1462,8 @@ function renderLatest(r,plots){
         legend:'Rows = tokens · Columns = alt rank (1=most likely) · Brightness = tension'
       },
     };
-    for(const[k,v]of Object.entries(plots)){
-      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+    for(const k of plotKeys){
+      if(!k.startsWith('ltp_')||k==='ltp_dual_trajectory')continue;
       if(!vizIsEnabled(k))continue;
       const f=ltpMeta[k];
       h+=`<div class="feature" style="border-color:var(--cyan)">
@@ -1472,7 +1472,7 @@ function renderLatest(r,plots){
           ${f?`<p class="feature-desc">${f.desc}</p>`:''}
           ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
         </div>
-        <div class="feature-body"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div>
+        <div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div>
       </div>`;
     }
 
@@ -1518,20 +1518,20 @@ function renderLatest(r,plots){
   // Collect disabled prompt-scope visualizations and render them collapsed
   let expH='';
   // Disabled ASM plots
-  for(const[k,v]of Object.entries(plots)){
-    if(!v||k.startsWith('ltp_'))continue;
+  for(const k of plotKeys){
+    if(k.startsWith('ltp_'))continue;
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
       const f=featureMeta[k];
-      expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+      expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
     }
   }
   // Disabled LTP plots
   if(r.ltp){
-    for(const[k,v]of Object.entries(plots)){
-      if(!k.startsWith('ltp_')||!v||k==='ltp_dual_trajectory')continue;
+    for(const k of plotKeys){
+      if(!k.startsWith('ltp_')||k==='ltp_dual_trajectory')continue;
       if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
         const f=ltpMeta[k];
-        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="data:image/png;base64,${v}"></div></div></div>`;
+        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
       }
     }
     // Disabled JS vizs that have LTP data
@@ -1613,9 +1613,9 @@ function _renderDataTablePage(){
     ['gini','Gini','f4',null,52],
     ['kl_divergence','KL','f4',null,52],
     ['n_negative_tokens','Neg','i',null,34],
-    ['stress_score_ln','StressLN','f2',null,60],
-    ['entropy_ln','EntLN','f2',null,52],
-    ['middle_share_ln','Int%LN','f2',null,56],
+    ['_resid_stress','ΔStress','f3',null,60],
+    ['_resid_top2','ΔBnd%','f3',null,52],
+    ['_resid_ltp_M','ΔM','f6',null,56],
     ['_inst_top1','InstTop1','s',null,70],
     ['_inst_prob','InstP','pct3',null,50],
     ['_base_top1','BaseTop1','s',null,70],
@@ -1697,6 +1697,9 @@ function _renderDataTablePage(){
     if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
+    if(key==='_resid_stress') return r.length_residuals?r.length_residuals.stress_score:null;
+    if(key==='_resid_top2') return r.length_residuals?r.length_residuals.top2_share:null;
+    if(key==='_resid_ltp_M') return r.length_residuals?r.length_residuals.ltp_mean_M:null;
     if(key.startsWith('_cl_')){
       const cid=key.substring(4);
       const cls=r.classifiers||{};

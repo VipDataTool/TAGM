@@ -138,9 +138,53 @@ class DatasetSession:
             json.dump(agg, f, indent=2, default=str)
 
     def save_results_json(self):
-        """Save the full per-prompt results to a single JSON file."""
+        """Save per-prompt results to JSON — scalar metrics only, no arrays.
+        Per-token arrays (heatmaps, LTP profiles, trajectories) are kept in
+        memory for plot regeneration but excluded from the export."""
+        slim = []
+        # Fields to exclude from export (per-token arrays for plot rendering)
+        ARRAY_FIELDS = {
+            "heatmap", "amplitude_trajectory", "amplitude_normalized",
+            "per_layer_signed_attr", "per_token_stress", "signed_attr",
+            "per_token_kl", "per_token_coherence", "per_token_spectral_rank",
+            "attn_frac", "token_similarity", "base_counterfactual_tokens",
+            "proof1_checks",
+            # Obsolete fields from old baseline normalization
+            "entropy_ln", "stress_score_ln", "top2_share_ln", "middle_share_ln",
+            # Internal metadata (not analysis data)
+            "per_layer_amplitude", "signal_layer_indices", "spectral_summary",
+            "delta_scale", "full_capture_enabled",
+        }
+        LTP_ARRAY_FIELDS = {
+            "profiles", "base_profiles", "tension_magnitudes",
+            "counterfactual_tokens", "semantic_trajectory_2d",
+            "tension_trajectory_2d", "offset_magnitude", "offset_consistency",
+            "offset_variance", "prc_per_token",
+        }
+        RD_ARRAY_FIELDS = {
+            "per_position", "per_position_tau", "per_position_overlap",
+            "instruct_disp_profiles", "base_disp_profiles",
+        }
+        SFD_ARRAY_FIELDS = {
+            "per_token_energy", "per_token_entropy", "per_token_density",
+        }
+        for r in self.results:
+            row = {k: v for k, v in r.items() if k not in ARRAY_FIELDS}
+            # Strip LTP arrays, keep scalars
+            if "ltp" in row and isinstance(row["ltp"], dict):
+                row["ltp"] = {k: v for k, v in row["ltp"].items()
+                              if k not in LTP_ARRAY_FIELDS}
+            # Strip RD arrays, keep scalars
+            if "rank_displacement" in row and isinstance(row["rank_displacement"], dict):
+                row["rank_displacement"] = {k: v for k, v in row["rank_displacement"].items()
+                                            if k not in RD_ARRAY_FIELDS}
+            # Strip SFD arrays, keep scalars
+            if "sfd" in row and isinstance(row["sfd"], dict):
+                row["sfd"] = {k: v for k, v in row["sfd"].items()
+                              if k not in SFD_ARRAY_FIELDS}
+            slim.append(row)
         with open(self.json_path, "w") as f:
-            json.dump(_sanitize(self.results), f, indent=1, default=str)
+            json.dump(_sanitize(slim), f, indent=1, default=str)
 
     def get_results_by_category(self):
         """Group results by category."""

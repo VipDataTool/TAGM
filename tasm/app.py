@@ -193,9 +193,19 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
 
         result_dict = result_to_dict(result)
         if session:
-            session.add_result(result_dict, plots)
+            idx = session.add_result(result_dict)
 
-    return result_dict, plots
+            # Save per-prompt plots to disk (not in JSON)
+            if plots:
+                plot_dir = session.session_dir / "plots" / "individual"
+                plot_dir.mkdir(parents=True, exist_ok=True)
+                for name, b64_str in plots.items():
+                    if b64_str:
+                        path = plot_dir / f"{idx:04d}_{name}.png"
+                        path.write_bytes(base64.b64decode(b64_str))
+
+    plot_keys = [k for k, v in plots.items() if v]
+    return result_dict, plot_keys
 
 
 def _generate_deferred_plots(sess):
@@ -483,7 +493,7 @@ async def analyze_single(prompt: str = Form(...),
         if compute_kl or capture_responses or compute_ltp:
             mm.load_base_for_kl(callback=log_progress)
 
-        result_dict, plots = _analyze_and_record(
+        result_dict, plot_keys = _analyze_and_record(
             prompt, category, compute_kl, compute_trajectory, capture_responses,
             full_capture=full_capture,
             compute_ltp=compute_ltp, compute_sfd=compute_sfd,
@@ -496,7 +506,7 @@ async def analyze_single(prompt: str = Form(...),
         return sanitize_for_json({
             "ok": True,
             "result": result_dict,
-            "plots": plots,
+            "plot_keys": plot_keys,
             "session_n": session.n_results if session else 0,
         })
     except Exception as e:
@@ -639,17 +649,13 @@ async def get_session_results():
     results = []
     for i, r in enumerate(session.results):
         r_copy = dict(r)
-        # Load plots from disk
-        plots = {}
+        # List available plot keys (not image data)
+        plot_keys = []
         plot_dir = session.session_dir / "plots" / "individual"
         if plot_dir.exists():
             for pfile in sorted(plot_dir.glob(f"{i:04d}_*.png")):
-                plot_name = pfile.stem[5:]  # strip "0000_"
-                try:
-                    plots[plot_name] = base64.b64encode(pfile.read_bytes()).decode()
-                except Exception:
-                    pass
-        r_copy["_plots"] = plots
+                plot_keys.append(pfile.stem[5:])  # strip "0000_"
+        r_copy["_plot_keys"] = plot_keys
 
         # Attach length residuals
         if resid_data:
@@ -916,6 +922,19 @@ async def get_plot(plot_key: str):
     plot_path = session.session_dir / "plots" / f"{safe_key}.png"
     if not plot_path.exists():
         return JSONResponse(status_code=404, content={"error": f"Plot '{plot_key}' not found."})
+    return FileResponse(plot_path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/api/plots/individual/{index}/{plot_key}")
+async def get_individual_plot(index: int, plot_key: str):
+    """Serve a per-prompt plot as a PNG file."""
+    if not session:
+        return JSONResponse(status_code=404, content={"error": "No session."})
+    safe_key = "".join(c for c in plot_key if c.isalnum() or c in "_-")
+    plot_path = session.session_dir / "plots" / "individual" / f"{index:04d}_{safe_key}.png"
+    if not plot_path.exists():
+        return JSONResponse(status_code=404, content={"error": f"Plot not found."})
     return FileResponse(plot_path, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=3600"})
 
