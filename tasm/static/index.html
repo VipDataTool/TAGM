@@ -404,7 +404,7 @@ const VIZ_REGISTRY = {
   ltp_tension_magnitudes:{cat:'LTP',      title:'Tension Magnitudes',         on:true,  scope:'prompt', order:80, type:'plot', needs:'ltp', desc:'Per-token lateral tension colored by profile shape'},
   ltp_profiles:        {cat:'LTP',        title:'Tension Profiles (Stacked)', on:true, scope:'prompt', order:90, type:'plot', needs:'ltp', desc:'Stacked bar of tension per counterfactual rank'},
   ltp_profile_heatmap: {cat:'LTP',        title:'Token × Rank Heatmap',       on:true, scope:'prompt', order:100, type:'plot', needs:'ltp', desc:'Dense heatmap: token vs rank'},
-  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', order:110, type:'plot', needs:'ltp', desc:'M, C, V, L scalar bars'},
+  ltp_summary_stats:   {cat:'LTP',        title:'LTP Summary Stats',          on:true, scope:'prompt', order:110, type:'plot', needs:'ltp', desc:'M, C, V scalar bars'},
   counterfactual_table:{cat:'LTP',        title:'Counterfactual Table',       on:true,  scope:'prompt', order:120, type:'js',   needs:'ltp', desc:'Alternative tokens at each position'},
 
   // ── Per-Prompt: SFD ──
@@ -426,7 +426,7 @@ const VIZ_REGISTRY = {
   exp_difference_from_benign:{cat:'Batch Experimental',title:'Difference from Benign',on:true,scope:'batch', order:80,type:'plot',desc:'Per-category trajectory minus benign mean'},
   exp_metric_scatters: {cat:'Batch Experimental',title:'Full Scatter Grid',   on:true, scope:'batch', order:90,type:'plot',desc:'All pairwise metric scatters including weak metrics'},
   exp_behavioral_comparison:{cat:'Batch Experimental',title:'Behavioral Divergence',on:true,scope:'batch', order:100,type:'plot',desc:'Instruct vs base probabilities and KL'},
-  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch', order:110,type:'plot',desc:'LTP M,C,V,L box plots across categories'},
+  exp_ltp_category_comparison:{cat:'Batch Experimental',title:'LTP by Category',on:true,scope:'batch', order:110,type:'plot',desc:'LTP M,C,V box plots across categories'},
   exp_ltp_m_vs_stress: {cat:'Batch Experimental',title:'LTP M vs Stress',     on:true,  scope:'batch', order:120,type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
   exp_ltp_profile_shapes:{cat:'Batch Experimental',title:'Profile Shapes',    on:true, scope:'batch', order:130,type:'plot',desc:'Shape distribution across categories'},
 
@@ -1533,7 +1533,7 @@ function renderLatest(r,plotKeys,idx){
       },
       ltp_summary_stats:{
         title:'LTP Summary',
-        desc:'M (magnitude) = mean lateral displacement. C (consistency) = directional coherence 0–1. V (variance) = token concentration. L (coverage) = fraction with signal.',
+        desc:'M (magnitude) = mean lateral displacement. C (consistency) = directional coherence 0–1. V (variance) = token concentration.',
         legend:'M and C are the primary metrics · At 0.5B: M ≈ 0.001–0.002, d ≈ 0.3 between categories'
       },
       ltp_profile_heatmap:{

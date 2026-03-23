@@ -436,8 +436,7 @@ class Analyzer:
 
         avg_attr = torch.stack(layer_attrs).mean(dim=0).numpy()
         result.signed_attr = avg_attr
-        sum_abs = float(np.abs(avg_attr).sum())
-        result.net_correction = float(avg_attr.sum()) / sum_abs if sum_abs > 0 else 0.0
+        result.net_correction = float(avg_attr.sum())
         result.n_negative_tokens = int(sum(1 for a in avg_attr if a < 0))
         result.has_negative_tokens = result.n_negative_tokens > 0
 

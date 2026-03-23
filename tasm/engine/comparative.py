@@ -285,7 +285,7 @@ def plot_ltp_category_comparison(results: list) -> str:
         return ""
 
     ltp_keys = [("mean_M", "Offset\nMagnitude"), ("mean_C", "Offset\nConsistency"),
-                ("mean_V", "Offset\nVariance"), ("mean_L", "Lateral\nCoverage")]
+                ("mean_V", "Offset\nVariance")]
 
     fig, axes = plt.subplots(1, len(ltp_keys), figsize=(4.5 * len(ltp_keys), 5))
     fig.patch.set_facecolor("#121212")

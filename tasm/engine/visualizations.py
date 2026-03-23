@@ -435,29 +435,30 @@ def plot_ltp_dual_trajectory(ltp_result) -> str:
 
 
 def plot_ltp_summary_stats(ltp_result) -> str:
-    """Plot the four LTP summary statistics as horizontal bars."""
-    fig, axes = plt.subplots(1, 4, figsize=(16, 3))
+    """Plot the three LTP summary statistics as horizontal bars.
+    L (coverage) excluded: constant 1.0, zero variance."""
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3))
     fig.patch.set_facecolor("#121212")
 
     stats = [
         ("Offset Mag (M)", ltp_result.mean_M, "#7db8c9"),
         ("Consistency (C)", ltp_result.mean_C, "#E69F00"),
         ("Variance (V)", ltp_result.mean_V, "#CC79A7"),
-        ("Coverage (L)", ltp_result.mean_L, "#009E73"),
     ]
 
     for ax, (label, val, color) in zip(axes, stats):
         _style_ax(ax)
-        # C and L are bounded [0,1]; M and V are unbounded
-        if label.endswith("(C)") or label.endswith("(L)"):
+        if label.endswith("(C)"):
             ax.barh([0], [val], color=color, height=0.5, alpha=0.85)
             ax.set_xlim(0, 1)
         else:
             ax.barh([0], [val], color=color, height=0.5, alpha=0.85)
         ax.set_yticks([])
         ax.set_title(label, fontsize=14, color="#DEE2E6", fontweight="bold")
+        # Use scientific notation for very small values
+        fmt = f"{val:.2e}" if 0 < abs(val) < 0.001 else f"{val:.4f}"
         ax.text(val + ax.get_xlim()[1] * 0.02, 0,
-                f"{val:.4f}", va="center", fontsize=14,
+                fmt, va="center", fontsize=14,
                 color="#DEE2E6", fontweight="bold")
 
     plt.tight_layout()
