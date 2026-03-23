@@ -653,10 +653,10 @@ async function renderPromptPage(page){
     } else {
       nav=`<div style="padding:4px 0;font-family:var(--mono);font-size:11px;color:var(--text-2)">${data.total} prompt${data.total!==1?'s':''}</div>`;
     }
-    // Render cards
-    area.innerHTML=nav;
-    for(const r of data.results) renderLatest(r,r._plot_keys||[],r._index);
-    if(tp>1) area.innerHTML+=nav;
+    // Render cards (renderLatest prepends, so iterate in reverse for chronological order)
+    area.innerHTML='';
+    for(var i=data.results.length-1;i>=0;i--) renderLatest(data.results[i],data.results[i]._plot_keys||[],data.results[i]._index);
+    area.innerHTML=nav+area.innerHTML+(tp>1?nav:'');
   }catch(e){console.error('renderPromptPage:',e)}
 }
 
