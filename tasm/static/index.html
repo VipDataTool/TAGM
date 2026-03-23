@@ -650,6 +650,7 @@ function updateSessionBadge(){
   $('sessionBadge').textContent=label;
   $('dashBtn').disabled=n<1;
   $('exportBtn').disabled=n<1;
+  var cs=$('cfgCacheSize');if(cs) cs.textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';
 }
 
 async function renderPromptPage(page){
