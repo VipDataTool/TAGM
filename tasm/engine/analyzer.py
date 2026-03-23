@@ -458,7 +458,7 @@ class Analyzer:
         if sorted_d.sum() > 0:
             frac = np.linspace(0, 1, 101)
             lorenz = np.interp(frac, np.linspace(0, 1, n), cum / cum[-1])
-            result.gini = float(1 - 2 * np.trapz(lorenz, frac))
+            result.gini = float(1 - 2 * np.trapezoid(lorenz, frac))
         else:
             result.gini = 0.0
 
