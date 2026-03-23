@@ -951,7 +951,7 @@ async def get_plot(plot_key: str):
     if not plot_path.exists():
         return JSONResponse(status_code=404, content={"error": f"Plot '{plot_key}' not found."})
     return FileResponse(plot_path, media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=3600"})
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/plots/individual/{index}/{plot_key}")
@@ -964,7 +964,7 @@ async def get_individual_plot(index: int, plot_key: str):
     if not plot_path.exists():
         return JSONResponse(status_code=404, content={"error": f"Plot not found."})
     return FileResponse(plot_path, media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=3600"})
+                        headers={"Cache-Control": "no-cache"})
 
 
 def _compute_candidate_graph_summary(r):
