@@ -70,6 +70,26 @@
       "scope": "prompt",
       "order": 120
     },
+    "sfd_density": {
+      "on": true,
+      "scope": "prompt",
+      "order": 130
+    },
+    "sfd_energy": {
+      "on": true,
+      "scope": "prompt",
+      "order": 140
+    },
+    "sfd_entropy": {
+      "on": true,
+      "scope": "prompt",
+      "order": 150
+    },
+    "rank_displacement": {
+      "on": true,
+      "scope": "prompt",
+      "order": 160
+    },
     "separability": {
       "on": true,
       "scope": "batch",
@@ -134,13 +154,28 @@
       "on": false,
       "scope": "batch",
       "order": 130
+    },
+    "exp_sfd_category_comparison": {
+      "on": true,
+      "scope": "batch",
+      "order": 140
+    },
+    "exp_sfd_vs_asm": {
+      "on": true,
+      "scope": "batch",
+      "order": 150
+    },
+    "exp_rank_displacement": {
+      "on": true,
+      "scope": "batch",
+      "order": 160
     }
   },
   "fonts": {
     "cardTitle": "20",
     "desc": "14",
-    "legend": "14",
-    "table": "14"
+    "legend": "12",
+    "table": "12"
   },
   "ltp": {
     "layerStrategy": "late",
@@ -165,5 +200,6 @@
     "json": true,
     "charts": false,
     "exportPath": ""
-  }
+  },
+  "promptPerPage": 10
 }
