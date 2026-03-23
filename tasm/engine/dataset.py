@@ -199,13 +199,7 @@ class DatasetSession:
     # ─── Export ───
 
     def export_zip(self, exclude_plots=False, exclude_pdf=False, exclude_json=False) -> bytes:
-        """Package the session as a ZIP, written to disk for download endpoint.
-
-        Filters:
-          exclude_plots: skip everything under plots/ (PNGs)
-          exclude_pdf:   skip report.pdf
-          exclude_json:  skip results.json
-        """
+        """Package the session as a ZIP, written to disk for download endpoint."""
         if not exclude_json:
             self.save_results_json()
 

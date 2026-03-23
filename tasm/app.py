@@ -193,9 +193,19 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
 
         result_dict = result_to_dict(result)
         if session:
-            session.add_result(result_dict, plots)
+            idx = session.add_result(result_dict)
 
-    return result_dict, plots
+            # Save per-prompt plots to disk (not in JSON)
+            if plots:
+                plot_dir = session.session_dir / "plots" / "individual"
+                plot_dir.mkdir(parents=True, exist_ok=True)
+                for name, b64_str in plots.items():
+                    if b64_str:
+                        path = plot_dir / f"{idx:04d}_{name}.png"
+                        path.write_bytes(base64.b64decode(b64_str))
+
+    plot_keys = [k for k, v in plots.items() if v]
+    return result_dict, plot_keys
 
 
 def _generate_deferred_plots(sess):
