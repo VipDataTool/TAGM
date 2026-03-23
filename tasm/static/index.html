@@ -337,6 +337,7 @@ textarea{resize:vertical;min-height:44px}
 <script>
 const $=id=>document.getElementById(id);
 let modelLoaded=false, sessionResults=[], dashResults=[], promptLibraryData=[], _busy=false;
+var _promptPage=1, _promptPerPage=10, _promptTotal=0;
 
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
@@ -448,6 +449,13 @@ function vizRenderConfig(){
     groups[v.cat].push({key:k,...v});
   }
   let h='';
+  // Prompt tab page size
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Prompt Tab</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
+      <div><label style="font-size:12px;color:var(--text-1)">Cards per page</label><select id="cfgPromptPerPage" onchange="_promptPerPage=parseInt(this.value);renderPromptPage(1);saveConfig()"><option value="5"${_promptPerPage===5?' selected':''}>5</option><option value="10"${_promptPerPage===10?' selected':''}>10</option><option value="20"${_promptPerPage===20?' selected':''}>20</option><option value="50"${_promptPerPage===50?' selected':''}>50</option></select></div>
+    </div>
+  </div>`;
   // Font size config
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
@@ -544,7 +552,8 @@ async function saveConfig(){
         fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
       },
       cardCollapse:{...CARD_COLLAPSE_DEFAULTS},
-      exportOpts:{...EXPORT_DEFAULTS}
+      exportOpts:{...EXPORT_DEFAULTS},
+      promptPerPage:_promptPerPage
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
   }catch(e){}
@@ -594,6 +603,8 @@ async function loadConfig(){
       if(typeof c.exportOpts.charts==='boolean')EXPORT_DEFAULTS.charts=c.exportOpts.charts;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
     }
+    // Prompt tab page size
+    if(c.promptPerPage&&[5,10,20,50].includes(c.promptPerPage)) _promptPerPage=c.promptPerPage;
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
     applyCardDefaults('panel-config','config');
@@ -603,10 +614,50 @@ async function loadConfig(){
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
 
 function updateSessionBadge(){
-  var n=dashResults.length||sessionResults.length;
+  var n=_promptTotal||dashResults.length||sessionResults.length;
   $('sessionBadge').textContent=n?`Session: ${n} prompts`:'No session';
   $('dashBtn').disabled=n<1;
   $('exportBtn').disabled=n<1;
+}
+
+async function renderPromptPage(page){
+  try{
+    const resp=await fetch(`/api/session/results?page=${page}&per_page=${_promptPerPage}`);
+    const data=await resp.json();
+    if(!data.ok||!data.results||!data.results.length){
+      $('latestResults').innerHTML='';
+      if(data.total===0) $('emptyState').style.display='';
+      return;
+    }
+    _promptPage=data.page;
+    _promptTotal=data.total;
+    updateSessionBadge();
+    $('emptyState').style.display='none';
+    const area=$('latestResults');
+    // Build nav controls
+    const tp=data.total_pages;
+    let nav='';
+    if(tp>1){
+      nav+=`<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono);font-size:11px">`;
+      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(1)" ${_promptPage<=1?'disabled':''} style="width:auto">⟨⟨</button>`;
+      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${_promptPage-1})" ${_promptPage<=1?'disabled':''} style="width:auto">⟨ Prev</button>`;
+      var sp=Math.max(1,_promptPage-2),ep=Math.min(tp,_promptPage+2);
+      for(var p=sp;p<=ep;p++){
+        if(p===_promptPage) nav+=`<span style="color:var(--blue);font-weight:600;padding:0 4px">${p}</span>`;
+        else nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${p})" style="width:auto;padding:2px 6px">${p}</button>`;
+      }
+      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${_promptPage+1})" ${_promptPage>=tp?'disabled':''} style="width:auto">Next ⟩</button>`;
+      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${tp})" ${_promptPage>=tp?'disabled':''} style="width:auto">⟩⟩</button>`;
+      nav+=`<span style="margin-left:auto;color:var(--text-1);font-size:11px">${data.total} prompts · page ${_promptPage}/${tp}</span>`;
+      nav+=`</div>`;
+    } else {
+      nav=`<div style="padding:4px 0;font-family:var(--mono);font-size:11px;color:var(--text-2)">${data.total} prompt${data.total!==1?'s':''}</div>`;
+    }
+    // Render cards
+    area.innerHTML=nav;
+    for(const r of data.results) renderLatest(r,r._plot_keys||[],r._index);
+    if(tp>1) area.innerHTML+=nav;
+  }catch(e){console.error('renderPromptPage:',e)}
 }
 
 // ─── User Info ──────────────────────────────────────────────────
@@ -656,7 +707,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -664,7 +715,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -695,7 +746,7 @@ async function analyzePrompt(){
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){log('Done','done');sessionResults.push(data.result);updateSessionBadge();renderLatest(data.result,data.plot_keys||[],data.session_n-1);renderDataTable()}
+    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;updateSessionBadge();renderPromptPage(Math.ceil(data.session_n/_promptPerPage)||1);renderDataTable()}
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -725,16 +776,8 @@ async function analyzeBatch(){
           setLoading(btn,false);
           log('Loading results...');
           try{
-            const sr=await(await fetch('/api/session/results')).json();
-            if(sr.results){
-              sessionResults=sr.results;
-              updateSessionBadge();
-              $('latestResults').innerHTML='';$('emptyState').style.display='none';
-              // Show only last 5 prompts in Prompt tab to avoid DOM overload
-              var showResults=sr.results.slice(-5);
-              for(const r of showResults) renderLatest(r,r._plot_keys||[],r._index);
-              renderDataTable();
-            }
+            await renderPromptPage(1);
+            renderDataTable();
           }catch(re){log('Results load: '+re.message,'error')}
           log('Loading dashboard...');
           try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
@@ -1816,10 +1859,9 @@ async function dtRemoveSelected(){
     const r=await(await fetch('/api/session/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})})).json();
     if(r.ok){
       log(`Removed ${r.removed} results (${r.remaining} remaining)`,'done');
-      const sr=await(await fetch('/api/session/results')).json();
-      if(sr.ok) sessionResults=sr.results;
+      _promptTotal=r.remaining;
       dashResults=[];  // Force refresh from server on next dashboard load
-      updateSessionBadge();renderDataTable();
+      updateSessionBadge();renderPromptPage(Math.min(_promptPage,Math.ceil(r.remaining/_promptPerPage)||1));renderDataTable();
     } else { log('Remove failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Remove error: '+e.message,'error')}
 }
@@ -1846,10 +1888,9 @@ async function dtRerunSelected(){
     const r=await(await fetch('/api/session/rerun',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices,options})})).json();
     if(r.ok){
       log(`Reran ${r.rerun} prompts (${r.total} total in session)`,'done');
-      const sr=await(await fetch('/api/session/results')).json();
-      if(sr.ok) sessionResults=sr.results;
+      _promptTotal=r.total;
       dashResults=[];
-      updateSessionBadge();renderDataTable();
+      updateSessionBadge();renderPromptPage(_promptPage);renderDataTable();
     } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Rerun error: '+e.message,'error')}
 }
@@ -2509,7 +2550,7 @@ function initTerrainViewer(results){
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
-    if(st.session&&st.session.n_results>0)updateSessionBadge();
+    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;updateSessionBadge();renderPromptPage(1)}
     // Restore baselines toggle from server state
     // (baseline toggle removed)
   }catch(e){}

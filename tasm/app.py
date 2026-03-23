@@ -630,14 +630,20 @@ def _run_batch_sync(content, filename,
 
 
 @app.get("/api/session/results")
-async def get_session_results():
-    """Return all session results with per-prompt plots loaded from disk."""
+async def get_session_results(page: int = 1, per_page: int = 10):
+    """Return a page of session results (chronological order)."""
     if not session or session.n_results == 0:
-        return {"ok": False, "results": []}
+        return {"ok": False, "results": [], "total": 0, "page": 1, "per_page": per_page, "total_pages": 0}
 
-    # Compute length residuals across the full batch
+    total = session.n_results
+    total_pages = max(1, -(-total // per_page))  # ceil division
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    end = min(start + per_page, total)
+
+    # Compute length residuals across ALL results (needed for correct regression)
     resid_data = {}
-    if session.n_results >= 5:
+    if total >= 5:
         try:
             from engine.analyzer import PromptResult
             pr_list = [PromptResult.from_dict(r, mode="scalar")
@@ -646,9 +652,12 @@ async def get_session_results():
         except Exception:
             pass
 
+    # Build the page slice
     results = []
-    for i, r in enumerate(session.results):
+    for i in range(start, end):
+        r = session.results[i]
         r_copy = dict(r)
+
         # List available plot keys (not image data)
         plot_keys = []
         plot_dir = session.session_dir / "plots" / "individual"
@@ -666,7 +675,10 @@ async def get_session_results():
                     r_copy["length_residuals"][stat_key] = round(rv, 8)
 
         results.append(r_copy)
-    return {"ok": True, "results": results}
+
+    return {"ok": True, "results": results,
+            "page": page, "per_page": per_page,
+            "total": total, "total_pages": total_pages}
 
 
 @app.post("/api/session/remove")
