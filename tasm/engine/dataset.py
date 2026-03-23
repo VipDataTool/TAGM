@@ -199,11 +199,18 @@ class DatasetSession:
     # ─── Export ───
 
     def export_zip(self, exclude_plots=False, exclude_pdf=False, exclude_json=False) -> bytes:
-        """Package the session as a ZIP, written to disk for download endpoint."""
+        """Package the session as a ZIP, written to disk for download endpoint.
+
+        Filters:
+          exclude_plots: skip everything under plots/ (PNGs)
+          exclude_pdf:   skip report.pdf
+          exclude_json:  skip results.json
+        """
         if not exclude_json:
             self.save_results_json()
 
         zip_path = self.session_dir / "tasm_session.zip"
+        plots_dir = self.session_dir / "plots"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for filepath in self.session_dir.rglob("*"):
                 if not filepath.is_file():
@@ -211,6 +218,10 @@ class DatasetSession:
                 if filepath.name == "tasm_session.zip":
                     continue
                 if exclude_json and filepath.name == "results.json":
+                    continue
+                if exclude_pdf and filepath.name == "report.pdf":
+                    continue
+                if exclude_plots and plots_dir in filepath.parents:
                     continue
                 arcname = filepath.relative_to(self.session_dir)
                 zf.write(filepath, arcname)

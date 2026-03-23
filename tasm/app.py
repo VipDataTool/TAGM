@@ -193,19 +193,9 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
 
         result_dict = result_to_dict(result)
         if session:
-            idx = session.add_result(result_dict)
+            session.add_result(result_dict, plots)
 
-            # Save per-prompt plots to disk (not in JSON)
-            if plots:
-                plot_dir = session.session_dir / "plots" / "individual"
-                plot_dir.mkdir(parents=True, exist_ok=True)
-                for name, b64_str in plots.items():
-                    if b64_str:
-                        path = plot_dir / f"{idx:04d}_{name}.png"
-                        path.write_bytes(base64.b64decode(b64_str))
-
-    plot_keys = [k for k, v in plots.items() if v]
-    return result_dict, plot_keys
+    return result_dict, plots
 
 
 def _generate_deferred_plots(sess):
@@ -1080,9 +1070,9 @@ async def export_session(request: Request):
         opts = {}
     export_opts = {
         "csv": True,  # always
-        "pdf": opts.get("pdf", True),
-        "json": opts.get("json", True),
-        "charts": opts.get("charts", True),
+        "pdf": opts.get("pdf", False),
+        "json": opts.get("json", False),
+        "charts": opts.get("charts", False),
         "exportPath": opts.get("exportPath", ""),
     }
 
@@ -1107,12 +1097,12 @@ async def download_export():
 def _run_export_sync(opts=None):
     """Synchronous export — runs in a background thread."""
     if opts is None:
-        opts = {"csv": True, "pdf": True, "json": True, "charts": True, "exportPath": ""}
+        opts = {"csv": True, "pdf": False, "json": False, "charts": False, "exportPath": ""}
     import shutil
 
-    do_pdf = opts.get("pdf", True)
-    do_json = opts.get("json", True)
-    do_charts = opts.get("charts", True)
+    do_pdf = opts.get("pdf", False)
+    do_json = opts.get("json", False)
+    do_charts = opts.get("charts", False)
     export_path = opts.get("exportPath", "").strip()
 
     # Aggregate stats are needed for PDF and charts, so compute if either is on

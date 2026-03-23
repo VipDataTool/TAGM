@@ -454,8 +454,8 @@ function vizRenderConfig(){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
       <div><label style="font-size:12px;color:var(--text-1)">Card titles</label><select id="cfgFontCardTitle" onchange="applyFontConfig();saveConfig()"><option value="12">12px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24" selected>24px</option><option value="28">28px</option><option value="32">32px</option><option value="36">36px</option></select></div>
       <div><label style="font-size:12px;color:var(--text-1)">Descriptions</label><select id="cfgFontDesc" onchange="applyFontConfig();saveConfig()"><option value="10">10px</option><option value="11">11px</option><option value="12">12px</option><option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option><option value="28">28px</option><option value="32">32px</option></select></div>
-      <div><label style="font-size:12px;color:var(--text-1)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
-      <div><label style="font-size:12px;color:var(--text-1)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11" selected>11px</option><option value="12">12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+      <div><label style="font-size:12px;color:var(--text-1)">Legends</label><select id="cfgFontLegend" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11">11px</option><option value="12" selected>12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
+      <div><label style="font-size:12px;color:var(--text-1)">Data tables</label><select id="cfgFontTable" onchange="applyFontConfig();saveConfig()"><option value="8">8px</option><option value="9">9px</option><option value="10">10px</option><option value="11">11px</option><option value="12" selected>12px</option><option value="13">13px</option><option value="14">14px</option><option value="16">16px</option><option value="18">18px</option><option value="20">20px</option><option value="24">24px</option></select></div>
     </div>
   </div>`;
   // Card collapse defaults per tab
@@ -529,8 +529,8 @@ async function saveConfig(){
       fonts:{
         cardTitle: $('cfgFontCardTitle')?$('cfgFontCardTitle').value:'24',
         desc: $('cfgFontDesc')?$('cfgFontDesc').value:'13',
-        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'11',
-        table: $('cfgFontTable')?$('cfgFontTable').value:'11',
+        legend: $('cfgFontLegend')?$('cfgFontLegend').value:'12',
+        table: $('cfgFontTable')?$('cfgFontTable').value:'12',
       },
       ltp:{
         layerStrategy: $('cfgLtpLayerStrategy')?$('cfgLtpLayerStrategy').value:'late',
