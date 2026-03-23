@@ -1,5 +1,5 @@
 # TASM Analyzer
-### The Alignment Stress Map + Lateral Tension Profile
+### Transformer Alignment Strain Map + Lateral Tension Profile
 ### Runtime Per-Token Sensitivity Attribution via Weight Delta Projection in Transformer Language Models
 
 A web-based analysis tool for measuring alignment stress signals in transformer language models. Integrates the ASM framework (scalar amplitude) with the Lateral Tension Profile (directional structure of the alignment field).
