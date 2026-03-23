@@ -231,8 +231,8 @@ class DatasetSession:
         "kl_divergence",
         "instruct_top1", "instruct_top1_prob",
         "base_top1", "base_top1_prob",
-        # LTP summary
-        "ltp_mean_M", "ltp_mean_C", "ltp_mean_V", "ltp_mean_L",
+        # LTP summary (ltp_mean_L excluded: constant 1.0, zero variance)
+        "ltp_mean_M", "ltp_mean_C", "ltp_mean_V",
         "ltp_max_prc", "ltp_n_directional",
         "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
         # Rank displacement
@@ -282,7 +282,6 @@ class DatasetSession:
             row["ltp_mean_M"] = ltp.get("mean_M", "")
             row["ltp_mean_C"] = ltp.get("mean_C", "")
             row["ltp_mean_V"] = ltp.get("mean_V", "")
-            row["ltp_mean_L"] = ltp.get("mean_L", "")
             row["ltp_max_prc"] = ltp.get("max_prc", "")
             row["ltp_n_directional"] = ltp.get("n_directional", "")
             row["ltp_layer_strategy"] = ltp.get("layer_strategy", "")

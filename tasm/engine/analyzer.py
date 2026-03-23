@@ -436,7 +436,7 @@ class Analyzer:
 
         avg_attr = torch.stack(layer_attrs).mean(dim=0).numpy()
         result.signed_attr = avg_attr
-        result.net_correction = float(avg_attr.sum())
+        result.net_correction = float(avg_attr.sum() / seq_len) if seq_len > 0 else 0.0
         result.n_negative_tokens = int(sum(1 for a in avg_attr if a < 0))
         result.has_negative_tokens = result.n_negative_tokens > 0
 
@@ -449,22 +449,34 @@ class Analyzer:
         max_ent = np.log(seq_len) if seq_len > 1 else 1.0
         result.entropy = float(ent / max_ent)
 
+        # Gini: Lorenz-resampled onto fixed 100-point grid so the
+        # shape of the concentration curve is measured independent of
+        # how many tokens produced it.
         sorted_d = np.sort(attr_dist)
         n = len(sorted_d)
         cum = np.cumsum(sorted_d)
-        result.gini = float(1 - 2 * cum.sum() / (n * sorted_d.sum())) if sorted_d.sum() > 0 else 0.0
+        if sorted_d.sum() > 0:
+            frac = np.linspace(0, 1, 101)
+            lorenz = np.interp(frac, np.linspace(0, 1, n), cum / cum[-1])
+            result.gini = float(1 - 2 * np.trapz(lorenz, frac))
+        else:
+            result.gini = 0.0
 
-        if seq_len >= 2:
-            result.top2_share = float(attr_dist[0] + attr_dist[-1])
+        # Bookend / interior split: proportional boundary (10% each end,
+        # minimum 1 token) instead of fixed first/last token.
+        boundary = max(1, round(0.1 * n))
+        if n >= 2:
+            result.top2_share = float(attr_dist[:boundary].sum() + attr_dist[-boundary:].sum())
+            interior = attr_dist[boundary:-boundary] if n > 2 * boundary else np.array([])
+            if len(interior) > 0:
+                result.middle_share = float(interior.sum())
+                imean = interior.mean()
+                result.interior_cv = float(interior.std() / imean) if imean > 0 else 0.0
+            else:
+                result.middle_share = float(1.0 - result.top2_share)
+                result.interior_cv = 0.0
         else:
             result.top2_share = 1.0
-
-        if seq_len > 2:
-            result.middle_share = float(attr_dist[1:-1].sum())
-            interior = attr_dist[1:-1]
-            imean = interior.mean()
-            result.interior_cv = float(interior.std() / imean) if imean > 0 else 0.0
-        else:
             result.middle_share = 0.0
             result.interior_cv = 0.0
 

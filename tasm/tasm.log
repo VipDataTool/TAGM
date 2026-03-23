@@ -28068,3 +28068,53 @@ IndexError: list index out of range
 2026-03-23 07:39:51,806 [INFO] [exporting] Packaging ZIP...
 2026-03-23 07:39:52,068 [INFO] Session exported: 63 prompts, 0.2MB
 2026-03-23 07:39:52,068 [INFO] [done] Export ready: 63 prompts. Click Download.
+2026-03-23 11:59:12,021 [INFO] TASM Analyzer starting up
+2026-03-23 11:59:12,048 [INFO] Cleaned stale session directory: datasets/current
+2026-03-23 11:59:38,491 [INFO] [starting] Starting model load...
+2026-03-23 11:59:39,078 [INFO] [memory] [MEM] After unload | process=0.5GB, system=2.5/15.6GB (16%)
+2026-03-23 11:59:39,078 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-23 11:59:39,172 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 11:59:39,179 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-23 12:00:44,004 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 12:00:44,011 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 12:00:44,028 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 12:00:44,034 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-23 12:00:44,057 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 12:00:44,063 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-23 12:00:44,124 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-23 12:00:44,148 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-23 12:00:45,534 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-23 12:00:45,540 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-23 12:00:45,541 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-23 12:00:45,561 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-23 12:00:45,566 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-23 12:00:45,568 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-23 12:01:21,720 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=4.2/15.6GB (27%)
+2026-03-23 12:01:21,893 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=4.2/15.6GB (27%)
+2026-03-23 12:01:25,462 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-23 12:01:25,462 [INFO] [ready] Loaded Qwen 2.5 0.5B in 106.4s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-23 12:01:25,462 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-23 12:05:57,505 [INFO] Analyzing: [benign] How are you today?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-23 12:05:57,506 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-23 12:05:57,555 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 12:05:57,560 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-23 12:06:30,211 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 12:06:30,218 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 12:06:30,826 [ERROR] Analysis failed: Traceback (most recent call last):
+  File "/workspaces/TASM/tasm/app.py", line 530, in analyze_single
+    result_dict, plot_keys = _analyze_and_record(
+                             ^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm/app.py", line 160, in _analyze_and_record
+    result = analyzer.analyze_prompt(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/TASM/tasm/engine/analyzer.py", line 274, in analyze_prompt
+    self._extract_signed_attribution(result, seq_len, state)
+  File "/workspaces/TASM/tasm/engine/analyzer.py", line 461, in _extract_signed_attribution
+    result.gini = float(1 - 2 * np.trapz(lorenz, frac))
+                                ^^^^^^^^
+  File "/home/vscode/.local/lib/python3.11/site-packages/numpy/__init__.py", line 792, in __getattr__
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
+AttributeError: module 'numpy' has no attribute 'trapz'
+
+2026-03-23 12:09:13,397 [INFO] Full reset performed
+2026-03-23 12:09:13,398 [INFO] [reset] All resources released. Session cleared.

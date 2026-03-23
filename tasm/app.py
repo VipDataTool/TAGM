@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from engine.model_manager import ModelManager, KNOWN_PAIRS, _load_model_registry, _save_model_registry
 from engine.analyzer import Analyzer, result_to_dict
 from engine.baselines import get_all_prompts, add_prompt as csv_add_prompt
-from engine.statistics import aggregate_batch, length_residualize
+from engine.statistics import aggregate_batch
 from engine.visualizations import (
     plot_signed_attribution, plot_stress_per_token,
     plot_amplitude_trajectory, plot_heatmap,
@@ -675,17 +675,6 @@ async def get_session_results(page: int = 1, per_page: int = 10):
     start = (page - 1) * per_page
     end = min(start + per_page, total)
 
-    # Compute length residuals across ALL results (needed for correct regression)
-    resid_data = {}
-    if total >= 5:
-        try:
-            from engine.analyzer import PromptResult
-            pr_list = [PromptResult.from_dict(r, mode="scalar")
-                       for r in session.results]
-            resid_data = length_residualize(pr_list)
-        except Exception:
-            pass
-
     # Build the page slice
     results = []
     for i in range(start, end):
@@ -699,14 +688,6 @@ async def get_session_results(page: int = 1, per_page: int = 10):
             for pfile in sorted(plot_dir.glob(f"{i:04d}_*.png")):
                 plot_keys.append(pfile.stem[5:])  # strip "0000_"
         r_copy["_plot_keys"] = plot_keys
-
-        # Attach length residuals
-        if resid_data:
-            r_copy["length_residuals"] = {}
-            for stat_key, rd_info in resid_data.items():
-                rv = rd_info["residuals"][i]
-                if rv is not None:
-                    r_copy["length_residuals"][stat_key] = round(rv, 8)
 
         results.append(r_copy)
 
@@ -863,9 +844,6 @@ def _run_dashboard_sync():
 
     agg = aggregate_batch(pr_list)
 
-    # ── Compute per-result length residuals for table display ──
-    resid_data = length_residualize(pr_list)
-
     # ── Generate plots and save to disk ──
     agg_plots = {"batch_summary": plot_batch_summary(agg),
                  "separability": plot_separability(agg)}
@@ -906,7 +884,7 @@ def _run_dashboard_sync():
         ltp = r.get("ltp")
         if ltp:
             slim["ltp"] = {k: ltp.get(k) for k in [
-                "mean_M", "mean_C", "mean_V", "mean_L",
+                "mean_M", "mean_C", "mean_V",
                 "max_prc", "n_directional"]}
         sfd = r.get("sfd")
         if sfd:
@@ -927,13 +905,6 @@ def _run_dashboard_sync():
             slim["instruct_topk"] = r["instruct_topk"]
         if r.get("base_topk"):
             slim["base_topk"] = r["base_topk"]
-
-        # Length-residualized values (regression-based, all instruments)
-        slim["length_residuals"] = {}
-        for stat_key, rd_info in resid_data.items():
-            rv = rd_info["residuals"][i]
-            if rv is not None:
-                slim["length_residuals"][stat_key] = round(rv, 8)
 
         # Classifier prediction only (stored data uses "predicted" key)
         if r.get("classifiers"):
@@ -1162,14 +1133,14 @@ def _run_export_sync(opts=None):
     do_charts = opts.get("charts", False)
     export_path = opts.get("exportPath", "").strip()
 
-    # Aggregate stats are needed for PDF and charts, so compute if either is on
+    # ── Aggregate stats (needed for PDF, charts, and aggregate JSON) ─
     agg = None
     all_plots = {}
     if do_pdf or do_charts:
         log_progress("exporting", "Generating aggregate statistics...")
         try:
-            results = session.results
             from engine.analyzer import PromptResult
+            results = session.results
             pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
 
             log_progress("exporting", "Computing separability and comparative plots...")

@@ -1690,9 +1690,6 @@ function _renderDataTablePage(){
     ['gini','Gini','f4',null,52],
     ['kl_divergence','KL','f4',null,52],
     ['n_negative_tokens','Neg','i',null,34],
-    ['_resid_stress','ΔStress','f3',null,60],
-    ['_resid_top2','ΔBnd%','f3',null,52],
-    ['_resid_ltp_M','ΔM','f6',null,56],
     ['_inst_top1','InstTop1','s',null,70],
     ['_inst_prob','InstP','pct3',null,50],
     ['_base_top1','BaseTop1','s',null,70],
@@ -1774,9 +1771,6 @@ function _renderDataTablePage(){
     if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
-    if(key==='_resid_stress') return r.length_residuals?r.length_residuals.stress_score:null;
-    if(key==='_resid_top2') return r.length_residuals?r.length_residuals.top2_share:null;
-    if(key==='_resid_ltp_M') return r.length_residuals?r.length_residuals.ltp_mean_M:null;
     if(key.startsWith('_cl_')){
       const cid=key.substring(4);
       const cls=r.classifiers||{};
