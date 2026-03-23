@@ -70,6 +70,7 @@ user_info = {"name": "", "organization": ""}
 # _loading_lock: makes the loading_state check-and-set atomic.
 _analysis_lock = threading.Lock()
 _loading_lock = threading.Lock()
+_batch_running = False
 
 
 def log_progress(stage, message):
@@ -564,6 +565,11 @@ async def analyze_batch(file: UploadFile = File(...),
     if not analyzer:
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
 
+    global _batch_running
+    if _batch_running:
+        return JSONResponse(status_code=409,
+                            content={"error": "A batch is already running. Wait for it to finish."})
+
     # Read files on the event loop (fast async I/O)
     content = (await file.read()).decode("utf-8")
     filename = file.filename
@@ -582,6 +588,7 @@ async def analyze_batch(file: UploadFile = File(...),
                             content={"error": "No valid prompts found in CSV."})
 
     # Fire off the heavy work in a background thread and return immediately
+    _batch_running = True
     threading.Thread(
         target=_run_batch_sync,
         args=(content, filename,
@@ -661,6 +668,9 @@ def _run_batch_sync(content, filename,
     except Exception as e:
         logger.error(f"Batch failed: {traceback.format_exc()}")
         log_progress("error", f"Batch failed: {str(e)[:100]}")
+    finally:
+        global _batch_running
+        _batch_running = False
 
 
 @app.get("/api/session/results")
