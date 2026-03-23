@@ -436,7 +436,8 @@ class Analyzer:
 
         avg_attr = torch.stack(layer_attrs).mean(dim=0).numpy()
         result.signed_attr = avg_attr
-        result.net_correction = float(avg_attr.sum() / seq_len) if seq_len > 0 else 0.0
+        sum_abs = float(np.abs(avg_attr).sum())
+        result.net_correction = float(avg_attr.sum()) / sum_abs if sum_abs > 0 else 0.0
         result.n_negative_tokens = int(sum(1 for a in avg_attr if a < 0))
         result.has_negative_tokens = result.n_negative_tokens > 0
 
@@ -449,15 +450,17 @@ class Analyzer:
         max_ent = np.log(seq_len) if seq_len > 1 else 1.0
         result.entropy = float(ent / max_ent)
 
-        # Gini: Lorenz-resampled onto fixed 100-point grid so the
-        # shape of the concentration curve is measured independent of
-        # how many tokens produced it.
+        # Gini: Lorenz curve resampled onto a fixed 100-point grid.
+        # The curve must start at (0, 0) — at 0% of the population,
+        # 0% of the attribution is accumulated.
         sorted_d = np.sort(attr_dist)
         n = len(sorted_d)
         cum = np.cumsum(sorted_d)
-        if sorted_d.sum() > 0:
+        if cum[-1] > 0:
+            lorenz_x = np.concatenate([[0], np.arange(1, n + 1) / n])
+            lorenz_y = np.concatenate([[0], cum / cum[-1]])
             frac = np.linspace(0, 1, 101)
-            lorenz = np.interp(frac, np.linspace(0, 1, n), cum / cum[-1])
+            lorenz = np.interp(frac, lorenz_x, lorenz_y)
             result.gini = float(1 - 2 * np.trapezoid(lorenz, frac))
         else:
             result.gini = 0.0
