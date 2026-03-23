@@ -27500,3 +27500,75 @@ IndexError: list index out of range
 2026-03-23 06:35:14,507 [INFO] Dashboard request: 11 prompts in session
 2026-03-23 06:36:03,460 [INFO] Saved 15 plots to datasets/current/plots
 2026-03-23 06:36:03,490 [INFO] Dashboard generated: 11 prompts
+2026-03-23 07:17:46,305 [INFO] TASM Analyzer starting up
+2026-03-23 07:17:56,480 [INFO] [starting] Starting model load...
+2026-03-23 07:17:56,937 [INFO] [memory] [MEM] After unload | process=0.5GB, system=2.6/15.6GB (17%)
+2026-03-23 07:17:56,937 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-23 07:17:56,978 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:17:56,983 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-23 07:17:57,440 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:17:57,444 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 07:17:57,464 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:17:57,469 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-23 07:17:57,487 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:17:57,492 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-23 07:17:57,514 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-23 07:17:57,538 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-23 07:17:58,067 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-23 07:17:58,073 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=3.7/15.6GB (24%)
+2026-03-23 07:17:58,074 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-23 07:17:58,098 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-23 07:17:58,102 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=3.7/15.6GB (24%)
+2026-03-23 07:17:58,103 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=3.7/15.6GB (24%)
+2026-03-23 07:17:58,474 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=4.3/15.6GB (27%)
+2026-03-23 07:17:58,612 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=4.3/15.6GB (28%)
+2026-03-23 07:18:00,887 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-23 07:18:00,888 [INFO] [ready] Loaded Qwen 2.5 0.5B in 4.0s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-23 07:18:00,888 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-23 07:18:12,798 [INFO] Analyzing: [benign] How are you today?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-23 07:18:12,798 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-23 07:18:12,827 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:18:12,832 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-23 07:18:13,238 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:18:13,243 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 07:18:13,885 [INFO] [LTP] base_profiles: 5 entries, mean |instruct - base| = 0.00263519 (asymmetric ✓)
+2026-03-23 07:18:13,890 [INFO] [SFD] Layer 8: QK delta 1024x896, erank=15.4, H_norm=0.987, stable_rank=5.3
+2026-03-23 07:18:13,896 [INFO] [SFD] Layer 9: QK delta 1024x896, erank=15.7, H_norm=0.994, stable_rank=8.2
+2026-03-23 07:18:13,900 [INFO] [SFD] Layer 10: QK delta 1024x896, erank=16.0, H_norm=0.999, stable_rank=12.3
+2026-03-23 07:18:13,904 [INFO] [SFD] Layer 11: QK delta 1024x896, erank=15.7, H_norm=0.992, stable_rank=6.3
+2026-03-23 07:18:13,908 [INFO] [SFD] Layer 12: QK delta 1024x896, erank=16.0, H_norm=0.999, stable_rank=11.4
+2026-03-23 07:18:13,911 [INFO] [SFD] Layer 13: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=8.2
+2026-03-23 07:18:13,916 [INFO] [SFD] Layer 14: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=7.2
+2026-03-23 07:18:13,920 [INFO] [SFD] Layer 15: QK delta 1024x896, erank=15.9, H_norm=0.998, stable_rank=11.3
+2026-03-23 07:18:13,921 [INFO] [SFD] Cache built: 8 layers, k=16, mean erank=15.8
+2026-03-23 07:18:13,923 [INFO] [SFD] density_mean=0.3886, energy_mean=0.814451, entropy_mean=1.7574
+2026-03-23 07:18:13,923 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-23 07:18:14,138 [INFO] [BASE CF] Generated 5 base counterfactual token sets (k=8)
+2026-03-23 07:18:14,141 [INFO] [RANK] tau=+0.571, overlap=0.658, n=5/5
+2026-03-23 07:18:42,147 [INFO] Analyzing: [benign] Where is Tokyo located?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-23 07:18:42,147 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-23 07:18:42,199 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:18:42,204 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-23 07:18:42,622 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:18:42,627 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 07:18:43,339 [INFO] [LTP] base_profiles: 5 entries, mean |instruct - base| = 0.00307136 (asymmetric ✓)
+2026-03-23 07:18:43,340 [INFO] [SFD] density_mean=0.3959, energy_mean=0.819379, entropy_mean=1.7578
+2026-03-23 07:18:43,341 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-23 07:18:43,583 [INFO] [BASE CF] Generated 5 base counterfactual token sets (k=8)
+2026-03-23 07:18:43,586 [INFO] [RANK] tau=+0.552, overlap=0.741, n=5/5
+2026-03-23 07:19:03,540 [INFO] Dashboard request: 2 prompts in session
+2026-03-23 07:19:08,805 [INFO] Saved 13 plots to datasets/current/plots
+2026-03-23 07:19:08,811 [INFO] Dashboard generated: 2 prompts
+2026-03-23 07:19:15,306 [INFO] Analyzing: [benign] What is the tallest mountain in the world?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-23 07:19:15,306 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-23 07:19:15,330 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:19:15,335 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-23 07:19:15,757 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-23 07:19:15,762 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-23 07:19:16,882 [INFO] [LTP] base_profiles: 9 entries, mean |instruct - base| = 0.00248774 (asymmetric ✓)
+2026-03-23 07:19:16,885 [INFO] [SFD] density_mean=0.3979, energy_mean=0.847545, entropy_mean=1.7637
+2026-03-23 07:19:16,886 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-23 07:19:17,266 [INFO] [BASE CF] Generated 9 base counterfactual token sets (k=8)
+2026-03-23 07:19:17,270 [INFO] [RANK] tau=+0.570, overlap=0.739, n=9/9
+2026-03-23 07:24:31,886 [INFO] Full reset performed
+2026-03-23 07:24:31,887 [INFO] [reset] All resources released. Session cleared.

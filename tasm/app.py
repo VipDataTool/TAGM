@@ -113,6 +113,12 @@ REPORTS_DIR.mkdir(exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("TASM Analyzer starting up")
+    # Clean stale session data from previous server run
+    stale = Path("datasets/current")
+    if stale.exists():
+        import shutil
+        shutil.rmtree(stale, ignore_errors=True)
+        logger.info(f"Cleaned stale session directory: {stale}")
     yield
     logger.info("TASM Analyzer shutting down")
 
@@ -306,6 +312,7 @@ async def get_status():
         "session": {
             "n_results": session.n_results if session else 0,
             "categories": session.categories if session else {},
+            "cache_size_bytes": session.get_cache_size() if session else 0,
         } if session else None,
         "user_info": user_info,
     }
@@ -386,6 +393,33 @@ async def reset_all():
     logger.info("Full reset performed")
     log_progress("reset", "All resources released. Session cleared.")
     return {"ok": True, "message": "Reset complete."}
+
+
+@app.post("/api/session/clear_plots")
+async def clear_session_plots():
+    """Delete all cached plot files. Keeps CSV, JSON, and session data."""
+    if not session:
+        return JSONResponse(status_code=400, content={"error": "No active session."})
+    freed = session.clear_plots()
+    freed_mb = freed / 1024 / 1024
+    logger.info(f"Cleared plot cache: {freed_mb:.1f}MB freed")
+    return {"ok": True, "freed_bytes": freed, "freed_mb": round(freed_mb, 1),
+            "cache_size_bytes": session.get_cache_size()}
+
+
+@app.post("/api/session/clear_all")
+async def clear_session_all():
+    """Delete all session data (plots, CSV, JSON). Session remains active but empty."""
+    if not session:
+        return JSONResponse(status_code=400, content={"error": "No active session."})
+    freed = session.get_cache_size()
+    session.clear()
+    session.session_dir.mkdir(parents=True, exist_ok=True)
+    session._csv_initialized = False
+    freed_mb = freed / 1024 / 1024
+    logger.info(f"Cleared all session data: {freed_mb:.1f}MB freed")
+    return {"ok": True, "freed_bytes": freed, "freed_mb": round(freed_mb, 1),
+            "n_remaining": 0, "cache_size_bytes": 0}
 
 
 @app.post("/api/recalibrate")
@@ -678,7 +712,8 @@ async def get_session_results(page: int = 1, per_page: int = 10):
 
     return {"ok": True, "results": results,
             "page": page, "per_page": per_page,
-            "total": total, "total_pages": total_pages}
+            "total": total, "total_pages": total_pages,
+            "cache_size_bytes": session.get_cache_size()}
 
 
 @app.post("/api/session/remove")

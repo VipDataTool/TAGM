@@ -341,3 +341,18 @@ class DatasetSession:
             shutil.rmtree(self.session_dir, ignore_errors=True)
         self.results.clear()
         self._csv_initialized = False
+
+    def get_cache_size(self) -> int:
+        """Return total size in bytes of all files in the session directory."""
+        if not self.session_dir.exists():
+            return 0
+        return sum(f.stat().st_size for f in self.session_dir.rglob("*") if f.is_file())
+
+    def clear_plots(self) -> int:
+        """Delete all plot PNGs. Returns bytes freed."""
+        plots_dir = self.session_dir / "plots"
+        if not plots_dir.exists():
+            return 0
+        freed = sum(f.stat().st_size for f in plots_dir.rglob("*") if f.is_file())
+        shutil.rmtree(plots_dir, ignore_errors=True)
+        return freed

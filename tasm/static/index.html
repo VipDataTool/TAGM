@@ -491,6 +491,16 @@ function vizRenderConfig(){
       <input type="text" id="cfgExportPath" value="${EXPORT_DEFAULTS.exportPath}" placeholder="/path/to/export/directory" onchange="EXPORT_DEFAULTS.exportPath=this.value.trim();saveConfig()" style="margin-bottom:0">
     </div>
   </div>`;
+  // Cache management
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cache Management</div>
+    <div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Session data cached on disk. Plots are the largest component. Cache is automatically cleared on server restart.</div>
+    <div style="font-size:13px;font-family:var(--mono);color:var(--text-0);margin-bottom:10px" id="cfgCacheSize">${_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached'}</div>
+    <div style="display:flex;gap:8px;max-width:540px">
+      <button class="btn btn-sm btn-secondary" onclick="clearPlotCache()">Clear Plot Cache</button>
+      <button class="btn btn-sm btn-danger" onclick="clearAllSessionData()">Clear All Session Data</button>
+    </div>
+  </div>`;
   // Viz toggles by category
   for(const[cat,items]of Object.entries(groups)){
     const color=cat.includes('LTP')?'var(--cyan)':cat.includes('SFD')?'var(--orange)':cat.includes('Fusion')?'var(--green)':cat.includes('Experimental')?'var(--orange)':'var(--text-2)';
@@ -613,9 +623,31 @@ async function loadConfig(){
 
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
 
+async function clearPlotCache(){
+  if(!confirm('Delete all cached plot images? Data (CSV, JSON, metrics) will be kept.')) return;
+  try{
+    const r=await(await fetch('/api/session/clear_plots',{method:'POST'})).json();
+    if(r.ok){_cacheBytes=r.cache_size_bytes||0;updateSessionBadge();if($('cfgCacheSize'))$('cfgCacheSize').textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';log(`Plot cache cleared: ${r.freed_mb}MB freed`,'done')}
+    else{log('Clear failed: '+(r.error||''),'error')}
+  }catch(e){log('Clear error: '+e.message,'error')}
+}
+
+async function clearAllSessionData(){
+  if(!confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.')) return;
+  try{
+    const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
+    if(r.ok){sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
+    else{log('Clear failed: '+(r.error||''),'error')}
+  }catch(e){log('Clear error: '+e.message,'error')}
+}
+
+var _cacheBytes=0;
+function fmtSize(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(0)+'KB';return(b/1048576).toFixed(1)+'MB'}
 function updateSessionBadge(){
   var n=_promptTotal||dashResults.length||sessionResults.length;
-  $('sessionBadge').textContent=n?`Session: ${n} prompts`:'No session';
+  var label=n?`Session: ${n} prompts`:'No session';
+  if(n&&_cacheBytes>0) label+=` · ${fmtSize(_cacheBytes)} cached`;
+  $('sessionBadge').textContent=label;
   $('dashBtn').disabled=n<1;
   $('exportBtn').disabled=n<1;
 }
@@ -631,6 +663,7 @@ async function renderPromptPage(page){
     }
     _promptPage=data.page;
     _promptTotal=data.total;
+    if(data.cache_size_bytes!=null) _cacheBytes=data.cache_size_bytes;
     updateSessionBadge();
     $('emptyState').style.display='none';
     const area=$('latestResults');
@@ -715,7 +748,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('expContent').style.display='none';$('expEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -2550,7 +2583,7 @@ function initTerrainViewer(results){
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
-    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;updateSessionBadge();renderPromptPage(1)}
+    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;updateSessionBadge();renderPromptPage(1)}
     // Restore baselines toggle from server state
     // (baseline toggle removed)
   }catch(e){}
