@@ -371,7 +371,7 @@ function applyCardDefaults(panelId,tab){
 }
 
 // ─── Export Defaults ────────────────────────────────────────────
-const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,exportPath:''};
+const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
 
 // Global delegated click handler for all card headers
 document.addEventListener('click',function(e){
@@ -485,6 +485,9 @@ function vizRenderConfig(){
       <div class="checkbox-row"><input type="checkbox" id="cfgExportPdf" ${EXPORT_DEFAULTS.pdf?'checked':''} onchange="EXPORT_DEFAULTS.pdf=this.checked;saveConfig()"><label for="cfgExportPdf">PDF report</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportJson" ${EXPORT_DEFAULTS.json?'checked':''} onchange="EXPORT_DEFAULTS.json=this.checked;saveConfig()"><label for="cfgExportJson">JSON results</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportCharts" ${EXPORT_DEFAULTS.charts?'checked':''} onchange="EXPORT_DEFAULTS.charts=this.checked;saveConfig()"><label for="cfgExportCharts">Charts &amp; plots</label></div>
+    </div>
+    <div style="max-width:540px;margin-bottom:10px">
+      <div class="checkbox-row"><input type="checkbox" id="cfgExportArrays" ${EXPORT_DEFAULTS.includeArrays?'checked':''} onchange="EXPORT_DEFAULTS.includeArrays=this.checked;saveConfig()"><label for="cfgExportArrays">Include per-token arrays in JSON <span style="color:var(--text-3)">(signed attribution, per-position tau, LTP profiles, SFD per-token — larger file)</span></label></div>
     </div>
     <div style="max-width:540px">
       <label style="font-size:12px;color:var(--text-1)">Export path <span style="color:var(--text-3)">(optional — leave blank to download via browser)</span></label>
@@ -611,6 +614,7 @@ async function loadConfig(){
       if(typeof c.exportOpts.pdf==='boolean')EXPORT_DEFAULTS.pdf=c.exportOpts.pdf;
       if(typeof c.exportOpts.json==='boolean')EXPORT_DEFAULTS.json=c.exportOpts.json;
       if(typeof c.exportOpts.charts==='boolean')EXPORT_DEFAULTS.charts=c.exportOpts.charts;
+      if(typeof c.exportOpts.includeArrays==='boolean')EXPORT_DEFAULTS.includeArrays=c.exportOpts.includeArrays;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
     }
     // Prompt tab page size
@@ -921,7 +925,7 @@ function plotCardUrl(key,title,desc,collapsed){
 async function exportSession(){
   if(_busy){log('Another operation in progress, please wait.','error');return}
   _busy=true;
-  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,exportPath:EXPORT_DEFAULTS.exportPath};
+  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,includeArrays:EXPORT_DEFAULTS.includeArrays,exportPath:EXPORT_DEFAULTS.exportPath};
   const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null].filter(Boolean).join(', ');
   log(`Exporting (${enabledFmts})...`);
   try{

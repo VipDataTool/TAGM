@@ -1115,6 +1115,7 @@ async def export_session(request: Request):
         "pdf": opts.get("pdf", False),
         "json": opts.get("json", False),
         "charts": opts.get("charts", False),
+        "includeArrays": opts.get("includeArrays", True),
         "exportPath": opts.get("exportPath", ""),
     }
 
@@ -1189,8 +1190,10 @@ def _run_export_sync(opts=None):
 
     if do_json:
         try:
-            log_progress("exporting", "Saving full results JSON...")
-            session.save_results_json()
+            include_arrays = opts.get("includeArrays", True)
+            label = "full (with per-token arrays)" if include_arrays else "compact (scalars only)"
+            log_progress("exporting", f"Saving results JSON ({label})...")
+            session.save_results_json(include_arrays=include_arrays)
         except Exception as e:
             logger.error(f"Export results JSON failed: {e}")
     else:

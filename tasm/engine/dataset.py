@@ -137,23 +137,28 @@ class DatasetSession:
         with open(path, "w") as f:
             json.dump(agg, f, indent=2, default=str)
 
-    def save_results_json(self):
-        """Save per-prompt results to JSON — scalar metrics only, no arrays.
-        Per-token arrays (heatmaps, LTP profiles, trajectories) are kept in
-        memory for plot regeneration but excluded from the export."""
-        slim = []
-        # Fields to exclude from export (per-token arrays for plot rendering)
+    def save_results_json(self, include_arrays: bool = True):
+        """Save per-prompt results to JSON.
+
+        Args:
+            include_arrays: if True (default), preserves all per-token arrays
+                (signed_attr, per_position_tau, LTP profiles, SFD per-token,
+                etc.) for full offline analysis.  If False, strips arrays to
+                produce a compact scalar-only export.
+        """
+        EXCLUDE_ALWAYS = {
+            # Internal metadata (not analysis data)
+            "per_layer_amplitude", "signal_layer_indices", "spectral_summary",
+            "delta_scale", "full_capture_enabled", "per_layer_signed_attr",
+            # Obsolete fields from old baseline normalization
+            "entropy_ln", "stress_score_ln", "top2_share_ln", "middle_share_ln",
+        }
         ARRAY_FIELDS = {
             "heatmap", "amplitude_trajectory", "amplitude_normalized",
-            "per_layer_signed_attr", "per_token_stress", "signed_attr",
+            "per_token_stress", "signed_attr",
             "per_token_kl", "per_token_coherence", "per_token_spectral_rank",
             "attn_frac", "token_similarity", "base_counterfactual_tokens",
             "proof1_checks",
-            # Obsolete fields from old baseline normalization
-            "entropy_ln", "stress_score_ln", "top2_share_ln", "middle_share_ln",
-            # Internal metadata (not analysis data)
-            "per_layer_amplitude", "signal_layer_indices", "spectral_summary",
-            "delta_scale", "full_capture_enabled",
         }
         LTP_ARRAY_FIELDS = {
             "profiles", "base_profiles", "tension_magnitudes",
@@ -168,20 +173,22 @@ class DatasetSession:
         SFD_ARRAY_FIELDS = {
             "per_token_energy", "per_token_entropy", "per_token_density",
         }
+
+        exclude = EXCLUDE_ALWAYS | (ARRAY_FIELDS if not include_arrays else set())
+
+        slim = []
         for r in self.results:
-            row = {k: v for k, v in r.items() if k not in ARRAY_FIELDS}
-            # Strip LTP arrays, keep scalars
-            if "ltp" in row and isinstance(row["ltp"], dict):
-                row["ltp"] = {k: v for k, v in row["ltp"].items()
-                              if k not in LTP_ARRAY_FIELDS}
-            # Strip RD arrays, keep scalars
-            if "rank_displacement" in row and isinstance(row["rank_displacement"], dict):
-                row["rank_displacement"] = {k: v for k, v in row["rank_displacement"].items()
-                                            if k not in RD_ARRAY_FIELDS}
-            # Strip SFD arrays, keep scalars
-            if "sfd" in row and isinstance(row["sfd"], dict):
-                row["sfd"] = {k: v for k, v in row["sfd"].items()
-                              if k not in SFD_ARRAY_FIELDS}
+            row = {k: v for k, v in r.items() if k not in exclude}
+            if not include_arrays:
+                if "ltp" in row and isinstance(row["ltp"], dict):
+                    row["ltp"] = {k: v for k, v in row["ltp"].items()
+                                  if k not in LTP_ARRAY_FIELDS}
+                if "rank_displacement" in row and isinstance(row["rank_displacement"], dict):
+                    row["rank_displacement"] = {k: v for k, v in row["rank_displacement"].items()
+                                                if k not in RD_ARRAY_FIELDS}
+                if "sfd" in row and isinstance(row["sfd"], dict):
+                    row["sfd"] = {k: v for k, v in row["sfd"].items()
+                                  if k not in SFD_ARRAY_FIELDS}
             slim.append(row)
         with open(self.json_path, "w") as f:
             json.dump(_sanitize(slim), f, indent=1, default=str)
