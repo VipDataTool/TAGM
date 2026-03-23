@@ -571,7 +571,11 @@ async def analyze_batch(file: UploadFile = File(...),
                             content={"error": "A batch is already running. Wait for it to finish."})
 
     # Read files on the event loop (fast async I/O)
-    content = (await file.read()).decode("utf-8")
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1")
     filename = file.filename
 
     # Parse prompts synchronously (fast)
