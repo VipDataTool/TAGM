@@ -795,7 +795,10 @@ async function analyzeBatch(){
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
     log(`Batch started: ${data.n_prompts} prompts...`);
+    // Start reading from current log length so we don't see
+    // done messages from a previous batch.
     let lastLen=0;
+    try{const p=await(await fetch('/api/progress')).json();lastLen=p.log.length}catch(e){}
     async function pollBatch(){
       try{
         const p=await(await fetch('/api/progress')).json();
