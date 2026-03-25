@@ -1,15 +1,5 @@
 {
   "viz": {
-    "tunnel_viewer": {
-      "on": true,
-      "scope": "prompt",
-      "order": 10
-    },
-    "classification": {
-      "on": true,
-      "scope": "prompt",
-      "order": 5
-    },
     "signed_attribution": {
       "on": true,
       "scope": "prompt",
@@ -121,7 +111,7 @@
       "order": 60
     },
     "exp_trajectory_overlay": {
-      "on": false,
+      "on": true,
       "scope": "batch",
       "order": 70
     },
@@ -172,10 +162,10 @@
     }
   },
   "fonts": {
-    "cardTitle": "20",
+    "cardTitle": "24",
     "desc": "14",
-    "legend": "12",
-    "table": "12"
+    "legend": "14",
+    "table": "14"
   },
   "ltp": {
     "layerStrategy": "late",
@@ -199,7 +189,8 @@
     "pdf": false,
     "json": true,
     "charts": false,
+    "includeArrays": true,
     "exportPath": ""
   },
-  "promptPerPage": 10
+  "promptPerPage": 20
 }

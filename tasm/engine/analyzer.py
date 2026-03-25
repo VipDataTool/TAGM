@@ -771,44 +771,6 @@ def result_to_dict(r: PromptResult) -> dict:
     # Rank displacement data
     d["rank_displacement"] = r.rank_displacement
 
-    # Classification -- run all available classifiers
-    # Each classifier is wrapped individually so one failure doesn't block
-    # the rest.  Failures are logged and an error stub is inserted so the
-    # user (and developer) can see that the classifier was attempted.
-    classifiers = {}
-
-    _CLASSIFIER_REGISTRY = [
-        ('v1', 'engine.classifier_v1',  'classify', None),
-        ('v2', 'engine.classifier',     'classify_to_dict', {'classifier': 'v2', 'classifier_name': 'Hierarchical Decision Tree'}),
-        ('v3', 'engine.classifier_v3',  'classify', None),
-        ('v4', 'engine.classifier_v4',  'classify', None),
-        ('v5', 'engine.classifier_v5',  'classify', None),
-        ('v6', 'engine.classifier_v6',  'classify', None),
-        ('v7', 'engine.classifier_v7',  'classify', None),
-        ('v8', 'engine.classifier_v8',  'classify', None),
-        ('v9', 'engine.classifier_v9',  'classify', None),
-    ]
-
-    import importlib
-    for version, module_path, fn_name, extra_fields in _CLASSIFIER_REGISTRY:
-        try:
-            mod = importlib.import_module(module_path)
-            classify_fn = getattr(mod, fn_name)
-            result_cl = classify_fn(d)
-            if extra_fields:
-                result_cl.update(extra_fields)
-            classifiers[version] = result_cl
-        except Exception as e:
-            logger.warning(f"Classifier {version} failed: {e}")
-            classifiers[version] = {
-                'predicted': None, 'confidence': 0.0,
-                'error': str(e), 'classifier': version,
-            }
-
-    d["classifiers"] = classifiers
-    # Backward compat: "classification" points to v2
-    d["classification"] = classifiers.get('v2')
-
     # Final recursive sanitization — the single authoritative point where
     # all NaN/Inf values are guaranteed replaced with None.  This ensures
     # the dict is safe for json.dump (Python writes NaN literally, which
@@ -822,7 +784,7 @@ def result_to_dict(r: PromptResult) -> dict:
 def _sanitize_all(obj):
     """Recursively replace NaN/Inf floats with None throughout a nested structure.
     Also coerces stray numpy scalars and arrays that may have been introduced
-    by classifier outputs or other post-processing."""
+    by post-processing."""
     if isinstance(obj, float):
         if np.isnan(obj) or np.isinf(obj):
             return None

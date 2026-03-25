@@ -423,59 +423,6 @@ async def clear_session_all():
             "n_remaining": 0, "cache_size_bytes": 0}
 
 
-@app.post("/api/recalibrate")
-async def recalibrate_classifier():
-    """Recalibrate the v2 classifier's class parameters from the current
-    session's labeled results. Requires at least 2 prompts per category
-    to compute stable mean/std estimates. Reports what changed."""
-    if not session or session.n_results < 4:
-        return JSONResponse(status_code=400,
-                            content={"error": "Need at least 4 labeled prompts in session."})
-
-    from engine.classifier import update_params, CLASS_PARAMS, CLASSES, FEATURES
-
-    results = session.results
-    new_params = update_params(results)
-
-    # Build a diff report showing what changed
-    changes = []
-    for cls in CLASSES:
-        for feat in FEATURES:
-            old_mu, old_sigma = CLASS_PARAMS[cls][feat]
-            new_mu, new_sigma = new_params[cls][feat]
-            if abs(new_mu - old_mu) > 1e-6 or abs(new_sigma - old_sigma) > 1e-6:
-                changes.append({
-                    "class": cls, "feature": feat,
-                    "old_mean": round(old_mu, 6), "new_mean": round(new_mu, 6),
-                    "old_std": round(old_sigma, 6), "new_std": round(new_sigma, 6),
-                    "delta_mean": round(new_mu - old_mu, 6),
-                })
-
-    # Count per-category sample sizes
-    cat_counts = {}
-    for r in results:
-        cat = r.get("category", "")
-        if cat in CLASSES:
-            cat_counts[cat] = cat_counts.get(cat, 0) + 1
-
-    # Apply the new parameters
-    for cls in CLASSES:
-        CLASS_PARAMS[cls] = new_params[cls]
-
-    logger.info(f"Classifier v2 recalibrated from {len(results)} prompts: "
-                f"{len(changes)} parameters changed, categories={cat_counts}")
-
-    return {
-        "ok": True,
-        "n_prompts": len(results),
-        "category_counts": cat_counts,
-        "n_changes": len(changes),
-        "changes": changes,
-        "message": f"v2 classifier recalibrated from {len(results)} prompts. "
-                   f"{len(changes)} parameters updated.",
-    }
-
-
 @app.get("/api/progress")
 async def get_progress():
     return {"log": progress_log}
@@ -920,14 +867,6 @@ def _run_dashboard_sync():
             slim["instruct_topk"] = r["instruct_topk"]
         if r.get("base_topk"):
             slim["base_topk"] = r["base_topk"]
-
-        # Classifier prediction only (stored data uses "predicted" key)
-        if r.get("classifiers"):
-            slim["classifiers"] = {}
-            for cid, cl in r["classifiers"].items():
-                slim["classifiers"][cid] = {
-                    "predicted_class": cl.get("predicted"),
-                    "confidence": cl.get("confidence")}
 
         slim_results.append(slim)
 

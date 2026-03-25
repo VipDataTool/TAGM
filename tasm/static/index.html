@@ -83,6 +83,12 @@ textarea{resize:vertical;min-height:44px}
 .record-meta{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
 .btn-popout{font-size:11px;padding:4px 10px;background:var(--bg-3);color:var(--text-1);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .15s}
 .btn-popout:hover{color:var(--text-0);border-color:var(--text-1)}
+.viz-label{display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:4px;border:1px solid var(--border);border-radius:5px;background:var(--bg-1);cursor:pointer;transition:all .15s;user-select:none}
+.viz-label:hover{border-color:var(--text-2);background:var(--bg-2)}
+.viz-label .vl-title{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text-0);white-space:nowrap}
+.viz-label .vl-desc{font-size:11px;color:var(--text-2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viz-label .vl-open{font-size:11px;color:var(--blue);font-family:var(--mono);white-space:nowrap;flex-shrink:0}
+.viz-section-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text-0);margin:14px 0 6px 0;display:flex;align-items:center;gap:8px}
 .feature{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-0)}
 .feature-header{padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border);cursor:pointer}
 .feature-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0);margin:0}
@@ -385,10 +391,6 @@ document.addEventListener('click',function(e){
 
 // ─── Visualization Registry ──────────────────────────────────────
 const VIZ_REGISTRY = {
-  // ── Per-Prompt: ASM + LTP Fusion ──
-  tunnel_viewer:       {cat:'Fusion',     title:'Alignment Tunnel',           on:true,  scope:'prompt', order:10, type:'js',   needs:'ltp', desc:'Temperature-mapped radial cross-section per token'},
-  classification:      {cat:'Fusion',     title:'ASM Classifier',             on:true,  scope:'prompt', order:5,  type:'js',   desc:'4-class Gaussian scorecard with per-feature explanations'},
-
   // ── Per-Prompt: ASM Core ──
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', order:20, type:'plot', desc:'Per-token contribution to alignment correction'},
   stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', order:30, type:'plot', desc:'Correction pressure at discriminative middle layers'},
@@ -862,47 +864,55 @@ async function loadDashboard(force){
       h+=`</table></div></div>`;
     }
 
-    // Batch plots — served as static files, loaded lazily
+    // Batch plots — popout labels instead of inline rendering
     const plotKeySet=new Set(plotKeys);
     const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
-    for(const[key,v]of batchItems) h+=plotCardUrl(key,v.title,v.desc);
+    if(batchItems.length){
+      h+=`<div class="card"><div class="card-header"><h3>Visualizations</h3></div><div class="card-body${cardDefault('dashboard')}">`;
+      h+=`<div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Click any item to open in a new window.</div>`;
+      for(const[key,v]of batchItems){
+        const sk='dash_'+key;
+        storeViz(sk,v.title,`<div class="feature"><div class="feature-header"><div class="feature-title">${v.title}</div><p class="feature-desc">${v.desc||''}</p></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/${key}" style="max-width:100%;height:auto"></div></div></div>`);
+        h+=vizLabel(sk,v.title,v.desc||'');
+      }
 
-    // Terrain viewer — click to load, not auto-fetch
-    if(vizIsEnabled('terrain_viewer')&&dashResults.length>0){
-      h+=`<div class="feature" style="border-color:var(--cyan)">
-        <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="feature-title" style="color:var(--cyan)">Alignment Terrain</div>
-          <p class="feature-desc">3D dual-bank terrain map. Click "Load Terrain" to fetch per-token displacement profiles from the server.</p>
-        </div>
-        <div class="feature-body" id="terrainFeatureBody" style="padding:0">
-          <div id="terrainContainer">
-            <div style="padding:20px;text-align:center">
-              <button class="btn btn-secondary" onclick="_lazyLoadTerrain(${info.n_results||0})" style="width:auto;padding:8px 20px">Load Terrain Viewer</button>
-              <div id="terrainLoadMsg" style="margin-top:8px;color:var(--text-3);font:11px monospace"></div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
+      // Terrain viewer
+      if(vizIsEnabled('terrain_viewer')&&dashResults.length>0){
+        h+=`<div class="viz-label" style="border-left:3px solid var(--cyan)">
+          <span class="vl-title" style="color:var(--cyan)">Alignment Terrain</span>
+          <span class="vl-desc">3D dual-bank terrain map</span>
+          <button class="btn btn-secondary" onclick="_lazyLoadTerrainPopout(${info.n_results||0})" style="font-size:11px;padding:3px 10px;width:auto">↗ Load &amp; Open</button>
+        </div>`;
+      }
 
-    // Candidate graph aggregate — uses server pre-computed data
-    if(dashResults.length>1){
-      try{
-        var cgAgg=_computeGraphsChunked(dashResults);
-        if(cgAgg) h+=cgAgg;
-      }catch(e){console.error('Candidate graph aggregate:',e)}
+      // Candidate graph aggregate
+      if(dashResults.length>1){
+        try{
+          var cgAgg=_computeGraphsChunked(dashResults);
+          if(cgAgg){
+            const sk='dash_candgraph';
+            storeViz(sk,'Candidate Graph Aggregate',cgAgg);
+            h+=vizLabel(sk,'Candidate Graph Aggregate','Contested positions and role switches across batch','var(--purple)');
+          }
+        }catch(e){console.error('Candidate graph aggregate:',e)}
+      }
+
+      // Disabled batch vizs as labels too
+      const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
+      if(disabledBatch.length){
+        h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Disabled (enable in Configuration tab):</div>`;
+        for(const[key,v]of disabledBatch){
+          const sk='dash_dis_'+key;
+          storeViz(sk,v.title,`<div class="feature"><div class="feature-header"><div class="feature-title">${v.title}</div><p class="feature-desc">${v.desc||''}</p></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/${key}" style="max-width:100%;height:auto"></div></div></div>`);
+          h+=vizLabel(sk,v.title+' (disabled)',v.desc||'');
+        }
+        h+=`</div>`;
+      }
+      h+=`</div></div>`;
     }
 
     dc.innerHTML=h;
 
-    // ═══ EXPERIMENTAL TAB ═══
-    const ec=$('expContent');ec.style.display='block';$('expEmpty').style.display='none';
-    let eh=`<div class="card"><div class="card-body" style="padding:10px 14px"><div style="font-size:var(--font-desc);color:var(--text-1);line-height:1.6"><strong>Disabled visualizations.</strong> Items disabled in the Configuration tab appear here. Toggle them back on to return them to their home tab.</div></div></div>`;
-
-    const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
-    for(const[key,v]of disabledBatch) eh+=plotCardUrl(key,v.title,v.desc,true);
-
-    if(eh.indexOf('feature')>-1){ec.innerHTML=eh}else{ec.style.display='none';$('expEmpty').style.display=''}
     log('Dashboard loaded','done');
     document.querySelectorAll('.main-tab')[1].click();
   }catch(e){
@@ -972,6 +982,35 @@ async function exportSession(){
   }catch(e){log('Export error: '+e.message,'error');_busy=false}
 }
 
+// ─── Visualization Pop-out Store ─────────────────────────────────
+const _vizStore={};
+function storeViz(key,title,html,scripts){_vizStore[key]={title:title,html:html,scripts:scripts||null}}
+function popoutViz(key){
+  const entry=_vizStore[key];
+  if(!entry){console.warn('No viz stored for',key);return}
+  const pw=1060,ph=820;
+  const left=Math.round((screen.width-pw)/2);
+  const top=Math.round((screen.height-ph)/2);
+  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
+  if(!w) return;
+  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(s=>s.outerHTML).join('\n');
+  const scriptBlock=entry.scripts?`<script>${entry.scripts}<\/script>`:'';
+  w.document.write(`<!DOCTYPE html><html><head><title>${entry.title} — TASM</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    ${styles}
+    <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
+    .feature{max-width:960px;margin:0 auto 16px auto}
+    .plot-container img{max-width:100%;height:auto}
+    </style>
+    </head><body>${entry.html}${scriptBlock}</body></html>`);
+  w.document.close();
+}
+function vizLabel(storeKey,title,desc,borderColor){
+  const bc=borderColor?`border-left:3px solid ${borderColor};`:'';
+  return`<div class="viz-label" onclick="popoutViz('${storeKey}')" style="${bc}"><span class="vl-title">${title}</span><span class="vl-desc">${desc||''}</span><span class="vl-open">↗ Open</span></div>`;
+}
+
 // ─── Pop-out Record Window ──────────────────────────────────────
 function popoutRecord(rid){
   const el=document.getElementById(rid);
@@ -991,424 +1030,6 @@ function popoutRecord(rid){
     .card{max-width:960px;margin:0 auto}</style>
     </head><body>${el.outerHTML}</body></html>`);
   w.document.close();
-}
-
-// ─── Tunnel Cross-Section Viewer ─────────────────────────────────
-let _tunnelState = null;
-function renderTunnelViewer(r){
-  if(!r.ltp||!r.ltp.profiles||!r.ltp.profiles.length) return '';
-  const profiles=r.ltp.profiles, tokens=r.tokens, shapes=r.ltp.profile_shapes||[];
-  const cfs=r.ltp.counterfactual_tokens||[], mags=r.ltp.tension_magnitudes||[];
-  const stress=r.per_token_stress||[], attr=r.signed_attr||[];
-  const n=Math.min(tokens.length, profiles.length);
-  if(n===0) return '';
-  const k=profiles[0].length;
-
-  // Compute normalization data
-  let gmax=0;
-  for(let i=0;i<n;i++) for(let j=0;j<k;j++) gmax=Math.max(gmax,profiles[i][j]||0);
-  if(gmax===0) gmax=1;
-  const stressMax=stress.length?Math.max(...stress.map(Math.abs)):1;
-  const attrMax=attr.length?Math.max(...attr.map(Math.abs)):1;
-
-  // Precompute normalized and deviation profiles
-  const normProfiles=[], devProfiles=[];
-  let devMax=0;
-  for(let i=0;i<n;i++){
-    const row=profiles[i]||[];
-    const rowSum=row.reduce((a,v)=>a+(v||0),0)||1;
-    const normed=row.map(v=>(v||0)/rowSum);
-    normProfiles.push(normed);
-    const dev=normed.map(v=>v-1/k);
-    devProfiles.push(dev);
-    for(const d of dev) devMax=Math.max(devMax,Math.abs(d));
-  }
-  if(devMax===0) devMax=0.01;
-
-  const id='tunnel_'+Date.now();
-  _tunnelState={profiles,normProfiles,devProfiles,devMax,tokens,shapes,cfs,mags,stress,attr,stressMax,attrMax,n,k,gmax,id,idx:0,mode:'shape'};
-
-  let timeline='';
-  for(let i=0;i<n;i++){
-    const t=tokens[i].trim()||'·';
-    timeline+=`<span class="tv-tok" id="${id}_tok${i}" onclick="_tunnelGo(${i})" title="${escHtml(tokens[i])}">${escHtml(t.length>6?t.slice(0,5)+'…':t)}</span>`;
-  }
-
-  return `<div class="feature" style="border-color:var(--cyan)">
-    <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="feature-title" style="color:var(--cyan)">Alignment Tunnel</div>
-      <p class="feature-desc">Step through each token to see the alignment field's cross-section. <strong>Shape mode</strong> normalizes each token's profile so the polygon fills the chart — you see pure directional structure. <strong>Deviation mode</strong> subtracts the uniform baseline so flat profiles collapse to the center and any directional concentration becomes the entire signal. <strong>Absolute mode</strong> shows raw magnitudes. Temperature (point color and background glow) reflects stress intensity.</p>
-      <div class="feature-legend">🔑 Spoke length = tension toward that alternative · Point color = stress temperature (blue→amber→red) · Shape: octagon=uniform, spike=directional · Mode toggle changes normalization</div>
-    </div>
-    <div class="feature-body" style="padding:14px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(0)" style="min-width:32px" title="First">⏮</button>
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx-1)" style="min-width:32px" title="Previous">◀</button>
-        <button class="btn btn-sm" id="${id}_playbtn" onclick="_tunnelPlayPause()" style="min-width:48px;background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)" title="Play/Pause">▶ Play</button>
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.idx+1)" style="min-width:32px" title="Next">▶</button>
-        <button class="btn btn-sm btn-secondary" onclick="_tunnelGo(_tunnelState.n-1)" style="min-width:32px" title="Last">⏭</button>
-        <div style="flex:1;text-align:center">
-          <span style="font-family:var(--mono);font-size:16px;color:var(--text-0)" id="${id}_label"></span>
-          <span style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-left:8px" id="${id}_meta"></span>
-        </div>
-        <label style="font-size:11px;color:var(--text-2);font-family:var(--mono)">Speed</label>
-        <input type="range" id="${id}_speed" min="1" max="10" value="4" style="width:70px" oninput="_tunnelSetSpeed(this.value)" title="Animation speed">
-      </div>
-      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:10px">
-        <button class="btn btn-sm" id="${id}_mode_shape" onclick="_tunnelMode('shape')" style="background:var(--cyan);color:var(--bg-0);border-color:var(--cyan)">Shape</button>
-        <button class="btn btn-sm btn-secondary" id="${id}_mode_deviation" onclick="_tunnelMode('deviation')">Deviation</button>
-        <button class="btn btn-sm btn-secondary" id="${id}_mode_absolute" onclick="_tunnelMode('absolute')">Absolute</button>
-      </div>
-      <div style="display:flex;justify-content:center">
-        <svg id="${id}_svg" viewBox="0 0 400 420" width="640" height="672" style="max-width:100%"></svg>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;justify-content:center" id="${id}_timeline">${timeline}</div>
-    </div></div>`;
-}
-let _tunnelAnimFrame=null, _tunnelPlaying=false, _tunnelSpeed=4, _tunnelMorphProgress=1;
-let _tunnelPrevIdx=null, _tunnelTargetIdx=null;
-
-function _tunnelGo(idx){
-  const s=_tunnelState; if(!s) return;
-  const newIdx=Math.max(0,Math.min(s.n-1,idx));
-  if(newIdx===s.idx&&_tunnelMorphProgress>=1) return;
-  _tunnelPrevIdx=s.idx;
-  _tunnelTargetIdx=newIdx;
-  _tunnelMorphProgress=0;
-  s.idx=newIdx;
-  if(!_tunnelAnimFrame) _tunnelAnimate();
-}
-
-function _tunnelAnimate(){
-  _tunnelMorphProgress=Math.min(1, _tunnelMorphProgress+0.08+_tunnelSpeed*0.012);
-  _tunnelDrawMorphed();
-  if(_tunnelMorphProgress<1){
-    _tunnelAnimFrame=requestAnimationFrame(_tunnelAnimate);
-  } else {
-    _tunnelAnimFrame=null;
-    _tunnelDrawMorphed(); // final frame at t=1
-  }
-}
-
-function _tunnelPlayPause(){
-  const s=_tunnelState; if(!s) return;
-  _tunnelPlaying=!_tunnelPlaying;
-  const btn=document.getElementById(s.id+'_playbtn');
-  if(btn) btn.textContent=_tunnelPlaying?'⏸ Pause':'▶ Play';
-  if(_tunnelPlaying) _tunnelAutoAdvance();
-}
-
-function _tunnelSetSpeed(v){ _tunnelSpeed=parseInt(v)||4; }
-
-function _tunnelAutoAdvance(){
-  if(!_tunnelPlaying||!_tunnelState) return;
-  const s=_tunnelState;
-  if(_tunnelMorphProgress<1){
-    // Still morphing, wait
-    setTimeout(_tunnelAutoAdvance, 50);
-    return;
-  }
-  const next=(s.idx+1)%s.n;
-  _tunnelGo(next);
-  // Schedule next advance based on speed (speed 1=1500ms, speed 10=200ms)
-  const delay=1600-(_tunnelSpeed*140);
-  setTimeout(_tunnelAutoAdvance, Math.max(delay, 150));
-}
-
-// Easing function: smooth ease-in-out
-function _ease(t){ return t<0.5?2*t*t:(1-Math.pow(-2*t+2,2)/2); }
-
-// Interpolate between two values
-function _lerp(a,b,t){ return a+(b-a)*t; }
-
-function _tunnelMode(mode){
-  const s=_tunnelState; if(!s) return;
-  s.mode=mode;
-  for(const m of ['shape','deviation','absolute']){
-    const btn=document.getElementById(s.id+'_mode_'+m);
-    if(btn){
-      if(m===mode){btn.style.background='#56B4E9';btn.style.color='#121212';btn.style.borderColor='#56B4E9'}
-      else{btn.style.background='#2d2d2d';btn.style.color='#9CA3AF';btn.style.borderColor='#333333'}
-    }
-  }
-  _tunnelDraw();
-}
-
-function _tunnelDrawMorphed(){
-  const s=_tunnelState; if(!s) return;
-  const t=_ease(_tunnelMorphProgress);
-  const prevIdx=(_tunnelPrevIdx!=null&&_tunnelPrevIdx<s.n)?_tunnelPrevIdx:s.idx;
-  const curIdx=s.idx;
-
-  // Interpolate all per-token data between prev and current frame
-  const prevNorm=s.normProfiles[prevIdx]||[];
-  const curNorm=s.normProfiles[curIdx]||[];
-  const prevDev=s.devProfiles[prevIdx]||[];
-  const curDev=s.devProfiles[curIdx]||[];
-  const prevRaw=s.profiles[prevIdx]||[];
-  const curRaw=s.profiles[curIdx]||[];
-
-  const interpNorm=[], interpDev=[], interpRaw=[];
-  for(let j=0;j<s.k;j++){
-    interpNorm.push(_lerp(prevNorm[j]||0, curNorm[j]||0, t));
-    interpDev.push(_lerp(prevDev[j]||0, curDev[j]||0, t));
-    interpRaw.push(_lerp(prevRaw[j]||0, curRaw[j]||0, t));
-  }
-
-  const interpStress=_lerp(s.stress[prevIdx]||0, s.stress[curIdx]||0, t);
-  const interpAttr=_lerp(s.attr[prevIdx]||0, s.attr[curIdx]||0, t);
-  const interpMag=_lerp(s.mags[prevIdx]||0, s.mags[curIdx]||0, t);
-
-  // Use current token's metadata (snaps, doesn't interpolate)
-  const cf=s.cfs[curIdx]||[];
-  const shape=s.shapes[curIdx]||'flat';
-  const token=s.tokens[curIdx]||'';
-
-  _tunnelRender(s, interpNorm, interpDev, interpRaw, interpStress, interpAttr, interpMag, cf, shape, token, curIdx);
-}
-
-function _tunnelDraw(){
-  // Non-animated draw (for initial render)
-  _tunnelMorphProgress=1;
-  _tunnelPrevIdx=null;
-  _tunnelDrawMorphed();
-}
-
-function _tunnelRender(s, normProfile, devProfile, rawProfile, stressVal, attrVal, mag, cf, shape, token, idx){
-  const {tokens,n,k,gmax,devMax,stressMax,attrMax,id,mode}=s;
-  const svg=document.getElementById(id+'_svg'); if(!svg) return;
-
-  const cx=200, cy=195, R=140;
-
-  // Temperature with sqrt scaling
-  const rawTemp=stressMax>0?stressVal/stressMax:0;
-  const tokenTemp=Math.pow(rawTemp, 0.5);
-
-  function tempColor(t){
-    if(t<0.5){const f=t*2;return`rgb(${Math.round(0+230*f)},${Math.round(114+45*f)},${Math.round(178-178*f)})`}
-    else{const f=(t-0.5)*2;return`rgb(${Math.round(230-17*f)},${Math.round(159-65*f)},${Math.round(0)})`}
-  }
-  const bgColor=tempColor(tokenTemp);
-  const bgAlpha=(0.03+tokenTemp*0.15).toFixed(2);
-
-  let svg_h='';
-
-  // Background glow
-  svg_h+=`<defs><radialGradient id="${id}_bg"><stop offset="0%" stop-color="${bgColor}" stop-opacity="${bgAlpha}"/><stop offset="100%" stop-color="${bgColor}" stop-opacity="0"/></radialGradient></defs>`;
-  svg_h+=`<circle cx="${cx}" cy="${cy}" r="${R+20}" fill="url(#${id}_bg)"/>`;
-
-  // Grid rings
-  if(mode==='deviation'){
-    for(let ring=1;ring<=3;ring++){
-      const r=R*ring/3;
-      svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
-    }
-    svg_h+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#404040" opacity="0.5"/>`;
-    svg_h+=`<text x="${cx+8}" y="${cy-6}" fill="#6B7280" font-size="10" font-family="monospace">baseline</text>`;
-  } else {
-    for(let ring=1;ring<=3;ring++){
-      const r=R*ring/3;
-      svg_h+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#333" stroke-width="0.5" stroke-dasharray="3,3"/>`;
-    }
-  }
-
-  // Compute spoke values based on mode
-  const spokeVals=[];
-  for(let j=0;j<k;j++){
-    if(mode==='shape') spokeVals.push(normProfile[j]||0);
-    else if(mode==='deviation') spokeVals.push(devProfile[j]||0);
-    else spokeVals.push(gmax>0?(rawProfile[j]||0)/gmax:0);
-  }
-
-  let valMax;
-  if(mode==='shape') valMax=Math.max(...spokeVals)*1.1||0.01;
-  else if(mode==='deviation') valMax=devMax*1.1||0.01;
-  else valMax=1;
-
-  // Spokes, points, polygon
-  const points=[];
-  for(let j=0;j<k;j++){
-    const angle=(2*Math.PI*j/k)-Math.PI/2;
-    const endX=cx+R*Math.cos(angle), endY=cy+R*Math.sin(angle);
-    svg_h+=`<line x1="${cx}" y1="${cy}" x2="${endX}" y2="${endY}" stroke="#404040" stroke-width="0.5"/>`;
-
-    let radius;
-    if(mode==='deviation') radius=Math.max(0, spokeVals[j]/valMax);
-    else radius=spokeVals[j]/valMax;
-    radius=Math.max(0, Math.min(1, radius));
-    const px=cx+R*radius*Math.cos(angle), py=cy+R*radius*Math.sin(angle);
-    points.push([px,py]);
-
-    // Per-spoke temperature
-    const relVal=mode==='shape'?(normProfile[j]/(1/k)):1;
-    const spokeTemp=Math.min(1, tokenTemp * Math.pow(relVal, 2));
-    const pc=tempColor(spokeTemp);
-
-    // Counterfactual label
-    const labelR=R+24;
-    const lx=cx+labelR*Math.cos(angle), ly=cy+labelR*Math.sin(angle);
-    const cfTok=cf[j]?cf[j][0]:'?';
-    const anchor=Math.abs(Math.cos(angle))<0.1?'middle':(Math.cos(angle)>0?'start':'end');
-    const displayTok=cfTok.trim().length>8?cfTok.trim().slice(0,7)+'…':cfTok.trim();
-    svg_h+=`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="#9CA3AF" font-size="12" font-family="monospace">${escHtml(displayTok)}</text>`;
-
-    svg_h+=`<circle cx="${px}" cy="${py}" r="4.5" fill="${pc}" stroke="white" stroke-width="0.8" opacity="0.9"/>`;
-  }
-
-  if(points.length>=3){
-    const polyFill=tempColor(tokenTemp);
-    const poly=points.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-    svg_h=`<polygon points="${poly}" fill="${polyFill}" fill-opacity="${(0.08+tokenTemp*0.12).toFixed(2)}" stroke="${polyFill}" stroke-width="1.5" stroke-linejoin="round" stroke-opacity="0.6"/>`+svg_h;
-  }
-
-  svg_h+=`<circle cx="${cx}" cy="${cy}" r="2.5" fill="${bgColor}" opacity="0.5"/>`;
-
-  // Rank numbers
-  for(let j=0;j<k;j++){
-    const angle=(2*Math.PI*j/k)-Math.PI/2;
-    const rx=cx+16*Math.cos(angle), ry=cy+16*Math.sin(angle);
-    svg_h+=`<text x="${rx}" y="${ry}" text-anchor="middle" dominant-baseline="middle" fill="#6B7280" font-size="11" font-family="sans-serif">${j+1}</text>`;
-  }
-
-  // Temperature legend
-  const legY=cy+R+24, legW=160, legH=7, legX=cx-legW/2;
-  svg_h+=`<defs><linearGradient id="${id}_tleg"><stop offset="0%" stop-color="${tempColor(0)}"/><stop offset="50%" stop-color="${tempColor(0.5)}"/><stop offset="100%" stop-color="${tempColor(1)}"/></linearGradient></defs>`;
-  svg_h+=`<rect x="${legX}" y="${legY}" width="${legW}" height="${legH}" rx="3" fill="url(#${id}_tleg)" opacity="0.6"/>`;
-  svg_h+=`<text x="${legX}" y="${legY+legH+9}" text-anchor="start" fill="#6B7280" font-size="10" font-family="monospace">cold</text>`;
-  svg_h+=`<text x="${legX+legW}" y="${legY+legH+9}" text-anchor="end" fill="#6B7280" font-size="10" font-family="monospace">hot</text>`;
-  svg_h+=`<text x="${cx}" y="${legY+legH+9}" text-anchor="middle" fill="#9CA3AF" font-size="11" font-family="monospace">stress: ${stressVal.toFixed(3)}</text>`;
-
-  // Attribution
-  const attrColor=attrVal<0?'#D55E00':'#009E73';
-  const attrLabel=attrVal>=0?'+'+attrVal.toFixed(4):attrVal.toFixed(4);
-  svg_h+=`<text x="${cx}" y="${legY+legH+21}" text-anchor="middle" fill="${attrColor}" font-size="11" font-family="monospace" opacity="0.8">attr: ${attrLabel}</text>`;
-
-  svg.innerHTML=svg_h;
-
-  // Update header
-  const label=document.getElementById(id+'_label');
-  if(label) label.innerHTML=`<span style="color:var(--cyan)">"${escHtml(token.trim())}"</span> <span style="color:var(--text-2);font-size:12px">[${idx+1}/${n}]</span>`;
-  const meta=document.getElementById(id+'_meta');
-  const prc=normProfile.length?((Math.max(...normProfile)-1/k)*100).toFixed(1):'?';
-  if(meta) meta.textContent=`M=${mag.toFixed(5)}  PRC=${prc}pp  shape=${shape}  mode=${mode}`;
-
-  // Timeline highlights
-  for(let i=0;i<n;i++){
-    const el=document.getElementById(id+'_tok'+i);
-    if(el) el.className='tv-tok'+(i===idx?' tv-tok-active':'');
-  }
-}
-// ─── Classification Display ─────────────────────────────────────
-function renderClassifierCard(cl, r){
-  if(!cl) return '';
-  const pClass=cl.predicted||'unknown';
-  const pConf=Math.round((cl.confidence||0)*100);
-  const catColor=c=>({safe:'var(--cat-benign)',benign:'var(--cat-benign)',mild:'var(--cat-mild)',harmful:'var(--cat-harmful)',adversarial:'var(--cat-adversarial)','dual-use':'var(--cat-dual-use)',jailbreak:'var(--cat-jailbreak)'})[c]||'var(--text-3)';
-  const borderColor=catColor(pClass);
-  const cName=cl.classifier_name||cl.classifier||'Classifier';
-  const cId=(cl.classifier||'').toUpperCase();
-  const match=r.category?(pClass===r.category?'✓':'✗'):'';
-  const matchColor=match==='✓'?'var(--green)':'var(--red)';
-
-  // ═══ Section: Decision stages (v2,v4-v9) ═══
-  let stagesHtml='';
-  if(cl.stages&&cl.stages.length){
-    stagesHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Decision Path</div>`;
-    for(const s of cl.stages){
-      const leftC=catColor(s.left_class);
-      const rightC=catColor(s.right_class);
-      const chosenC=catColor(s.chosen||pClass);
-      const isRight=s.chosen===s.right_class;
-      const marginPct=Math.min(50,Math.abs(s.margin||0)*500).toFixed(0);
-      stagesHtml+=`<div style="padding:6px 10px;margin:3px 0;background:var(--bg-0);border-radius:4px;border-left:3px solid ${chosenC}">
-        <div style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-0);line-height:1.4">${s.name||s.stage||'Stage'}: <span style="color:${chosenC}">${s.chosen||pClass}</span> <span style="color:var(--text-3)">(${Math.round((s.confidence||0)*100)}%)</span></div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
-          <span style="font-family:var(--mono);font-size:11px;color:${leftC}">${s.left_class||'left'}</span>
-          <div style="flex:1;height:5px;background:var(--bg-2);border-radius:3px;position:relative;overflow:hidden">
-            <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--text-3)"></div>
-            <div style="position:absolute;${isRight?'left:50%':'right:50%'};top:0;height:100%;background:${chosenC};border-radius:3px;width:${marginPct}%;opacity:0.7"></div>
-          </div>
-          <span style="font-family:var(--mono);font-size:11px;color:${rightC}">${s.right_class||'right'}</span>
-        </div>
-        ${s.explanation?`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono);line-height:1.4">${s.explanation}</div>`:''}
-      </div>`;
-    }
-    stagesHtml+=`</div>`;
-  }
-
-  // ═══ Section: Probability bars (v1-v3,v7,v8) ═══
-  let probHtml='';
-  if(cl.probabilities&&Object.keys(cl.probabilities).length){
-    const sorted=Object.entries(cl.probabilities).sort((a,b)=>b[1]-a[1]);
-    let bars='';
-    for(const[c,p]of sorted){
-      const w=Math.max(1,(p*100)).toFixed(0);
-      bars+=`<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="font-family:var(--mono);font-size:12px;color:var(--text-1);width:60px;text-align:right">${c}</span><div style="flex:1;background:var(--bg-0);border-radius:3px;height:14px;overflow:hidden"><div style="width:${w}%;height:100%;background:${catColor(c)};border-radius:3px"></div></div><span style="font-family:var(--mono);font-size:12px;color:var(--text-0);width:32px">${w}%</span></div>`;
-    }
-    probHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Class Probabilities</div>${bars}</div>`;
-  }
-
-  // ═══ Section: Feature contributions (all versions) ═══
-  let contribHtml='';
-  if(cl.contributions&&cl.contributions.length){
-    let rows='';
-    for(const c of cl.contributions){
-      const sColor=c.strength==='strong'?'var(--green)':c.strength==='moderate'?'var(--orange)':'var(--text-3)';
-      const fColor=catColor(c.favors);
-      const dot=c.strength==='strong'?'●':c.strength==='moderate'?'◐':'○';
-      let text=c.explanation||'';
-      if(!text){
-        const label=c.name||c.feature||'feature';
-        const val=c.value!=null?(typeof c.value==='number'?c.value.toFixed(4):c.value):'';
-        const extra=c.z!=null?` (z=${c.z.toFixed(2)})`:c.deviation!=null?` (dev=${c.deviation.toFixed(4)})`:'';
-        const axis=c.axis?` [${c.axis}]`:'';
-        text=`${label} = ${val}${extra}${axis}`;
-      }
-      rows+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:${sColor};font-size:11px;width:12px">${dot}</span><span style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-1);flex:1">${text}</span>${c.favors?`<span class="pill" style="border-color:${fColor};color:${fColor};font-size:11px">${c.favors}</span>`:''}</div>`;
-    }
-    contribHtml=`<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-0);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Feature Contributions</div>${rows}</div>`;
-  }
-
-  // ═══ Section: Extra metadata (version-specific) ═══
-  let extraHtml='';
-  if(cl.available_axes)
-    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:4px;font-family:var(--mono)">Instruments: ${cl.available_axes.join(' + ')} (${cl.n_axes||0}/3)</div>`;
-  if(cl.distances){
-    const dStr=Object.entries(cl.distances).map(([c,d])=>`${c}: ${typeof d==='number'?d.toFixed(3):d}`).join(' · ');
-    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Distances: ${dStr}</div>`;
-  }
-  if(cl.features_used!=null)
-    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Features used: ${cl.features_used}</div>`;
-  if(cl.layers_active!=null)
-    extraHtml+=`<div style="font-size:var(--font-desc);color:var(--text-2);margin-top:3px;font-family:var(--mono)">Active layers: ${cl.layers_active}</div>`;
-  if(extraHtml) extraHtml=`<div style="margin-bottom:8px">${extraHtml}</div>`;
-
-  // ═══ Section: Caveats ═══
-  let caveatHtml='';
-  if(cl.caveats&&cl.caveats.length&&cl.caveats.some(c=>c)){
-    caveatHtml=`<div style="margin-top:6px;padding:6px 10px;background:rgba(230,159,0,0.08);border:1px solid rgba(230,159,0,0.3);border-radius:4px;font-size:var(--font-desc);color:var(--orange);line-height:1.5">${cl.caveats.filter(c=>c).map(c=>'⚠ '+c).join('<br>')}</div>`;
-  }
-
-  // ═══ Assemble card ═══
-  return `<div class="feature" style="border-color:${borderColor};border-width:2px">
-    <div class="feature-header" onclick="toggleFeature(this)">
-      <div class="feature-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);min-width:20px">${cId}</span>
-        <span class="pill ${pillClass(pClass)}" style="font-size:11px;padding:3px 10px">${pClass.toUpperCase()}</span>
-        <span style="color:var(--text-2);font-size:13px">${pConf}%</span>
-        ${match?`<span style="color:${matchColor};font-size:14px;font-weight:600">${match}</span>`:''}
-        <span style="color:var(--text-3);font-size:11px;margin-left:auto">${cName}</span>
-      </div>
-      <p class="feature-desc">${cl.summary||''}</p>
-    </div>
-    <div class="feature-body" style="padding:12px">
-      ${stagesHtml}
-      ${probHtml}
-      ${contribHtml}
-      ${extraHtml}
-      ${caveatHtml}
-    </div>
-  </div>`;
 }
 
 // ─── Render ─────────────────────────────────────────────────────
@@ -1439,217 +1060,154 @@ function renderLatest(r,plotKeys,idx){
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
-  // ═══ CLASSIFIER RESULTS (v1, v2, v3) ═══
-  if(vizIsEnabled('classification') && r.classifiers){
-    for(const [cid, cl] of Object.entries(r.classifiers)){
-      h+=renderClassifierCard(cl, r);
-    }
-  } else if(vizIsEnabled('classification') && r.classification){
-    h+=renderClassifierCard(r.classification, r);
+  // ═══ VISUALIZATIONS → POPOUT LABELS ═══
+  // Pre-build HTML for each viz, store it, and show clickable labels
+  const ts=Date.now(), vizPrefix=`p${idx}_${ts}`;
+
+  // featureMeta for ASM plots
+  const featureMeta={
+    signed_attribution:{title:'Signed Attribution',desc:'Per-token contribution to alignment correction'},
+    stress_per_token:{title:'Per-Token Stress',desc:'Correction pressure at discriminative middle layers'},
+    distribution_metrics:{title:'Correction Distribution',desc:'Entropy, Gini, boundary/interior share'},
+    amplitude_trajectory:{title:'Layer-by-Layer Trajectory',desc:'Correction magnitude through model depth'},
+    heatmap:{title:'Token × Layer Sensitivity Map',desc:'2D correction intensity by token and sublayer'},
+    sfd_density:{title:'QK Routing Density',desc:'Subspace filling ratio per token'},
+    sfd_energy:{title:'QK Routing Energy',desc:'Projection magnitude into QK routing subspace'},
+    sfd_entropy:{title:'QK Spectral Entropy',desc:'Activation spread across SVD directions'},
+    rank_displacement:{title:'Rank Displacement',desc:'Kendall tau between base and instruct orderings'},
+  };
+  const ltpMeta={
+    ltp_profiles:{title:'Tension Profiles (Stacked)',desc:'Stacked bar of tension per counterfactual rank'},
+    ltp_tension_magnitudes:{title:'Tension Magnitudes',desc:'Total lateral tension at each token'},
+    ltp_summary_stats:{title:'LTP Summary',desc:'M, C, V scalar bars'},
+    ltp_profile_heatmap:{title:'Token × Rank Heatmap',desc:'Dense heatmap: token vs rank'},
+  };
+
+  // Helper: build a feature card wrapping a plot image
+  function plotFeatureHtml(k,idx,meta,borderColor){
+    const f=meta[k]||{title:k,desc:''};
+    const bc=borderColor?`border-color:${borderColor}`:'';
+    const tc=borderColor?`color:${borderColor}`:'';
+    return`<div class="feature" style="${bc}"><div class="feature-header"><div class="feature-title" style="${tc}">${f.title}</div><p class="feature-desc">${f.desc||''}</p></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" style="max-width:100%;height:auto"></div></div></div>`;
   }
 
-  // ═══ MODEL PREDICTIONS ═══
-  if(vizIsEnabled('model_predictions')) h+=renderTopK(r);
+  // Model predictions
+  if(vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
+    const key=vizPrefix+'_predictions';
+    storeViz(key,'Model Predictions',renderTopK(r));
+    h+=vizLabel(key,'Model Predictions','Instruct vs base top-k next-token predictions');
+  }
 
-  // ═══ ASM FEATURE CARDS (plot-based, from server) ═══
-  const featureMeta={
-    signed_attribution:{
-      title:'Signed Attribution',
-      desc:'Each bar shows one token\'s contribution to the alignment correction. Green bars reinforce the correction (safety training acting). Red bars oppose it. Interior tokens with high green bars indicate the model is responding to semantic framing — the hallmark of adversarial prompts.',
-      legend:'Green = reinforces correction · Red = opposes · Height = magnitude'
-    },
-    stress_per_token:{
-      title:'Per-Token Stress',
-      desc:'Correction pressure at discriminative middle layers (L8–L14), normalized by delta Frobenius norm. Tokens with high stress are where the alignment field works hardest — typically framing tokens rather than content tokens.',
-      legend:'Height = correction pressure · Higher = more alignment activity'
-    },
-    distribution_metrics:{
-      title:'Correction Distribution',
-      desc:'Entropy, Gini, and boundary/interior share. High entropy = spread evenly. Low entropy = concentrated. Boundary-concentrated = benign pattern. Interior-distributed = adversarial pattern.',
-      legend:'Entropy: 0→concentrated, 1→uniform · Boundary = first+last tokens · Interior = all others'
-    },
-    amplitude_trajectory:{
-      title:'Layer-by-Layer Trajectory',
-      desc:'Correction magnitude through model depth. Each point is a sublayer (attention/MLP alternating). A spike at middle layers followed by decline is the typical pattern — safety training concentrates intervention at the abstract semantic processing stage.',
-      legend:'X = sublayer index · Y = correction magnitude · Dashed lines = early/mid/late boundaries'
-    },
-    heatmap:{
-      title:'Token × Layer Sensitivity Map',
-      desc:'2D view of where each token receives alignment correction at each depth. Bright cells = strong correction. Benign prompts show bright boundary spots. Adversarial prompts show bright interior bands at middle layers.',
-      legend:'Rows = tokens · Columns = sublayers · Brightness = correction magnitude'
-    },
-    sfd_density:{
-      title:'QK Routing Density',
-      desc:'Subspace filling ratio: erank(token) / erank(global). Higher density means the token engages more dimensions of the QK routing correction RLHF applied. Tokens that trigger broad routing restructuring show high density.',
-      legend:'Height = density ratio · Orange bar = per-token density'
-    },
-    sfd_energy:{
-      title:'QK Routing Energy',
-      desc:'Total projection magnitude into the QK routing subspace. Higher energy means stronger engagement with the routing corrections RLHF learned. Boundary tokens typically show different energy patterns than interior framing tokens.',
-      legend:'Height = energy magnitude · Vermillion bar = per-token energy'
-    },
-    sfd_entropy:{
-      title:'QK Spectral Entropy',
-      desc:'How evenly the token activates across the SVD singular directions of the routing delta. High entropy = diffuse engagement across many directions. Low entropy = concentrated on a few dominant directions.',
-      legend:'Height = spectral entropy · Pink bar = per-token entropy'
-    },
-    rank_displacement:{
-      title:'Rank Displacement',
-      desc:'Kendall tau between base and instruct alternative orderings at each position. 1.0 = identical ranking (no RLHF reordering). Lower values = RLHF changed the priority structure among the model\'s own alternatives.',
-      legend:'Green = high agreement (tau > 0.5) · Amber = partial (0 < tau < 0.5) · Red = inverted (tau < 0)'
-    },
-  };
+  // ASM plots
+  let hasAsmViz=false;
   for(const k of plotKeys){
     if(k.startsWith('ltp_'))continue;
     if(!vizIsEnabled(k))continue;
     if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
-    const f=featureMeta[k];
-    h+=`<div class="feature">
-      <div class="feature-header" onclick="toggleFeature(this)">
-        <div class="feature-title">${f?f.title:k}</div>
-        ${f?`<p class="feature-desc">${f.desc}</p>`:''}
-        ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
-      </div>
-      <div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div>
-    </div>`;
+    const key=vizPrefix+'_'+k;
+    storeViz(key,(featureMeta[k]||{}).title||k,plotFeatureHtml(k,idx,featureMeta));
+    h+=vizLabel(key,(featureMeta[k]||{}).title||k,(featureMeta[k]||{}).desc||'');
+    hasAsmViz=true;
   }
 
-  // ═══ LTP SECTION ═══
+  // LTP section
   const hasLtp=r.ltp&&Object.keys(VIZ_REGISTRY).some(k=>VIZ_REGISTRY[k].needs==='ltp'&&VIZ_REGISTRY[k].on);
   if(r.ltp&&hasLtp){
-    h+=`<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--cyan)">
-      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
+    h+=`<div class="viz-section-title" style="color:var(--cyan)">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
 
-    // Tunnel viewer (JS-rendered, with fused stress+attribution)
-    if(vizIsEnabled('tunnel_viewer')) h+=renderTunnelViewer(r);
+    // Tunnel viewer
+    if(vizIsEnabled('tunnel_viewer')){
+      const tunnelHtml=renderTunnelViewer(r);
+      if(tunnelHtml){
+        const key=vizPrefix+'_tunnel';
+        // Serialize tunnel state + functions so the popout is fully interactive
+        let tunnelScripts='';
+        if(_tunnelState){
+          try{
+            tunnelScripts=`
+              var _tunnelState=${JSON.stringify(_tunnelState)};
+              var _tunnelAnimFrame=null, _tunnelPlaying=false, _tunnelSpeed=4, _tunnelMorphProgress=1;
+              var _tunnelPrevIdx=null, _tunnelTargetIdx=null;
+              function escHtml(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+              var _tunnelGo=${_tunnelGo.toString()};
+              var _tunnelAnimate=${_tunnelAnimate.toString()};
+              var _tunnelPlayPause=${_tunnelPlayPause.toString()};
+              var _tunnelSetSpeed=${_tunnelSetSpeed.toString()};
+              var _tunnelAutoAdvance=${_tunnelAutoAdvance.toString()};
+              var _tunnelMode=${_tunnelMode.toString()};
+              var _tunnelDrawMorphed=${_tunnelDrawMorphed.toString()};
+              var _tunnelDraw=${_tunnelDraw.toString()};
+              var _tunnelRender=${_tunnelRender.toString()};
+              _tunnelDraw();
+            `;
+          }catch(e){console.warn('Tunnel script serialization failed:',e)}
+        }
+        storeViz(key,'Alignment Tunnel',tunnelHtml,tunnelScripts);
+        h+=vizLabel(key,'Alignment Tunnel','Interactive per-token alignment field cross-section','var(--cyan)');
+      }
+    }
 
-    // LTP server-rendered plots
-    const ltpMeta={
-      ltp_profiles:{
-        title:'Tension Profiles (Stacked)',
-        desc:'Each column is one token. Stacked segments show tension toward each counterfactual alternative by logit rank. Evenly-divided = flat correction. One segment dominating = directional boundary.',
-        legend:'Segment height = tension per rank · Rank 1 (bottom) = most likely alternative · Color = rank'
-      },
-      ltp_tension_magnitudes:{
-        title:'Tension Magnitudes',
-        desc:'Total lateral tension at each token. The dashed line marks the prompt mean. Tokens where the model considered very different alternatives tend to show higher magnitude.',
-        legend:'Height = net lateral tension · Blue = flat · Amber = steep · Vermillion = inverted · Dashed = mean'
-      },
-      ltp_summary_stats:{
-        title:'LTP Summary',
-        desc:'M (magnitude) = mean lateral displacement. C (consistency) = directional coherence 0–1. V (variance) = token concentration.',
-        legend:'M and C are the primary metrics · At 0.5B: M ≈ 0.001–0.002, d ≈ 0.3 between categories'
-      },
-      ltp_profile_heatmap:{
-        title:'Token × Rank Heatmap',
-        desc:'Rows are tokens, columns are counterfactual ranks. Bright cells = high tension toward that alternative. Uniformly dim rows = smooth cylindrical tunnel walls.',
-        legend:'Rows = tokens · Columns = alt rank (1=most likely) · Brightness = tension'
-      },
-    };
+    // LTP plots
     for(const k of plotKeys){
       if(!k.startsWith('ltp_')||k==='ltp_dual_trajectory')continue;
       if(!vizIsEnabled(k))continue;
-      const f=ltpMeta[k];
-      h+=`<div class="feature" style="border-color:var(--cyan)">
-        <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>
-          ${f?`<p class="feature-desc">${f.desc}</p>`:''}
-          ${f&&f.legend?`<div class="feature-legend">🔑 ${f.legend}</div>`:''}
-        </div>
-        <div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div>
-      </div>`;
+      const key=vizPrefix+'_'+k;
+      storeViz(key,(ltpMeta[k]||{}).title||k,plotFeatureHtml(k,idx,ltpMeta,'var(--cyan)'));
+      h+=vizLabel(key,(ltpMeta[k]||{}).title||k,(ltpMeta[k]||{}).desc||'','var(--cyan)');
     }
 
     // Counterfactual table
     if(vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      h+=`<div class="feature" style="border-color:var(--cyan)">
-        <div class="feature-header" onclick="toggleFeature(this)">
-          <div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div>
-          <p class="feature-desc">The alternative tokens the model considered at each position — the paths not taken. These define the probing directions for lateral tension measurement.</p>
-          <div class="feature-legend">🔑 Shape = profile type · Alt tokens sorted by probability · Higher probability = closer semantic neighbor</div>
-        </div>
-        <div class="feature-body" style="padding:10px">
-        <table class="data-table"><tr><th>Token</th><th>Shape</th>`;
-      const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)h+=`<th>Alt ${i+1}</th>`;
-      h+=`</tr>`;
+      let cfHtml=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div><p class="feature-desc">The alternative tokens the model considered at each position.</p></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Shape</th>`;
+      const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)cfHtml+=`<th>Alt ${i+1}</th>`;
+      cfHtml+=`</tr>`;
       for(let i=0;i<Math.min(r.tokens.length,r.ltp.counterfactual_tokens.length);i++){
         const cf=r.ltp.counterfactual_tokens[i];
         const shape=r.ltp.profile_shapes?r.ltp.profile_shapes[i]:'';
         const shapeColor=shape==='steep'?'var(--orange)':(shape==='inverted'?'var(--red)':'var(--blue)');
-        h+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
+        cfHtml+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
         for(let j=0;j<Math.min(kVal,4);j++){
-          if(cf&&j<cf.length)h+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
-          else h+=`<td>--</td>`;
+          if(cf&&j<cf.length)cfHtml+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
+          else cfHtml+=`<td>--</td>`;
         }
-        h+=`</tr>`;
+        cfHtml+=`</tr>`;
       }
-      h+=`</table></div></div>`;
+      cfHtml+=`</table></div></div>`;
+      const key=vizPrefix+'_cftable';
+      storeViz(key,'Counterfactual Table',cfHtml);
+      h+=vizLabel(key,'Counterfactual Table','Alternative tokens at each position with probabilities','var(--cyan)');
     }
-    h+=`</div>`;
   }
 
-  // ═══ CANDIDATE GRAPH ═══
+  // Candidate graph
   if(r.ltp&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length&&r.base_counterfactual_tokens&&r.base_counterfactual_tokens.length){
-    h+=renderCandidateGraphSection(r);
+    const cgHtml=renderCandidateGraphSection(r);
+    if(cgHtml){
+      const key=vizPrefix+'_candgraph';
+      storeViz(key,'Candidate Graph',cgHtml);
+      h+=vizLabel(key,'Candidate Graph','Contested positions and role switches between models','var(--purple)');
+    }
   }
 
-  // ═══ TOKEN TABLE ═══
-  if(vizIsEnabled('token_table')) h+=renderTokenTable(r);
+  // Token table
+  if(vizIsEnabled('token_table')){
+    const ttHtml=renderTokenTable(r);
+    if(ttHtml){
+      const key=vizPrefix+'_toktable';
+      storeViz(key,'Attribution Table',ttHtml);
+      h+=vizLabel(key,'Attribution Table','Raw per-token signed attribution and stress values');
+    }
+  }
 
   h+=`</div></div>`;
 
-  // ═══ DISABLED PROMPT VIZS → EXPERIMENTAL CARD ═══
-  // Collect disabled prompt-scope visualizations and render them collapsed
-  let expH='';
-  // Disabled ASM plots
-  for(const k of plotKeys){
-    if(k.startsWith('ltp_'))continue;
-    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
-      const f=featureMeta[k];
-      expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
-    }
-  }
-  // Disabled LTP plots
-  if(r.ltp){
-    for(const k of plotKeys){
-      if(!k.startsWith('ltp_')||k==='ltp_dual_trajectory')continue;
-      if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope==='prompt'&&!VIZ_REGISTRY[k].on){
-        const f=ltpMeta[k];
-        expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)">${f?f.title:k}</div>${f?`<p class="feature-desc">${f.desc}</p>`:''}</div><div class="feature-body collapsed"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" loading="lazy" onerror="this.parentElement.innerHTML='<p style=\\'color:var(--text-3);font-size:11px;padding:12px\\'>Plot not available</p>'"></div></div></div>`;
-      }
-    }
-    // Disabled JS vizs that have LTP data
-    if(!vizIsEnabled('tunnel_viewer')&&r.ltp.profiles&&r.ltp.profiles.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Alignment Tunnel (disabled)</div><p class="feature-desc">Interactive per-token alignment field cross-section viewer.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Alignment Tunnel</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
-    }
-    if(!vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      expH+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title" style="color:var(--cyan)"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Counterfactual Table (disabled)</div><p class="feature-desc">Alternative tokens at each position with probabilities and profile shapes.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Counterfactual Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
-    }
-  }
-  if(!vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Model Predictions (disabled)</div><p class="feature-desc">Side-by-side instruct vs base top-k next-token predictions.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Model Predictions</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
-  }
-  if(!vizIsEnabled('token_table')&&r.tokens&&r.signed_attr&&r.signed_attr.length){
-    expH+=`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title"><span class="chevron" style="color:var(--text-2);font-size:12px;margin-right:6px">▶</span>Attribution Table (disabled)</div><p class="feature-desc">Raw per-token signed attribution and stress values with inline bars.</p></div><div class="feature-body collapsed" style="padding:16px"><p style="font-size:11px;color:var(--text-2);line-height:1.6">This visualization is currently disabled. Enable <strong>Attribution Table</strong> in the <strong>Configuration</strong> tab to view it in the Prompt tab.</p></div></div>`;
-  }
-
-  // Append disabled items to experimental tab
-  if(expH){
-    const ec=$('expContent');
-    if(ec){
-      ec.style.display='block';$('expEmpty').style.display='none';
-      ec.innerHTML+=`<div class="card"><div class="card-header"><h3>Disabled Prompt Visualizations</h3></div><div class="card-body${cardDefault('experimental')}">${expH}</div></div>`;
-    }
-  }
-
   area.innerHTML=h+area.innerHTML;
-  if(_tunnelState) _tunnelDraw();
 }
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
   const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
   for(let i=0;i<n;i++){const it=r.instruct_topk[i],bt=(r.base_topk||[])[i];rows+=`<tr><td>${i+1}</td><td class="tok-inst">${it?escHtml(it[0]):'--'}</td><td>${it?(it[1]*100).toFixed(1)+'%':'--'}</td><td class="tok-base">${bt?escHtml(bt[0]):'--'}</td><td>${bt?(bt[1]*100).toFixed(1)+'%':'--'}</td></tr>`}
-  return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens. Large disagreements between the two indicate positions where safety training has substantially altered the model's behavior. Small disagreements suggest structural consensus — the base model already wouldn't have produced harmful output at that position.</p><div class="feature-legend">🔑 Instruct = safety-tuned model · Base = pretrained model without alignment · P = probability assigned to that token</div></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
+  return`<div class="feature"><div class="feature-header"><div class="feature-title">Model Predictions</div><p class="feature-desc">What the instruct-tuned model and the base model each predict as the most likely next tokens.</p></div><div class="feature-body" style="padding:10px"><table class="topk-table" style="width:100%"><tr><th>#</th><th>Instruct</th><th>P</th><th>Base</th><th>P</th></tr>${rows}</table></div></div>`
 }
 function renderTokenTable(r){
   if(!r.tokens||!r.signed_attr||!r.signed_attr.length)return'';
@@ -1686,7 +1244,6 @@ function _renderDataTablePage(){
     ['prompt','Prompt','s',null,220],
     ['category','Cat','cat',null,52],
     ['role','Role','s',null,42],
-    ['_pred','Pred','pred',null,100],
     ['seq_len','Tok','i',null,36],
     ['stress_score','Stress','f3',200,60],
     ['net_correction','Net','f5',160,72],
@@ -1710,15 +1267,6 @@ function _renderDataTablePage(){
     ['_sfd_energy','QKE','f4',null,56],
     ['_rank_tau','Tau','f3',60,48],
     ['_rank_overlap','Ovlp','pct',null,48],
-    ['_cl_v1','v1','cl',null,48],
-    ['_cl_v2','v2','cl',null,48],
-    ['_cl_v3','v3','cl',null,48],
-    ['_cl_v4','v4','cl',null,48],
-    ['_cl_v5','v5','cl',null,48],
-    ['_cl_v6','v6','cl',null,48],
-    ['_cl_v7','v7','cl',null,48],
-    ['_cl_v8','v8','cl',null,48],
-    ['_cl_v9','v9','cl',null,48],
   ];
 
   // Compute ranges for heatmap columns (across ALL data, not just page)
@@ -1747,24 +1295,12 @@ function _renderDataTablePage(){
     if(format==='pct3') return (Number(val)*100).toFixed(1)+'%';
     if(format==='pct_pp') return (Number(val)*100).toFixed(1)+'pp';
     if(format==='cat') return val?`<span class="pill ${pillClass(val)}">${val.substring(0,4)}</span>`:'--';
-    if(format==='cl'){
-      if(!val||!val.pred) return'--';
-      return val.pred;
-    }
-    if(format==='pred'){
-      if(!val||!val.cl) return'--';
-      const cl=val.cl,pred=cl.predicted_class||cl.predicted,conf=Math.round((cl.confidence||0)*100);
-      const match=val.cat&&pred&&(val.cat===pred?'✓':'✗');
-      const mc=match==='✓'?'var(--green)':'var(--red)';
-      return`<span class="pill ${pillClass(pred||'')}" style="font-size:11px">${(pred||'').substring(0,4)}</span> ${conf}% <span style="color:${mc}">${match||''}</span>`;
-    }
     return val;
   }
 
   function getVal(r,key){
     if(key==='_cb') return r._srcIdx;
     if(key==='_index') return r._srcIdx+1;
-    if(key==='_pred') return{cl:r.classifiers&&Object.values(r.classifiers)[0],cat:r.category};
     if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
     if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
     if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
@@ -1778,13 +1314,6 @@ function _renderDataTablePage(){
     if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
-    if(key.startsWith('_cl_')){
-      const cid=key.substring(4);
-      const cls=r.classifiers||{};
-      const cl=cls[cid];
-      if(!cl) return null;
-      return {pred:cl.predicted_class||cl.predicted, cat:r.category};
-    }
     return r[key];
   }
 
@@ -2546,6 +2075,11 @@ function initTerrainViewer(results){
 
   // Popout: opens a new window with the same renderer and data
   window._terrainPopout=function(){
+    _openTerrainWindow(D);
+  };
+}
+
+function _openTerrainWindow(D){
     var pw=1200,ph=800;
     var left=Math.round((screen.width-pw)/2);
     var top=Math.round((screen.height-ph)/2);
@@ -2553,7 +2087,6 @@ function initTerrainViewer(results){
     if(!w)return;
     var dataJSON=JSON.stringify(D);
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain</title>');
-    // Terrain CSS — same as embedded
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
     w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
     w.document.write('.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}.terrain-wrap canvas:active{cursor:grabbing}');
@@ -2568,12 +2101,38 @@ function initTerrainViewer(results){
     w.document.write('</head><body>');
     w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
     w.document.write('<script>var D='+dataJSON+';<\/script>');
-    // Inline the renderer function source via toString()
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
     w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true})});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
-  };
+}
+
+async function _lazyLoadTerrainPopout(totalCount){
+  var allResults=[];
+  var CHUNK=25;
+  try{
+    for(var start=0;start<totalCount;start+=CHUNK){
+      log('Loading terrain data... '+start+'/'+totalCount);
+      var resp=await fetch('/api/results/detail?start='+start+'&count='+CHUNK);
+      var data=await resp.json();
+      if(!data.ok)break;
+      allResults=allResults.concat(data.results);
+    }
+    var hasData=allResults.some(function(r){
+      return(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||
+            (r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0);
+    });
+    if(hasData){
+      var D=_terrainTransformData(allResults);
+      if(Object.keys(D).length) _openTerrainWindow(D);
+      else log('No terrain profile data available.','error');
+    }else{
+      log('No terrain profile data available for this session.','error');
+    }
+  }catch(e){
+    console.error('Terrain lazy load error:',e);
+    log('Terrain load failed: '+e.message,'error');
+  }
 }
 
 // ─── Init ───────────────────────────────────────────────────────
