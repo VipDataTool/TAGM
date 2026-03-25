@@ -722,7 +722,7 @@ async function analyzePrompt(){
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
+    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -760,6 +760,7 @@ async function analyzeBatch(){
             if(allData.ok&&allData.results){
               sessionResults=allData.results;
               _promptTotal=allData.total;
+              if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
               updateSessionBadge();
               renderDataTable();
             }
@@ -1092,7 +1093,7 @@ function _renderDataTablePage(){
     <button class="btn btn-secondary btn-sm" id="dtViewBtn" onclick="dtViewSelected()" disabled>View Selected</button>
     <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
     <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
-    <span style="margin-left:auto;color:var(--text-1);font-size:11px">${sorted.length} records · page ${_dtPage}/${totalPages}</span>
+    <span style="margin-left:auto;color:var(--text-1);font-size:11px">${sorted.length} records · page ${_dtPage}/${totalPages}${_cacheBytes>0?' · '+fmtSize(_cacheBytes)+' cached':''}</span>
   </div>`;
 
   // ─── Table ────────────────────────────────────────────────────

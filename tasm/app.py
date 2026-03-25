@@ -490,6 +490,7 @@ async def analyze_single(prompt: str = Form(...),
             "result": result_dict,
             "plot_keys": plot_keys,
             "session_n": session.n_results if session else 0,
+            "cache_size_bytes": session.get_cache_size() if session else 0,
         })
     except Exception as e:
         logger.error(f"Analysis failed: {traceback.format_exc()}")
