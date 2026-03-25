@@ -859,6 +859,9 @@ def _run_dashboard_sync():
                 "mean_concentration", "mean_disp_per_token", "total_displacement",
                 "high_replacement_frac", "low_match_frac"]}
 
+        # Pre-computed candidate graph summary
+        slim["candidate_graph"] = _compute_candidate_graph_summary(r)
+
         # Model predictions (top-k next token)
         if r.get("instruct_topk"):
             slim["instruct_topk"] = r["instruct_topk"]
@@ -906,6 +909,96 @@ async def get_individual_plot(index: int, plot_key: str):
         return JSONResponse(status_code=404, content={"error": f"Plot not found."})
     return FileResponse(plot_path, media_type="image/png",
                         headers={"Cache-Control": "no-cache"})
+
+
+def _compute_candidate_graph_summary(r):
+    """Pre-compute candidate graph topology metrics for one result.
+    Returns lightweight summary dict — no raw arrays."""
+    tokens = r.get("tokens", [])
+    inst_cf = (r.get("ltp") or {}).get("counterfactual_tokens", [])
+    base_cf = r.get("base_counterfactual_tokens", [])
+    n_pos = min(len(inst_cf), len(base_cf), len(tokens))
+    if n_pos == 0:
+        return None
+
+    candidates = {}  # token -> {promoted: [], demoted: [], matched: []}
+    pos_stats = []
+
+    for pos in range(n_pos):
+        inst_set = {t: p for t, p in inst_cf[pos]} if inst_cf[pos] else {}
+        base_set = {t: p for t, p in base_cf[pos]} if base_cf[pos] else {}
+
+        n_prom, n_demo, n_match = 0, 0, 0
+        for t in inst_set:
+            if t not in candidates:
+                candidates[t] = {"promoted": [], "demoted": [], "matched": [], "inst": [], "base": []}
+            candidates[t]["inst"].append(pos)
+            if t in base_set:
+                candidates[t]["matched"].append(pos)
+                n_match += 1
+            else:
+                candidates[t]["promoted"].append(pos)
+                n_prom += 1
+        for t in base_set:
+            if t not in candidates:
+                candidates[t] = {"promoted": [], "demoted": [], "matched": [], "inst": [], "base": []}
+            candidates[t]["base"].append(pos)
+            if t not in inst_set:
+                candidates[t]["demoted"].append(pos)
+                n_demo += 1
+
+        contested = n_prom > 0 and n_demo > 0
+        pos_stats.append({"contested": contested, "intensity": n_prom + n_demo})
+
+    # Metrics
+    n_contested = sum(1 for ps in pos_stats if ps["contested"])
+    contested_frac = n_contested / n_pos if n_pos > 0 else 0
+
+    # Dual-role candidates
+    n_dual = sum(1 for c in candidates.values() if c["promoted"] and c["demoted"])
+
+    # Role switches
+    n_switches = 0
+    for t, c in candidates.items():
+        all_pos = sorted(set(c["inst"] + c["base"]))
+        if len(all_pos) < 2:
+            continue
+        for i in range(len(all_pos) - 1):
+            if all_pos[i + 1] - all_pos[i] > 2:
+                continue
+            p1, p2 = all_pos[i], all_pos[i + 1]
+            r1 = "P" if p1 in c["promoted"] else ("D" if p1 in c["demoted"] else "M")
+            r2 = "P" if p2 in c["promoted"] else ("D" if p2 in c["demoted"] else "M")
+            if r1 != r2:
+                n_switches += 1
+
+    # Multi-position count
+    n_multi = sum(1 for c in candidates.values() if len(set(c["inst"] + c["base"])) >= 2)
+
+    switch_rate = n_switches / n_pos if n_pos > 0 else 0
+
+    # Contestation map (compact string)
+    cmap = ""
+    for ps in pos_stats:
+        if not ps["contested"]:
+            cmap += "."
+        elif ps["intensity"] >= 6:
+            cmap += "H"
+        elif ps["intensity"] >= 3:
+            cmap += "M"
+        else:
+            cmap += "L"
+
+    return {
+        "contested_frac": round(contested_frac, 4),
+        "n_dual_role": n_dual,
+        "n_role_switches": n_switches,
+        "switch_rate": round(switch_rate, 4),
+        "n_multi_position": n_multi,
+        "n_unique_candidates": len(candidates),
+        "n_positions": n_pos,
+        "contest_map": cmap,
+    }
 
 
 @app.get("/api/results/detail")
