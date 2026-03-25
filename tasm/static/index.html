@@ -247,20 +247,15 @@ textarea{resize:vertical;min-height:44px}
 </div>
 <div class="content">
   <div class="main-tabs">
-    <div class="main-tab active" onclick="switchMainTab(this,'panel-latest')">Prompt</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Analysis</div>
-    <div class="main-tab" onclick="switchMainTab(this,'panel-data')">Data</div>
+    <div class="main-tab active" onclick="switchMainTab(this,'panel-data')">Data</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
-  </div>
-  <div class="tab-panel active" id="panel-latest">
-    <div class="empty-state" id="emptyState"><h2>No analysis yet</h2><p>Load a model, enter a prompt, and click Analyze.</p></div>
-    <div id="latestResults"></div>
   </div>
   <div class="tab-panel" id="panel-dashboard">
     <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
     <div id="dashContent" style="display:none"></div>
   </div>
-  <div class="tab-panel" id="panel-data" style="padding:8px 16px;min-width:0">
+  <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
   </div>
   <div class="tab-panel" id="panel-config">
@@ -335,7 +330,7 @@ textarea{resize:vertical;min-height:44px}
 <script>
 const $=id=>document.getElementById(id);
 let modelLoaded=false, sessionResults=[], dashResults=[], promptLibraryData=[], _busy=false;
-var _promptPage=1, _promptPerPage=10, _promptTotal=0;
+var _promptTotal=0;
 
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
@@ -443,13 +438,6 @@ function vizRenderConfig(){
     groups[v.cat].push({key:k,...v});
   }
   let h='';
-  // Prompt tab page size
-  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Prompt Tab</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
-      <div><label style="font-size:12px;color:var(--text-1)">Cards per page</label><select id="cfgPromptPerPage" onchange="_promptPerPage=parseInt(this.value);renderPromptPage(1);saveConfig()"><option value="5"${_promptPerPage===5?' selected':''}>5</option><option value="10"${_promptPerPage===10?' selected':''}>10</option><option value="20"${_promptPerPage===20?' selected':''}>20</option><option value="50"${_promptPerPage===50?' selected':''}>50</option></select></div>
-    </div>
-  </div>`;
   // Font size config
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Font Sizes</div>
@@ -559,8 +547,7 @@ async function saveConfig(){
         fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
       },
       cardCollapse:{...CARD_COLLAPSE_DEFAULTS},
-      exportOpts:{...EXPORT_DEFAULTS},
-      promptPerPage:_promptPerPage
+      exportOpts:{...EXPORT_DEFAULTS}
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
   }catch(e){}
@@ -611,8 +598,6 @@ async function loadConfig(){
       if(typeof c.exportOpts.includeArrays==='boolean')EXPORT_DEFAULTS.includeArrays=c.exportOpts.includeArrays;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
     }
-    // Prompt tab page size
-    if(c.promptPerPage&&[5,10,20,50].includes(c.promptPerPage)) _promptPerPage=c.promptPerPage;
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
     applyCardDefaults('panel-config','config');
@@ -634,7 +619,7 @@ async function clearAllSessionData(){
   if(!confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.')) return;
   try{
     const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
-    if(r.ok){sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
+    if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
     else{log('Clear failed: '+(r.error||''),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
@@ -649,47 +634,6 @@ function updateSessionBadge(){
   $('dashBtn').disabled=n<1;
   $('exportBtn').disabled=n<1;
   var cs=$('cfgCacheSize');if(cs) cs.textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';
-}
-
-async function renderPromptPage(page){
-  try{
-    const resp=await fetch(`/api/session/results?page=${page}&per_page=${_promptPerPage}`);
-    const data=await resp.json();
-    if(!data.ok||!data.results||!data.results.length){
-      $('latestResults').innerHTML='';
-      if(data.total===0) $('emptyState').style.display='';
-      return;
-    }
-    _promptPage=data.page;
-    _promptTotal=data.total;
-    if(data.cache_size_bytes!=null) _cacheBytes=data.cache_size_bytes;
-    updateSessionBadge();
-    $('emptyState').style.display='none';
-    const area=$('latestResults');
-    // Build nav controls
-    const tp=data.total_pages;
-    let nav='';
-    if(tp>1){
-      nav+=`<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;font-family:var(--mono);font-size:11px">`;
-      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(1)" ${_promptPage<=1?'disabled':''} style="width:auto">⟨⟨</button>`;
-      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${_promptPage-1})" ${_promptPage<=1?'disabled':''} style="width:auto">⟨ Prev</button>`;
-      var sp=Math.max(1,_promptPage-2),ep=Math.min(tp,_promptPage+2);
-      for(var p=sp;p<=ep;p++){
-        if(p===_promptPage) nav+=`<span style="color:var(--blue);font-weight:600;padding:0 4px">${p}</span>`;
-        else nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${p})" style="width:auto;padding:2px 6px">${p}</button>`;
-      }
-      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${_promptPage+1})" ${_promptPage>=tp?'disabled':''} style="width:auto">Next ⟩</button>`;
-      nav+=`<button class="btn btn-secondary btn-sm" onclick="renderPromptPage(${tp})" ${_promptPage>=tp?'disabled':''} style="width:auto">⟩⟩</button>`;
-      nav+=`<span style="margin-left:auto;color:var(--text-1);font-size:11px">${data.total} prompts · page ${_promptPage}/${tp}</span>`;
-      nav+=`</div>`;
-    } else {
-      nav=`<div style="padding:4px 0;font-family:var(--mono);font-size:11px;color:var(--text-2)">${data.total} prompt${data.total!==1?'s':''}</div>`;
-    }
-    // Render cards (renderLatest prepends, so iterate in reverse for chronological order)
-    area.innerHTML='';
-    for(var i=data.results.length-1;i>=0;i--) renderLatest(data.results[i],data.results[i]._plot_keys||[],data.results[i]._index);
-    area.innerHTML=nav+area.innerHTML+(tp>1?nav:'');
-  }catch(e){console.error('renderPromptPage:',e)}
 }
 
 // ─── User Info ──────────────────────────────────────────────────
@@ -739,7 +683,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -747,7 +691,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptPage=1;_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('latestResults').innerHTML='';$('emptyState').style.display='';$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -778,7 +722,7 @@ async function analyzePrompt(){
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
   try{
     const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
-    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;updateSessionBadge();renderPromptPage(Math.ceil(data.session_n/_promptPerPage)||1);renderDataTable()}
+    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -811,8 +755,14 @@ async function analyzeBatch(){
           setLoading(btn,false);
           log('Loading results...');
           try{
-            await renderPromptPage(1);
-            renderDataTable();
+            const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
+            const allData=await allResp.json();
+            if(allData.ok&&allData.results){
+              sessionResults=allData.results;
+              _promptTotal=allData.total;
+              updateSessionBadge();
+              renderDataTable();
+            }
           }catch(re){log('Results load: '+re.message,'error')}
           log('Loading dashboard...');
           try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
@@ -1024,145 +974,6 @@ function popoutRecord(rid){
   w.document.close();
 }
 
-// ─── Render ─────────────────────────────────────────────────────
-function renderLatest(r,plotKeys,idx){
-  $('emptyState').style.display='none';const area=$('latestResults');
-  const rid='rec_'+Date.now();
-
-  // ═══ RECORD HEADER ═══
-  let h=`<div class="card" id="${rid}">
-    <div class="card-header record-header">
-      <h3>${escHtml(r.prompt)}</h3>
-      <div class="record-meta">
-        ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
-        <span style="font-family:var(--mono);font-size:12px;color:var(--text-1)">${r.seq_len} tokens</span>
-        ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
-        <button class="btn-popout" onclick="popoutRecord('${rid}')" title="Open in new window">↗ Pop out</button>
-      </div>
-    </div>
-    <div class="card-body${cardDefault('prompt')}">`;
-
-  // ═══ SUMMARY METRICS ═══
-  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
-  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
-  if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
-  if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
-  if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}
-  else if(r.ltp&&r.ltp.counterfactual_tokens&&r.base_counterfactual_tokens){if(!r._cachedCG)r._cachedCG=computeCandidateGraph(r);const _cg=r._cachedCG;if(_cg){h+=mc('Contest',_cg.contestedFrac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',_cg.switchRate,null,v=>v.toFixed(2),'ltp-metric')}}
-  h+=`</div>`;
-  if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
-
-  // ═══ VISUALIZATIONS → POPOUT LABELS ═══
-  // Pre-build HTML for each viz, store it, and show clickable labels
-  const ts=Date.now(), vizPrefix=`p${idx}_${ts}`;
-
-  // featureMeta for ASM plots
-  const featureMeta={
-    signed_attribution:{title:'Signed Attribution',desc:'Per-token contribution to alignment correction'},
-    stress_per_token:{title:'Per-Token Stress',desc:'Correction pressure at discriminative middle layers'},
-    distribution_metrics:{title:'Correction Distribution',desc:'Entropy, Gini, boundary/interior share'},
-    amplitude_trajectory:{title:'Layer-by-Layer Trajectory',desc:'Correction magnitude through model depth'},
-    heatmap:{title:'Token × Layer Sensitivity Map',desc:'2D correction intensity by token and sublayer'},
-    sfd_density:{title:'QK Routing Density',desc:'Subspace filling ratio per token'},
-    sfd_energy:{title:'QK Routing Energy',desc:'Projection magnitude into QK routing subspace'},
-    sfd_entropy:{title:'QK Spectral Entropy',desc:'Activation spread across SVD directions'},
-    rank_displacement:{title:'Rank Displacement',desc:'Kendall tau between base and instruct orderings'},
-  };
-  const ltpMeta={
-    ltp_profiles:{title:'Tension Profiles (Stacked)',desc:'Stacked bar of tension per counterfactual rank'},
-    ltp_tension_magnitudes:{title:'Tension Magnitudes',desc:'Total lateral tension at each token'},
-    ltp_summary_stats:{title:'LTP Summary',desc:'M, C, V scalar bars'},
-    ltp_profile_heatmap:{title:'Token × Rank Heatmap',desc:'Dense heatmap: token vs rank'},
-  };
-
-  // Helper: build a feature card wrapping a plot image
-  function plotFeatureHtml(k,idx,meta,borderColor){
-    const f=meta[k]||{title:k,desc:''};
-    const bc=borderColor?`border-color:${borderColor}`:'';
-    const tc=borderColor?`color:${borderColor}`:'';
-    return`<div class="feature" style="${bc}"><div class="feature-header"><div class="feature-title" style="${tc}">${f.title}</div><p class="feature-desc">${f.desc||''}</p></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" style="max-width:100%;height:auto"></div></div></div>`;
-  }
-
-  // Model predictions
-  if(vizIsEnabled('model_predictions')&&r.instruct_topk&&r.instruct_topk.length){
-    const key=vizPrefix+'_predictions';
-    storeViz(key,'Model Predictions',renderTopK(r));
-    h+=vizLabel(key,'Model Predictions','Instruct vs base top-k next-token predictions');
-  }
-
-  // ASM plots
-  let hasAsmViz=false;
-  for(const k of plotKeys){
-    if(k.startsWith('ltp_'))continue;
-    if(!vizIsEnabled(k))continue;
-    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
-    const key=vizPrefix+'_'+k;
-    storeViz(key,(featureMeta[k]||{}).title||k,plotFeatureHtml(k,idx,featureMeta));
-    h+=vizLabel(key,(featureMeta[k]||{}).title||k,(featureMeta[k]||{}).desc||'');
-    hasAsmViz=true;
-  }
-
-  // LTP section
-  const hasLtp=r.ltp&&Object.keys(VIZ_REGISTRY).some(k=>VIZ_REGISTRY[k].needs==='ltp'&&VIZ_REGISTRY[k].on);
-  if(r.ltp&&hasLtp){
-    h+=`<div class="viz-section-title" style="color:var(--cyan)">Lateral Tension Profile <span class="ltp-badge">LTP</span></div>`;
-
-    // LTP plots
-    for(const k of plotKeys){
-      if(!k.startsWith('ltp_')||k==='ltp_dual_trajectory')continue;
-      if(!vizIsEnabled(k))continue;
-      const key=vizPrefix+'_'+k;
-      storeViz(key,(ltpMeta[k]||{}).title||k,plotFeatureHtml(k,idx,ltpMeta,'var(--cyan)'));
-      h+=vizLabel(key,(ltpMeta[k]||{}).title||k,(ltpMeta[k]||{}).desc||'','var(--cyan)');
-    }
-
-    // Counterfactual table
-    if(vizIsEnabled('counterfactual_table')&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length){
-      let cfHtml=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">Counterfactual Neighborhood</div><p class="feature-desc">The alternative tokens the model considered at each position.</p></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Shape</th>`;
-      const kVal=r.ltp.k||8;for(let i=0;i<Math.min(kVal,4);i++)cfHtml+=`<th>Alt ${i+1}</th>`;
-      cfHtml+=`</tr>`;
-      for(let i=0;i<Math.min(r.tokens.length,r.ltp.counterfactual_tokens.length);i++){
-        const cf=r.ltp.counterfactual_tokens[i];
-        const shape=r.ltp.profile_shapes?r.ltp.profile_shapes[i]:'';
-        const shapeColor=shape==='steep'?'var(--orange)':(shape==='inverted'?'var(--red)':'var(--blue)');
-        cfHtml+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${shapeColor}">${shape}</td>`;
-        for(let j=0;j<Math.min(kVal,4);j++){
-          if(cf&&j<cf.length)cfHtml+=`<td><span style="color:var(--text-0)">${escHtml(cf[j][0])}</span> <span style="color:var(--text-3)">${(cf[j][1]*100).toFixed(1)}%</span></td>`;
-          else cfHtml+=`<td>--</td>`;
-        }
-        cfHtml+=`</tr>`;
-      }
-      cfHtml+=`</table></div></div>`;
-      const key=vizPrefix+'_cftable';
-      storeViz(key,'Counterfactual Table',cfHtml);
-      h+=vizLabel(key,'Counterfactual Table','Alternative tokens at each position with probabilities','var(--cyan)');
-    }
-  }
-
-  // Candidate graph
-  if(r.ltp&&r.ltp.counterfactual_tokens&&r.ltp.counterfactual_tokens.length&&r.base_counterfactual_tokens&&r.base_counterfactual_tokens.length){
-    const cgHtml=renderCandidateGraphSection(r);
-    if(cgHtml){
-      const key=vizPrefix+'_candgraph';
-      storeViz(key,'Candidate Graph',cgHtml);
-      h+=vizLabel(key,'Candidate Graph','Contested positions and role switches between models','var(--purple)');
-    }
-  }
-
-  // Token table
-  if(vizIsEnabled('token_table')){
-    const ttHtml=renderTokenTable(r);
-    if(ttHtml){
-      const key=vizPrefix+'_toktable';
-      storeViz(key,'Attribution Table',ttHtml);
-      h+=vizLabel(key,'Attribution Table','Raw per-token signed attribution and stress values');
-    }
-  }
-
-  h+=`</div></div>`;
-
-  area.innerHTML=h+area.innerHTML;
-}
 function renderTopK(r){
   if(!r.instruct_topk||!r.instruct_topk.length)return'';
   const n=Math.max(r.instruct_topk.length,(r.base_topk||[]).length);let rows='';
@@ -1180,12 +991,7 @@ function renderDataTable(){
   var source=dashResults.length?dashResults:sessionResults;
   if(!source.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
-  const catOrd={benign:0,'dual-use':1,mild:2,harmful:3,adversarial:4,jailbreak:5};
-  _dtSorted=[...source].map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i})).sort((a,b)=>{
-    const ca=(catOrd[a.category]??6),cb=(catOrd[b.category]??6);
-    if(ca!==cb)return ca-cb;
-    return(b.net_correction||0)-(a.net_correction||0);
-  });
+  _dtSorted=[...source].map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i})).sort((a,b)=>a._srcIdx-b._srcIdx);
 
   _dtPage=Math.min(_dtPage,Math.ceil(_dtSorted.length/_dtPageSize)||1);
   _renderDataTablePage();
@@ -1283,6 +1089,7 @@ function _renderDataTablePage(){
       <input type="checkbox" id="dtSelectAll" onchange="dtToggleAll(this.checked)"> <span style="font-size:11px">All</span>
     </label>
     <span class="dt-sel-count" id="dtSelCount">0 selected</span>
+    <button class="btn btn-secondary btn-sm" id="dtViewBtn" onclick="dtViewSelected()" disabled>View Selected</button>
     <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
     <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
     <span style="margin-left:auto;color:var(--text-1);font-size:11px">${sorted.length} records · page ${_dtPage}/${totalPages}</span>
@@ -1356,6 +1163,7 @@ function dtUpdateSelection(){
   const el=$('dtSelCount'); if(el) el.textContent=count+' selected';
   const reBtn=$('dtRerunBtn'); if(reBtn) reBtn.disabled=count===0;
   const rmBtn=$('dtRemoveBtn'); if(rmBtn) rmBtn.disabled=count===0;
+  const vwBtn=$('dtViewBtn'); if(vwBtn) vwBtn.disabled=count===0;
   // Update "select all" checkbox state
   const allCbs=document.querySelectorAll('#dtGridTable tbody input[type="checkbox"]');
   const allCheck=$('dtSelectAll');
@@ -1384,8 +1192,8 @@ async function dtRemoveSelected(){
     if(r.ok){
       log(`Removed ${r.removed} results (${r.remaining} remaining)`,'done');
       _promptTotal=r.remaining;
-      dashResults=[];  // Force refresh from server on next dashboard load
-      updateSessionBadge();renderPromptPage(Math.min(_promptPage,Math.ceil(r.remaining/_promptPerPage)||1));renderDataTable();
+      dashResults=[];
+      updateSessionBadge();renderDataTable();
     } else { log('Remove failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Remove error: '+e.message,'error')}
 }
@@ -1414,9 +1222,112 @@ async function dtRerunSelected(){
       log(`Reran ${r.rerun} prompts (${r.total} total in session)`,'done');
       _promptTotal=r.total;
       dashResults=[];
-      updateSessionBadge();renderPromptPage(_promptPage);renderDataTable();
+      updateSessionBadge();dashResults=[];renderDataTable();
     } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
   }catch(e){log('Rerun error: '+e.message,'error')}
+}
+
+// ─── Data Table: View Selected ─────────────────────────────────
+async function dtViewSelected(){
+  const indices=dtGetSelectedIndices();
+  if(!indices.length) return;
+  try{
+    // Fetch full result data for each selected index (one page at a time)
+    const results=[];
+    for(const idx of indices){
+      // Use page=1,per_page large enough, then find by _index
+      // More efficient: fetch page containing this index
+      const page=Math.floor(idx/50)+1;
+      const resp=await fetch(`/api/session/results?page=${page}&per_page=50`);
+      const data=await resp.json();
+      if(data.ok&&data.results){
+        const match=data.results.find(r=>r._index===idx);
+        if(match) results.push(match);
+      }
+    }
+    if(!results.length){log('No results found for selected indices','error');return}
+
+    // Build card HTML for each selected result
+    const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+      .map(s=>s.outerHTML).join('\n');
+    let cardsHtml='';
+    for(const r of results){
+      const plotKeys=r._plot_keys||[];
+      const idx=r._index;
+      cardsHtml+=_buildRecordCardHtml(r,plotKeys,idx);
+    }
+
+    // Open popout
+    const pw=1060,ph=850;
+    const left=Math.round((screen.width-pw)/2);
+    const top=Math.round((screen.height-ph)/2);
+    const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
+    if(!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>TASM — ${results.length} Record${results.length>1?'s':''}</title>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+      ${styles}
+      <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
+      .card{max-width:960px;margin:0 auto 16px auto}
+      .plot-container img{max-width:100%;height:auto}
+      </style></head><body>${cardsHtml}</body></html>`);
+    w.document.close();
+  }catch(e){log('View error: '+e.message,'error');console.error(e)}
+}
+
+function _buildRecordCardHtml(r,plotKeys,idx){
+  // Build a self-contained record card for popout display
+  let h=`<div class="card">
+    <div class="card-header record-header">
+      <h3>${escHtml(r.prompt)}</h3>
+      <div class="record-meta">
+        ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text-1)">#${idx} · ${r.seq_len} tokens</span>
+        ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
+      </div>
+    </div>
+    <div class="card-body">`;
+
+  // Metrics grid
+  h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
+  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
+  if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
+  if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
+  if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}
+  h+=`</div>`;
+  if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
+
+  // Inline plots (these render in the popout since images load from server)
+  const featureMeta={signed_attribution:'Signed Attribution',stress_per_token:'Per-Token Stress',distribution_metrics:'Correction Distribution',amplitude_trajectory:'Layer Trajectory',heatmap:'Token × Layer Heatmap',sfd_density:'QK Density',sfd_energy:'QK Energy',sfd_entropy:'Spectral Entropy',rank_displacement:'Rank Displacement'};
+  const ltpPlotMeta={ltp_profiles:'Tension Profiles',ltp_tension_magnitudes:'Tension Magnitudes',ltp_summary_stats:'LTP Summary',ltp_profile_heatmap:'Token × Rank Heatmap'};
+
+  for(const k of plotKeys){
+    if(k.startsWith('ltp_'))continue;
+    if(VIZ_REGISTRY[k]&&VIZ_REGISTRY[k].scope!=='prompt')continue;
+    const title=featureMeta[k]||k;
+    h+=`<div class="feature"><div class="feature-header"><div class="feature-title">${title}</div></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" style="max-width:100%;height:auto"></div></div></div>`;
+  }
+
+  // LTP plots
+  if(r.ltp){
+    const ltpKeys=plotKeys.filter(k=>k.startsWith('ltp_')&&k!=='ltp_dual_trajectory');
+    if(ltpKeys.length){
+      h+=`<div style="margin-top:14px;padding-top:12px;border-top:2px solid var(--cyan)"><div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:8px">LTP</div>`;
+      for(const k of ltpKeys){
+        const title=ltpPlotMeta[k]||k;
+        h+=`<div class="feature" style="border-color:var(--cyan)"><div class="feature-header"><div class="feature-title" style="color:var(--cyan)">${title}</div></div><div class="feature-body"><div class="plot-container"><img src="/api/plots/individual/${idx}/${k}" style="max-width:100%;height:auto"></div></div></div>`;
+      }
+      h+=`</div>`;
+    }
+  }
+
+  // Model predictions
+  if(r.instruct_topk&&r.instruct_topk.length) h+=renderTopK(r);
+
+  // Token table
+  if(r.tokens&&r.signed_attr&&r.signed_attr.length) h+=renderTokenTable(r);
+
+  h+=`</div></div>`;
+  return h;
 }
 
 // ─── Data Table: Column Resize ──────────────────────────────────
@@ -2096,7 +2007,7 @@ async function _lazyLoadTerrainPopout(totalCount){
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
-    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;updateSessionBadge();renderPromptPage(1)}
+    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;updateSessionBadge();renderDataTable()}
     // Restore baselines toggle from server state
     // (baseline toggle removed)
   }catch(e){}
