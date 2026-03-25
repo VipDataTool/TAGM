@@ -576,6 +576,7 @@ async def analyze_batch(file: UploadFile = File(...),
         content = raw.decode("utf-8")
     except UnicodeDecodeError:
         content = raw.decode("latin-1")
+    content = content.replace('\r\n', '\n').replace('\r', '\n')
     filename = file.filename
 
     # Parse prompts synchronously (fast)
