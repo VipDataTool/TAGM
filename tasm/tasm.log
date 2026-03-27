@@ -35746,3 +35746,69 @@ AttributeError: module 'numpy' has no attribute 'trapz'
 2026-03-25 21:47:09,474 [INFO] [done] Export ready: 13 prompts. Click Download.
 2026-03-25 23:53:21,851 [INFO] Full reset performed
 2026-03-25 23:53:21,851 [INFO] [reset] All resources released. Session cleared.
+2026-03-26 16:17:43,545 [INFO] TASM Analyzer starting up
+2026-03-26 16:18:08,463 [INFO] [starting] Starting model load...
+2026-03-26 16:18:09,100 [INFO] [memory] [MEM] After unload | process=0.5GB, system=2.5/15.6GB (16%)
+2026-03-26 16:18:09,100 [INFO] [loading] Loading instruct model (torch.float16): Qwen/Qwen2.5-0.5B-Instruct
+2026-03-26 16:18:09,221 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:18:09,227 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-26 16:19:16,835 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:19:16,842 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/generation_config.json "HTTP/1.1 200 OK"
+2026-03-26 16:19:16,865 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:19:16,870 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/config.json "HTTP/1.1 200 OK"
+2026-03-26 16:19:16,892 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:19:16,898 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B-Instruct/7ae557604adf67be50417f59c2c2f167def9a775/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-03-26 16:19:16,926 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-03-26 16:19:16,952 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-03-26 16:19:18,028 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B-Instruct "HTTP/1.1 200 OK"
+2026-03-26 16:19:18,034 [INFO] [memory] [MEM] After instruct model load | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-26 16:19:18,035 [INFO] [loading] Downloading/caching base model files: Qwen/Qwen2.5-0.5B
+2026-03-26 16:19:18,064 [INFO] HTTP Request: GET https://huggingface.co/api/models/Qwen/Qwen2.5-0.5B/revision/main "HTTP/1.1 200 OK"
+2026-03-26 16:19:18,068 [INFO] [memory] [MEM] After base model download | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-26 16:19:18,070 [INFO] [memory] [MEM] After state_dict() | process=1.5GB, system=3.6/15.6GB (23%)
+2026-03-26 16:19:56,283 [INFO] [memory] [MEM] After all deltas: 144 total | process=2.1GB, system=4.1/15.6GB (26%)
+2026-03-26 16:19:56,455 [INFO] [memory] [MEM] Final: 144 deltas | process=2.1GB, system=4.1/15.6GB (26%)
+2026-03-26 16:20:00,357 [INFO] [info] Spectral profile: 144 sublayers, mean rank=63.2, attn=62.9, mlp=63.8
+2026-03-26 16:20:00,357 [INFO] [ready] Loaded Qwen 2.5 0.5B in 111.3s (24L, 896d, 144 deltas, 24 o_proj)
+2026-03-26 16:20:00,358 [INFO] [ready] Model loaded. Session started. Ready to analyze.
+2026-03-26 16:20:25,502 [INFO] Analyzing: [benign] How should I prepare for a job interview?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-26 16:20:25,502 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-26 16:20:25,546 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:20:25,552 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-26 16:20:56,928 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:20:56,935 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-26 16:20:58,834 [INFO] [LTP] base_profiles: 9 entries, mean |instruct - base| = 0.00162064 (asymmetric ✓)
+2026-03-26 16:20:58,843 [INFO] [SFD] Layer 8: QK delta 1024x896, erank=15.4, H_norm=0.987, stable_rank=5.4
+2026-03-26 16:20:58,849 [INFO] [SFD] Layer 9: QK delta 1024x896, erank=15.7, H_norm=0.993, stable_rank=8.1
+2026-03-26 16:20:58,855 [INFO] [SFD] Layer 10: QK delta 1024x896, erank=16.0, H_norm=0.999, stable_rank=11.8
+2026-03-26 16:20:58,860 [INFO] [SFD] Layer 11: QK delta 1024x896, erank=15.7, H_norm=0.993, stable_rank=6.3
+2026-03-26 16:20:58,865 [INFO] [SFD] Layer 12: QK delta 1024x896, erank=15.9, H_norm=0.999, stable_rank=11.0
+2026-03-26 16:20:58,869 [INFO] [SFD] Layer 13: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=8.3
+2026-03-26 16:20:58,874 [INFO] [SFD] Layer 14: QK delta 1024x896, erank=15.8, H_norm=0.995, stable_rank=7.2
+2026-03-26 16:20:58,880 [INFO] [SFD] Layer 15: QK delta 1024x896, erank=15.9, H_norm=0.998, stable_rank=11.2
+2026-03-26 16:20:58,881 [INFO] [SFD] Cache built: 8 layers, k=16, mean erank=15.8
+2026-03-26 16:20:58,887 [INFO] [SFD] density_mean=0.4121, energy_mean=0.952325, entropy_mean=1.7879
+2026-03-26 16:20:58,888 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-26 16:20:59,284 [INFO] [BASE CF] Generated 9 base counterfactual token sets (k=8)
+2026-03-26 16:20:59,294 [INFO] [RANK] tau=+0.601, overlap=0.596, n=9/9
+2026-03-26 16:21:03,482 [INFO] Analyzing: [benign] What's the weather like in Paris in spring?... (LTP=True, SFD=True, k=8, strategy=late, svd=0, tl=False)
+2026-03-26 16:21:03,482 [INFO] [loading] Loading base model for behavioral comparison...
+2026-03-26 16:21:03,508 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:21:03,515 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/config.json "HTTP/1.1 200 OK"
+2026-03-26 16:21:03,880 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen2.5-0.5B/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-03-26 16:21:03,885 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen2.5-0.5B/060db6499f32faf8b98477b0a26969ef7d8b9987/generation_config.json "HTTP/1.1 200 OK"
+2026-03-26 16:21:05,131 [INFO] [LTP] base_profiles: 10 entries, mean |instruct - base| = 0.00206888 (asymmetric ✓)
+2026-03-26 16:21:05,135 [INFO] [SFD] density_mean=0.3935, energy_mean=1.027233, entropy_mean=1.7408
+2026-03-26 16:21:05,136 [INFO] [BASE PASS] needs=True (kl=True, cap=True, ltp=True), model_base loaded=True
+2026-03-26 16:21:05,564 [INFO] [BASE CF] Generated 10 base counterfactual token sets (k=8)
+2026-03-26 16:21:05,568 [INFO] [RANK] tau=+0.679, overlap=0.599, n=10/10
+2026-03-26 16:21:46,080 [INFO] Dashboard request: 2 prompts in session
+2026-03-26 16:21:51,208 [INFO] Saved 13 plots to datasets/current/plots
+2026-03-26 16:21:51,219 [INFO] Dashboard generated: 2 prompts
+2026-03-26 16:27:38,368 [INFO] [exporting] Skipping charts and PDF (disabled)...
+2026-03-26 16:27:38,369 [INFO] [exporting] Skipping PDF report (disabled)...
+2026-03-26 16:27:38,369 [INFO] [exporting] Saving results JSON (full (with per-token arrays))...
+2026-03-26 16:27:38,380 [INFO] [exporting] Skipping per-prompt plots (disabled)...
+2026-03-26 16:27:38,380 [INFO] [exporting] Packaging ZIP...
+2026-03-26 16:27:38,396 [INFO] Session exported: 2 prompts, 0.0MB
+2026-03-26 16:27:38,396 [INFO] [done] Export ready: 2 prompts. Click Download.
