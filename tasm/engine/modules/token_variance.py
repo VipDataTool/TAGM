@@ -76,6 +76,24 @@ class TokenVarianceModule(TASMModule):
             min_val=5,
             max_val=100,
         ),
+        ModuleParameter(
+            name="min_seq_len",
+            display_name="Min Prompt Length",
+            description="Skip prompts shorter than this many tokens",
+            type="int",
+            default=3,
+            min_val=1,
+            max_val=20,
+        ),
+        ModuleParameter(
+            name="min_per_cat",
+            display_name="Min Per Category",
+            description="Minimum appearances per category for pairwise comparisons",
+            type="int",
+            default=2,
+            min_val=1,
+            max_val=10,
+        ),
     ]
 
     def run(self, session_results, params, progress=None):
@@ -86,10 +104,12 @@ class TokenVarianceModule(TASMModule):
         min_app = params.get("min_appearances", 3)
         include_first = params.get("include_first", False)
         top_n = params.get("top_n", 30)
+        min_seq_len = params.get("min_seq_len", 3)
+        min_per_cat = params.get("min_per_cat", 2)
 
         # Extract
         token_contexts, skipped = _extract_token_contexts(
-            session_results, merge_subwords=merge)
+            session_results, min_seq_len=min_seq_len, merge_subwords=merge)
 
         if progress:
             progress(f"Extracted {len(token_contexts)} unique tokens, "
@@ -110,7 +130,8 @@ class TokenVarianceModule(TASMModule):
         if progress:
             progress("Building output...")
 
-        output = _build_output(results, session_results, skipped, top_n)
+        output = _build_output(results, session_results, skipped, top_n,
+                               min_app=min_app, min_per_cat=min_per_cat)
 
         if progress:
             progress(f"Complete: {len(results)} tokens analyzed")
@@ -343,7 +364,8 @@ def _pairwise_deltas(results, cat_a, cat_b, channel="density",
     return pairs
 
 
-def _build_output(results, session_data, skipped, top_n):
+def _build_output(results, session_data, skipped, top_n,
+                  min_app=3, min_per_cat=2):
     """Build the structured output dict for the module."""
 
     # Categories present in data
@@ -358,8 +380,8 @@ def _build_output(results, session_data, skipped, top_n):
                         reverse=True)
     by_cv_asc = sorted(results, key=lambda x: x["channels"]["density"]["cv"])
 
-    # Qualified tokens (n >= 5)
-    qualified = [r for r in results if r["n"] >= 5]
+    # Qualified tokens — tied to min_appearances (no hidden second threshold)
+    qualified = [r for r in results if r["n"] >= min_app]
 
     # Summary statistics
     summary = {
@@ -367,6 +389,7 @@ def _build_output(results, session_data, skipped, top_n):
         "n_skipped": skipped,
         "n_tokens_analyzed": len(results),
         "n_qualified": len(qualified),
+        "qualified_threshold": min_app,
         "categories": sorted(cats),
     }
 
@@ -411,7 +434,7 @@ def _build_output(results, session_data, skipped, top_n):
     pairwise = {}
     for cat_a, cat_b in cat_pairs:
         deltas = _pairwise_deltas(results, cat_a, cat_b,
-                                  min_per_cat=2, top_n=top_n)
+                                  min_per_cat=min_per_cat, top_n=top_n)
         if deltas:
             pairwise[f"{cat_a}_vs_{cat_b}"] = deltas
 
@@ -430,11 +453,11 @@ def _build_output(results, session_data, skipped, top_n):
         "highest_cv": [_token_row(r) for r in by_cv_desc[:top_n]],
         "lowest_cv": [_token_row(r) for r in by_cv_asc[:top_n]],
         "high_eta": [_token_row(r) for r in
-                     sorted([r for r in results if r["n_cats"] >= 2 and r["n"] >= 5],
+                     sorted([r for r in results if r["n_cats"] >= 2 and r["n"] >= min_app],
                             key=lambda x: x["eta_squared"]["density"],
                             reverse=True)[:top_n]],
         "cross_category": [_token_row(r) for r in
-                           sorted([r for r in results if r["n_cats"] >= 3 and r["n"] >= 5],
+                           sorted([r for r in results if r["n_cats"] >= 3 and r["n"] >= min_app],
                                   key=lambda x: x["channels"]["density"]["cv"],
                                   reverse=True)[:top_n]],
         "pairwise": pairwise,

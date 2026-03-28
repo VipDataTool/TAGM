@@ -627,7 +627,7 @@ function vizRenderConfig(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:540px;margin-top:8px">
       <div>
         <label style="font-size:12px;color:var(--text-1)">Auto-rotate default</label>
-        <div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="cfgTerrainAutoRotate" ${DISPLAY_DEFAULTS.terrainAutoRotate?'checked':''} onchange="DISPLAY_DEFAULTS.terrainAutoRotate=this.checked;saveConfig()"><label for="cfgTerrainAutoRotate">${DISPLAY_DEFAULTS.terrainAutoRotate?'On':'Off'}</label></div>
+        <div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="cfgTerrainAutoRotate" ${DISPLAY_DEFAULTS.terrainAutoRotate?'checked':''} onchange="DISPLAY_DEFAULTS.terrainAutoRotate=this.checked;saveConfig()"><label for="cfgTerrainAutoRotate">Enable</label></div>
       </div>
       <div>
         <label style="font-size:12px;color:var(--text-1)">Rotate speed (RPM)</label>
@@ -2191,7 +2191,7 @@ function _showTerrainLaunchMenu(totalCount){
 
   h += '</div>';
   h += '<div class="tm-grid" style="margin-bottom:14px">';
-  h += '<div><label>Auto-rotate</label><div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="tmAutoRotate"'+(d.terrainAutoRotate?' checked':'')+'><label for="tmAutoRotate">'+(d.terrainAutoRotate?'On':'Off')+'</label></div><div class="tm-desc">Spin terrain around vertical axis</div></div>';
+  h += '<div><label>Auto-rotate</label><div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="tmAutoRotate"'+(d.terrainAutoRotate?' checked':'')+'><label for="tmAutoRotate">Enable</label></div><div class="tm-desc">Spin terrain around vertical axis</div></div>';
   h += '<div><label>Rotate speed (RPM)</label><input type="number" id="tmRotateSpeed" value="'+d.terrainRotateSpeed+'" min="0.1" max="2.0" step="0.1" style="width:80px"><div class="tm-desc">Revolutions per minute</div></div>';
 
   h += '</div>';
@@ -2696,7 +2696,7 @@ function renderParamControl(modName, p) {
   var id = 'modp-' + modName + '-' + p.name;
   if (p.type === 'bool') {
     var checked = p.default ? ' checked' : '';
-    return '<div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="' + id + '"' + checked + '><label for="' + id + '">' + (p.default ? 'Enabled' : 'Disabled') + '</label></div>';
+    return '<div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="' + id + '"' + checked + '><label for="' + id + '">Enable</label></div>';
   }
   if (p.type === 'select') {
     var s = '<select id="' + id + '">';
@@ -2838,7 +2838,7 @@ function renderTokenVarianceResults(r) {
   h += '<div class="mod-results-body">';
   h += '<div class="mod-summary">';
   h += tvStat('Prompts', s.n_prompts, s.n_skipped + ' skipped');
-  h += tvStat('Tokens Analyzed', s.n_tokens_analyzed, s.n_qualified + ' qualified (n≥5)');
+  h += tvStat('Tokens Analyzed', s.n_tokens_analyzed, s.n_qualified + ' qualified (n≥' + (s.qualified_threshold||3) + ')');
   h += tvStat('Categories', s.categories ? s.categories.length : 0, s.categories ? s.categories.join(', ') : '');
   if (s.density_cv) {
     h += tvStat('Density CV (p50)', s.density_cv.p50.toFixed(4), 'p25=' + s.density_cv.p25.toFixed(4) + ' p75=' + s.density_cv.p75.toFixed(4));
