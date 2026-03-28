@@ -166,6 +166,43 @@ textarea{resize:vertical;min-height:44px}
 .terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}
 .terrain-leg canvas{height:5px;width:100px;border-radius:2px}
 .terrain-leg span{font-size:11px;color:#bbc}
+/* ─── Module Framework ─── */
+.mod-card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
+.mod-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px}
+.mod-info{flex:1;min-width:0}
+.mod-title{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text-0);display:flex;align-items:center;gap:8px}
+.mod-title .mod-ver{font-size:11px;color:var(--text-3);font-weight:400}
+.mod-desc{font-size:12px;color:var(--text-2);margin-top:3px;line-height:1.5}
+.mod-status{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid var(--border);white-space:nowrap}
+.mod-status.idle{color:var(--text-3);border-color:var(--border)}
+.mod-status.running{color:var(--orange);border-color:var(--orange);animation:pulse 1.5s infinite}
+.mod-status.completed{color:var(--green);border-color:var(--green)}
+.mod-status.error{color:var(--red);border-color:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.mod-params{padding:12px 16px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.mod-param label{font-size:11px;color:var(--cyan);font-family:var(--mono);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.mod-param .param-desc{font-size:10px;color:var(--text-3);margin-top:1px}
+.mod-actions{padding:10px 16px;display:flex;align-items:center;gap:10px}
+.mod-progress{font-family:var(--mono);font-size:11px;color:var(--text-2);flex:1}
+.mod-results{border-top:1px solid var(--border)}
+.mod-results-header{padding:10px 16px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;gap:6px;background:var(--bg-2)}
+.mod-results-header:hover{background:var(--bg-3)}
+.mod-results-body{max-height:600px;overflow-y:auto}
+.mod-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.mod-tbl th{text-align:left;padding:5px 8px;color:var(--text-2);border-bottom:1px solid var(--border);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;background:var(--bg-1);white-space:nowrap}
+.mod-tbl td{padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-0);white-space:nowrap}
+.mod-tbl tr:hover td{background:var(--bg-2)}
+.mod-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.mod-summary{padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.mod-stat{background:var(--bg-2);border-radius:6px;padding:8px 10px}
+.mod-stat .stat-label{font-family:var(--mono);font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px}
+.mod-stat .stat-value{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text-0);margin-top:2px}
+.mod-stat .stat-detail{font-size:10px;color:var(--text-2);margin-top:1px}
+.mod-section-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;padding:10px 16px 4px;border-top:1px solid var(--border)}
+.mod-reqs{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+.mod-req{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);color:var(--text-3)}
+.mod-req.met{border-color:var(--green);color:var(--green)}
+.mod-req.unmet{border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
@@ -249,6 +286,7 @@ textarea{resize:vertical;min-height:44px}
   <div class="main-tabs">
     <div class="main-tab active" onclick="switchMainTab(this,'panel-data')">Data</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Analysis</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-modules')">Modules</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
   </div>
   <div class="tab-panel" id="panel-dashboard">
@@ -257,7 +295,7 @@ textarea{resize:vertical;min-height:44px}
   </div>
   <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
     <div class="card" style="margin-bottom:10px">
-      <div class="card-header"><h3 style="font-size:13px">Field Glossary</h3></div>
+      <div class="card-header" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3 style="font-size:13px;display:flex;align-items:center;gap:6px"><span class="chevron" style="font-size:11px;color:var(--text-2)">▶</span> Field Glossary</h3></div>
       <div class="card-body collapsed" style="padding:12px 16px;font-size:12px;line-height:1.7;color:var(--text-1)">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
           <div>
@@ -300,6 +338,10 @@ textarea{resize:vertical;min-height:44px}
       </div>
     </div>
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
+  </div>
+  <div class="tab-panel" id="panel-modules">
+    <div id="modulesLoading" style="color:var(--text-3);font-family:var(--mono);font-size:12px;padding:8px">Loading modules...</div>
+    <div id="modulesContainer"></div>
   </div>
   <div class="tab-panel" id="panel-config">
     <div class="card">
@@ -2328,6 +2370,343 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
   h+='</div></div>';
   return h;
 }
+
+// ─── Module Framework ──────────────────────────────────────────
+
+var _moduleData = {};  // cached module metadata
+var _modulePollers = {};  // active polling intervals
+
+async function loadModules() {
+  try {
+    const r = await fetch('/api/modules');
+    const d = await r.json();
+    if (!d.ok) { $('modulesContainer').innerHTML = '<div class="error-msg">Failed to load modules</div>'; return; }
+    $('modulesLoading').style.display = 'none';
+    renderModules(d.modules);
+  } catch(e) {
+    $('modulesLoading').textContent = 'Failed to load modules: ' + e.message;
+  }
+}
+
+function renderModules(modules) {
+  if (!modules.length) {
+    $('modulesContainer').innerHTML = '<div style="padding:20px;color:var(--text-3);font-family:var(--mono);font-size:12px">No modules discovered. Place module files in engine/modules/</div>';
+    return;
+  }
+  var h = '';
+  modules.forEach(function(m) {
+    _moduleData[m.name] = m;
+    h += renderModuleCard(m);
+  });
+  $('modulesContainer').innerHTML = h;
+
+  // Resume polling for any running modules
+  modules.forEach(function(m) {
+    if (m.status === 'running') startModulePoll(m.name);
+    if (m.has_results) fetchModuleResults(m.name);
+  });
+}
+
+function renderModuleCard(m) {
+  var h = '<div class="mod-card" id="mod-' + m.name + '">';
+
+  // Header
+  h += '<div class="mod-header">';
+  h += '<div class="mod-info">';
+  h += '<div class="mod-title">' + escHtml(m.display_name) + ' <span class="mod-ver">v' + m.version + '</span></div>';
+  h += '<div class="mod-desc">' + escHtml(m.description) + '</div>';
+  // Requirements
+  var reqs = [];
+  if (m.requires_sfd) reqs.push('SFD');
+  if (m.requires_ltp) reqs.push('LTP');
+  if (m.requires_rd) reqs.push('RD');
+  if (reqs.length || m.min_results > 1) {
+    h += '<div class="mod-reqs">';
+    if (m.min_results > 1) h += '<span class="mod-req">' + m.min_results + '+ results</span>';
+    reqs.forEach(function(r) { h += '<span class="mod-req">' + r + '</span>'; });
+    h += '</div>';
+  }
+  h += '</div>';
+  h += '<div class="mod-status ' + m.status + '" id="mod-status-' + m.name + '">' + m.status + '</div>';
+  h += '</div>';
+
+  // Parameters
+  if (m.parameters && m.parameters.length) {
+    h += '<div class="mod-params">';
+    m.parameters.forEach(function(p) {
+      h += '<div class="mod-param">';
+      h += '<label>' + escHtml(p.display_name) + '</label>';
+      h += renderParamControl(m.name, p);
+      if (p.description) h += '<div class="param-desc">' + escHtml(p.description) + '</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+
+  // Actions
+  h += '<div class="mod-actions">';
+  h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="runModule(\'' + m.name + '\')">Run</button>';
+  h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
+  h += '</div>';
+
+  // Results placeholder
+  h += '<div id="mod-results-' + m.name + '"></div>';
+
+  h += '</div>';
+  return h;
+}
+
+function renderParamControl(modName, p) {
+  var id = 'modp-' + modName + '-' + p.name;
+  if (p.type === 'bool') {
+    var checked = p.default ? ' checked' : '';
+    return '<div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="' + id + '"' + checked + '><label for="' + id + '">' + (p.default ? 'Enabled' : 'Disabled') + '</label></div>';
+  }
+  if (p.type === 'select') {
+    var s = '<select id="' + id + '">';
+    p.options.forEach(function(o) {
+      var sel = o === p.default ? ' selected' : '';
+      s += '<option value="' + o + '"' + sel + '>' + o + '</option>';
+    });
+    s += '</select>';
+    return s;
+  }
+  if (p.type === 'int' || p.type === 'float') {
+    var step = p.type === 'float' ? '0.01' : '1';
+    var minA = p.min_val != null ? ' min="' + p.min_val + '"' : '';
+    var maxA = p.max_val != null ? ' max="' + p.max_val + '"' : '';
+    return '<input type="number" id="' + id + '" value="' + p.default + '" step="' + step + '"' + minA + maxA + ' style="width:80px">';
+  }
+  return '<input type="text" id="' + id + '" value="' + (p.default || '') + '">';
+}
+
+function getModuleParams(modName) {
+  var m = _moduleData[modName];
+  if (!m || !m.parameters) return {};
+  var params = {};
+  m.parameters.forEach(function(p) {
+    var el = $('modp-' + modName + '-' + p.name);
+    if (!el) { params[p.name] = p.default; return; }
+    if (p.type === 'bool') params[p.name] = el.checked;
+    else if (p.type === 'int') params[p.name] = parseInt(el.value) || p.default;
+    else if (p.type === 'float') params[p.name] = parseFloat(el.value) || p.default;
+    else params[p.name] = el.value;
+  });
+  return params;
+}
+
+async function runModule(name) {
+  var btn = $('mod-run-' + name);
+  var prog = $('mod-progress-' + name);
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  prog.textContent = 'Starting...';
+
+  var params = getModuleParams(name);
+  try {
+    const r = await fetch('/api/modules/' + name + '/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({params: params})
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      prog.textContent = '';
+      btn.disabled = false;
+      btn.textContent = 'Run';
+      updateModuleStatus(name, 'error');
+      alert(d.error || 'Module failed to start');
+      return;
+    }
+    updateModuleStatus(name, 'running');
+    startModulePoll(name);
+  } catch(e) {
+    prog.textContent = '';
+    btn.disabled = false;
+    btn.textContent = 'Run';
+    alert('Error: ' + e.message);
+  }
+}
+
+function startModulePoll(name) {
+  if (_modulePollers[name]) clearInterval(_modulePollers[name]);
+  _modulePollers[name] = setInterval(function() { pollModule(name); }, 500);
+}
+
+async function pollModule(name) {
+  try {
+    const r = await fetch('/api/modules/' + name + '/status');
+    const d = await r.json();
+    var prog = $('mod-progress-' + name);
+    if (prog) prog.textContent = d.progress || '';
+
+    if (d.status === 'completed') {
+      clearInterval(_modulePollers[name]);
+      delete _modulePollers[name];
+      updateModuleStatus(name, 'completed');
+      var btn = $('mod-run-' + name);
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
+      if (prog) {
+        var elapsed = d.completed_at && d.started_at ? (d.completed_at - d.started_at).toFixed(1) : '?';
+        prog.textContent = 'Completed in ' + elapsed + 's';
+      }
+      fetchModuleResults(name);
+    } else if (d.status === 'error') {
+      clearInterval(_modulePollers[name]);
+      delete _modulePollers[name];
+      updateModuleStatus(name, 'error');
+      var btn2 = $('mod-run-' + name);
+      if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
+      if (prog) prog.textContent = 'Error: ' + (d.error || 'unknown');
+    }
+  } catch(e) { /* silent retry */ }
+}
+
+function updateModuleStatus(name, status) {
+  var el = $('mod-status-' + name);
+  if (!el) return;
+  el.className = 'mod-status ' + status;
+  el.textContent = status;
+}
+
+async function fetchModuleResults(name) {
+  try {
+    const r = await fetch('/api/modules/' + name + '/results');
+    const d = await r.json();
+    if (!d.ok) return;
+    renderModuleResults(name, d.results);
+  } catch(e) { /* silent */ }
+}
+
+function renderModuleResults(name, results) {
+  var container = $('mod-results-' + name);
+  if (!container) return;
+
+  // Route to module-specific renderer
+  if (name === 'token_variance') {
+    container.innerHTML = renderTokenVarianceResults(results);
+  } else {
+    // Generic JSON dump fallback
+    container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
+  }
+}
+
+// ─── Token Variance Results Renderer ───────────────────────────
+
+function renderTokenVarianceResults(r) {
+  var s = r.summary;
+  var h = '<div class="mod-results">';
+
+  // Summary stats
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div class="mod-summary">';
+  h += tvStat('Prompts', s.n_prompts, s.n_skipped + ' skipped');
+  h += tvStat('Tokens Analyzed', s.n_tokens_analyzed, s.n_qualified + ' qualified (n≥5)');
+  h += tvStat('Categories', s.categories ? s.categories.length : 0, s.categories ? s.categories.join(', ') : '');
+  if (s.density_cv) {
+    h += tvStat('Density CV (p50)', s.density_cv.p50.toFixed(4), 'p25=' + s.density_cv.p25.toFixed(4) + ' p75=' + s.density_cv.p75.toFixed(4));
+    h += tvStat('Density η²', s.density_cv.eta_sq_mean.toFixed(4), 'median ' + s.density_cv.eta_sq_median.toFixed(4));
+  }
+  if (s.context_stable) {
+    h += tvStat('Context-Stable', s.context_stable.count, 'CV ≤ ' + s.context_stable.threshold.toFixed(4));
+    h += tvStat('Context-Dependent', s.context_dependent.count, 'CV ≥ ' + s.context_dependent.threshold.toFixed(4));
+  }
+  h += '</div></div>';
+
+  // Highest CV tokens
+  if (r.highest_cv && r.highest_cv.length) {
+    h += tvTokenTable('Highest Density CV — Most Context-Dependent', r.highest_cv);
+  }
+
+  // Lowest CV tokens
+  if (r.lowest_cv && r.lowest_cv.length) {
+    h += tvTokenTable('Lowest Density CV — Most Context-Stable', r.lowest_cv);
+  }
+
+  // Eta-squared
+  if (r.high_eta && r.high_eta.length) {
+    h += tvTokenTable('Highest η² — Most Category-Driven Variance', r.high_eta);
+  }
+
+  // Pairwise comparisons
+  if (r.pairwise) {
+    Object.keys(r.pairwise).forEach(function(key) {
+      var pair = r.pairwise[key];
+      if (!pair.length) return;
+      h += tvPairwiseTable(key.replace(/_/g, ' ').toUpperCase(), pair);
+    });
+  }
+
+  h += '</div>';
+  return h;
+}
+
+function tvStat(label, value, detail) {
+  return '<div class="mod-stat"><div class="stat-label">' + escHtml(label) + '</div><div class="stat-value">' + value + '</div>' + (detail ? '<div class="stat-detail">' + escHtml(String(detail)) + '</div>' : '') + '</div>';
+}
+
+function tvTokenTable(title, tokens) {
+  var h = '<div class="mod-section-title">' + escHtml(title) + '</div>';
+  h += '<div class="mod-results-body" style="max-height:350px">';
+  h += '<table class="mod-tbl"><thead><tr>';
+  h += '<th>Token</th><th class="num">n</th><th class="num">cats</th>';
+  h += '<th class="num">den_cv</th><th class="num">str_cv</th><th class="num">nrg_cv</th>';
+  h += '<th class="num">den_mean</th><th class="num">str_mean</th>';
+  h += '<th class="num">η²_den</th>';
+  h += '</tr></thead><tbody>';
+  tokens.forEach(function(t) {
+    var cv = t.density_cv || 0;
+    var cvCol = cv > 0.05 ? 'var(--orange)' : (cv < 0.01 ? 'var(--green)' : 'var(--text-0)');
+    h += '<tr>';
+    h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(t.token) + '</td>';
+    h += '<td class="num">' + t.n + '</td>';
+    h += '<td class="num">' + t.n_cats + '</td>';
+    h += '<td class="num" style="color:' + cvCol + '">' + (t.density_cv || 0).toFixed(4) + '</td>';
+    h += '<td class="num">' + (t.stress_cv || 0).toFixed(4) + '</td>';
+    h += '<td class="num">' + (t.energy_cv || 0).toFixed(4) + '</td>';
+    h += '<td class="num">' + (t.density_mean || 0).toFixed(4) + '</td>';
+    h += '<td class="num">' + (t.stress_mean || 0).toFixed(3) + '</td>';
+    h += '<td class="num">' + (t.eta_sq_density || 0).toFixed(4) + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function tvPairwiseTable(title, pairs) {
+  var h = '<div class="mod-section-title">' + escHtml(title) + '</div>';
+  h += '<div class="mod-results-body" style="max-height:300px">';
+  h += '<table class="mod-tbl"><thead><tr>';
+  h += '<th>Token</th><th class="num">Mean A</th><th class="num">n</th><th class="num">Mean B</th><th class="num">n</th><th class="num">Δ</th>';
+  h += '</tr></thead><tbody>';
+  pairs.forEach(function(p) {
+    var dc = p.diff > 0 ? 'var(--red)' : (p.diff < 0 ? 'var(--green)' : 'var(--text-0)');
+    h += '<tr>';
+    h += '<td style="color:var(--cyan)">' + escHtml(p.token) + '</td>';
+    h += '<td class="num">' + p.mean_a.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + p.n_a + '</td>';
+    h += '<td class="num">' + p.mean_b.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + p.n_b + '</td>';
+    h += '<td class="num" style="color:' + dc + ';font-weight:600">' + (p.diff > 0 ? '+' : '') + p.diff.toFixed(4) + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+// Load modules when the tab is first shown
+(function() {
+  var origSwitch = switchMainTab;
+  var modulesLoaded = false;
+  switchMainTab = function(el, id) {
+    origSwitch(el, id);
+    if (id === 'panel-modules' && !modulesLoaded) {
+      modulesLoaded = true;
+      loadModules();
+    }
+  };
+})();
 
 </script>
 </body>

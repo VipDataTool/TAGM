@@ -43,6 +43,7 @@ from engine.visualizations import (
 from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
+from engine.modules import ModuleRunner
 
 # ─── Logging ─────────────────────────────────────────────────────
 LOG_FILE = Path(__file__).parent / "tasm.log"
@@ -64,6 +65,7 @@ session: Optional[DatasetSession] = None
 progress_log = []
 loading_state = {"active": False, "error": None}
 user_info = {"name": "", "organization": ""}
+module_runner = ModuleRunner()
 
 # Locks protecting shared mutable state from concurrent access.
 # _analysis_lock: serializes forward passes, activation caches, and session writes.
@@ -1177,6 +1179,51 @@ def _run_export_sync(opts=None):
     except Exception as e:
         logger.error(f"Export ZIP failed: {traceback.format_exc()}")
         log_progress("error", f"Export ZIP failed: {str(e)[:80]}")
+
+
+# ─── Module Framework Endpoints ──────────────────────────────────
+
+@app.get("/api/modules")
+async def list_modules():
+    """List all available analysis modules with status."""
+    return {"ok": True, "modules": module_runner.list_modules()}
+
+
+@app.post("/api/modules/{module_name}/run")
+async def run_module(module_name: str, request: Request):
+    """Start a module in a background thread."""
+    if not session or session.n_results == 0:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "error": "No session data."})
+
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    params = body.get("params", {})
+
+    result = module_runner.run_module(
+        module_name,
+        session.results,
+        params,
+        session_dir=session.session_dir,
+    )
+    if not result["ok"]:
+        return JSONResponse(status_code=400, content=result)
+    return result
+
+
+@app.get("/api/modules/{module_name}/status")
+async def module_status(module_name: str):
+    """Check module execution status."""
+    return module_runner.get_status(module_name)
+
+
+@app.get("/api/modules/{module_name}/results")
+async def module_results(module_name: str):
+    """Get module results."""
+    results = module_runner.get_results(module_name)
+    if results is None:
+        return JSONResponse(status_code=404,
+                            content={"ok": False, "error": "No results available."})
+    return sanitize_for_json({"ok": True, "results": results})
 
 
 @app.get("/api/log")
