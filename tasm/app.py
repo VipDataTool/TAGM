@@ -116,7 +116,11 @@ REPORTS_DIR.mkdir(exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("TASM Analyzer starting up")
-    # Clean stale session data from previous server run
+    # Clean stale session data from previous server run.
+    # This is deliberate: schema changes between versions could make
+    # old results.json incompatible with new code. Fresh start is safe.
+    # Users can manually restore via /api/session/restore if they know
+    # the data is compatible.
     stale = Path("datasets/current")
     if stale.exists():
         import shutil
@@ -305,6 +309,7 @@ async def serve_favicon():
 
 @app.get("/api/status")
 async def get_status():
+    disk_info = DatasetSession.has_session_on_disk() if not session else None
     return {
         "model_loaded": mm.is_loaded() and not loading_state["active"],
         "loading": loading_state["active"],
@@ -316,7 +321,9 @@ async def get_status():
             "n_results": session.n_results if session else 0,
             "categories": session.categories if session else {},
             "cache_size_bytes": session.get_cache_size() if session else 0,
+            "model": session.model_name if session else "",
         } if session else None,
+        "restorable": disk_info,
         "user_info": user_info,
     }
 
@@ -423,6 +430,32 @@ async def clear_session_all():
     logger.info(f"Cleared all session data: {freed_mb:.1f}MB freed")
     return {"ok": True, "freed_bytes": freed, "freed_mb": round(freed_mb, 1),
             "n_remaining": 0, "cache_size_bytes": 0}
+
+
+@app.post("/api/session/restore")
+async def restore_session():
+    """Restore session from disk. Used after browser crash or page refresh."""
+    global session
+    disk_info = DatasetSession.has_session_on_disk()
+    if not disk_info or not disk_info.get("has_results"):
+        return JSONResponse(status_code=404,
+                            content={"ok": False, "error": "No session data found on disk."})
+
+    restored = DatasetSession.restore()
+    if not restored or restored.n_results == 0:
+        return JSONResponse(status_code=500,
+                            content={"ok": False, "error": "Session data exists but could not be parsed."})
+
+    session = restored
+    logger.info(f"[SESSION] Manual restore: {session.n_results} results, "
+                f"model: {session.model_name or 'unknown'}")
+    return {
+        "ok": True,
+        "n_results": session.n_results,
+        "categories": session.categories,
+        "model": session.model_name,
+        "cache_size_bytes": session.get_cache_size(),
+    }
 
 
 @app.get("/api/progress")

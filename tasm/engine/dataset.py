@@ -74,6 +74,103 @@ class DatasetSession:
         self.model_name = ""
         self._csv_initialized = False
 
+    @classmethod
+    def restore(cls, base_dir: str = "datasets"):
+        """Restore a session from disk without wiping.
+
+        Reads results.json and session.json from datasets/current/
+        and rebuilds the in-memory state. Returns None if no valid
+        session data exists on disk.
+        """
+        base = Path(base_dir)
+        session_dir = base / cls.SESSION_DIR_NAME
+        results_path = session_dir / "results.json"
+        session_meta_path = session_dir / "session.json"
+
+        if not session_dir.exists() or not results_path.exists():
+            return None
+
+        try:
+            with open(results_path) as f:
+                results = json.load(f)
+            if not isinstance(results, list) or len(results) == 0:
+                return None
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"[SESSION] Failed to read results.json: {e}")
+            return None
+
+        # Build session object without wiping
+        obj = object.__new__(cls)
+        obj.base_dir = base
+        obj.session_dir = session_dir
+        obj.results = results
+        obj.csv_path = session_dir / "summary.csv"
+        obj.json_path = results_path
+        obj.model_name = ""
+        obj._csv_initialized = obj.csv_path.exists()
+
+        # Read session metadata
+        if session_meta_path.exists():
+            try:
+                with open(session_meta_path) as f:
+                    meta = json.load(f)
+                obj.model_name = meta.get("model", "")
+                obj.timestamp = meta.get("started", "")
+            except (json.JSONDecodeError, IOError):
+                obj.timestamp = time.strftime("%Y%m%d_%H%M%S")
+        else:
+            obj.timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+        logger.info(f"[SESSION] Restored {len(results)} results from disk "
+                     f"(model: {obj.model_name or 'unknown'})")
+        return obj
+
+    @staticmethod
+    def has_session_on_disk(base_dir: str = "datasets") -> dict:
+        """Check if restorable session data exists on disk.
+
+        Returns dict with info about what's available, or None.
+        """
+        base = Path(base_dir)
+        session_dir = base / DatasetSession.SESSION_DIR_NAME
+        results_path = session_dir / "results.json"
+
+        if not session_dir.exists() or not results_path.exists():
+            return None
+
+        info = {"path": str(session_dir), "has_results": False}
+
+        try:
+            size = results_path.stat().st_size
+            info["results_size_bytes"] = size
+            # Quick count without full parse: read first few bytes to check
+            # it's a JSON array, then count top-level entries
+            if size > 2:
+                info["has_results"] = True
+        except IOError:
+            return None
+
+        # Session metadata
+        meta_path = session_dir / "session.json"
+        if meta_path.exists():
+            try:
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                info["model"] = meta.get("model", "")
+                info["started"] = meta.get("started", "")
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        # Aggregate stats
+        agg_path = session_dir / "aggregate_statistics.json"
+        info["has_aggregate"] = agg_path.exists()
+
+        # Module results
+        module_files = list(session_dir.glob("module_*.json"))
+        info["module_results"] = [f.stem for f in module_files]
+
+        return info
+
     def _cleanup_old_sessions(self):
         """Remove any timestamped session directories from prior versions."""
         if not self.base_dir.exists():

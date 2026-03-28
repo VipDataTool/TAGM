@@ -437,8 +437,8 @@ function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').for
 function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
 
 // ─── Card Collapse Defaults ─────────────────────────────────────
-const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',dashboard:'expanded',config:'expanded'};
-const CARD_COLLAPSE_LABELS={prompt:'Prompt',dashboard:'Analysis',config:'Configuration'};
+const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',dashboard:'expanded',modules:'expanded',config:'expanded'};
+const CARD_COLLAPSE_LABELS={prompt:'Prompt',dashboard:'Analysis',modules:'Modules',config:'Configuration'};
 function cardDefault(tab){return CARD_COLLAPSE_DEFAULTS[tab]==='collapsed'?' collapsed':''}
 function applyCardDefaults(panelId,tab){
   const panel=$(panelId);if(!panel)return;
@@ -451,6 +451,7 @@ function applyCardDefaults(panelId,tab){
 
 // ─── Export Defaults ────────────────────────────────────────────
 const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
+const DISPLAY_DEFAULTS={terrainCharLimit:50};
 
 // Global delegated click handler for all card headers
 document.addEventListener('click',function(e){
@@ -562,6 +563,16 @@ function vizRenderConfig(){
       <input type="text" id="cfgExportPath" value="${EXPORT_DEFAULTS.exportPath}" placeholder="/path/to/export/directory" onchange="EXPORT_DEFAULTS.exportPath=this.value.trim();saveConfig()" style="margin-bottom:0">
     </div>
   </div>`;
+  // Session management
+  var sCount=_promptTotal||dashResults.length||sessionResults.length;
+  var sessionInfo=sCount>0?(sCount+' results'):'No active session';
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Session</div>
+    <div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Current session: <strong>${sessionInfo}</strong>. Session data persists on disk across browser refreshes and crashes. Use Restore to recover a session after a page reload.</div>
+    <div style="display:flex;gap:8px;max-width:540px">
+      <button class="btn btn-sm btn-secondary" onclick="restoreSessionFromDisk()">Restore Session</button>
+    </div>
+  </div>`;
   // Cache management
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cache Management</div>
@@ -570,6 +581,17 @@ function vizRenderConfig(){
     <div style="display:flex;gap:8px;max-width:540px">
       <button class="btn btn-sm btn-secondary" onclick="clearPlotCache()">Clear Plot Cache</button>
       <button class="btn btn-sm btn-danger" onclick="clearAllSessionData()">Clear All Session Data</button>
+    </div>
+  </div>`;
+  // Display settings
+  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Display</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:540px">
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Terrain prompt char limit</label>
+        <input type="number" id="cfgTerrainCharLimit" value="${DISPLAY_DEFAULTS.terrainCharLimit}" min="20" max="200" step="5" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainCharLimit=parseInt(this.value)||50;saveConfig()">
+        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Prompt labels in terrain viewer dropdown</div>
+      </div>
     </div>
   </div>`;
   // Viz toggles by category
@@ -582,10 +604,7 @@ function vizRenderConfig(){
       h+=`<div class="viz-config-row">
         <input type="checkbox" id="viz_${item.key}" ${item.on?'checked':''} onchange="VIZ_REGISTRY['${item.key}'].on=this.checked;saveConfig()">
         <label for="viz_${item.key}" style="flex:1"><span style="color:var(--text-0)">${item.title}</span> <span style="color:var(--text-2);font-size:12px">— ${item.desc}</span></label>
-        <select style="width:60px;font-size:11px;padding:3px" onchange="VIZ_REGISTRY['${item.key}'].scope=this.value;saveConfig();vizRenderConfig()">
-          <option value="prompt" ${item.scope==='prompt'?'selected':''}>Prompt</option>
-          <option value="batch" ${item.scope==='batch'?'selected':''}>Batch</option>
-        </select>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);padding:3px 6px;border:1px solid var(--border);border-radius:3px;min-width:48px;text-align:center">${item.scope}</span>
         <input type="number" value="${item.order}" min="1" max="999" style="width:42px;font-size:11px;padding:3px;text-align:center" onchange="VIZ_REGISTRY['${item.key}'].order=parseInt(this.value)||0;saveConfig()">
       </div>`;
     }
@@ -612,7 +631,7 @@ function applyFontConfig(){
 async function saveConfig(){
   try{
     const vizState={};
-    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]={on:v.on,scope:v.scope,order:v.order};
+    for(const[k,v]of Object.entries(VIZ_REGISTRY)) vizState[k]={on:v.on,order:v.order};
     const config={
       viz: vizState,
       fonts:{
@@ -633,7 +652,8 @@ async function saveConfig(){
         fullCapture: $('cfgFullCapture')?$('cfgFullCapture').checked:false,
       },
       cardCollapse:{...CARD_COLLAPSE_DEFAULTS},
-      exportOpts:{...EXPORT_DEFAULTS}
+      exportOpts:{...EXPORT_DEFAULTS},
+      display:{...DISPLAY_DEFAULTS}
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
   }catch(e){}
@@ -647,7 +667,7 @@ async function loadConfig(){
     const c=data.config;
     // Viz toggles
     if(c.viz){for(const[k,cfg]of Object.entries(c.viz)){if(VIZ_REGISTRY[k]){
-      if(typeof cfg==='object'){VIZ_REGISTRY[k].on=!!cfg.on;if(cfg.scope)VIZ_REGISTRY[k].scope=cfg.scope;if(cfg.order!=null)VIZ_REGISTRY[k].order=cfg.order}
+      if(typeof cfg==='object'){VIZ_REGISTRY[k].on=!!cfg.on;if(cfg.order!=null)VIZ_REGISTRY[k].order=cfg.order}
       else{VIZ_REGISTRY[k].on=!!cfg} // backward compat: old format was just bool
     }}}
     // Font sizes
@@ -684,6 +704,10 @@ async function loadConfig(){
       if(typeof c.exportOpts.includeArrays==='boolean')EXPORT_DEFAULTS.includeArrays=c.exportOpts.includeArrays;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
     }
+    // Display settings
+    if(c.display){
+      if(c.display.terrainCharLimit)DISPLAY_DEFAULTS.terrainCharLimit=parseInt(c.display.terrainCharLimit)||50;
+    }
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
     applyCardDefaults('panel-config','config');
@@ -691,6 +715,25 @@ async function loadConfig(){
 }
 
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
+
+async function restoreSessionFromDisk(){
+  try{
+    log('Restoring session from disk...','');
+    const r=await(await fetch('/api/session/restore',{method:'POST'})).json();
+    if(r.ok){
+      _promptTotal=r.n_results;
+      if(r.cache_size_bytes)_cacheBytes=r.cache_size_bytes;
+      updateSessionBadge();
+      renderDataTable();
+      $('dashBtn').disabled=false;
+      $('exportBtn').disabled=false;
+      log('Session restored: '+r.n_results+' results'+(r.model?' ('+r.model+')':''),'done');
+      vizRenderConfig(); // refresh config panel to update session info
+    }else{
+      log('Restore failed: '+(r.error||'unknown error'),'error');
+    }
+  }catch(e){log('Restore error: '+e.message,'error')}
+}
 
 async function clearPlotCache(){
   if(!confirm('Delete all cached plot images? Data (CSV, JSON, metrics) will be kept.')) return;
@@ -1888,7 +1931,7 @@ function _terrainRendererCore(container, D, opts){
     h+='</select><span class="tsep">|</span>';
     h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
     var entries=D[curCat]||[];
-    entries.forEach(function(e,i){h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,50)+'</option>'});
+    entries.forEach(function(e,i){h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,DISPLAY_DEFAULTS.terrainCharLimit)+'</option>'});
     h+='</select>';
     h+='<button class="tb" onclick="window._terrainPrev()">Prev</button>';
     var playLabel=slideshowPlaying?'Stop':'Play';
@@ -1920,7 +1963,7 @@ function _terrainRendererCore(container, D, opts){
 
   function refreshPromptSelect(){
     var sel=document.getElementById('tPSel');if(!sel)return;sel.innerHTML='';
-    (D[curCat]||[]).forEach(function(e,i){var o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,50);if(i===curIdx)o.selected=true;sel.appendChild(o)});
+    (D[curCat]||[]).forEach(function(e,i){var o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,DISPLAY_DEFAULTS.terrainCharLimit);if(i===curIdx)o.selected=true;sel.appendChild(o)});
   }
 
   window._terrainSelectCat=function(c){curCat=c;curIdx=0;if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}buildUI();build()};
@@ -2094,9 +2137,16 @@ async function _lazyLoadTerrainPopout(totalCount){
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
-    if(st.session&&st.session.n_results>0){_promptTotal=st.session.n_results;if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;updateSessionBadge();renderDataTable()}
-    // Restore baselines toggle from server state
-    // (baseline toggle removed)
+    // Restored session: populate data table and enable dashboard
+    if(st.session&&st.session.n_results>0){
+      _promptTotal=st.session.n_results;
+      if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;
+      updateSessionBadge();
+      renderDataTable();
+      $('dashBtn').disabled=false;
+      $('exportBtn').disabled=false;
+      log('Session restored: '+st.session.n_results+' results'+(st.session.model?' ('+st.session.model+')':''),'done');
+    }
   }catch(e){}
 })();
 
