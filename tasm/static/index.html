@@ -2228,24 +2228,29 @@ async function _lazyLoadTerrainPopout(totalCount, params){
 
   var allResults=[];
   var CHUNK=25;
+  // Estimate how many we need to fetch: if filtering by category, overshoot
+  // since we don't know the distribution. Otherwise stop at recordLimit.
+  var fetchLimit = (catFilter !== 'all') ? totalCount : recordLimit;
   try{
-    for(var start=0;start<totalCount;start+=CHUNK){
-      log('Loading terrain data... '+start+'/'+totalCount);
+    for(var start=0;start<totalCount&&allResults.length<fetchLimit;start+=CHUNK){
+      log('Loading terrain data... '+allResults.length+'/'+fetchLimit+(catFilter!=='all'?' (scanning for '+catFilter+')':''));
       var resp=await fetch('/api/results/detail?start='+start+'&count='+CHUNK);
       var data=await resp.json();
       if(!data.ok)break;
-      allResults=allResults.concat(data.results);
-    }
-    // Apply category filter
-    if(catFilter !== 'all'){
-      allResults = allResults.filter(function(r){ return r.category === catFilter; });
-      log('Filtered to '+allResults.length+' '+catFilter+' prompts');
+      if(catFilter !== 'all'){
+        // Filter as we go so we can stop early
+        var matching = data.results.filter(function(r){ return r.category === catFilter; });
+        allResults = allResults.concat(matching);
+        if(allResults.length >= recordLimit) break;
+      } else {
+        allResults=allResults.concat(data.results);
+      }
     }
     // Apply record limit
     if(allResults.length > recordLimit){
       allResults = allResults.slice(0, recordLimit);
-      log('Limited to '+recordLimit+' records');
     }
+    log('Loaded '+allResults.length+' records'+(catFilter!=='all'?' ('+catFilter+')':''));
     // Apply token limit — truncate per-prompt arrays
     allResults.forEach(function(r){
       if(r.tokens && r.tokens.length > tokenLimit){
