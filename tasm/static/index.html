@@ -1658,6 +1658,7 @@ function _terrainRendererCore(container, D, opts){
   // Self-contained terrain renderer — used by both the embedded viewer
   // and the popout window (via .toString() serialization).
   // Only external dependency: THREE.js must be loaded.
+  var charLimit=(opts&&opts.charLimit)||50;
 
   // Color ramps — dual palette
   function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
@@ -1931,7 +1932,7 @@ function _terrainRendererCore(container, D, opts){
     h+='</select><span class="tsep">|</span>';
     h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
     var entries=D[curCat]||[];
-    entries.forEach(function(e,i){h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,DISPLAY_DEFAULTS.terrainCharLimit)+'</option>'});
+    entries.forEach(function(e,i){h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,charLimit)+'</option>'});
     h+='</select>';
     h+='<button class="tb" onclick="window._terrainPrev()">Prev</button>';
     var playLabel=slideshowPlaying?'Stop':'Play';
@@ -1963,7 +1964,7 @@ function _terrainRendererCore(container, D, opts){
 
   function refreshPromptSelect(){
     var sel=document.getElementById('tPSel');if(!sel)return;sel.innerHTML='';
-    (D[curCat]||[]).forEach(function(e,i){var o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,DISPLAY_DEFAULTS.terrainCharLimit);if(i===curIdx)o.selected=true;sel.appendChild(o)});
+    (D[curCat]||[]).forEach(function(e,i){var o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,charLimit);if(i===curIdx)o.selected=true;sel.appendChild(o)});
   }
 
   window._terrainSelectCat=function(c){curCat=c;curIdx=0;if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}buildUI();build()};
@@ -2064,7 +2065,7 @@ function initTerrainViewer(results){
   if(!Object.keys(D).length) return;
 
   // Run the shared renderer in the embedded container
-  _terrainRendererCore(container, D, {});
+  _terrainRendererCore(container, D, {charLimit:typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50});
 
   // Popout: opens a new window with the same renderer and data
   window._terrainPopout=function(){
@@ -2095,7 +2096,7 @@ function _openTerrainWindow(D){
     w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
     w.document.write('<script>var D='+dataJSON+';<\/script>');
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
-    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true})});<\/script>');
+    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+(typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50)+'})});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
 }
@@ -2461,17 +2462,21 @@ function renderModules(modules) {
 function renderModuleCard(m) {
   var h = '<div class="mod-card" id="mod-' + m.name + '">';
 
+  var modCollapsed = CARD_COLLAPSE_DEFAULTS.modules === 'collapsed';
+  var chevSymbol = modCollapsed ? '▶' : '▼';
+  var bodyStyle = modCollapsed ? ' style="display:none"' : '';
+
   // Collapsible header - click to toggle body
   h += '<div class="mod-header" onclick="toggleModCard(\'' + m.name + '\')" style="cursor:pointer">';
   h += '<div class="mod-info">';
-  h += '<div class="mod-title"><span class="mod-chevron" id="mod-chev-' + m.name + '" style="font-size:11px;color:var(--text-2);flex-shrink:0">▼</span> ' + escHtml(m.display_name) + ' <span class="mod-ver">v' + m.version + '</span></div>';
+  h += '<div class="mod-title"><span class="mod-chevron" id="mod-chev-' + m.name + '" style="font-size:11px;color:var(--text-2);flex-shrink:0">' + chevSymbol + '</span> ' + escHtml(m.display_name) + ' <span class="mod-ver">v' + m.version + '</span></div>';
   h += '<div class="mod-desc">' + escHtml(m.description) + '</div>';
   h += '</div>';
   h += '<div class="mod-status ' + m.status + '" id="mod-status-' + m.name + '">' + m.status + '</div>';
   h += '</div>';
 
   // Collapsible body
-  h += '<div class="mod-body" id="mod-body-' + m.name + '">';
+  h += '<div class="mod-body" id="mod-body-' + m.name + '"' + bodyStyle + '>';
 
   // Requirements
   var reqs = [];
