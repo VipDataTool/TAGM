@@ -831,9 +831,9 @@ async def get_dashboard():
 def _run_dashboard_sync():
     """Synchronous dashboard generation — runs in a thread.
 
-    Design: returns a lightweight response (~120KB for 200 prompts).
-    Plots are saved to disk and served as static files, not embedded in JSON.
-    Results contain only scalar metrics for the data table.
+    Design: returns a lightweight response with aggregate stats and
+    scalar results. Plots are NOT generated here — they are generated
+    lazily on first request via /api/plots/{key}.
     """
     logger.info(f"Dashboard request: {session.n_results} prompts in session")
     results = session.results
@@ -842,31 +842,21 @@ def _run_dashboard_sync():
 
     agg = aggregate_batch(pr_list)
 
-    # ── Generate plots and save to disk ──
-    agg_plots = {"batch_summary": plot_batch_summary(agg),
-                 "separability": plot_separability(agg)}
-    comp_plots = generate_all_comparative(results)
-    all_plots_b64 = {**agg_plots, **comp_plots}
-
-    plots_dir = session.session_dir / "plots"
-    plots_dir.mkdir(exist_ok=True)
-    available_plots = []
-    for key, b64_data in all_plots_b64.items():
-        if not b64_data:
-            continue
-        try:
-            png_bytes = base64.b64decode(b64_data)
-            (plots_dir / f"{key}.png").write_bytes(png_bytes)
-            available_plots.append(key)
-        except Exception as e:
-            logger.warning(f"Failed to save plot {key}: {e}")
-
-    logger.info(f"Saved {len(available_plots)} plots to {plots_dir}")
-
     session.save_aggregate_json(agg)
     session.save_results_json()
 
-    logger.info(f"Dashboard generated: {session.n_results} prompts")
+    # Declare all possible plot keys (not yet generated)
+    available_plots = [
+        "batch_summary", "separability",
+        "key_scatters", "discriminative_sublayers", "proof1_summary",
+        "exp_trajectory_overlay", "exp_difference_from_benign",
+        "exp_metric_scatters", "exp_behavioral_comparison",
+        "exp_ltp_category_comparison", "exp_ltp_m_vs_stress",
+        "exp_ltp_profile_shapes", "exp_sfd_category_comparison",
+        "exp_sfd_vs_asm", "exp_rank_displacement",
+    ]
+
+    logger.info(f"Dashboard stats generated: {session.n_results} prompts")
 
     # ── Build lightweight result list (scalars only) ──
     slim_results = []
@@ -922,16 +912,127 @@ def _run_dashboard_sync():
 
 @app.get("/api/plots/{plot_key}")
 async def get_plot(plot_key: str):
-    """Serve a pre-generated plot as a PNG file."""
+    """Serve a plot as a PNG file, generating it on demand if needed."""
     if not session:
         return JSONResponse(status_code=404, content={"error": "No session."})
-    # Sanitize key to prevent path traversal
     safe_key = "".join(c for c in plot_key if c.isalnum() or c in "_-")
-    plot_path = session.session_dir / "plots" / f"{safe_key}.png"
-    if not plot_path.exists():
-        return JSONResponse(status_code=404, content={"error": f"Plot '{plot_key}' not found."})
-    return FileResponse(plot_path, media_type="image/png",
-                        headers={"Cache-Control": "no-cache"})
+    plots_dir = session.session_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+    plot_path = plots_dir / f"{safe_key}.png"
+
+    # Serve from cache if already generated
+    if plot_path.exists():
+        return FileResponse(plot_path, media_type="image/png",
+                            headers={"Cache-Control": "no-cache"})
+
+    # Generate on demand
+    import asyncio
+    try:
+        png_bytes = await asyncio.to_thread(_generate_plot_sync, safe_key)
+        if png_bytes:
+            plot_path.write_bytes(png_bytes)
+            return FileResponse(plot_path, media_type="image/png",
+                                headers={"Cache-Control": "no-cache"})
+        else:
+            return JSONResponse(status_code=404,
+                                content={"error": f"Plot '{plot_key}' could not be generated."})
+    except Exception as e:
+        logger.error(f"Plot generation failed for {safe_key}: {e}")
+        return JSONResponse(status_code=500,
+                            content={"error": f"Plot generation failed: {str(e)[:80]}"})
+
+
+# Lock to prevent duplicate generation of the same plot
+_plot_gen_lock = threading.Lock()
+
+def _generate_plot_sync(plot_key: str) -> Optional[bytes]:
+    """Generate a single plot by key. Returns PNG bytes or None."""
+    with _plot_gen_lock:
+        # Double-check: another thread may have generated while we waited
+        plots_dir = session.session_dir / "plots"
+        plot_path = plots_dir / f"{plot_key}.png"
+        if plot_path.exists():
+            return plot_path.read_bytes()
+
+        logger.info(f"[PLOT] Generating on demand: {plot_key}")
+        results = session.results
+
+        # Load aggregate stats if needed
+        agg = None
+        agg_path = session.session_dir / "aggregate_statistics.json"
+        if agg_path.exists():
+            try:
+                with open(agg_path) as f:
+                    agg = json.load(f)
+            except Exception:
+                pass
+
+        # If agg not on disk, compute it
+        if agg is None:
+            from engine.analyzer import PromptResult
+            pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
+            agg = aggregate_batch(pr_list)
+
+        b64 = None
+
+        # Aggregate-based plots
+        if plot_key == "batch_summary":
+            b64 = plot_batch_summary(agg)
+        elif plot_key == "separability":
+            b64 = plot_separability(agg)
+
+        # Comparative plots (proven)
+        elif plot_key == "key_scatters":
+            from engine.comparative import plot_key_scatters
+            b64 = plot_key_scatters(results)
+        elif plot_key == "discriminative_sublayers":
+            from engine.comparative import plot_discriminative_sublayers
+            b64 = plot_discriminative_sublayers(results)
+        elif plot_key == "proof1_summary":
+            from engine.comparative import plot_proof1_summary
+            b64 = plot_proof1_summary(results)
+
+        # Comparative plots (experimental)
+        elif plot_key == "exp_trajectory_overlay":
+            from engine.comparative import plot_trajectory_overlay
+            b64 = plot_trajectory_overlay(results)
+        elif plot_key == "exp_difference_from_benign":
+            from engine.comparative import plot_difference_from_benign
+            b64 = plot_difference_from_benign(results)
+        elif plot_key == "exp_metric_scatters":
+            from engine.comparative import plot_metric_scatters
+            b64 = plot_metric_scatters(results)
+        elif plot_key == "exp_behavioral_comparison":
+            from engine.comparative import plot_behavioral_comparison
+            b64 = plot_behavioral_comparison(results)
+        elif plot_key == "exp_ltp_category_comparison":
+            from engine.comparative import plot_ltp_category_comparison
+            b64 = plot_ltp_category_comparison(results)
+        elif plot_key == "exp_ltp_m_vs_stress":
+            from engine.comparative import plot_ltp_m_vs_stress
+            b64 = plot_ltp_m_vs_stress(results)
+        elif plot_key == "exp_ltp_profile_shapes":
+            from engine.comparative import plot_ltp_profile_shape_distribution
+            b64 = plot_ltp_profile_shape_distribution(results)
+        elif plot_key == "exp_sfd_category_comparison":
+            from engine.comparative import plot_sfd_category_comparison
+            b64 = plot_sfd_category_comparison(results)
+        elif plot_key == "exp_sfd_vs_asm":
+            from engine.comparative import plot_sfd_vs_asm
+            b64 = plot_sfd_vs_asm(results)
+        elif plot_key == "exp_rank_displacement":
+            from engine.comparative import plot_rank_displacement_by_category
+            b64 = plot_rank_displacement_by_category(results)
+        else:
+            logger.warning(f"[PLOT] Unknown plot key: {plot_key}")
+            return None
+
+        if b64:
+            png_bytes = base64.b64decode(b64)
+            elapsed = "generated"
+            logger.info(f"[PLOT] {plot_key} {elapsed}")
+            return png_bytes
+        return None
 
 
 @app.get("/api/plots/individual/{index}/{plot_key}")
