@@ -356,7 +356,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="card">
       <div class="card-header"><h3>LTP Configuration</h3></div>
       <div class="card-body">
-        <div style="font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5">Fine-tuning for the Lateral Tension Profile measurement. Default settings (late layers, k=8, no SVD, no tuned-lens) are optimal for Qwen 2.5 0.5B based on A/B testing across 8 configurations. Change these only for research exploration on different model architectures.</div>
+        <div style="font-size:11px;color:var(--text-1);margin-bottom:12px;line-height:1.5">Configuration for the Lateral Tension Profile measurement. Layer strategy determines which layers are probed. Counterfactual k controls how many alternative tokens are examined per position.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
           <div>
             <label style="font-size:12px;color:var(--cyan)">Layer strategy</label>
@@ -371,22 +371,6 @@ textarea{resize:vertical;min-height:44px}
               <option value="4">k=4</option>
               <option value="6">k=6</option>
               <option value="8" selected>k=8</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;color:var(--cyan)">SVD truncation</label>
-            <select id="cfgLtpSvdRank" onchange="saveConfig()">
-              <option value="0" selected>Off (full delta)</option>
-              <option value="3">Rank 3</option>
-              <option value="5">Rank 5</option>
-              <option value="8">Rank 8</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;color:var(--cyan)">Tuned-lens</label>
-            <select id="cfgLtpTunedLens" onchange="saveConfig()">
-              <option value="false" selected>Off</option>
-              <option value="true">On</option>
             </select>
           </div>
         </div>
@@ -684,8 +668,6 @@ async function saveConfig(){
       ltp:{
         layerStrategy: $('cfgLtpLayerStrategy')?$('cfgLtpLayerStrategy').value:'late',
         k: $('cfgLtpK')?$('cfgLtpK').value:'8',
-        svdRank: $('cfgLtpSvdRank')?$('cfgLtpSvdRank').value:'0',
-        tunedLens: $('cfgLtpTunedLens')?$('cfgLtpTunedLens').value:'false',
       },
       analysis:{
         computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
@@ -722,8 +704,6 @@ async function loadConfig(){
     if(c.ltp){
       if(c.ltp.layerStrategy&&$('cfgLtpLayerStrategy'))$('cfgLtpLayerStrategy').value=c.ltp.layerStrategy;
       if(c.ltp.k&&$('cfgLtpK'))$('cfgLtpK').value=c.ltp.k;
-      if(c.ltp.svdRank&&$('cfgLtpSvdRank'))$('cfgLtpSvdRank').value=c.ltp.svdRank;
-      if(c.ltp.tunedLens&&$('cfgLtpTunedLens'))$('cfgLtpTunedLens').value=c.ltp.tunedLens;
     }
     // Analysis options
     if(c.analysis){
@@ -760,7 +740,7 @@ async function loadConfig(){
   }catch(e){}
 }
 
-function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';$('cfgLtpSvdRank').value='0';$('cfgLtpTunedLens').value='false';saveConfig();log('LTP config reset to defaults','done')}
+function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';saveConfig();log('LTP config reset to defaults','done')}
 
 async function restoreSessionFromDisk(){
   try{
@@ -880,8 +860,8 @@ function _buildAnalysisFormData(){
   fd.append('compute_sfd',$('computeSFD').checked);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
-  fd.append('ltp_svd_rank',$('cfgLtpSvdRank').value);
-  fd.append('ltp_tuned_lens',$('cfgLtpTunedLens').value==='true');
+  fd.append('ltp_svd_rank',0);
+  fd.append('ltp_tuned_lens',false);
   return fd;
 }
 
@@ -1391,8 +1371,8 @@ async function dtRerunSelected(){
     compute_sfd:$('computeSFD')&&$('computeSFD').checked,
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
-    ltp_svd_rank:parseInt(($('cfgLtpSvdRank')&&$('cfgLtpSvdRank').value)||0),
-    ltp_tuned_lens:$('cfgLtpTunedLens')&&$('cfgLtpTunedLens').value==='true',
+    ltp_svd_rank:0,
+    ltp_tuned_lens:false,
   };
   log(`Rerunning ${indices.length} prompt(s)...`,'analyzing');
   try{
