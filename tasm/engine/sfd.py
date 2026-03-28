@@ -418,6 +418,7 @@ def compute_rank_displacement(instruct_cf, base_cf):
             instruct_disp_profiles.append([0.0] * k)
             base_disp_profiles.append([0.0] * k)
             overlaps.append(0.0)
+            taus.append(None)
             continue
 
         # Build token -> (rank, prob) lookups
@@ -490,6 +491,10 @@ def compute_rank_displacement(instruct_cf, base_cf):
             tau, _ = kendalltau(i_ranks, b_ranks)
             if not np.isnan(tau):
                 taus.append(tau)
+            else:
+                taus.append(None)
+        else:
+            taus.append(None)
 
     # ── Aggregate statistics ──
     n = len(per_pos)
@@ -519,10 +524,10 @@ def compute_rank_displacement(instruct_cf, base_cf):
         'base_disp_profiles': base_disp_profiles,
 
         # ── Legacy (backward compat) ──
-        'mean_tau': float(np.mean(taus)) if taus else None,
+        'mean_tau': float(np.mean([t for t in taus if t is not None])) if any(t is not None for t in taus) else None,
         'mean_overlap': float(np.mean(overlaps)) if overlaps else None,
-        'per_position_tau': [round(t, 4) for t in taus] if taus else [],
+        'per_position_tau': [round(t, 4) if t is not None else None for t in taus],
         'per_position_overlap': [round(o, 4) for o in overlaps],
-        'n_comparable': len(taus),
+        'n_comparable': sum(1 for t in taus if t is not None),
         'n_positions': n_pos,
     }
