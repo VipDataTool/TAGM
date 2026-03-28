@@ -204,6 +204,14 @@ textarea{resize:vertical;min-height:44px}
 .mod-req{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);color:var(--text-3)}
 .mod-req.met{border-color:var(--green);color:var(--green)}
 .mod-req.unmet{border-color:var(--red);color:var(--red)}
+/* ─── Terrain Launch Menu ─── */
+.terrain-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center}
+.terrain-menu{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:20px;width:420px;max-width:90vw}
+.terrain-menu h3{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:12px}
+.terrain-menu .tm-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.terrain-menu label{font-family:var(--mono);font-size:11px;color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;display:block}
+.terrain-menu .tm-desc{font-size:10px;color:var(--text-3);margin-top:1px}
+.terrain-menu .tm-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -451,7 +459,7 @@ function applyCardDefaults(panelId,tab){
 
 // ─── Export Defaults ────────────────────────────────────────────
 const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
-const DISPLAY_DEFAULTS={terrainCharLimit:50};
+const DISPLAY_DEFAULTS={terrainCharLimit:50,terrainRecordLimit:100,terrainTokenLimit:20,terrainCategory:'all'};
 
 // Global delegated click handler for all card headers
 document.addEventListener('click',function(e){
@@ -586,11 +594,34 @@ function vizRenderConfig(){
   // Display settings
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:12px;font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Display</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:540px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
       <div>
-        <label style="font-size:12px;color:var(--text-1)">Terrain prompt char limit</label>
+        <label style="font-size:12px;color:var(--text-1)">Terrain char limit</label>
         <input type="number" id="cfgTerrainCharLimit" value="${DISPLAY_DEFAULTS.terrainCharLimit}" min="20" max="200" step="5" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainCharLimit=parseInt(this.value)||50;saveConfig()">
-        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Prompt labels in terrain viewer dropdown</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Prompt labels in dropdown</div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Record limit</label>
+        <input type="number" id="cfgTerrainRecordLimit" value="${DISPLAY_DEFAULTS.terrainRecordLimit}" min="1" max="2000" step="10" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainRecordLimit=parseInt(this.value)||100;saveConfig()">
+        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Max prompts to load</div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Token limit</label>
+        <input type="number" id="cfgTerrainTokenLimit" value="${DISPLAY_DEFAULTS.terrainTokenLimit}" min="4" max="100" step="1" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainTokenLimit=parseInt(this.value)||20;saveConfig()">
+        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Max tokens per render</div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Category</label>
+        <select id="cfgTerrainCategory" style="width:100px" onchange="DISPLAY_DEFAULTS.terrainCategory=this.value;saveConfig()">
+          <option value="all"${DISPLAY_DEFAULTS.terrainCategory==='all'?' selected':''}>All</option>
+          <option value="benign"${DISPLAY_DEFAULTS.terrainCategory==='benign'?' selected':''}>Benign</option>
+          <option value="mild"${DISPLAY_DEFAULTS.terrainCategory==='mild'?' selected':''}>Mild</option>
+          <option value="dual-use"${DISPLAY_DEFAULTS.terrainCategory==='dual-use'?' selected':''}>Dual-use</option>
+          <option value="harmful"${DISPLAY_DEFAULTS.terrainCategory==='harmful'?' selected':''}>Harmful</option>
+          <option value="adversarial"${DISPLAY_DEFAULTS.terrainCategory==='adversarial'?' selected':''}>Adversarial</option>
+          <option value="jailbreak"${DISPLAY_DEFAULTS.terrainCategory==='jailbreak'?' selected':''}>Jailbreak</option>
+        </select>
+        <div style="font-size:10px;color:var(--text-3);margin-top:1px">Default category filter</div>
       </div>
     </div>
   </div>`;
@@ -707,6 +738,9 @@ async function loadConfig(){
     // Display settings
     if(c.display){
       if(c.display.terrainCharLimit)DISPLAY_DEFAULTS.terrainCharLimit=parseInt(c.display.terrainCharLimit)||50;
+      if(c.display.terrainRecordLimit)DISPLAY_DEFAULTS.terrainRecordLimit=parseInt(c.display.terrainRecordLimit)||100;
+      if(c.display.terrainTokenLimit)DISPLAY_DEFAULTS.terrainTokenLimit=parseInt(c.display.terrainTokenLimit)||20;
+      if(c.display.terrainCategory)DISPLAY_DEFAULTS.terrainCategory=c.display.terrainCategory;
     }
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
@@ -953,7 +987,7 @@ async function loadDashboard(force){
         h+=`<div class="viz-label" style="border-left:3px solid var(--cyan)">
           <span class="vl-title" style="color:var(--cyan)">Alignment Terrain</span>
           <span class="vl-desc">3D dual-bank terrain map</span>
-          <button class="btn btn-secondary" onclick="_lazyLoadTerrainPopout(${info.n_results||0})" style="font-size:11px;padding:3px 10px;width:auto">↗ Load &amp; Open</button>
+          <button class="btn btn-secondary" onclick="_showTerrainLaunchMenu(${info.n_results||0})" style="font-size:11px;padding:3px 10px;width:auto">↗ Configure &amp; Launch</button>
         </div>`;
       }
 
@@ -2069,11 +2103,12 @@ function initTerrainViewer(results){
 
   // Popout: opens a new window with the same renderer and data
   window._terrainPopout=function(){
-    _openTerrainWindow(D);
+    _openTerrainWindow(D, typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50);
   };
 }
 
-function _openTerrainWindow(D){
+function _openTerrainWindow(D, charLimit){
+    charLimit = charLimit || 50;
     var pw=1200,ph=800;
     var left=Math.round((screen.width-pw)/2);
     var top=Math.round((screen.height-ph)/2);
@@ -2096,12 +2131,65 @@ function _openTerrainWindow(D){
     w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
     w.document.write('<script>var D='+dataJSON+';<\/script>');
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
-    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+(typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50)+'})});<\/script>');
+    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+charLimit+'})});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
 }
 
-async function _lazyLoadTerrainPopout(totalCount){
+function _showTerrainLaunchMenu(totalCount){
+  var cats = Object.keys((dashResults||[]).reduce(function(a,r){if(r.category)a[r.category]=1;return a},{})).sort();
+  var d = DISPLAY_DEFAULTS;
+  var overlay = document.createElement('div');
+  overlay.className = 'terrain-menu-overlay';
+  overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+
+  var h = '<div class="terrain-menu">';
+  h += '<h3>Terrain Viewer</h3>';
+  h += '<div class="tm-grid">';
+
+  h += '<div><label>Category</label><select id="tmCat">';
+  h += '<option value="all"'+(d.terrainCategory==='all'?' selected':'')+'>All categories</option>';
+  cats.forEach(function(c){
+    h += '<option value="'+c+'"'+(d.terrainCategory===c?' selected':'')+'>'+c+'</option>';
+  });
+  h += '</select><div class="tm-desc">Filter prompts by category</div></div>';
+
+  h += '<div><label>Record limit</label><input type="number" id="tmRecordLimit" value="'+d.terrainRecordLimit+'" min="1" max="'+totalCount+'" step="10" style="width:80px"><div class="tm-desc">Max prompts to load (of '+totalCount+')</div></div>';
+
+  h += '<div><label>Token limit</label><input type="number" id="tmTokenLimit" value="'+d.terrainTokenLimit+'" min="4" max="100" step="1" style="width:80px"><div class="tm-desc">Max tokens per terrain render</div></div>';
+
+  h += '<div><label>Prompt char limit</label><input type="number" id="tmCharLimit" value="'+d.terrainCharLimit+'" min="20" max="200" step="5" style="width:80px"><div class="tm-desc">Dropdown label length</div></div>';
+
+  h += '</div>';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:10px;line-height:1.5">Defaults can be changed in Configuration → Display. Large datasets may be slow to load.</div>';
+  h += '<div class="tm-actions">';
+  h += '<button class="btn btn-sm btn-secondary" onclick="this.closest(\'.terrain-menu-overlay\').remove()">Cancel</button>';
+  h += '<button class="btn btn-sm btn-primary" id="tmLaunchBtn" onclick="_terrainLaunch('+totalCount+')">Launch</button>';
+  h += '</div></div>';
+
+  overlay.innerHTML = h;
+  document.body.appendChild(overlay);
+}
+
+function _terrainLaunch(totalCount){
+  var cat = document.getElementById('tmCat').value;
+  var recordLimit = parseInt(document.getElementById('tmRecordLimit').value)||100;
+  var tokenLimit = parseInt(document.getElementById('tmTokenLimit').value)||20;
+  var charLimit = parseInt(document.getElementById('tmCharLimit').value)||50;
+  // Remove modal
+  var overlay = document.querySelector('.terrain-menu-overlay');
+  if(overlay) overlay.remove();
+  // Run with params
+  _lazyLoadTerrainPopout(totalCount, {category:cat, recordLimit:recordLimit, tokenLimit:tokenLimit, charLimit:charLimit});
+}
+
+async function _lazyLoadTerrainPopout(totalCount, params){
+  params = params || {};
+  var catFilter = params.category || 'all';
+  var recordLimit = params.recordLimit || DISPLAY_DEFAULTS.terrainRecordLimit || 100;
+  var tokenLimit = params.tokenLimit || DISPLAY_DEFAULTS.terrainTokenLimit || 20;
+  var charLimit = params.charLimit || DISPLAY_DEFAULTS.terrainCharLimit || 50;
+
   var allResults=[];
   var CHUNK=25;
   try{
@@ -2112,13 +2200,46 @@ async function _lazyLoadTerrainPopout(totalCount){
       if(!data.ok)break;
       allResults=allResults.concat(data.results);
     }
+    // Apply category filter
+    if(catFilter !== 'all'){
+      allResults = allResults.filter(function(r){ return r.category === catFilter; });
+      log('Filtered to '+allResults.length+' '+catFilter+' prompts');
+    }
+    // Apply record limit
+    if(allResults.length > recordLimit){
+      allResults = allResults.slice(0, recordLimit);
+      log('Limited to '+recordLimit+' records');
+    }
+    // Apply token limit — truncate per-prompt arrays
+    allResults.forEach(function(r){
+      if(r.tokens && r.tokens.length > tokenLimit){
+        r.tokens = r.tokens.slice(0, tokenLimit);
+        r.seq_len = tokenLimit;
+        if(r.per_token_stress) r.per_token_stress = r.per_token_stress.slice(0, tokenLimit);
+        if(r.per_token_kl) r.per_token_kl = r.per_token_kl.slice(0, tokenLimit);
+        if(r.signed_attr) r.signed_attr = r.signed_attr.slice(0, tokenLimit);
+        if(r.ltp){
+          if(r.ltp.profiles) r.ltp.profiles = r.ltp.profiles.slice(0, tokenLimit);
+          if(r.ltp.base_profiles) r.ltp.base_profiles = r.ltp.base_profiles.slice(0, tokenLimit);
+          if(r.ltp.counterfactual_tokens) r.ltp.counterfactual_tokens = r.ltp.counterfactual_tokens.slice(0, tokenLimit);
+          if(r.ltp.tension_magnitudes) r.ltp.tension_magnitudes = r.ltp.tension_magnitudes.slice(0, tokenLimit);
+        }
+        if(r.rank_displacement){
+          if(r.rank_displacement.instruct_disp_profiles) r.rank_displacement.instruct_disp_profiles = r.rank_displacement.instruct_disp_profiles.slice(0, tokenLimit);
+          if(r.rank_displacement.base_disp_profiles) r.rank_displacement.base_disp_profiles = r.rank_displacement.base_disp_profiles.slice(0, tokenLimit);
+          if(r.rank_displacement.per_position) r.rank_displacement.per_position = r.rank_displacement.per_position.slice(0, tokenLimit);
+        }
+        if(r.base_counterfactual_tokens) r.base_counterfactual_tokens = r.base_counterfactual_tokens.slice(0, tokenLimit);
+      }
+    });
+
     var hasData=allResults.some(function(r){
       return(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||
             (r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0);
     });
     if(hasData){
       var D=_terrainTransformData(allResults);
-      if(Object.keys(D).length) _openTerrainWindow(D);
+      if(Object.keys(D).length) _openTerrainWindow(D, charLimit);
       else log('No terrain profile data available.','error');
     }else{
       log('No terrain profile data available for this session.','error');
