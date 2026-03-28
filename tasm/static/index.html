@@ -459,7 +459,7 @@ function applyCardDefaults(panelId,tab){
 
 // ─── Export Defaults ────────────────────────────────────────────
 const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
-const DISPLAY_DEFAULTS={terrainCharLimit:50,terrainRecordLimit:100,terrainTokenLimit:20,terrainCategory:'all'};
+const DISPLAY_DEFAULTS={terrainCharLimit:50,terrainRecordLimit:100,terrainTokenLimit:20,terrainCategory:'all',terrainAutoRotate:false,terrainRotateSpeed:0.3};
 
 // Global delegated click handler for all card headers
 document.addEventListener('click',function(e){
@@ -624,6 +624,16 @@ function vizRenderConfig(){
         <div style="font-size:10px;color:var(--text-3);margin-top:1px">Default category filter</div>
       </div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:540px;margin-top:8px">
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Auto-rotate default</label>
+        <div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="cfgTerrainAutoRotate" ${DISPLAY_DEFAULTS.terrainAutoRotate?'checked':''} onchange="DISPLAY_DEFAULTS.terrainAutoRotate=this.checked;saveConfig()"><label for="cfgTerrainAutoRotate">${DISPLAY_DEFAULTS.terrainAutoRotate?'On':'Off'}</label></div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-1)">Rotate speed (RPM)</label>
+        <input type="number" id="cfgTerrainRotateSpeed" value="${DISPLAY_DEFAULTS.terrainRotateSpeed}" min="0.1" max="2.0" step="0.1" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainRotateSpeed=parseFloat(this.value)||0.3;saveConfig()">
+      </div>
+    </div>
   </div>`;
   // Viz toggles by category
   for(const[cat,items]of Object.entries(groups)){
@@ -741,6 +751,8 @@ async function loadConfig(){
       if(c.display.terrainRecordLimit)DISPLAY_DEFAULTS.terrainRecordLimit=parseInt(c.display.terrainRecordLimit)||100;
       if(c.display.terrainTokenLimit)DISPLAY_DEFAULTS.terrainTokenLimit=parseInt(c.display.terrainTokenLimit)||20;
       if(c.display.terrainCategory)DISPLAY_DEFAULTS.terrainCategory=c.display.terrainCategory;
+      if(c.display.terrainAutoRotate!=null)DISPLAY_DEFAULTS.terrainAutoRotate=!!c.display.terrainAutoRotate;
+      if(c.display.terrainRotateSpeed)DISPLAY_DEFAULTS.terrainRotateSpeed=parseFloat(c.display.terrainRotateSpeed)||0.3;
     }
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
@@ -1991,6 +2003,9 @@ function _terrainRendererCore(container, D, opts){
     h+='<span class="tsep">|</span>';
     h+='<span style="font-size:11px;color:#bbc">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
     h+='<span class="tsep">|</span>';
+    h+='<button class="tb'+(autoRotate?' on':'')+'" onclick="window._terrainToggleRotate()">Rotate</button>';
+    h+='<input type="range" min="1" max="20" value="'+Math.round(rotateSpeed*10)+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetRotateSpeed(this.value)" title="Rotation speed (RPM)">';
+    h+='<span class="tsep">|</span>';
     h+='<button class="tb" onclick="window._terrainResetView()">Reset</button>';
     if(!isPopout) h+='<button class="tb" onclick="window._terrainPopout()">Pop out</button>';
     ui.innerHTML=h;
@@ -2007,6 +2022,8 @@ function _terrainRendererCore(container, D, opts){
   window._terrainSetMode=function(m){renderMode=m;build()};
   window._terrainSetFilter=function(f){dataFilter=f;build()};
   window._terrainSetLabelScale=function(v){labelScale=parseInt(v)/10;build()};
+  window._terrainToggleRotate=function(){autoRotate=!autoRotate;buildUI()};
+  window._terrainSetRotateSpeed=function(v){rotateSpeed=parseInt(v)/10};
   window._terrainNext=function(){var entries=D[curCat]||[];if(!entries.length)return;curIdx=(curIdx+1)%entries.length;buildUI();build()};
   window._terrainPrev=function(){var entries=D[curCat]||[];if(!entries.length)return;curIdx=(curIdx-1+entries.length)%entries.length;buildUI();build()};
   window._terrainPlayPause=function(){slideshowPlaying=!slideshowPlaying;buildUI();if(slideshowPlaying)_terrainAutoAdvance();else if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}};
@@ -2027,11 +2044,14 @@ function _terrainRendererCore(container, D, opts){
   // Camera
   var th=0.0,ph=0.08,rad=14;
   var target=new THREE.Vector3(0,FY+1.0,0);
+  var autoRotate=!!(opts&&opts.autoRotate);
+  var rotateSpeed=(opts&&opts.rotateSpeed)||0.3; // RPM
+  var dragging=false;
   function updateCam(){cam.position.set(target.x+rad*Math.sin(ph)*Math.cos(th),target.y+rad*Math.cos(ph),target.z+rad*Math.sin(ph)*Math.sin(th));cam.lookAt(target)}
   var ptrs={};
   cv.addEventListener('contextmenu',function(e){e.preventDefault()});
-  cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);ptrs[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY}});
-  cv.addEventListener('pointerup',function(e){cv.releasePointerCapture(e.pointerId);delete ptrs[e.pointerId]});
+  cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);ptrs[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY};dragging=true});
+  cv.addEventListener('pointerup',function(e){cv.releasePointerCapture(e.pointerId);delete ptrs[e.pointerId];if(Object.keys(ptrs).length===0)dragging=false});
   cv.addEventListener('pointermove',function(e){
     var p=ptrs[e.pointerId];if(!p)return;
     var dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
@@ -2053,7 +2073,11 @@ function _terrainRendererCore(container, D, opts){
   updateCam();
   build();
   var running=true;
-  (function loop(){if(!running)return;requestAnimationFrame(loop);ren.render(sc,cam)})();
+  var lastTime=performance.now();
+  (function loop(){if(!running)return;requestAnimationFrame(loop);
+    var now=performance.now();var dt=(now-lastTime)/1000;lastTime=now;
+    if(autoRotate&&!dragging){th+=rotateSpeed*Math.PI*2/60*dt;updateCam()}
+    ren.render(sc,cam)})();
 
   // Cleanup
   var observer=new MutationObserver(function(){
@@ -2103,12 +2127,14 @@ function initTerrainViewer(results){
 
   // Popout: opens a new window with the same renderer and data
   window._terrainPopout=function(){
-    _openTerrainWindow(D, typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50);
+    _openTerrainWindow(D, typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50, autoRotate, rotateSpeed);
   };
 }
 
-function _openTerrainWindow(D, charLimit){
+function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
     charLimit = charLimit || 50;
+    autoRotate = !!autoRotate;
+    rotateSpeed = rotateSpeed || 0.3;
     var pw=1200,ph=800;
     var left=Math.round((screen.width-pw)/2);
     var top=Math.round((screen.height-ph)/2);
@@ -2131,7 +2157,7 @@ function _openTerrainWindow(D, charLimit){
     w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
     w.document.write('<script>var D='+dataJSON+';<\/script>');
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
-    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+charLimit+'})});<\/script>');
+    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+charLimit+',autoRotate:'+autoRotate+',rotateSpeed:'+rotateSpeed+'})});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
 }
@@ -2161,6 +2187,11 @@ function _showTerrainLaunchMenu(totalCount){
   h += '<div><label>Prompt char limit</label><input type="number" id="tmCharLimit" value="'+d.terrainCharLimit+'" min="20" max="200" step="5" style="width:80px"><div class="tm-desc">Dropdown label length</div></div>';
 
   h += '</div>';
+  h += '<div class="tm-grid" style="margin-bottom:14px">';
+  h += '<div><label>Auto-rotate</label><div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="tmAutoRotate"'+(d.terrainAutoRotate?' checked':'')+'><label for="tmAutoRotate">'+(d.terrainAutoRotate?'On':'Off')+'</label></div><div class="tm-desc">Spin terrain around vertical axis</div></div>';
+  h += '<div><label>Rotate speed (RPM)</label><input type="number" id="tmRotateSpeed" value="'+d.terrainRotateSpeed+'" min="0.1" max="2.0" step="0.1" style="width:80px"><div class="tm-desc">Revolutions per minute</div></div>';
+
+  h += '</div>';
   h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:10px;line-height:1.5">Defaults can be changed in Configuration → Display. Large datasets may be slow to load.</div>';
   h += '<div class="tm-actions">';
   h += '<button class="btn btn-sm btn-secondary" onclick="this.closest(\'.terrain-menu-overlay\').remove()">Cancel</button>';
@@ -2176,11 +2207,11 @@ function _terrainLaunch(totalCount){
   var recordLimit = parseInt(document.getElementById('tmRecordLimit').value)||100;
   var tokenLimit = parseInt(document.getElementById('tmTokenLimit').value)||20;
   var charLimit = parseInt(document.getElementById('tmCharLimit').value)||50;
-  // Remove modal
+  var autoRotate = document.getElementById('tmAutoRotate').checked;
+  var rotateSpeed = parseFloat(document.getElementById('tmRotateSpeed').value)||0.3;
   var overlay = document.querySelector('.terrain-menu-overlay');
   if(overlay) overlay.remove();
-  // Run with params
-  _lazyLoadTerrainPopout(totalCount, {category:cat, recordLimit:recordLimit, tokenLimit:tokenLimit, charLimit:charLimit});
+  _lazyLoadTerrainPopout(totalCount, {category:cat, recordLimit:recordLimit, tokenLimit:tokenLimit, charLimit:charLimit, autoRotate:autoRotate, rotateSpeed:rotateSpeed});
 }
 
 async function _lazyLoadTerrainPopout(totalCount, params){
@@ -2189,6 +2220,8 @@ async function _lazyLoadTerrainPopout(totalCount, params){
   var recordLimit = params.recordLimit || DISPLAY_DEFAULTS.terrainRecordLimit || 100;
   var tokenLimit = params.tokenLimit || DISPLAY_DEFAULTS.terrainTokenLimit || 20;
   var charLimit = params.charLimit || DISPLAY_DEFAULTS.terrainCharLimit || 50;
+  var autoRotate = params.autoRotate != null ? params.autoRotate : DISPLAY_DEFAULTS.terrainAutoRotate;
+  var rotateSpeed = params.rotateSpeed || DISPLAY_DEFAULTS.terrainRotateSpeed || 0.3;
 
   var allResults=[];
   var CHUNK=25;
@@ -2239,7 +2272,7 @@ async function _lazyLoadTerrainPopout(totalCount, params){
     });
     if(hasData){
       var D=_terrainTransformData(allResults);
-      if(Object.keys(D).length) _openTerrainWindow(D, charLimit);
+      if(Object.keys(D).length) _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed);
       else log('No terrain profile data available.','error');
     }else{
       log('No terrain profile data available for this session.','error');
