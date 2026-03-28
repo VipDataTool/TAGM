@@ -169,6 +169,7 @@ textarea{resize:vertical;min-height:44px}
 /* ─── Module Framework ─── */
 .mod-card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden}
 .mod-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px}
+.mod-header:hover{background:var(--bg-2)}
 .mod-info{flex:1;min-width:0}
 .mod-title{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--text-0);display:flex;align-items:center;gap:8px}
 .mod-title .mod-ver{font-size:11px;color:var(--text-3);font-weight:400}
@@ -295,7 +296,7 @@ textarea{resize:vertical;min-height:44px}
   </div>
   <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
     <div class="card" style="margin-bottom:10px">
-      <div class="card-header" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('collapsed')"><h3 style="font-size:13px;display:flex;align-items:center;gap:6px"><span class="chevron" style="font-size:11px;color:var(--text-2)">▶</span> Field Glossary</h3></div>
+      <div class="card-header"><h3 style="font-size:13px;display:flex;align-items:center;gap:6px"><span class="chevron" style="font-size:11px;color:var(--text-2)">▶</span> Field Glossary</h3></div>
       <div class="card-body collapsed" style="padding:12px 16px;font-size:12px;line-height:1.7;color:var(--text-1)">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
           <div>
@@ -2410,25 +2411,29 @@ function renderModules(modules) {
 function renderModuleCard(m) {
   var h = '<div class="mod-card" id="mod-' + m.name + '">';
 
-  // Header
-  h += '<div class="mod-header">';
+  // Collapsible header - click to toggle body
+  h += '<div class="mod-header" onclick="toggleModCard(\'' + m.name + '\')" style="cursor:pointer">';
   h += '<div class="mod-info">';
-  h += '<div class="mod-title">' + escHtml(m.display_name) + ' <span class="mod-ver">v' + m.version + '</span></div>';
+  h += '<div class="mod-title"><span class="mod-chevron" id="mod-chev-' + m.name + '" style="font-size:11px;color:var(--text-2);flex-shrink:0">▼</span> ' + escHtml(m.display_name) + ' <span class="mod-ver">v' + m.version + '</span></div>';
   h += '<div class="mod-desc">' + escHtml(m.description) + '</div>';
+  h += '</div>';
+  h += '<div class="mod-status ' + m.status + '" id="mod-status-' + m.name + '">' + m.status + '</div>';
+  h += '</div>';
+
+  // Collapsible body
+  h += '<div class="mod-body" id="mod-body-' + m.name + '">';
+
   // Requirements
   var reqs = [];
   if (m.requires_sfd) reqs.push('SFD');
   if (m.requires_ltp) reqs.push('LTP');
   if (m.requires_rd) reqs.push('RD');
   if (reqs.length || m.min_results > 1) {
-    h += '<div class="mod-reqs">';
+    h += '<div style="padding:6px 16px 0;display:flex;gap:6px;flex-wrap:wrap">';
     if (m.min_results > 1) h += '<span class="mod-req">' + m.min_results + '+ results</span>';
     reqs.forEach(function(r) { h += '<span class="mod-req">' + r + '</span>'; });
     h += '</div>';
   }
-  h += '</div>';
-  h += '<div class="mod-status ' + m.status + '" id="mod-status-' + m.name + '">' + m.status + '</div>';
-  h += '</div>';
 
   // Parameters
   if (m.parameters && m.parameters.length) {
@@ -2445,15 +2450,29 @@ function renderModuleCard(m) {
 
   // Actions
   h += '<div class="mod-actions">';
-  h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="runModule(\'' + m.name + '\')">Run</button>';
+  h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="event.stopPropagation();runModule(\'' + m.name + '\')">Run</button>';
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
   // Results placeholder
   h += '<div id="mod-results-' + m.name + '"></div>';
 
-  h += '</div>';
+  h += '</div>'; // end mod-body
+  h += '</div>'; // end mod-card
   return h;
+}
+
+function toggleModCard(name) {
+  var body = $('mod-body-' + name);
+  var chev = $('mod-chev-' + name);
+  if (!body) return;
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    if (chev) chev.textContent = '▼';
+  } else {
+    body.style.display = 'none';
+    if (chev) chev.textContent = '▶';
+  }
 }
 
 function renderParamControl(modName, p) {
