@@ -418,7 +418,7 @@ def compute_rank_displacement(instruct_cf, base_cf):
             instruct_disp_profiles.append([0.0] * k)
             base_disp_profiles.append([0.0] * k)
             overlaps.append(0.0)
-            taus.append(None)
+            taus.append(0.0)
             continue
 
         # Build token -> (rank, prob) lookups
@@ -485,16 +485,14 @@ def compute_rank_displacement(instruct_cf, base_cf):
         overlaps.append(overlap)
 
         shared = [tok for tok in i_tokens if tok in b_tokens]
-        if len(shared) >= 3:
+        if len(shared) >= 2:
             i_ranks = [i_tokens.index(tok) for tok in shared]
             b_ranks = [b_tokens.index(tok) for tok in shared]
             tau, _ = kendalltau(i_ranks, b_ranks)
-            if not np.isnan(tau):
-                taus.append(tau)
-            else:
-                taus.append(None)
+            taus.append(tau if not np.isnan(tau) else 0.0)
         else:
-            taus.append(None)
+            # 0 or 1 shared candidates — nothing to correlate
+            taus.append(0.0)
 
     # ── Aggregate statistics ──
     n = len(per_pos)
@@ -524,10 +522,10 @@ def compute_rank_displacement(instruct_cf, base_cf):
         'base_disp_profiles': base_disp_profiles,
 
         # ── Legacy (backward compat) ──
-        'mean_tau': float(np.mean([t for t in taus if t is not None])) if any(t is not None for t in taus) else None,
-        'mean_overlap': float(np.mean(overlaps)) if overlaps else None,
-        'per_position_tau': [round(t, 4) if t is not None else None for t in taus],
+        'mean_tau': float(np.mean(taus)) if taus else 0.0,
+        'mean_overlap': float(np.mean(overlaps)) if overlaps else 0.0,
+        'per_position_tau': [round(t, 4) for t in taus],
         'per_position_overlap': [round(o, 4) for o in overlaps],
-        'n_comparable': sum(1 for t in taus if t is not None),
+        'n_comparable': len(taus),
         'n_positions': n_pos,
     }
