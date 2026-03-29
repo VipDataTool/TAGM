@@ -117,6 +117,14 @@ REPORTS_DIR.mkdir(exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("TASM Analyzer starting up")
+    # Load persisted engine config if present
+    if ENGINE_CONFIG_FILE.exists():
+        try:
+            saved = json.loads(ENGINE_CONFIG_FILE.read_text())
+            engine_config.update(saved)
+            logger.info(f"Loaded engine config from disk: {len(saved)} params")
+        except Exception as e:
+            logger.warning(f"Failed to load engine config: {e}")
     # Clean stale session data from previous server run.
     # This is deliberate: schema changes between versions could make
     # old results.json incompatible with new code. Fresh start is safe.
@@ -1370,6 +1378,7 @@ async def get_log():
 
 
 CONFIG_FILE = Path(__file__).parent / "ui_config.json"
+ENGINE_CONFIG_FILE = Path(__file__).parent / "engine_config.json"
 
 @app.get("/api/config")
 async def get_config():
@@ -1413,7 +1422,9 @@ async def update_engine_config(request: Request):
     try:
         data = await request.json()
         engine_config.update(data)
-        logger.info(f"[CONFIG] Engine config updated: {list(data.keys())}")
+        # Persist to disk
+        ENGINE_CONFIG_FILE.write_text(json.dumps(engine_config.as_dict(), indent=2))
+        logger.info(f"[CONFIG] Engine config updated and saved: {list(data.keys())}")
         return {"ok": True, "config": engine_config.as_dict()}
     except Exception as e:
         return JSONResponse(status_code=400,
@@ -1424,6 +1435,9 @@ async def update_engine_config(request: Request):
 async def reset_engine_config():
     """Reset all engine parameters to defaults."""
     engine_config.reset()
+    # Remove persisted file so startup uses defaults
+    if ENGINE_CONFIG_FILE.exists():
+        ENGINE_CONFIG_FILE.unlink()
     logger.info("[CONFIG] Engine config reset to defaults")
     return {"ok": True, "config": engine_config.as_dict()}
 
