@@ -25,6 +25,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
+from engine import engine_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,19 +138,26 @@ class SFDResult:
 # ═══ Precomputation (model load) ═══
 
 def precompute_sfd_cache(state, layer_indices: List[int] = None,
-                         k: int = 16) -> SFDCache:
+                         k: int = None) -> SFDCache:
     """Compute SVD of concatenated [ΔW_Q; ΔW_K] per layer.
 
     Args:
         state: ModelState with deltas dict.
-        layer_indices: which layers to compute (default: signal layers 9-15).
-        k: truncation rank for SVD.
+        layer_indices: which layers to compute. Default from config.
+        k: truncation rank for SVD. Default from config.
 
     Returns:
         SFDCache with V_k, S, and global measures per layer.
     """
+    if k is None:
+        k = engine_config.get("sfd_svd_k")
     if layer_indices is None:
-        layer_indices = list(range(min(9, state.n_layers), min(16, state.n_layers)))
+        if engine_config.get("sfd_use_signal_layers"):
+            layer_indices = list(state.signal_layers) if hasattr(state, 'signal_layers') else None
+        if layer_indices is None:
+            start = engine_config.get("sfd_layer_start")
+            end = engine_config.get("sfd_layer_end")
+            layer_indices = list(range(min(start, state.n_layers), min(end, state.n_layers)))
 
     cache = SFDCache(k=k)
     eranks = []
@@ -485,7 +494,7 @@ def compute_rank_displacement(instruct_cf, base_cf):
         overlaps.append(overlap)
 
         shared = [tok for tok in i_tokens if tok in b_tokens]
-        if len(shared) >= 2:
+        if len(shared) >= engine_config.get("rd_min_shared"):
             i_ranks = [i_tokens.index(tok) for tok in shared]
             b_ranks = [b_tokens.index(tok) for tok in shared]
             tau, _ = kendalltau(i_ranks, b_ranks)

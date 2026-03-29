@@ -44,6 +44,7 @@ from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
+from engine import engine_config
 
 # ─── Logging ─────────────────────────────────────────────────────
 LOG_FILE = Path(__file__).parent / "tasm.log"
@@ -1392,6 +1393,39 @@ async def save_config(request: Request):
         return JSONResponse(content={"ok": True})
     except Exception as e:
         return JSONResponse(content={"ok": False, "error": str(e)})
+
+
+# ─── Engine Configuration Endpoints ─────────────────────────────
+
+@app.get("/api/engine_config")
+async def get_engine_config():
+    """Return current engine parameters and their defaults."""
+    return {
+        "ok": True,
+        "config": engine_config.as_dict(),
+        "defaults": dict(engine_config.DEFAULTS),
+    }
+
+
+@app.post("/api/engine_config")
+async def update_engine_config(request: Request):
+    """Update engine parameters. Changes take effect on next analysis."""
+    try:
+        data = await request.json()
+        engine_config.update(data)
+        logger.info(f"[CONFIG] Engine config updated: {list(data.keys())}")
+        return {"ok": True, "config": engine_config.as_dict()}
+    except Exception as e:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "error": str(e)})
+
+
+@app.post("/api/engine_config/reset")
+async def reset_engine_config():
+    """Reset all engine parameters to defaults."""
+    engine_config.reset()
+    logger.info("[CONFIG] Engine config reset to defaults")
+    return {"ok": True, "config": engine_config.as_dict()}
 
 
 @app.post("/api/chat")

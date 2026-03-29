@@ -18,6 +18,7 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple, Dict
 import logging
+from engine import engine_config
 
 logger = logging.getLogger("tasm")
 
@@ -196,7 +197,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
     for i in range(seq_len):
         chosen_id = token_ids[i].item()
         per_position_chosen.append(chosen_id)
-        topk_result = torch.topk(log_probs[i], k + 1)
+        topk_result = torch.topk(log_probs[i], k + engine_config.get("ltp_overfetch_first"))
         topk_ids = topk_result.indices.tolist()
         topk_logits = topk_result.values
         alts = []
@@ -205,7 +206,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
             if tid != chosen_id and len(alts) < k:
                 alts.append((tid, probs[j].item()))
         if len(alts) < k:
-            topk2 = torch.topk(log_probs[i], k + 5)
+            topk2 = torch.topk(log_probs[i], k + engine_config.get("ltp_overfetch_second"))
             probs2 = torch.softmax(topk2.values, dim=-1)
             existing_ids = {a[0] for a in alts}
             for j, tid in enumerate(topk2.indices.tolist()):
@@ -221,7 +222,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         base_log_probs = base_logits[0]
         for i in range(seq_len):
             chosen_id = per_position_chosen[i]
-            topk_result = torch.topk(base_log_probs[i], k + 5)
+            topk_result = torch.topk(base_log_probs[i], k + engine_config.get("ltp_overfetch_second"))
             topk_ids = topk_result.indices.tolist()
             probs = torch.softmax(topk_result.values, dim=-1)
             alts = []

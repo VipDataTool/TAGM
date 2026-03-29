@@ -16,6 +16,7 @@ from engine.ltp import (LTPResult, compute_ltp, ltp_result_to_dict,
                         precompute_svd_cache, precompute_tuned_lens_cache)
 from engine.sfd import (SFDResult, SFDCache, precompute_sfd_cache,
                         compute_sfd_sequence, compute_rank_displacement)
+from engine import engine_config
 
 
 @dataclass
@@ -240,8 +241,10 @@ class Analyzer:
                        ltp_layer_strategy: str = "signal",
                        ltp_svd_rank: int = 0,
                        ltp_tuned_lens: bool = False,
-                       response_topk: int = 10) -> PromptResult:
+                       response_topk: int = None) -> PromptResult:
         """Run the full analysis pipeline in a SINGLE forward pass."""
+        if response_topk is None:
+            response_topk = engine_config.get("response_topk")
         state = self.mm.state
         result = PromptResult(prompt=prompt, category=category)
         result.signal_layer_indices = list(state.signal_layers)
@@ -423,7 +426,7 @@ class Analyzer:
                     "attr_sum": round(attr_sum, 8),
                     "delta_norm": round(delta_norm_val, 8),
                     "error": float(f"{error:.2e}"),
-                    "exact": error < 1e-4,
+                    "exact": error < engine_config.get("proof1_threshold"),
                 })
 
             layer_attr = torch.stack(head_attrs).mean(dim=0)
@@ -464,9 +467,9 @@ class Analyzer:
         else:
             result.gini = 0.0
 
-        # Bookend / interior split: proportional boundary (10% each end,
+        # Bookend / interior split: proportional boundary (configurable,
         # minimum 1 token) instead of fixed first/last token.
-        boundary = max(1, round(0.1 * n))
+        boundary = max(1, round(engine_config.get("boundary_fraction") * n))
         if n >= 2:
             result.top2_share = float(attr_dist[:boundary].sum() + attr_dist[-boundary:].sum())
             interior = attr_dist[boundary:-boundary] if n > 2 * boundary else np.array([])

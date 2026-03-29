@@ -18,6 +18,7 @@ from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from huggingface_hub import snapshot_download
 from safetensors.torch import safe_open
+from engine import engine_config
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 
@@ -225,8 +226,8 @@ def _compute_spectral_profile(state, log_fn=print):
         try:
             # SVD on float32 for numerical stability
             d = delta.float().cpu()
-            # For large matrices, use truncated SVD (top 64 singular values is enough)
-            k = min(64, min(d.shape))
+            # For large matrices, use truncated SVD (configurable singular values)
+            k = min(engine_config.get("delta_svd_k"), min(d.shape))
             U, S, Vh = torch.svd_lowrank(d, q=k)
             s = S.numpy()
             
@@ -346,8 +347,9 @@ class ModelManager:
         state.hidden_size = state.config.hidden_size
         state.head_dim = state.hidden_size // state.n_heads
 
-        mid_start = state.n_layers // 3
-        mid_end = 2 * state.n_layers // 3
+        frac = engine_config.get("signal_layer_fraction")
+        mid_start = int(state.n_layers * frac)
+        mid_end = int(state.n_layers * (1.0 - frac))
         state.signal_layers = list(range(mid_start, mid_end))
 
         # Check available memory to decide whether to compute all-layer

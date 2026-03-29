@@ -401,6 +401,18 @@ textarea{resize:vertical;min-height:44px}
         </div>
       </div>
     </div>
+    <div class="card">
+      <div class="card-header"><h3>Advanced Parameters</h3></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--red);margin-bottom:10px;line-height:1.5;padding:8px 10px;border:1px solid var(--red);border-radius:4px;background:rgba(213,94,0,0.05)">These parameters directly affect measurement computations. Changing any value requires a full application reset — model unload, session clear, all caches invalidated. Data collected under different settings is not comparable.</div>
+        <div class="checkbox-row" style="margin-bottom:10px"><input type="checkbox" id="advParamsUnlock" onchange="_advToggleLock(this.checked)"><label for="advParamsUnlock" style="color:var(--red);font-weight:600">I understand. Unlock parameters.</label></div>
+        <div id="advancedParamsPanel" style="font-size:12px;color:var(--text-3)">Locked.</div>
+        <div id="advParamsButtons" style="margin-top:10px;display:none;gap:8px">
+          <button class="btn btn-sm btn-danger" id="advApplyBtn" onclick="_advApplyChanges()" disabled>Apply Changes &amp; Reset Application</button>
+          <button class="btn btn-sm btn-secondary" onclick="resetAdvancedParams()">Reset to Defaults</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 </div>
@@ -2271,10 +2283,202 @@ async function _lazyLoadTerrainPopout(totalCount, params){
   }
 }
 
+// ─── Advanced Engine Parameters ────────────────────────────────
+
+var _engineConfig = {};
+var _engineDefaults = {};
+var _enginePending = {};  // local edits not yet applied
+var _advUnlocked = false;
+
+// Parameter metadata for display
+var ENGINE_PARAM_META = {
+  signal_layer_fraction:  {group:'Signal Layers',   label:'Signal layer fraction',       desc:'Fraction of model depth for each third. 0.333 = middle third.', type:'float', step:0.01, min:0.1, max:0.5},
+  sfd_use_signal_layers:  {group:'SFD',             label:'SFD uses signal layers',      desc:'If enabled, SFD uses the same layer range as ASM.', type:'bool'},
+  sfd_layer_start:        {group:'SFD',             label:'SFD layer start',             desc:'First layer for SFD (when "uses signal layers" is off).', type:'int', min:0, max:30},
+  sfd_layer_end:          {group:'SFD',             label:'SFD layer end (exclusive)',    desc:'Last layer (exclusive) for SFD.', type:'int', min:1, max:30},
+  sfd_svd_k:              {group:'SFD',             label:'SFD SVD components',          desc:'Right singular vectors retained for per-token projection.', type:'int', min:4, max:64},
+  rd_min_shared:          {group:'Rank Displacement',label:'Min shared candidates',      desc:'Min shared candidates for Kendall tau. Below this, tau = 0.', type:'int', min:1, max:8},
+  boundary_fraction:      {group:'ASM Attribution', label:'Boundary fraction',           desc:'Fraction of tokens at each end for interior/boundary split.', type:'float', step:0.01, min:0.01, max:0.4},
+  response_topk:          {group:'ASM Attribution', label:'Response top-k',              desc:'Next-token predictions captured from each model.', type:'int', min:3, max:50},
+  proof1_threshold:       {group:'ASM Attribution', label:'Proof-1 exactness',           desc:'Error threshold for exact attribution decomposition.', type:'float', step:0.0001, min:0.00001, max:0.01},
+  delta_svd_k:            {group:'Weight Delta',    label:'Delta SVD rank',              desc:'Max singular values for weight delta spectral summary.', type:'int', min:16, max:128},
+  n_bootstrap:            {group:'Statistics',      label:'Bootstrap resamples',         desc:'Bootstrap iterations for CIs. Higher = slower, tighter.', type:'int', min:500, max:20000, step:500},
+  ci_level:               {group:'Statistics',      label:'Confidence level',            desc:'CI width. 0.95 = 95% confidence intervals.', type:'float', step:0.01, min:0.80, max:0.99},
+  threshold_steps:        {group:'Statistics',      label:'Threshold search steps',      desc:'Granularity of optimal classification threshold search.', type:'int', min:50, max:2000, step:50},
+  min_valid_separability: {group:'Statistics',      label:'Min valid for separability',  desc:'Min non-null values per metric for separability analysis.', type:'int', min:2, max:20},
+  min_samples_d:          {group:'Statistics',      label:'Min samples for Cohen\'s d',  desc:'Min per-group samples for effect size.', type:'int', min:2, max:10},
+  ltp_overfetch_first:    {group:'LTP',             label:'LTP overfetch (first)',       desc:'Extra candidates on first pass for k non-chosen alternatives.', type:'int', min:1, max:10},
+  ltp_overfetch_second:   {group:'LTP',             label:'LTP overfetch (fallback)',    desc:'Wider fetch if first pass insufficient.', type:'int', min:2, max:20},
+  disc_sublayers_top_n:   {group:'Visualization',   label:'Discriminative sublayers N',  desc:'Sublayers shown in discriminative sublayers plot.', type:'int', min:5, max:30},
+};
+
+function _advToggleLock(unlocked){
+  _advUnlocked = unlocked;
+  var btns = $('advParamsButtons');
+  if(unlocked){
+    _enginePending = {};
+    loadAdvancedParams();
+    if(btns) btns.style.display = 'flex';
+  } else {
+    _enginePending = {};
+    if(btns) btns.style.display = 'none';
+    $('advancedParamsPanel').textContent = 'Locked.';
+  }
+}
+
+async function loadAdvancedParams(){
+  try{
+    var r = await(await fetch('/api/engine_config')).json();
+    if(!r.ok) return;
+    _engineConfig = r.config;
+    _engineDefaults = r.defaults;
+    _enginePending = {};
+    renderAdvancedParams();
+    _advUpdateApplyBtn();
+  }catch(e){
+    $('advancedParamsPanel').textContent = 'Failed to load: '+e.message;
+  }
+}
+
+function _advGetValue(key){
+  return key in _enginePending ? _enginePending[key] : _engineConfig[key];
+}
+
+function renderAdvancedParams(){
+  var panel = $('advancedParamsPanel');
+  if(!panel || !_advUnlocked) return;
+  var groups = {};
+  for(var key in ENGINE_PARAM_META){
+    var m = ENGINE_PARAM_META[key];
+    if(!groups[m.group]) groups[m.group]=[];
+    groups[m.group].push({key:key, meta:m});
+  }
+  var h = '';
+  for(var group in groups){
+    var items = groups[group];
+    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':'var(--text-2)';
+    h += '<div style="margin-bottom:14px"><div style="font-size:11px;font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
+    items.forEach(function(item){
+      var m = item.meta;
+      var val = _advGetValue(item.key);
+      var def = _engineDefaults[item.key];
+      var isPending = item.key in _enginePending;
+      var isDefault = String(val) === String(def);
+      var id = 'ep_'+item.key;
+      h += '<div style="margin-bottom:4px">';
+      h += '<label style="font-size:11px;color:var(--text-1);font-family:var(--mono)">'+escHtml(m.label);
+      if(isPending) h += ' <span style="color:var(--orange);font-size:10px" title="Pending change">●</span>';
+      else if(!isDefault) h += ' <span style="color:var(--yellow);font-size:10px" title="Changed from default">◆</span>';
+      h += '</label>';
+      if(m.type === 'bool'){
+        h += '<div class="checkbox-row" style="margin-top:2px"><input type="checkbox" id="'+id+'"'+(val?' checked':'')+' onchange="_advEdit(\''+item.key+'\',this.checked)"><label for="'+id+'">Enable</label></div>';
+      } else if(m.type === 'float'){
+        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||0.01)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:11px;border-color:var(--orange)"':' style="width:100px;font-size:11px"')+' onchange="_advEdit(\''+item.key+'\',parseFloat(this.value))">';
+      } else {
+        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||1)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:11px;border-color:var(--orange)"':' style="width:100px;font-size:11px"')+' onchange="_advEdit(\''+item.key+'\',parseInt(this.value))">';
+      }
+      h += '<div style="font-size:10px;color:var(--text-3);margin-top:1px;line-height:1.3">'+escHtml(m.desc)+' <span style="color:var(--text-3)">Default: '+def+'</span></div>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+  panel.innerHTML = h;
+}
+
+function _advEdit(key, value){
+  // Check if value matches current server value — if so, remove from pending
+  if(String(value) === String(_engineConfig[key])){
+    delete _enginePending[key];
+  } else {
+    _enginePending[key] = value;
+  }
+  renderAdvancedParams();
+  _advUpdateApplyBtn();
+}
+
+function _advUpdateApplyBtn(){
+  var btn = $('advApplyBtn');
+  if(!btn) return;
+  var n = Object.keys(_enginePending).length;
+  btn.disabled = (n === 0);
+  btn.textContent = n > 0
+    ? 'Apply '+n+' Change'+(n>1?'s':'')+' & Reset Application'
+    : 'Apply Changes & Reset Application';
+}
+
+async function _advApplyChanges(){
+  var n = Object.keys(_enginePending).length;
+  if(n === 0) return;
+  var msg = 'Apply '+n+' parameter change'+(n>1?'s':'')+'?\n\nThis will:\n• Update engine configuration\n• Unload the model\n• Clear the current session\n• Invalidate all caches\n\nYou will need to reload the model and re-collect data.\n\nChanged parameters:\n';
+  for(var k in _enginePending){
+    var m = ENGINE_PARAM_META[k];
+    msg += '  '+m.label+': '+_engineConfig[k]+' → '+_enginePending[k]+'\n';
+  }
+  if(!confirm(msg)) return;
+
+  try{
+    // 1. Apply config changes
+    var r = await(await fetch('/api/engine_config',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(_enginePending)
+    })).json();
+    if(!r.ok){ log('Config update failed','error'); return; }
+    log('Engine config updated: '+Object.keys(_enginePending).join(', '),'done');
+
+    // 2. Reset application
+    var resetR = await(await fetch('/api/reset',{method:'POST'})).json();
+    if(resetR.ok){
+      log('Application reset. Reload model to continue.','done');
+      modelLoaded = false;
+      sessionResults = [];
+      dashResults = [];
+      _promptTotal = 0;
+      setStatus('idle','IDLE');
+      $('analyzeBtn').disabled = true;
+      $('batchBtn').disabled = true;
+      updateSessionBadge();
+    }
+
+    // 3. Refresh panel
+    _enginePending = {};
+    await loadAdvancedParams();
+    _advUpdateApplyBtn();
+
+  }catch(e){
+    log('Apply failed: '+e.message,'error');
+  }
+}
+
+async function resetAdvancedParams(){
+  if(!confirm('Reset all advanced parameters to defaults?\n\nThis will reset the application (unload model, clear session).')) return;
+  try{
+    var r = await(await fetch('/api/engine_config/reset',{method:'POST'})).json();
+    if(r.ok){
+      _engineConfig = r.config;
+      _enginePending = {};
+      // Reset application
+      await fetch('/api/reset',{method:'POST'});
+      modelLoaded = false;
+      sessionResults = [];
+      dashResults = [];
+      _promptTotal = 0;
+      setStatus('idle','IDLE');
+      $('analyzeBtn').disabled = true;
+      $('batchBtn').disabled = true;
+      updateSessionBadge();
+      renderAdvancedParams();
+      _advUpdateApplyBtn();
+      log('Advanced parameters and application reset to defaults','done');
+    }
+  }catch(e){log('Reset failed: '+e.message,'error')}
+}
+
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
-    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}

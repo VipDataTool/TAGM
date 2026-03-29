@@ -8,6 +8,7 @@ import numpy as np
 from typing import List, Dict
 from scipy import stats as sp_stats
 import math
+from engine import engine_config
 
 
 def _safe_float(v):
@@ -26,7 +27,7 @@ def _clean_values(vals):
 def cohens_d(group_a: list, group_b: list) -> float:
     """Cohen's d effect size with pooled standard deviation."""
     a, b = np.array(_clean_values(group_a)), np.array(_clean_values(group_b))
-    if len(a) < 2 or len(b) < 2:
+    if len(a) < engine_config.get("min_samples_d") or len(b) < engine_config.get("min_samples_d"):
         return 0.0
     pooled_std = np.sqrt((a.std(ddof=1)**2 + b.std(ddof=1)**2) / 2)
     if pooled_std == 0:
@@ -34,12 +35,16 @@ def cohens_d(group_a: list, group_b: list) -> float:
     return _safe_float(abs(a.mean() - b.mean()) / pooled_std)
 
 
-def bootstrap_ci(values: list, n_boot: int = 5000,
-                 ci: float = 0.95, statistic=np.mean) -> dict:
+def bootstrap_ci(values: list, n_boot: int = None,
+                 ci: float = None, statistic=np.mean) -> dict:
     """
     Bootstrap confidence interval for a statistic.
     Returns {"estimate": float, "ci_low": float, "ci_high": float, "n": int}
     """
+    if n_boot is None:
+        n_boot = engine_config.get("n_bootstrap")
+    if ci is None:
+        ci = engine_config.get("ci_level")
     values = np.array(_clean_values(list(values)))
     if len(values) < 1:
         return {"estimate": 0.0, "ci_low": 0.0, "ci_high": 0.0, "n": 0}
@@ -64,10 +69,15 @@ def bootstrap_ci(values: list, n_boot: int = 5000,
 
 
 def bootstrap_effect_size(group_a: list, group_b: list,
-                          n_boot: int = 5000, ci: float = 0.95) -> dict:
+                          n_boot: int = None, ci: float = None) -> dict:
     """Bootstrap CI for Cohen's d."""
+    if n_boot is None:
+        n_boot = engine_config.get("n_bootstrap")
+    if ci is None:
+        ci = engine_config.get("ci_level")
     a, b = np.array(_clean_values(group_a)), np.array(_clean_values(group_b))
-    if len(a) < 2 or len(b) < 2:
+    min_d = engine_config.get("min_samples_d")
+    if len(a) < min_d or len(b) < min_d:
         d = cohens_d(list(a), list(b))
         return {"estimate": _safe_float(d), "ci_low": _safe_float(d),
                 "ci_high": _safe_float(d), "n_a": len(a), "n_b": len(b)}
@@ -103,7 +113,7 @@ def best_threshold(benign_vals: list, harmful_vals: list) -> dict:
     best_t = 0
     best_dir = ">="
 
-    for t in np.linspace(min(vals), max(vals), 500):
+    for t in np.linspace(min(vals), max(vals), engine_config.get("threshold_steps")):
         # harmful >= threshold
         c_high = sum(1 for v, c in all_vals
                      if (v >= t and c == "h") or (v < t and c == "b"))
@@ -209,7 +219,7 @@ def length_correlations(results: list) -> dict:
         raw = [extractor(r) for r in results]
         valid = [(i, float(v)) for i, v in enumerate(raw)
                  if v is not None and not (math.isnan(float(v)) or math.isinf(float(v)))]
-        if len(valid) < 5:
+        if len(valid) < engine_config.get("min_valid_separability"):
             continue
 
         valid_y = np.array([v for _, v in valid])

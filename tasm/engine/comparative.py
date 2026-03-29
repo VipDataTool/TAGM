@@ -13,6 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
+from engine import engine_config
 from engine.viz_style import (
     fig_to_base64 as _fig_to_base64,
     style_ax as _style_ax_full,
@@ -112,7 +113,9 @@ def plot_difference_from_benign(results: list) -> str:
     return _fig_to_base64(fig)
 
 
-def plot_discriminative_sublayers(results: list, top_n: int = 15) -> str:
+def plot_discriminative_sublayers(results: list, top_n: int = None) -> str:
+    if top_n is None:
+        top_n = engine_config.get("disc_sublayers_top_n")
     has_traj = [r for r in results if r.get("amplitude_normalized")]
     if not has_traj:
         return ""
