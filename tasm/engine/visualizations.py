@@ -599,13 +599,19 @@ def plot_rank_displacement(result) -> str:
     taus = rd["per_position_tau"]
     n = min(len(tokens), len(taus))
 
+    # Replace None (unmeasurable) with 0 for plotting, track which are real
+    plot_taus = [t if t is not None else 0.0 for t in taus[:n]]
+    is_null = [t is None for t in taus[:n]]
+
     fig, ax = plt.subplots(figsize=(max(9, n * 0.65), 4.5))
     fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Rank Displacement (per position)")
 
-    colors = ["#009E73" if t > 0.5 else ("#E69F00" if t > 0 else "#D55E00")
-              for t in taus[:n]]
-    ax.bar(range(n), taus[:n], color=colors, width=0.75, edgecolor="none")
+    colors = [("#404040" if is_null[i] else
+               "#009E73" if plot_taus[i] > 0.5 else
+               "#E69F00" if plot_taus[i] > 0 else "#D55E00")
+              for i in range(n)]
+    ax.bar(range(n), plot_taus, color=colors, width=0.75, edgecolor="none")
     ax.set_xticks(range(n))
     ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
                        fontsize=12, color="#9CA3AF")
