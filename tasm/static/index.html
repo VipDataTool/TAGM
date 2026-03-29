@@ -404,9 +404,9 @@ textarea{resize:vertical;min-height:44px}
     <div class="card">
       <div class="card-header"><h3>Advanced Parameters</h3></div>
       <div class="card-body">
-        <div style="font-size:11px;color:var(--red);margin-bottom:10px;line-height:1.5;padding:8px 10px;border:1px solid var(--red);border-radius:4px;background:rgba(213,94,0,0.05)">These parameters directly affect measurement computations. Changing any value requires a full application reset — model unload, session clear, all caches invalidated. Data collected under different settings is not comparable.</div>
+        <div style="font-size:var(--font-legend);color:var(--red);margin-bottom:10px;line-height:1.5;padding:8px 10px;border:1px solid var(--red);border-radius:4px;background:rgba(213,94,0,0.05)">These parameters directly affect measurement computations. Changing any value requires a full application reset — model unload, session clear, all caches invalidated. Data collected under different settings is not comparable.</div>
         <div class="checkbox-row" style="margin-bottom:10px"><input type="checkbox" id="advParamsUnlock" onchange="_advToggleLock(this.checked)"><label for="advParamsUnlock" style="color:var(--red);font-weight:600">I understand. Unlock parameters.</label></div>
-        <div id="advancedParamsPanel" style="font-size:12px;color:var(--text-3)">Locked.</div>
+        <div id="advancedParamsPanel" style="font-size:var(--font-desc);color:var(--text-3)">Locked.</div>
         <div id="advParamsButtons" style="margin-top:10px;display:none;gap:8px">
           <button class="btn btn-sm btn-danger" id="advApplyBtn" onclick="_advApplyChanges()" disabled>Apply Changes &amp; Reset Application</button>
           <button class="btn btn-sm btn-secondary" onclick="resetAdvancedParams()">Reset to Defaults</button>
@@ -2357,7 +2357,7 @@ function renderAdvancedParams(){
   for(var group in groups){
     var items = groups[group];
     var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':'var(--text-2)';
-    h += '<div style="margin-bottom:14px"><div style="font-size:11px;font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
+    h += '<div style="margin-bottom:14px"><div style="font-size:var(--font-desc);font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
     items.forEach(function(item){
       var m = item.meta;
@@ -2367,18 +2367,18 @@ function renderAdvancedParams(){
       var isDefault = String(val) === String(def);
       var id = 'ep_'+item.key;
       h += '<div style="margin-bottom:4px">';
-      h += '<label style="font-size:11px;color:var(--text-1);font-family:var(--mono)">'+escHtml(m.label);
+      h += '<label style="font-size:var(--font-desc);color:var(--text-1);font-family:var(--mono)">'+escHtml(m.label);
       if(isPending) h += ' <span style="color:var(--orange);font-size:10px" title="Pending change">●</span>';
       else if(!isDefault) h += ' <span style="color:var(--yellow);font-size:10px" title="Changed from default">◆</span>';
       h += '</label>';
       if(m.type === 'bool'){
         h += '<div class="checkbox-row" style="margin-top:2px"><input type="checkbox" id="'+id+'"'+(val?' checked':'')+' onchange="_advEdit(\''+item.key+'\',this.checked)"><label for="'+id+'">Enable</label></div>';
       } else if(m.type === 'float'){
-        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||0.01)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:11px;border-color:var(--orange)"':' style="width:100px;font-size:11px"')+' onchange="_advEdit(\''+item.key+'\',parseFloat(this.value))">';
+        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||0.01)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:var(--font-table);border-color:var(--orange)"':' style="width:100px;font-size:var(--font-table)"')+' onchange="_advEdit(\''+item.key+'\',parseFloat(this.value))">';
       } else {
-        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||1)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:11px;border-color:var(--orange)"':' style="width:100px;font-size:11px"')+' onchange="_advEdit(\''+item.key+'\',parseInt(this.value))">';
+        h += '<input type="number" id="'+id+'" value="'+val+'" step="'+(m.step||1)+'"'+(m.min!=null?' min="'+m.min+'"':'')+(m.max!=null?' max="'+m.max+'"':'')+(isPending?' style="width:100px;font-size:var(--font-table);border-color:var(--orange)"':' style="width:100px;font-size:var(--font-table)"')+' onchange="_advEdit(\''+item.key+'\',parseInt(this.value))">';
       }
-      h += '<div style="font-size:10px;color:var(--text-3);margin-top:1px;line-height:1.3">'+escHtml(m.desc)+' <span style="color:var(--text-3)">Default: '+def+'</span></div>';
+      h += '<div style="font-size:var(--font-legend);color:var(--text-3);margin-top:1px;line-height:1.3">'+escHtml(m.desc)+' <span style="color:var(--text-3)">Default: '+def+'</span></div>';
       h += '</div>';
     });
     h += '</div></div>';
