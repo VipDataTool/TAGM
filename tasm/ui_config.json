@@ -5,7 +5,7 @@
       "order": 20
     },
     "stress_per_token": {
-      "on": true,
+      "on": false,
       "order": 30
     },
     "heatmap": {
@@ -137,9 +137,7 @@
   },
   "ltp": {
     "layerStrategy": "signal",
-    "k": "8",
-    "svdRank": "0",
-    "tunedLens": "false"
+    "k": "8"
   },
   "analysis": {
     "computeTraj": true,
