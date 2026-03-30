@@ -3240,7 +3240,7 @@ function popoutDomainSurface(){
   var w=window.open('','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
   if(!w)return;
 
-  // Safely encode data — prevent </script> breaking and template literal issues
+  // Safely encode data — prevent closing-tag and template literal issues
   var safeJSON=JSON.stringify(r).replace(/<\//g,'<\\/');
 
   // Build controls HTML
