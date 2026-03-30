@@ -209,7 +209,7 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         full_capture=False,
                         ltp_k=8, ltp_layer_strategy="signal",
                         ltp_svd_rank=0, ltp_tuned_lens=False,
-                        skip_plots=False):
+                        skip_plots=True):
     # Serialize access to model activations, hooks, and session state.
     # Without this lock, concurrent API calls can corrupt activation caches
     # (one prompt's hidden states overwriting another's mid-extraction)
@@ -268,8 +268,27 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         path = plot_dir / f"{idx:04d}_{name}.png"
                         path.write_bytes(base64.b64decode(b64_str))
 
-    plot_keys = [k for k, v in plots.items() if v]
+    plot_keys = _plot_keys_for_result(result_dict) if skip_plots else [k for k, v in plots.items() if v]
     return result_dict, plot_keys
+
+
+def _plot_keys_for_result(r):
+    """Determine which plots are available for a result without rendering them."""
+    keys = ["signed_attribution", "stress_per_token", "distribution_metrics"]
+    if r.get("amplitude_trajectory"):
+        keys.append("amplitude_trajectory")
+    if r.get("heatmap"):
+        keys.append("heatmap")
+    ltp = r.get("ltp")
+    if ltp and ltp.get("profiles"):
+        keys.extend(["ltp_profiles", "ltp_tension_magnitudes",
+                      "ltp_dual_trajectory", "ltp_summary_stats",
+                      "ltp_profile_heatmap"])
+    if r.get("sfd"):
+        keys.extend(["sfd_density", "sfd_energy", "sfd_entropy"])
+    if r.get("rank_displacement"):
+        keys.append("rank_displacement")
+    return keys
 
 
 def _generate_deferred_plots(sess):
@@ -677,7 +696,7 @@ def _run_batch_sync(content, filename,
                     ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
                     ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
-                    skip_plots=(len(prompts) > 100))
+                    skip_plots=True)
             except Exception as prompt_err:
                 logger.error(f"Prompt {i+1} failed: {prompt_err}")
                 log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
@@ -1088,15 +1107,99 @@ def _generate_plot_sync(plot_key: str) -> Optional[bytes]:
 
 @app.get("/api/plots/individual/{index}/{plot_key}")
 async def get_individual_plot(index: int, plot_key: str):
-    """Serve a per-prompt plot as a PNG file."""
+    """Serve a per-prompt plot, generating it on demand if needed."""
     if not session:
         return JSONResponse(status_code=404, content={"error": "No session."})
+    if index < 0 or index >= len(session.results):
+        return JSONResponse(status_code=404, content={"error": "Index out of range."})
+
     safe_key = "".join(c for c in plot_key if c.isalnum() or c in "_-")
-    plot_path = session.session_dir / "plots" / "individual" / f"{index:04d}_{safe_key}.png"
-    if not plot_path.exists():
-        return JSONResponse(status_code=404, content={"error": f"Plot not found."})
-    return FileResponse(plot_path, media_type="image/png",
-                        headers={"Cache-Control": "no-cache"})
+    plot_dir = session.session_dir / "plots" / "individual"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    plot_path = plot_dir / f"{index:04d}_{safe_key}.png"
+
+    # Serve from cache if already generated
+    if plot_path.exists():
+        return FileResponse(plot_path, media_type="image/png",
+                            headers={"Cache-Control": "no-cache"})
+
+    # Generate on demand
+    import asyncio
+    try:
+        png_bytes = await asyncio.to_thread(
+            _generate_individual_plot_sync, index, safe_key)
+        if png_bytes:
+            plot_path.write_bytes(png_bytes)
+            return FileResponse(plot_path, media_type="image/png",
+                                headers={"Cache-Control": "no-cache"})
+        else:
+            return JSONResponse(status_code=404,
+                                content={"error": f"Plot '{plot_key}' could not be generated."})
+    except Exception as e:
+        logger.error(f"Individual plot generation failed for {index}/{safe_key}: {e}")
+        return JSONResponse(status_code=500,
+                            content={"error": f"Plot generation failed: {str(e)[:80]}"})
+
+
+def _generate_individual_plot_sync(index: int, plot_key: str) -> Optional[bytes]:
+    """Generate a single per-prompt plot on demand. Returns PNG bytes or None."""
+    from engine.analyzer import PromptResult
+
+    with _plot_gen_lock:
+        # Double-check: another thread may have generated while we waited
+        plot_dir = session.session_dir / "plots" / "individual"
+        plot_path = plot_dir / f"{index:04d}_{plot_key}.png"
+        if plot_path.exists():
+            return plot_path.read_bytes()
+
+        logger.info(f"[PLOT] Generating on demand: {index}/{plot_key}")
+
+        r = session.results[index]
+        pr = PromptResult.from_dict(r, mode="plot")
+
+        b64 = None
+
+        # Core plots
+        if plot_key == "signed_attribution":
+            b64 = plot_signed_attribution(pr)
+        elif plot_key == "stress_per_token":
+            b64 = plot_stress_per_token(pr)
+        elif plot_key == "distribution_metrics":
+            b64 = plot_distribution_metrics(pr)
+        elif plot_key == "amplitude_trajectory":
+            b64 = plot_amplitude_trajectory(pr)
+        elif plot_key == "heatmap":
+            b64 = plot_heatmap(pr)
+
+        # LTP plots
+        elif plot_key == "ltp_profiles" and pr.ltp:
+            b64 = plot_ltp_profiles(pr.ltp, pr.tokens)
+        elif plot_key == "ltp_tension_magnitudes" and pr.ltp:
+            b64 = plot_ltp_tension_magnitudes(pr.ltp, pr.tokens)
+        elif plot_key == "ltp_dual_trajectory" and pr.ltp:
+            b64 = plot_ltp_dual_trajectory(pr.ltp)
+        elif plot_key == "ltp_summary_stats" and pr.ltp:
+            b64 = plot_ltp_summary_stats(pr.ltp)
+        elif plot_key == "ltp_profile_heatmap" and pr.ltp:
+            b64 = plot_ltp_profile_heatmap(pr.ltp, pr.tokens)
+
+        # SFD plots
+        elif plot_key == "sfd_density" and pr.sfd:
+            b64 = plot_sfd_density(pr)
+        elif plot_key == "sfd_energy" and pr.sfd:
+            b64 = plot_sfd_energy(pr)
+        elif plot_key == "sfd_entropy" and pr.sfd:
+            b64 = plot_sfd_entropy(pr)
+        elif plot_key == "rank_displacement" and pr.rank_displacement:
+            b64 = plot_rank_displacement(pr)
+
+        else:
+            logger.warning(f"[PLOT] Unknown or unavailable: {index}/{plot_key}")
+            return None
+
+        if b64:
+            return base64.b64decode(b64)
+        return None
 
 
 def _compute_candidate_graph_summary(r):

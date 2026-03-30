@@ -341,7 +341,7 @@ class Analyzer:
             norm = float(np.linalg.norm(emb))
             if norm > 1e-12:
                 emb = emb / norm
-            result.domain_embedding = emb.tolist()
+            result.domain_embedding = [round(float(x), 4) for x in emb]
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
