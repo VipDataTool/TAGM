@@ -3006,6 +3006,8 @@ function renderModuleResults(name, results) {
   // Route to module-specific renderer
   if (name === 'token_variance') {
     container.innerHTML = renderTokenVarianceResults(results);
+  } else if (name === 'domain_surface') {
+    container.innerHTML = renderDomainSurfaceResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3113,6 +3115,113 @@ function tvPairwiseTable(title, pairs) {
     h += '</tr>';
   });
   h += '</tbody></table></div>';
+  return h;
+}
+
+// ─── Domain Surface Results Renderer ──────────────────────────
+
+function renderDomainSurfaceResults(r) {
+  var h = '<div class="mod-results">';
+  var ln = r.level_names || ['nouns','phrase','question','instruct','meta'];
+  var cats = ['b','m','h','j'];
+  var catNames = {b:'benign',m:'mild',h:'harmful',j:'jailbreak'};
+  var catCols = {b:'var(--cat-benign)',m:'var(--cat-mild)',h:'var(--cat-harmful)',j:'var(--cat-jailbreak)'};
+
+  // Summary
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
+  h += '<div class="mod-results-body"><div class="mod-summary">';
+  h += tvStat('Prompts', r.n_prompts_used, r.n_prompts_total > r.n_prompts_used ? (r.n_prompts_total - r.n_prompts_used) + ' without embeddings' : 'all with embeddings');
+  h += tvStat('Observations', r.observations ? r.observations.length : 0, r.tokens ? r.tokens.length + ' tokens tracked' : '');
+  h += tvStat('Subjects', r.subjects ? r.subjects.length : 0, r.anchors ? r.anchors.length + ' probe anchors' : '');
+  h += tvStat('PCA Variance', r.pca ? r.pca[0] + '% + ' + r.pca[1] + '%' : '?', 'PC1 + PC2');
+  h += tvStat('Probe File', r.probe_file || '?', '');
+  h += '</div></div>';
+
+  // Stratification by discourse level
+  if (r.stratification && r.stratification.by_level) {
+    h += '<div class="mod-section-title">Stratification by Discourse Level</div>';
+    h += '<div class="mod-results-body">';
+    h += '<table class="mod-tbl"><thead><tr>';
+    h += '<th>Level</th>';
+    cats.forEach(function(c) { h += '<th class="num" style="color:' + catCols[c] + '">' + catNames[c] + '</th>'; });
+    h += '<th class="num">total</th><th class="num">% jailbreak</th>';
+    h += '</tr></thead><tbody>';
+    for (var li = 0; li < 5; li++) {
+      var lk = String(li);
+      var lv = r.stratification.by_level[lk] || {};
+      var total = 0;
+      cats.forEach(function(c) { total += (lv[c] || 0); });
+      var jPct = total > 0 ? ((lv.j || 0) / total * 100) : 0;
+      var isMeta = (li === 4);
+      h += '<tr' + (isMeta ? ' style="background:rgba(204,121,167,0.06)"' : '') + '>';
+      h += '<td style="color:var(--cyan);font-weight:500">' + (ln[li] || li) + '</td>';
+      cats.forEach(function(c) {
+        var n = lv[c] || 0;
+        h += '<td class="num"' + (n > 0 ? ' style="color:' + catCols[c] + '"' : '') + '>' + n + '</td>';
+      });
+      h += '<td class="num" style="color:var(--text-2)">' + total + '</td>';
+      h += '<td class="num" style="color:' + (jPct > 30 ? 'var(--cat-jailbreak)' : 'var(--text-2)') + ';font-weight:' + (jPct > 30 ? '600' : '400') + '">' + jPct.toFixed(1) + '%</td>';
+      h += '</tr>';
+    }
+    h += '</tbody></table></div>';
+  }
+
+  // Stratification by subject
+  if (r.stratification && r.stratification.by_subject) {
+    h += '<div class="mod-section-title">Stratification by Subject</div>';
+    h += '<div class="mod-results-body" style="max-height:350px">';
+    h += '<table class="mod-tbl"><thead><tr>';
+    h += '<th>Subject</th>';
+    cats.forEach(function(c) { h += '<th class="num" style="color:' + catCols[c] + '">' + catNames[c] + '</th>'; });
+    h += '<th class="num">total</th>';
+    h += '</tr></thead><tbody>';
+    var subjects = Object.keys(r.stratification.by_subject).sort();
+    subjects.forEach(function(s) {
+      var sv = r.stratification.by_subject[s];
+      var total = 0;
+      cats.forEach(function(c) { total += (sv[c] || 0); });
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(s.replace(/_/g, ' ')) + '</td>';
+      cats.forEach(function(c) {
+        var n = sv[c] || 0;
+        h += '<td class="num"' + (n > 0 ? ' style="color:' + catCols[c] + '"' : '') + '>' + n + '</td>';
+      });
+      h += '<td class="num" style="color:var(--text-2)">' + total + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // Token table
+  if (r.tokens && r.tokens.length && r.observations) {
+    h += '<div class="mod-section-title">Tokens by Coefficient of Variation</div>';
+    h += '<div class="mod-results-body" style="max-height:400px">';
+    h += '<table class="mod-tbl"><thead><tr>';
+    h += '<th>Token</th><th class="num">CV</th><th class="num">n</th>';
+    h += '<th class="num">disp μ</th><th class="num">ASM μ</th>';
+    h += '<th class="num">SFD-e μ</th><th class="num">SFD-d μ</th>';
+    h += '</tr></thead><tbody>';
+    r.tokens.forEach(function(tok) {
+      var cv = (r.token_cv || {})[tok] || 0;
+      var obs = r.observations.filter(function(o) { return o[0] === tok; });
+      var n = obs.length;
+      var mDisp = n ? obs.reduce(function(s, o) { return s + o[3]; }, 0) / n : 0;
+      var mAsm = n ? obs.reduce(function(s, o) { return s + o[6]; }, 0) / n : 0;
+      var mSfdE = n ? obs.reduce(function(s, o) { return s + o[7]; }, 0) / n : 0;
+      var mSfdD = n ? obs.reduce(function(s, o) { return s + o[8]; }, 0) / n : 0;
+      var cvCol = cv < 0.35 ? 'var(--green)' : (cv < 0.6 ? 'var(--orange)' : 'var(--red)');
+      h += '<tr>';
+      h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(tok) + '</td>';
+      h += '<td class="num" style="color:' + cvCol + '">' + cv.toFixed(3) + '</td>';
+      h += '<td class="num">' + n + '</td>';
+      h += '<td class="num">' + mDisp.toFixed(3) + '</td>';
+      h += '<td class="num">' + mAsm.toFixed(2) + '</td>';
+      h += '<td class="num">' + mSfdE.toFixed(3) + '</td>';
+      h += '<td class="num">' + mSfdD.toFixed(3) + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  h += '</div>';
   return h;
 }
 
