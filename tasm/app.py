@@ -1684,6 +1684,15 @@ async def chat_page():
     return HTMLResponse(content="<p>chat.html not found</p>", status_code=404)
 
 
+@app.get("/domain_surface_viz", response_class=HTMLResponse)
+async def domain_surface_viz():
+    """Serve the domain surface interactive visualization."""
+    viz_html = Path(__file__).parent / "static" / "domain_surface_viz.html"
+    if viz_html.exists():
+        return HTMLResponse(content=viz_html.read_text())
+    return HTMLResponse(content="<p>domain_surface_viz.html not found</p>", status_code=404)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

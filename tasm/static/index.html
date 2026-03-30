@@ -3235,89 +3235,11 @@ function renderDomainSurfaceResults(r) {
 // Load modules when the tab is first shown
 
 function popoutDomainSurface(){
-  var r=_dsSurfaceData;if(!r||!r.observations||!r.observations.length)return;
+  if(!_dsSurfaceData||!_dsSurfaceData.observations||!_dsSurfaceData.observations.length)return;
   var pw=1100,ph=780,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  var w=window.open('','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
-  if(!w)return;
-
-  // Safely encode data — prevent closing-tag and template literal issues
-  var safeJSON=JSON.stringify(r).replace(/<\//g,'<\\/');
-
-  // Build controls HTML
-  var catBtns='<span style="font-size:9px;color:#6B7280">Cat:</span>';
-  catBtns+='<button data-cat="all" style="opacity:1;font-size:8px;padding:1px 6px;border-radius:3px;border:1px solid #E8ECEF;background:rgba(255,255,255,0.07);color:#E8ECEF;cursor:pointer;font-family:monospace">all</button>';
-  var cc={b:["benign","#009E73"],m:["mild","#E69F00"],h:["harmful","#D55E00"],j:["jailbreak","#56B4E9"]};
-  for(var ck in cc)catBtns+='<button data-cat="'+ck+'" style="opacity:0.4;font-size:8px;padding:1px 6px;border-radius:3px;border:1px solid #444;background:transparent;color:'+cc[ck][1]+';cursor:pointer;font-family:monospace">'+cc[ck][0]+'</button>';
-  var sizeBtns='<span style="font-size:9px;color:#6B7280">Size:</span>';
-  var sm=[["disp","RD disp","#56B4E9"],["repl","RD repl","#CC79A7"],["asm","ASM","#E69F00"],["sfd_e","SFD eng","#009E73"],["sfd_d","SFD den","#F0E442"],["anch","subj prox","#888"]];
-  sm.forEach(function(s){sizeBtns+='<button data-size="'+s[0]+'" style="opacity:'+(s[0]==="repl"?"1":"0.4")+';font-size:8px;padding:1px 5px;border-radius:3px;border:1px solid '+(s[0]==="repl"?s[2]:"#444")+';background:'+(s[0]==="repl"?s[2]+"22":"transparent")+';color:'+(s[0]==="repl"?s[2]:"#6B7280")+';cursor:pointer;font-family:monospace">'+s[1]+'</button>'});
-  var subjLeg='';
-  var SCOL_A=["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2","#E69F00","#F0E442","#882255","#44AA99","#AA4499"];
-  (r.subjects||[]).forEach(function(s,i){subjLeg+='<span style="display:inline-flex;align-items:center;gap:2px;margin-right:6px"><span style="width:6px;height:6px;border-radius:1px;display:inline-block;background:'+SCOL_A[i%10]+'"></span><span style="color:'+SCOL_A[i%10]+'">'+s.replace(/_/g," ")+'</span></span>'});
-
-  var html='<!DOCTYPE html><html><head><title>Domain Surface — TASM</title>'+
-    '<style>body{background:#1C2128;color:#E8ECEF;font-family:"IBM Plex Mono",monospace;padding:16px;margin:0}button{font-family:inherit}#dsErr{color:#D55E00;font-size:12px;padding:10px;white-space:pre-wrap}</style></head><body>'+
-    '<div style="max-width:960px;margin:0 auto">'+
-    '<div style="font-size:14px;font-weight:700;margin-bottom:2px">Token × Domain × Correction</div>'+
-    '<div id="dsSubtitle" style="font-size:9px;color:#6B7280;margin-bottom:8px"></div>'+
-    '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center">'+catBtns+
-    '<span style="width:1px;height:12px;background:#444;margin:0 4px"></span>'+sizeBtns+'</div>'+
-    '<div style="display:flex;flex-wrap:wrap;font-size:8px;margin-bottom:8px">'+subjLeg+'</div>'+
-    '<div style="overflow-x:auto"><div style="position:relative;background:#1C2128;border:1px solid #444C56;border-radius:6px">'+
-    '<canvas id="dsCanvas" style="display:block;cursor:crosshair"></canvas>'+
-    '<div id="dsTip" style="display:none;position:absolute;background:#2D333B;border:1px solid #56B4E9;border-radius:6px;padding:6px 8px;pointer-events:none;min-width:220px;max-width:300px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.5);font-size:11px"></div>'+
-    '</div></div><div id="dsErr"></div></div>'+
-    '<script id="dsJSON" type="application/json">'+safeJSON+'<\/script>'+
-    '<script>'+
-    'try{(function(){'+
-    'var D=JSON.parse(document.getElementById("dsJSON").textContent);'+
-    'var TOKS=D.tokens,TCV=D.token_cv,SUBJ=D.subjects,ANC=D.anchors,O=D.observations,PROMPTS=D.prompts||[];'+
-    'var SCOL=["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2","#E69F00","#F0E442","#882255","#44AA99","#AA4499"];'+
-    'var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9"};'+
-    'var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak"};'+
-    'var LNAME=D.level_names||["nouns","phrase","question","instruct","meta"];'+
-    'var selCat="all",sizeMode="repl",hover=null,ancHover=null;'+
-    'var colW=36,pd={t:44,r:56,b:56,l:64};'+
-    'var W=pd.l+TOKS.length*colW+pd.r,H=640,plotH=H-pd.t-pd.b;'+
-    'var allY=O.map(function(o){return o[2]}).concat(ANC.map(function(a){return a.y}));'+
-    'var yMin=Math.min.apply(null,allY),yMax=Math.max.apply(null,allY);'+
-    'var yPd=(yMax-yMin)*0.08;yMin-=yPd;yMax+=yPd;'+
-    'function toY(v){return pd.t+(1-(v-yMin)/(yMax-yMin))*plotH}'+
-    'function toX(i){return pd.l+i*colW+colW/2}'+
-    'var lvM={};for(var l=0;l<5;l++){var ys=ANC.filter(function(a){return a.l===l}).map(function(a){return a.y});if(ys.length)lvM[l]={mean:ys.reduce(function(s,v){return s+v},0)/ys.length,mn:Math.min.apply(null,ys),mx:Math.max.apply(null,ys)}}'+
-    'var cnv=document.getElementById("dsCanvas");'+
-    'var dp=window.devicePixelRatio||1;cnv.width=W*dp;cnv.height=H*dp;cnv.style.width=W+"px";cnv.style.height=H+"px";'+
-    'var ctx=cnv.getContext("2d");ctx.scale(dp,dp);'+
-    'function getF(){return selCat==="all"?O:O.filter(function(o){return o[1]===selCat})}'+
-    'function getP(f){return f.map(function(o){var ti=TOKS.indexOf(o[0]);if(ti<0)return null;var r;if(sizeMode==="disp")r=Math.max(2,Math.min(9,o[3]*5));else if(sizeMode==="repl")r=Math.max(2,Math.min(9,o[4]*11));else if(sizeMode==="asm")r=Math.max(2,Math.min(9,(o[6]-1.6)/2.5*9));else if(sizeMode==="sfd_e")r=Math.max(2,Math.min(9,(o[7]-0.2)/1.5*9));else if(sizeMode==="sfd_d")r=Math.max(2,Math.min(9,(o[8]-0.3)/0.2*9));else r=Math.max(2,Math.min(9,(1-Math.min(o[11]/0.15,1))*9));return{o:o,sx:toX(ti),sy:toY(o[2]),r:r}}).filter(Boolean)}'+
-    'var curPts=[];'+
-    'function render(){var filtered=getF(),pts=getP(filtered);curPts=pts;ctx.clearRect(0,0,W,H);'+
-    'TOKS.forEach(function(_,i){ctx.fillStyle=i%2===0?"#22272E":"#262C34";ctx.fillRect(pd.l+i*colW,pd.t,colW,plotH)});'+
-    'ctx.strokeStyle="#2D333B";ctx.lineWidth=1;for(var i=0;i<=8;i++){var y=pd.t+(i/8)*plotH;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.stroke()}'+
-    'ctx.fillStyle="#6B7280";ctx.font="8px monospace";ctx.textAlign="right";ctx.textBaseline="middle";for(var i=0;i<=8;i++){var v=yMin+(1-i/8)*(yMax-yMin);ctx.fillText(v.toFixed(2),pd.l-14,pd.t+(i/8)*plotH)}'+
-    'for(var l=0;l<5;l++){var lv=lvM[l];if(!lv)continue;var y1=toY(lv.mx+0.02),y2=toY(lv.mn-0.02);ctx.fillStyle="rgba(255,255,255,0.02)";ctx.fillRect(pd.l,y1,W-pd.l-pd.r,y2-y1);var my=toY(lv.mean);ctx.fillStyle="#8B92A0";ctx.font="bold 8px monospace";ctx.textAlign="left";ctx.textBaseline="middle";ctx.fillText(LNAME[l]||l,W-pd.r+4,my)}'+
-    'ANC.forEach(function(a){var y=toY(a.y),col=SCOL[a.s]||"#666",len=3+a.l*2;ctx.beginPath();ctx.moveTo(pd.l-len,y);ctx.lineTo(pd.l,y);ctx.strokeStyle=col;ctx.lineWidth=1;ctx.stroke()});'+
-    'if(ancHover){var y=toY(ancHover.y),len=3+ancHover.l*2;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.strokeStyle=(SCOL[ancHover.s]||"#666")+"44";ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(pd.l-len-4,y);ctx.lineTo(pd.l,y);ctx.strokeStyle=SCOL[ancHover.s]||"#fff";ctx.lineWidth=3;ctx.stroke()}'+
-    'ctx.textAlign="center";ctx.textBaseline="top";TOKS.forEach(function(t,i){var x=toX(i),cv=TCV[t]||0;ctx.fillStyle=cv<0.35?"#009E73":cv<0.6?"#E69F00":"#D55E00";ctx.font="bold 9px monospace";ctx.fillText(t,x,pd.t-30);ctx.fillStyle="#555";ctx.font="7px monospace";ctx.fillText(cv.toFixed(2),x,pd.t-18)});'+
-    'ctx.textAlign="center";ctx.textBaseline="top";TOKS.forEach(function(t,i){var n=filtered.filter(function(o){return o[0]===t}).length;ctx.fillStyle="#6B7280";ctx.font="7px monospace";ctx.fillText("n="+n,toX(i),H-pd.b+6)});'+
-    'ctx.fillStyle="#555";ctx.font="8px monospace";ctx.textAlign="left";ctx.fillText("stable",pd.l,H-pd.b+18);ctx.textAlign="right";ctx.fillText("volatile",W-pd.r,H-pd.b+18);'+
-    'ctx.save();ctx.translate(10,pd.t+plotH/2);ctx.rotate(-Math.PI/2);ctx.fillStyle="#6B7280";ctx.font="9px monospace";ctx.textAlign="center";ctx.fillText("PC2 (domain + discourse)",0,0);ctx.restore();'+
-    'pts.forEach(function(p){var col=CCOL[p.o[1]];ctx.beginPath();ctx.arc(p.sx,p.sy,p.r,0,Math.PI*2);ctx.fillStyle=col+"55";ctx.fill();if(sizeMode==="anch"){ctx.strokeStyle=SCOL[p.o[13]]||"#666";ctx.lineWidth=1.2}else{ctx.strokeStyle=col+"AA";ctx.lineWidth=0.6}ctx.stroke()});'+
-    'if(hover){ctx.beginPath();ctx.arc(hover.sx,hover.sy,hover.r+4,0,Math.PI*2);ctx.strokeStyle="#E8ECEF";ctx.lineWidth=2;ctx.stroke()}'+
-    'var tip=document.getElementById("dsTip");'+
-    'if(hover){var o=hover.o,ns=(SUBJ[o[13]]||"").replace(/_/g," ");tip.innerHTML="<div style=\\"font-weight:700;color:"+CCOL[o[1]]+"\\">"+CNAME[o[1]]+": \\u201c"+o[0]+"\\u201d <span style=\\"font-size:8px;color:#6B7280;font-weight:400\\">pos "+o[10]+"</span></div>"+"<div style=\\"font-size:9px;color:#B8BFC6;line-height:1.6;margin-top:2px\\"><span style=\\"color:#56B4E9\\">RD</span> disp "+o[3].toFixed(3)+" repl "+o[4].toFixed(2)+"<br><span style=\\"color:#E69F00\\">ASM</span> "+o[6].toFixed(2)+" <span style=\\"color:#009E73\\">SFD</span> e="+o[7].toFixed(3)+" d="+o[8].toFixed(3)+"</div>"+"<div style=\\"font-size:8px;color:#B8BFC6;margin-top:3px;border-top:1px solid #444;padding-top:3px\\"><span style=\\"color:#6B7280\\">nearest:</span> <span style=\\"color:"+(SCOL[o[13]]||"#888")+"\\">"+ns+"</span> <span style=\\"color:#999\\">"+(LNAME[o[12]]||"")+"</span> d="+o[11].toFixed(3)+"</div>"+"<div style=\\"font-size:8px;color:#888;margin-top:3px;line-height:1.4\\">"+((PROMPTS[o[9]]||"").replace(/</g,"&lt;"))+"</div>";tip.style.left=(hover.sx>W*0.5?hover.sx-310:hover.sx+14)+"px";tip.style.top=Math.max(4,hover.sy-100)+"px";tip.style.display="block";tip.style.borderColor=CCOL[o[1]]}else if(ancHover){var a=ancHover,col=SCOL[a.s]||"#888";tip.innerHTML="<div style=\\"font-weight:700;color:"+col+"\\">"+(SUBJ[a.s]||"").replace(/_/g," ")+" <span style=\\"font-size:9px;color:#B8BFC6\\">"+(LNAME[a.l]||"")+"</span></div><div style=\\"font-size:9px;color:#888;margin-top:3px\\">"+a.t+"</div><div style=\\"font-size:8px;color:#6B7280;margin-top:2px\\">PC2 = "+a.y.toFixed(4)+"</div>";tip.style.left=(pd.l+8)+"px";tip.style.top=Math.max(4,Math.min(toY(a.y)-40,H-80))+"px";tip.style.display="block";tip.style.borderColor=col}else{tip.style.display="none"}'+
-    'var sml={disp:"RD displacement",repl:"RD replacement",asm:"ASM stress",sfd_e:"SFD energy",sfd_d:"SFD density",anch:"subject proximity"};document.getElementById("dsSubtitle").textContent=SUBJ.length+" subjects, "+ANC.length+" anchors, "+filtered.length+" obs. Size = "+(sml[sizeMode]||sizeMode)+"."}'+
-    'cnv.addEventListener("mousemove",function(e){var rect=cnv.getBoundingClientRect();var mx=(e.clientX-rect.left)*(W/rect.width),my=(e.clientY-rect.top)*(H/rect.height);if(mx<pd.l+10){var ba=null,bad=12;ANC.forEach(function(a){var ay=toY(a.y),d=Math.abs(my-ay);if(d<bad){bad=d;ba=a}});if(ba){ancHover=ba;hover=null;render();return}}ancHover=null;var b=null,bd=14;curPts.forEach(function(p){var d=Math.sqrt((mx-p.sx)*(mx-p.sx)+(my-p.sy)*(my-p.sy));if(d<bd){bd=d;b=p}});hover=b;render()});'+
-    'cnv.addEventListener("mouseleave",function(){hover=null;ancHover=null;render()});'+
-    'document.querySelectorAll("[data-cat]").forEach(function(b){b.addEventListener("click",function(){selCat=this.dataset.cat;document.querySelectorAll("[data-cat]").forEach(function(x){x.style.opacity="0.4"});this.style.opacity="1";render()})});'+
-    'document.querySelectorAll("[data-size]").forEach(function(b){b.addEventListener("click",function(){sizeMode=this.dataset.size;document.querySelectorAll("[data-size]").forEach(function(x){x.style.opacity="0.4"});this.style.opacity="1";render()})});'+
-    'render();'+
-    '})()}catch(ex){document.getElementById("dsErr").textContent="Viz error: "+ex.message+"\\n"+ex.stack}'+
-    '<\/script></body></html>';
-
-  w.document.write(html);
-  w.document.close();
+  window.open('/domain_surface_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
+
 (function() {
   var origSwitch = switchMainTab;
   var modulesLoaded = false;
