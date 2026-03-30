@@ -18,7 +18,7 @@ button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; bor
 </style>
 </head>
 <body>
-<div style="max-width:1200px;margin:0 auto">
+<div style="margin:0 auto;padding:0 8px">
   <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Token × Domain × Correction</div>
   <div id="dsSubtitle" style="font-size:var(--font-legend);color:var(--text2);margin-bottom:10px">Loading...</div>
   <div class="ctrl-row" id="ctrlRow"></div>
@@ -67,33 +67,39 @@ function init(){
   cnv=document.getElementById("dsCanvas");
   var dp=window.devicePixelRatio||1;
 
-  // Measure actual token widths to size the left margin
-  cnv.width=1;cnv.height=1;  // temp size for measuring
+  // Measure actual token widths (one-time)
+  cnv.width=1;cnv.height=1;
   var mctx=cnv.getContext("2d");
   mctx.font="bold "+fT+"px monospace";
   var maxTokW=0;
   TOKS.forEach(function(t){var w=mctx.measureText(t).width;if(w>maxTokW)maxTokW=w});
   mctx.font=fL+"px monospace";
   var cvW=mctx.measureText("0.00").width;
+  window._dsCvW=cvW;
 
-  // Layout — tokens on Y, PC2 on X
+  // Fixed layout values
   rowH=Math.max(20,fT*2);
   var labelW=Math.ceil(maxTokW+cvW+fT*2+12);
   pd={t:fL*2+6,r:20,b:fL*3+10,l:labelW};
-  var plotMin=600;
-  W=pd.l+plotMin+pd.r;plotW=plotMin;
   H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
 
-  // Store for label drawing
-  window._dsLabelW=maxTokW;window._dsCvW=cvW;
+  function resize(){
+    var container=cnv.parentElement.parentElement;
+    var avail=container.clientWidth-4; // account for border
+    W=Math.max(pd.l+300+pd.r,avail);
+    plotW=W-pd.l-pd.r;
+    dp=window.devicePixelRatio||1;
+    cnv.width=W*dp;cnv.height=H*dp;
+    cnv.style.width=W+"px";cnv.style.height=H+"px";
+    ctx=cnv.getContext("2d");ctx.scale(dp,dp);
+    render();
+  }
 
-  cnv.width=W*dp;cnv.height=H*dp;
-  cnv.style.width=W+"px";cnv.style.height=H+"px";
-  ctx=cnv.getContext("2d");ctx.scale(dp,dp);
   buildCtrls();
   cnv.addEventListener("mousemove",onMouse);
   cnv.addEventListener("mouseleave",function(){hover=null;ancHover=null;render()});
-  render();
+  resize();
+  window.addEventListener("resize",resize);
 }
 
 function buildCtrls(){
