@@ -56,11 +56,7 @@ function init(){
   fL=parseInt(cs.getPropertyValue('--font-legend'))||12;
   fT=parseInt(cs.getPropertyValue('--font-table'))||12;
 
-  // Layout — tokens on Y, PC2 on X
-  rowH=Math.max(20,fT*2);
-  var labelW=Math.max(80,fT*8);
-  pd={t:fL*2+6,r:20,b:fL*3+10,l:labelW};
-  W=900;plotW=W-pd.l-pd.r;H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
+  // Layout computed after canvas measurement below
 
   var allX=O.map(function(o){return o[2]}).concat(ANC.map(function(a){return a.y}));
   xMin=Math.min.apply(null,allX);xMax=Math.max.apply(null,allX);
@@ -69,7 +65,29 @@ function init(){
   lvM={};for(var l=0;l<5;l++){var xs=ANC.filter(function(a){return a.l===l}).map(function(a){return a.y});if(xs.length)lvM[l]={mean:xs.reduce(function(s,v){return s+v},0)/xs.length,mn:Math.min.apply(null,xs),mx:Math.max.apply(null,xs)}}
 
   cnv=document.getElementById("dsCanvas");
-  var dp=window.devicePixelRatio||1;cnv.width=W*dp;cnv.height=H*dp;
+  var dp=window.devicePixelRatio||1;
+
+  // Measure actual token widths to size the left margin
+  cnv.width=1;cnv.height=1;  // temp size for measuring
+  var mctx=cnv.getContext("2d");
+  mctx.font="bold "+fT+"px monospace";
+  var maxTokW=0;
+  TOKS.forEach(function(t){var w=mctx.measureText(t).width;if(w>maxTokW)maxTokW=w});
+  mctx.font=fL+"px monospace";
+  var cvW=mctx.measureText("0.00").width;
+
+  // Layout — tokens on Y, PC2 on X
+  rowH=Math.max(20,fT*2);
+  var labelW=Math.ceil(maxTokW+cvW+fT*2+12);
+  pd={t:fL*2+6,r:20,b:fL*3+10,l:labelW};
+  var plotMin=600;
+  W=pd.l+plotMin+pd.r;plotW=plotMin;
+  H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
+
+  // Store for label drawing
+  window._dsLabelW=maxTokW;window._dsCvW=cvW;
+
+  cnv.width=W*dp;cnv.height=H*dp;
   cnv.style.width=W+"px";cnv.style.height=H+"px";
   ctx=cnv.getContext("2d");ctx.scale(dp,dp);
   buildCtrls();
@@ -119,14 +137,17 @@ function render(){
   for(var l=0;l<5;l++){var lv=lvM[l];if(!lv)continue;var x1=toX(lv.mn-.02),x2=toX(lv.mx+.02);ctx.fillStyle="rgba(255,255,255,0.025)";ctx.fillRect(x1,pd.t,x2-x1,plotH);ctx.fillStyle="#8B92A0";ctx.font="bold "+fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(LNAME[l]||l,toX(lv.mean),pd.t-2)}
 
   // Token labels (Y axis, left)
+  var cvW=window._dsCvW||40;
   ctx.textBaseline="middle";
   TOKS.forEach(function(t,i){
     var y=toY(i),cv=TCV[t]||0;
+    // CV value, right-aligned against the plot edge
+    ctx.fillStyle="#555";ctx.font=fL+"px monospace";ctx.textAlign="right";
+    ctx.fillText(cv.toFixed(2),pd.l-8,y);
+    // Token name, right-aligned before the CV
     ctx.fillStyle=cv<.35?"#009E73":cv<.6?"#E69F00":"#D55E00";
     ctx.font="bold "+fT+"px monospace";ctx.textAlign="right";
-    ctx.fillText(t,pd.l-fT*4-4,y);
-    ctx.fillStyle="#555";ctx.font=fL+"px monospace";ctx.textAlign="right";
-    ctx.fillText(cv.toFixed(2),pd.l-4,y);
+    ctx.fillText(t,pd.l-cvW-fT-8,y);
   });
   ctx.fillStyle="#555";ctx.font=fL+"px monospace";ctx.textAlign="left";ctx.textBaseline="top";ctx.fillText("\u2191 stable",2,pd.t);ctx.textBaseline="bottom";ctx.fillText("\u2193 volatile",2,pd.t+plotH);
 
