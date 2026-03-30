@@ -32,12 +32,17 @@
    - [Visualization Registry](#visualization-registry)
 4. [Token Variance Analysis](#part-4-token-variance-analysis)
    - [What It Measures](#what-it-measures)
-   - [Usage](#usage)
-   - [Options](#options)
+   - [Integration](#integration)
+   - [Parameters](#parameters)
    - [Output](#output)
+   - [Channels](#channels)
    - [Data Requirements](#data-requirements)
-   - [CSV Schema](#csv-schema)
    - [Interpretation Notes](#interpretation-notes)
+5. [Engine Configuration](#part-5-engine-configuration)
+   - [Overview](#overview-1)
+   - [Parameter Registry](#parameter-registry)
+   - [Persistence](#persistence)
+   - [UI Safety](#ui-safety)
 
 ---
 
@@ -45,30 +50,33 @@
 
 ## Identity
 
-**TASM** (The Alignment Stress Map) is a web-based analysis platform for measuring alignment signals in transformer language models at inference time. It implements three complementary signal families — ASM, LTP, and SFD — that together characterize the intensity, directionality, and dimensionality of the corrections introduced by instruction-tuning (RLHF/SFT) relative to a base model. The theoretical framework is described in two companion papers by Ostrander (2026).
+**TASM** (The Alignment Stress Map) is a web-based analysis platform for measuring alignment signals in transformer language models at inference time. It implements four complementary instruments — ASM (amplitude), LTP-RD (directional/rank displacement), SFD (dimensionality), and Token Variance (cross-context stability) — that together characterize the corrections introduced by instruction-tuning (RLHF/SFT) relative to a base model. The theoretical framework is described in two companion papers by Ostrander (2026).
 
-The application is a single-server Python system built on FastAPI, serving a single-page web frontend over HTTP. It is designed for interactive single-prompt analysis, CSV-driven batch experiments, and conversational probing via a built-in chat interface.
+The application is a single-server Python system built on FastAPI, serving a single-page web frontend over HTTP. It is designed for interactive single-prompt analysis, CSV-driven batch experiments, conversational probing via a built-in chat interface, and extensible post-hoc analysis via the module framework. All measurement-affecting parameters are centrally configured and surfaced in the UI.
 
 ---
 
 ## Architecture
 
-TASM is structured as a monolithic FastAPI application (`app.py`, ~1,300 lines) backed by a modular engine layer of eight specialized Python modules:
+TASM is structured as a monolithic FastAPI application (`app.py`, ~1,500 lines) backed by a modular engine layer:
 
 | Module | Responsibility |
 |--------|---------------|
 | `model_manager.py` | Model loading, weight delta computation, forward-hook installation, activation caching |
 | `analyzer.py` | Orchestrates the full analysis pipeline: ASM, LTP, SFD, and behavioral comparison in a single forward pass |
 | `ltp.py` | Lateral Tension Profile computation: counterfactual probing, PCA trajectories, M/C/V/L statistics |
-| `sfd.py` | Spectral Field Density: QK-subspace engagement measurement via SVD projection |
+| `sfd.py` | Spectral Field Density: QK-subspace engagement measurement via SVD projection; rank displacement computation |
+| `engine_config.py` | Central registry of all measurement-affecting parameters with typed defaults |
 | `baselines.py` | Length-normalized baseline management from a CSV prompt bank |
 | `statistics.py` | Bootstrap confidence intervals, Cohen's d effect sizes, cross-category aggregation |
 | `visualizations.py` | Matplotlib plot generation for all three signal families (returned as base64 PNGs) |
 | `comparative.py` | Cross-prompt comparative visualizations and batch dashboard plots |
-| `dataset.py` | Session management: result accumulation, CSV/JSON persistence, ZIP export packaging |
+| `dataset.py` | Session management: result accumulation, CSV/JSON persistence, ZIP export packaging, session restore |
 | `reports.py` | PDF report generation via ReportLab |
+| `modules/base.py` | Module framework: TASMModule base class, auto-discovery, parameter metadata, thread-isolated runner |
+| `modules/token_variance.py` | Token variance module: cross-context coupling stability analysis |
 
-The frontend consists of a single-page HTML application (`static/index.html`, ~159 KB) and a separate chat interface (`static/chat.html`). All rendering and interaction logic is client-side JavaScript; the server provides a JSON API and base64-encoded plot images.
+The frontend consists of a single-page HTML application (`static/index.html`, ~3,100 lines) and a separate chat interface (`static/chat.html`). All rendering and interaction logic is client-side JavaScript; the server provides a JSON API and serves plot images on demand.
 
 ---
 
@@ -80,7 +88,7 @@ At analysis time, a single forward pass through the instruct model with register
 
 **ASM (Alignment Stress Map)** computes per-token signed attribution by projecting hidden states through `ΔW_V`, weighting by attention patterns, and aggregating across signal layers (the middle third of the network). This yields a scalar stress score, per-token attribution vectors, distribution metrics (entropy, Gini, top-2 share, interior CV), and — when full trajectory mode is enabled — a layer-by-layer amplitude trace and a token×layer heatmap.
 
-**LTP (Lateral Tension Profile)** probes the alignment field perpendicular to the generation path. For each token position, it identifies the top-k counterfactual tokens the model considered but did not select, computes unembedding directions for each, and measures the lateral tension (the component of the alignment correction toward each alternative) via `ΔW_V` projection. This produces per-token ranked tension profiles, profile shape classifications (steep/flat/inverted), PCA-projected dual trajectories (semantic vs. tension), and four summary statistics: M (offset magnitude), C (offset consistency), V (offset variance), and L (lateral coverage). Two optional enhancements are available: SVD truncation of `ΔW_V` to isolate the dominant safety subspace, and tuned-lens calibration of per-layer unembedding probes.
+**LTP (Lateral Tension Profile)** probes the alignment field perpendicular to the generation path. For each token position, it identifies the top-k counterfactual tokens the model considered but did not select, computes unembedding directions for each, and measures the lateral tension (the component of the alignment correction toward each alternative) via `ΔW_V` projection. This produces per-token ranked tension profiles, profile shape classifications (steep/flat/inverted), PCA-projected dual trajectories (semantic vs. tension), and four summary statistics: M (offset magnitude), C (offset consistency), V (offset variance), and L (lateral coverage).
 
 **SFD (Spectral Field Density)** measures how many dimensions of the QK routing subspace each token's activation engages. At load time, it SVD-decomposes the concatenated `[ΔW_Q; ΔW_K]` per layer and caches the right singular vectors. At inference, it projects each token's hidden state through this basis, yielding per-token energy, spectral entropy, and density ratio. Prompt-level aggregates (mean, max, variance, p90) summarize the dimensionality axis.
 
@@ -96,7 +104,7 @@ At analysis time, a single forward pass through the instruct model with register
 - `prompt` (string, ≤5,000 characters) — the text to analyze
 - `category` (string) — one of `benign`, `mild`, `harmful`, `jailbreak`, `adversarial`, `dual-use`, or arbitrary
 - Boolean flags: `compute_kl`, `compute_trajectory`, `capture_responses`, `full_capture`, `compute_ltp`, `compute_sfd`
-- LTP parameters: `ltp_k` (counterfactual depth: 4, 6, or 8), `ltp_layer_strategy` (`signal` or `late`), `ltp_svd_rank` (0 = raw, or truncation rank), `ltp_tuned_lens` (boolean)
+- LTP parameters: `ltp_k` (counterfactual depth: 4, 6, or 8), `ltp_layer_strategy` (`signal` or `late`)
 
 **Batch analysis** accepts a CSV file with columns `prompt` and `category`, plus the same boolean and LTP parameter flags applied uniformly to all prompts.
 
@@ -128,7 +136,7 @@ Each analysis produces a `PromptResult` serialized to a JSON dictionary with the
 
 **Behavioral divergence:** `kl_divergence` (float or null), `per_token_kl` (float array or null), `instruct_topk` and `base_topk` (lists of `[token_string, probability]` pairs, up to 10 each), `base_counterfactual_tokens` (per-position top-k from base model)
 
-**LTP sub-object** (`ltp`): `profiles` (list of numpy arrays per token), `tension_magnitudes` (float list), `profile_shapes` (string list: "steep"/"flat"/"inverted"), `counterfactual_tokens` (per-position ranked alternatives with probabilities), `offset_magnitude`/`offset_consistency`/`offset_variance`/`lateral_coverage` (per-layer dictionaries), `mean_M`/`mean_C`/`mean_V`/`mean_L` (summary scalars), `max_prc` (peak rank concentration), `n_directional` (count of tokens with PRC above threshold), `semantic_trajectory_2d`/`tension_trajectory_2d` (PCA projections), `k`, `layer_strategy`, `svd_rank`, `tuned_lens` (configuration echo)
+**LTP sub-object** (`ltp`): `profiles` (list of numpy arrays per token), `tension_magnitudes` (float list), `profile_shapes` (string list: "steep"/"flat"/"inverted"), `counterfactual_tokens` (per-position ranked alternatives with probabilities), `offset_magnitude`/`offset_consistency`/`offset_variance`/`lateral_coverage` (per-layer dictionaries), `mean_M`/`mean_C`/`mean_V`/`mean_L` (summary scalars), `max_prc` (peak rank concentration), `n_directional` (count of tokens with PRC above threshold), `semantic_trajectory_2d`/`tension_trajectory_2d` (PCA projections), `k`, `layer_strategy` (configuration echo)
 
 **SFD sub-object** (`sfd`): `per_token_energy`/`per_token_entropy`/`per_token_density` (float arrays), 12 prompt-level aggregates (`energy_mean`/`max`/`var`/`p90`, `entropy_mean`/`max`/`var`/`p90`, `density_mean`/`max`/`var`/`p90`), `global_erank`, `n_layers_monitored`, `k`
 
@@ -156,7 +164,7 @@ SFD plots: density bar chart, energy bar chart, entropy bar chart, rank displace
 
 **Aggregate statistics JSON** (`aggregate_statistics.json`): batch-level computed analytics including per-category bootstrapped means with confidence intervals, pairwise separability (Cohen's d with bootstrap CIs for every metric between category pairs), length-correlation analysis, and cross-metric correlations.
 
-**Export ZIP** (`tasm_session_<timestamp>.zip`): configurable archive containing any combination of summary CSV, full results JSON, aggregate statistics JSON, per-prompt PNG plots, comparative/dashboard plots, and a PDF report.
+**Export ZIP** (`tasm_session_<timestamp>.zip`): configurable archive containing any combination of summary CSV, full results JSON, aggregate statistics JSON, module results (e.g. `module_token_variance.json`), per-prompt PNG plots, comparative/dashboard plots, and a PDF report.
 
 **PDF report** (via ReportLab): formatted batch analysis report with summary tables, separability analysis, and embedded visualizations.
 
@@ -173,13 +181,13 @@ All API endpoints return JSON. The single-analysis endpoint returns:
 }
 ```
 
-Plots are served separately via `GET /api/plots/{plot_key}` and `GET /api/plots/individual/{index}/{plot_key}` as base64-encoded PNG strings.
+Plots are served separately via `GET /api/plots/{plot_key}` and `GET /api/plots/individual/{index}/{plot_key}` as PNG files. Plots are generated lazily on first request and cached to disk — they are not pre-generated during dashboard computation.
 
 ---
 
 ## Concurrency and State Management
 
-The server maintains global mutable state (loaded models, activation caches, session data) protected by two threading locks: `_analysis_lock` serializes forward passes and session writes to prevent activation cache corruption; `_loading_lock` makes model loading state transitions atomic. Batch analysis runs in a background daemon thread, with progress communicated via a shared log list polled by the frontend.
+The server maintains global mutable state (loaded models, activation caches, session data, engine configuration) protected by threading locks: `_analysis_lock` serializes forward passes and session writes to prevent activation cache corruption; `_loading_lock` makes model loading state transitions atomic; `_plot_gen_lock` prevents duplicate lazy plot generation. Batch analysis runs in a background daemon thread, with progress communicated via a shared log list polled by the frontend. Module execution runs in isolated daemon threads with crash protection — a module failure does not affect the main application.
 
 ---
 
@@ -202,13 +210,14 @@ The server maintains global mutable state (loaded models, activation caches, ses
 
 TASM measures how instruction-tuning (RLHF, SFT, or similar) changed a language model's internal behavior at inference time, on a per-token basis, for any given prompt. It does this by comparing the weights of an instruction-tuned model against its base (pre-training-only) counterpart and projecting activations through the difference.
 
-The pipeline has three signal families — ASM, LTP, and SFD — that answer three different questions about the alignment correction at each token:
+The pipeline has three signal families — ASM, LTP, and SFD — plus a rank displacement instrument (RD) that answer four different questions about the alignment correction at each token:
 
 - **ASM** (Alignment Stress Map): *How hard* is the alignment correction pushing?
 - **LTP** (Lateral Tension Profile): *In which direction* is the alignment correction structured?
 - **SFD** (Spectral Field Density): *How many dimensions* of the alignment correction does each token engage?
+- **RD** (Rank Displacement): *How much* did alignment training change the set and ordering of candidate tokens?
 
-There are also several supporting computations: behavioral divergence (KL), rank displacement, and batch-level statistical aggregation. This document traces every mathematical operation from model loading through to final statistics.
+There are also several supporting computations: behavioral divergence (KL), candidate graph topology, and batch-level statistical aggregation. Token Variance analysis operates post-hoc on session data via the module framework (see Part 4). This document traces every mathematical operation from model loading through to final statistics.
 
 ---
 
@@ -226,11 +235,12 @@ TASM computes this for six projection matrices in every transformer layer: the q
 
 ### Signal layer selection
 
-Not all layers are equally important. TASM designates the middle third of the network as the "signal layers." For a 24-layer model, layers 8–15 are the signal layers. This is where prior work suggests alignment corrections are most active — deep enough to have built semantic representations, but before the network commits to a specific output token.
+Not all layers are equally important. TASM designates the middle third of the network as the "signal layers." For a 24-layer model, layers 8–15 are the signal layers. This is where prior work suggests alignment corrections are most active — deep enough to have built semantic representations, but before the network commits to a specific output token. The fraction is configurable via the `signal_layer_fraction` parameter (default 0.333):
 
 ```
-mid_start = n_layers ÷ 3
-mid_end   = 2 × n_layers ÷ 3
+frac = signal_layer_fraction
+mid_start = floor(n_layers × frac)
+mid_end   = floor(n_layers × (1 − frac))
 signal_layers = [mid_start, mid_start+1, ..., mid_end−1]
 ```
 
@@ -244,7 +254,7 @@ For every delta matrix, TASM also stores its Frobenius norm — the square root 
 
 ### Spectral profile (effective rank)
 
-At load time, TASM also computes the spectral structure of each delta matrix via truncated SVD. For each `ΔW`, it computes the top 64 singular values σ₁ ≥ σ₂ ≥ ... ≥ σ₆₄, normalizes them into a probability distribution:
+At load time, TASM also computes the spectral structure of each delta matrix via truncated SVD. For each `ΔW`, it computes the top singular values σ₁ ≥ σ₂ ≥ ... ≥ σ_k (where k is configurable via `delta_svd_k`, default 64), normalizes them into a probability distribution:
 
 ```
 pᵢ = σᵢ / Σⱼ σⱼ
@@ -340,7 +350,7 @@ The sum of signed attributions across all tokens should exactly equal the norm o
 Σⱼ signed_attr[j] = ‖δ[-1]‖
 ```
 
-This is checked per-head and reported. It's a mathematical identity (the projection decomposes the norm), so errors above ~10⁻⁴ indicate numerical issues.
+This is checked per-head and reported. It's a mathematical identity (the projection decomposes the norm), so errors above the configurable `proof1_threshold` (default 10⁻⁴) indicate numerical issues.
 
 **Step 7: Aggregate across heads and layers.**
 
@@ -374,7 +384,7 @@ Gini = 1 − 2 × ∫₀¹ Lorenz(x) dx
 
 Values near 0 mean perfect equality; values near 1 mean one token dominates.
 
-**Boundary vs. interior split:** The prompt is divided into boundary tokens (the first and last 10% of the sequence, minimum 1 token each) and interior tokens (everything in between). `top2_share` is the fraction of total absolute attribution at boundary positions. `middle_share` is the fraction at interior positions. `interior_cv` is the coefficient of variation (standard deviation ÷ mean) of the interior attribution values.
+**Boundary vs. interior split:** The prompt is divided into boundary tokens (the first and last portion of the sequence, configurable via `boundary_fraction`, default 10%, minimum 1 token each) and interior tokens (everything in between). `top2_share` is the fraction of total absolute attribution at boundary positions. `middle_share` is the fraction at interior positions. `interior_cv` is the coefficient of variation (standard deviation ÷ mean) of the interior attribution values.
 
 The hypothesis: benign prompts concentrate correction at the boundaries (system prompt, instruction tokens), while adversarial prompts distribute correction into the interior.
 
@@ -455,8 +465,6 @@ d_ic = W_u[c] − W_u[chosen_i]
 
 where `W_u` is the unembedding matrix (the `lm_head` weight). This is the direction in embedding space that points from the token the model chose toward the alternative it didn't choose.
 
-If tuned-lens correction is enabled, this direction is first multiplied by a per-layer affine transform `A_l` that calibrates the probe for the intermediate layer's representation space (see Stage 3h).
-
 This probing direction then goes through a three-step projection pipeline:
 
 **Step 1: Project through half the V-delta.**
@@ -536,21 +544,13 @@ C = M / mean(‖tension_point_i‖)
 
 The diagnostic hypothesis: High M + High C = "boundary-threading signature" — the prompt is consistently pulled in one lateral direction at every position, suggesting it runs along a systematic alignment boundary.
 
-### 3h: Optional Enhancements
+### 3h: Removed Enhancements
 
-**SVD Truncation:** Instead of using the raw `ΔW_V`, TASM can project through a rank-r truncation that retains only the top-r singular directions. This isolates the dominant "safety subspace" of the delta and filters out noise. The truncated delta is precomputed at model load:
+Two optional enhancements were explored during development and subsequently removed after literature review determined they were inappropriate for cross-model weight delta projection:
 
-```
-ΔW_V_truncated = U_r · diag(σ₁..σᵣ) · V_r^T
-```
+**SVD Truncation (removed):** Projecting through a rank-r truncation of `ΔW_V` to isolate a "dominant safety subspace." Ponkshe et al. (2025) showed that top SVD directions of alignment deltas capture general parameter sensitivity rather than safety-specific directions. The full-rank `ΔW_V` is used for all computations. The code path remains dormant.
 
-**Tuned-Lens Correction:** The unembedding matrix `W_u` is designed for the final layer's representation space, but LTP probes at intermediate layers. Tuned-lens calibration fits a linear transform `A_l` per layer that maps intermediate hidden states to what the final layer would produce, via least-squares regression over a set of calibration prompts:
-
-```
-A_l = argmin_A ‖H_l · A − H_final‖²
-```
-
-The probing direction `d_ic` is then corrected: `d_ic_corrected = A_l · d_ic`. This accounts for the fact that early layers use a different "coordinate system" than the unembedding matrix expects.
+**Tuned-Lens Correction (removed):** Applying per-layer affine transforms trained on a single model's representational drift to calibrate unembedding probes at intermediate layers. The tuned lens (Belrose et al., 2023) is a within-model state decoder; applying it to vectors produced by cross-model weight delta projection is geometrically incoherent. The code path remains dormant.
 
 ### 3i: Peak Rank Concentration (PRC)
 
@@ -599,6 +599,8 @@ TASM performs truncated SVD on this concatenated delta:
 ```
 ΔW_QK ≈ U · diag(σ₁..σ_k) · V_k^T
 ```
+
+The number of components k is configurable via `sfd_svd_k` (default 16). The layer range defaults to layers 9–15 but can be configured via `sfd_layer_start`/`sfd_layer_end`, or set to match the ASM signal layers via the `sfd_use_signal_layers` flag. All three parameters are accessible in the Advanced Parameters panel.
 
 The right singular vectors `V_k` (shape: `k × hidden_dim`) define the k most important directions in the input space that alignment training modified for routing purposes. The singular values `σ₁..σ_k` quantify how much each direction was modified.
 
@@ -685,7 +687,7 @@ replacement_ratio = (promoted_mass + demoted_mass) / total_disp
 
 A high replacement ratio means the instruct and base models consider largely *different* alternatives — alignment training didn't just re-rank candidates, it replaced them entirely.
 
-**Legacy metrics:** For backward compatibility, TASM also computes Kendall's τ (rank correlation) and Jaccard overlap between the shared tokens' rankings.
+**Legacy metrics:** For backward compatibility, TASM also computes Kendall's τ (rank correlation) and Jaccard overlap between the shared tokens' rankings. Kendall's τ is computed at every position where at least 2 tokens appear in both models' top-k (configurable via `rd_min_shared`, default 2). Positions with fewer than 2 shared candidates receive τ = 0.0. The `per_position_tau` array is always the same length as the `tokens` array — every position gets a value.
 
 ---
 
@@ -708,12 +710,12 @@ When multiple prompts have been analyzed, TASM computes aggregate statistics acr
 
 ### 8a: Per-Category Summary
 
-Results are grouped by category (benign, harmful, jailbreak, etc.). For each category and each metric in the registry (19 metrics total spanning ASM, KL, LTP, SFD, and rank displacement), TASM computes a **bootstrap confidence interval** with 5,000 resamples:
+Results are grouped by category (benign, harmful, jailbreak, etc.). For each category and each metric in the registry (19 metrics total spanning ASM, KL, LTP, SFD, and rank displacement), TASM computes a **bootstrap confidence interval** (configurable: `n_bootstrap` resamples, default 5,000; `ci_level`, default 0.95):
 
 1. Draw a sample with replacement of the same size as the group.
 2. Compute the mean of the sample.
-3. Repeat 5,000 times.
-4. The estimate is the mean of the original data; the CI bounds are the 2.5th and 97.5th percentiles of the bootstrap distribution.
+3. Repeat for n_bootstrap iterations.
+4. The estimate is the mean of the original data; the CI bounds are the α/2 and (1−α/2) percentiles of the bootstrap distribution.
 
 The seed is fixed at 42 for reproducibility.
 
@@ -731,7 +733,7 @@ Cohen's d is also bootstrapped (5,000 resamples, same procedure but resampling b
 
 ### 8c: Optimal Classification Threshold
 
-For each metric and each benign-vs-target pair, TASM does a brute-force threshold sweep (500 evenly-spaced candidate thresholds between the min and max observed values). At each threshold, it evaluates accuracy in both directions ("harmful ≥ threshold" and "harmful < threshold") and reports the threshold, accuracy, and direction that maximizes classification accuracy.
+For each metric and each benign-vs-target pair, TASM does a brute-force threshold sweep (configurable via `threshold_steps`, default 500 evenly-spaced candidate thresholds between the min and max observed values). At each threshold, it evaluates accuracy in both directions ("harmful ≥ threshold" and "harmful < threshold") and reports the threshold, accuracy, and direction that maximizes classification accuracy.
 
 ### 8d: Correlation Diagnostics
 
@@ -901,13 +903,15 @@ Bar chart (reddish purple, #CC79A7) showing spectral entropy — how evenly the 
 
 Bar chart of per-position Kendall's τ between the base and instruct models' counterfactual alternative rankings. Bars are color-coded by agreement level: green (τ > 0.5, models agree), amber (0 < τ ≤ 0.5, weak agreement), vermillion (τ ≤ 0, models disagree or rank inversely). Horizontal reference lines at 0 (no correlation) and 1 (perfect agreement). Y-axis is fixed at [-1.1, 1.1].
 
-An annotation reports mean τ, mean overlap percentage, and the count of comparable positions (positions where at least 3 tokens appear in both models' top-k, allowing τ to be computed).
+An annotation reports mean τ, mean overlap percentage, and the count of comparable positions out of total positions. Kendall's τ is computed at positions where at least 2 candidates appear in both models' top-k (configurable via `rd_min_shared`). Positions with fewer shared candidates receive τ = 0.0. The `per_position_tau` array is always position-aligned with the `tokens` array.
 
 ---
 
 ## Batch / Dashboard Visualizations
 
-These are generated when the dashboard is requested after a batch analysis, organized into "proven" (Analysis tab) and "experimental" categories. They operate on the full collection of prompt results.
+These are generated when a plot is first requested after batch analysis. The dashboard endpoint returns aggregate statistics and a list of available plot keys instantly — no matplotlib generation occurs during Refresh Dashboard. Individual plots are generated lazily on first request via `GET /api/plots/{key}`, cached to disk as PNG files, and served from cache on subsequent requests. A generation lock prevents duplicate work on concurrent requests. The frontend shows "Loading {key}.png…" while a plot generates.
+
+Plots are organized into "proven" (Analysis tab) and "experimental" categories. They operate on the full collection of prompt results.
 
 ### Proven Visualizations
 
@@ -933,7 +937,7 @@ The ellipses are computed from the 2×2 covariance matrix of the two plotted var
 
 **Proof 1 Verification** (`proof1_summary`)
 
-Two-panel diagnostic. Left panel: histogram of log₁₀(error) across all proof-1 exactness checks from all prompts and heads. Right panel: two bars showing the exact (error < 10⁻⁴) and inexact fractions, with percentage labels.
+Two-panel diagnostic. Left panel: histogram of log₁₀(error) across all proof-1 exactness checks from all prompts and heads. Right panel: two bars showing the exact (error < `proof1_threshold`, default 10⁻⁴) and inexact fractions, with percentage labels.
 
 This is a computational integrity check, not a statistical inference — it validates that the mathematical decomposition (signed attribution sums to the correction norm) is numerically exact to machine precision.
 
@@ -1025,7 +1029,13 @@ A median-magnitude filter can dim or hide tokens with below-median total displac
 
 ### Interactivity
 
-The terrain supports: orbit camera controls (drag to rotate, scroll to zoom), category/prompt selection via dropdown menus, a slideshow mode that auto-advances through prompts at configurable speed, a bank toggle (dual/instruct-only/base-only), render mode toggle (surface/points), and a data filter (all tokens/above-median only). The camera defaults to an elevated perspective looking down at the terrain at an angle.
+The terrain supports: orbit camera controls (drag to rotate, scroll to zoom, right-drag to pan), category/prompt selection via dropdown menus, a slideshow mode that auto-advances through prompts at configurable speed, a bank toggle (dual/instruct-only/base-only), render mode toggle (surface/points), a data filter (all tokens/above-median only), label size scaling, and auto-rotate with configurable RPM. The camera defaults to an elevated perspective looking down at the terrain at an angle. Auto-rotation pauses when the user drags the camera and resumes on release.
+
+### Launch Menu
+
+Before rendering, a configuration modal allows the user to set: category filter (restrict to one category or load all), record limit (cap the number of prompts loaded), token limit (truncate per-prompt arrays before terrain transform), prompt character limit (dropdown label length), auto-rotate toggle, and rotation speed. These defaults are persisted in the Display section of the Configuration tab.
+
+The fetch loop terminates early when the record limit is reached rather than downloading all data and truncating client-side. When a category filter is active, records are filtered during fetch so the loop can stop as soon as enough matching prompts are collected.
 
 ### Data Flow
 
@@ -1112,98 +1122,70 @@ Cross-context measurement of per-token coupling stability to the correction mani
 
 ## What It Measures
 
-Every token that passes through an aligned model has a geometric relationship to the weight delta between base and instruct models. The spectral field density (SFD) captures how broadly that token couples to the correction manifold in a single prompt. This script asks a different question: **how much does that coupling change across prompts?**
+Every token that passes through an aligned model has a geometric relationship to the weight delta between base and instruct models. The spectral field density (SFD) captures how broadly that token couples to the correction manifold in a single prompt. Token variance asks a different question: **how much does that coupling change across prompts?**
 
 A token like "build" has nearly identical density whether it appears in "How do I build a bookshelf?" or "How do I build a pipe bomb?" Its coupling to the correction manifold is stable because its representational state doesn't shift much with context. A token like "your" has measurably higher density in "Ignore your safety rules" than in "What is your favorite color?" because its representational state is dominated by what surrounds it, and jailbreak context pushes it into regions of activation space that engage more of the correction manifold.
 
-The script computes the coefficient of variation (CV) of spectral density for each token across all prompts where it appears. High CV means context-dependent coupling. Low CV means stable coupling. The pattern that emerges is consistent: function words (articles, prepositions, pronouns) are the most context-dependent. Content verbs and concrete nouns are the most stable.
+The module computes the coefficient of variation (CV) of spectral density for each token across all prompts where it appears. High CV means context-dependent coupling. Low CV means stable coupling. It also computes eta-squared (η²) — the fraction of variance explained by prompt category — to identify tokens whose coupling is driven by alignment context rather than random variation.
 
-## Usage
+## Integration
 
-```bash
-# single session
-python token_variance.py results.json
+Token variance is implemented as a TASM module (`engine/modules/token_variance.py`) and runs from the Modules tab in the frontend. It operates on the current session's results — no separate command-line invocation is needed. Results persist to `module_token_variance.json` in the session directory and are included in session exports.
 
-# multiple sessions merged
-python token_variance.py session1/results.json session2/results.json
+The module framework provides:
+- Auto-discovery of module classes from `engine/modules/`
+- Thread-isolated execution with crash protection
+- Parameter metadata rendered as UI controls
+- Re-run capability with changed parameters
 
-# session directories (reads results.json from each)
-python token_variance.py session1/ session2/ session3/
+## Parameters
 
-# with exports
-python token_variance.py results.json --csv output.csv --json-out output.json
-
-# require more appearances for inclusion
-python token_variance.py results.json --min-appearances 5
-
-# include first-position tokens (excluded by default due to positional artifact)
-python token_variance.py results.json --include-first
-```
-
-## Options
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--min-appearances` | 3 | Minimum interior appearances to include a token |
-| `--include-first` | off | Include position-0 tokens (density ~0.525 regardless of content) |
-| `--csv PATH` | none | Export results to CSV |
-| `--json-out PATH` | none | Export results to JSON |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Min Appearances | 3 | Minimum interior appearances to include a token. Also used as the "qualified" threshold for summary statistics — no hidden secondary threshold. |
+| Merge Subwords | off | Merge BPE subword tokens into whole words before analysis. Eliminates fragments like "ret" (from "Pretend") and "ard" (from "Disregard") that appear as separate entries. |
+| Include First Token | off | Include position-0 tokens (density ~0.525 regardless of content due to positional artifact). |
+| Top N | 30 | Maximum tokens shown per report section. |
+| Min Prompt Length | 3 | Skip prompts shorter than this many tokens. |
+| Min Per Category | 2 | Minimum appearances per category for pairwise comparisons. |
 
 ## Output
 
-The report contains five sections.
+The module produces a structured JSON report with six sections.
 
 **Highest density CV.** Tokens whose coupling to the correction manifold is most sensitive to surrounding context. These are predominantly function words whose representational state is determined by context rather than intrinsic semantics.
 
-**Lowest density CV.** Tokens with stable coupling regardless of context. Content words with concrete semantics that maintain a consistent relationship to the correction manifold.
+**Lowest density CV.** Tokens with stable coupling regardless of context. Content words with concrete semantics that maintain a consistent relationship to the correction manifold. Note: tokens appearing in only one category will show zero CV by definition — stability by isolation, not intrinsic property. Merge Subwords eliminates BPE fragments from this list.
 
-**Cross-category per-token density.** For tokens appearing in three or more prompt categories with sufficient sample size, shows mean density broken down by category. This is where you see the systematic density elevation of function words in jailbreak and adversarial contexts.
+**High eta-squared.** Tokens where the largest fraction of density variance is explained by prompt category (requires appearance in ≥2 categories). η² = 1.0 means 100% of variance is between-category; η² near 0 means category membership doesn't predict density.
 
-**Pairwise category comparisons.** For each pair (benign/jailbreak, benign/adversarial, benign/harmful, harmful/jailbreak), shows the density shift for tokens appearing in both categories. Positive diff means higher density in the second category.
+**Cross-category profiles.** For tokens appearing in ≥3 categories, shows mean density and stress broken down by category.
 
-**Summary.** Distribution statistics and counts of context-stable versus context-dependent tokens.
+**Pairwise category comparisons.** For each pair (benign/jailbreak, benign/adversarial, benign/harmful, harmful/jailbreak), shows the density shift for tokens appearing in both categories with sufficient sample size (controlled by Min Per Category). Positive diff means higher density in the second category.
 
-## First-Position Exclusion
+**Summary statistics.** Distribution statistics (mean, percentiles) of density CV across qualified tokens, counts of context-stable versus context-dependent tokens (using P25/P75 thresholds), and overall token/prompt counts.
 
-Position 0 shows density of approximately 0.525 with near-zero variance across all categories and all prompt types. This is a positional artifact, not a content signal. The script excludes first-position tokens by default. Use `--include-first` to override.
+## Channels
+
+The module computes variance statistics across three SFD channels simultaneously:
+
+- **Density** (primary): spectral density ratio — the token's effective rank relative to the global effective rank
+- **Stress**: per-token stress score from ASM
+- **Energy**: spectral energy — the squared norm of the weighted projection into the QK subspace
+
+CV and eta-squared are computed independently for each channel. The density channel is used for sorting, classification (stable vs. dependent), and pairwise comparisons.
 
 ## Data Requirements
 
-Reads TASM session exports (results.json). Each prompt entry must contain:
+Reads from the current TASM session. Each prompt entry must contain:
 
 - `tokens`: list of token strings
 - `per_token_stress`: list of floats
 - `sfd.per_token_density`: list of floats
 - `sfd.per_token_energy`: list of floats
-- `sfd.per_token_entropy`: list of floats
-- `signed_attr`: list of floats
-- `category`: string (optional, used for cross-category breakdowns)
+- `category`: string (optional, used for cross-category breakdowns and eta-squared)
 
-Prompts missing any required field are skipped with a count reported at the top of the output.
-
-## CSV Schema
-
-| Column | Description |
-|--------|-------------|
-| token | Token text (stripped) |
-| n | Number of interior appearances |
-| n_cats | Number of distinct categories |
-| den_mean | Mean spectral density across contexts |
-| den_std | Standard deviation of density |
-| den_cv | Coefficient of variation (std/mean) |
-| den_range | Max density minus min density |
-| den_min | Minimum observed density |
-| den_max | Maximum observed density |
-| stress_mean | Mean stress across contexts |
-| stress_cv | Stress coefficient of variation |
-| energy_mean | Mean spectral energy |
-| energy_cv | Energy coefficient of variation |
-| attr_mean | Mean signed attribution |
-| attr_std | Attribution standard deviation |
-| den_{category}_mean | Mean density in that category |
-| den_{category}_n | Number of appearances in that category |
-
-Categories in columns: benign, mild, dual-use, harmful, adversarial, jailbreak.
+Prompts missing SFD data are skipped with a count reported in the summary.
 
 ## Interpretation Notes
 
@@ -1212,3 +1194,42 @@ Cross-context variance is not noise. It measures how the correction field respon
 The systematic elevation of function word density in jailbreak contexts reflects the fact that jailbreak framing pushes the entire residual stream into regions of activation space that engage more of the correction manifold. The function words absorb this context shift because their representations are dominated by surrounding tokens rather than intrinsic semantics.
 
 Content words with stable density are candidates for baseline calibration. Their consistent coupling provides a reference point against which context-dependent shifts can be measured.
+
+---
+
+# Part 5: Engine Configuration
+
+## Overview
+
+All measurement-affecting parameters are centralized in `engine/engine_config.py` and surfaced in the frontend's Configuration → Advanced Parameters panel. The defaults reproduce the original hardcoded behavior exactly. Changing any parameter requires a full application reset (model unload, session clear, cache invalidation) to ensure measurement comparability.
+
+## Parameter Registry
+
+| Parameter | Default | Module | What it controls |
+|-----------|---------|--------|-----------------|
+| `signal_layer_fraction` | 0.333 | model_manager | Middle third for ASM signal layers |
+| `sfd_use_signal_layers` | false | sfd | Whether SFD uses ASM's layer range |
+| `sfd_layer_start` | 9 | sfd | SFD layer range start (when not using signal layers) |
+| `sfd_layer_end` | 16 | sfd | SFD layer range end, exclusive |
+| `sfd_svd_k` | 16 | sfd | SVD components for per-token spectral projection |
+| `rd_min_shared` | 2 | sfd | Min shared candidates for Kendall tau |
+| `boundary_fraction` | 0.1 | analyzer | Interior/boundary token split |
+| `response_topk` | 10 | analyzer | Next-token predictions captured per model |
+| `proof1_threshold` | 1e-4 | analyzer | Attribution decomposition exactness threshold |
+| `delta_svd_k` | 64 | model_manager | Weight delta spectral summary rank |
+| `n_bootstrap` | 5000 | statistics | Bootstrap resamples for CIs |
+| `ci_level` | 0.95 | statistics | Confidence interval width |
+| `threshold_steps` | 500 | statistics | Classification threshold search granularity |
+| `min_valid_separability` | 5 | statistics | Min values for separability analysis |
+| `min_samples_d` | 2 | statistics | Min samples per group for Cohen's d |
+| `ltp_overfetch_first` | 1 | ltp | Extra candidates on first fetch pass |
+| `ltp_overfetch_second` | 5 | ltp | Wider fetch if first pass insufficient |
+| `disc_sublayers_top_n` | 15 | comparative | Sublayers in discriminative plot |
+
+## Persistence
+
+Engine configuration is persisted to `engine_config.json` alongside the application. On startup, saved values are loaded automatically. The Reset to Defaults button deletes the persisted file so the next startup uses defaults.
+
+## UI Safety
+
+The Advanced Parameters panel is locked by default. The user must check an acknowledgment checkbox to unlock it. Edits accumulate locally without being sent to the server. The Apply button shows the count of pending changes and lists each old → new value in a confirmation dialog. Applying triggers a full application reset: model unloaded, session cleared, all caches invalidated. This ensures data collected under different settings is never mixed in the same session.

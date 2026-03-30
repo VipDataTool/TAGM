@@ -44,6 +44,7 @@ from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
+from engine.modules.domain_surface import embed_and_cache_probes, _discover_probe_files
 from engine import engine_config
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -151,6 +152,10 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         analyzer = Analyzer(mm)
         session = DatasetSession()
         session.set_model(mm.state.display_name)
+
+        # Pre-embed probes for domain surface module
+        _preembed_probes()
+
         loading_state["active"] = False
         loading_state["error"] = None
         log_progress("ready", "Model loaded. Session started. Ready to analyze.")
@@ -159,6 +164,33 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         loading_state["error"] = str(e)
         logger.error(f"Model loading failed: {traceback.format_exc()}")
         log_progress("error", f"Loading failed: {e}")
+
+
+def _preembed_probes():
+    """Pre-embed all probe CSV files for the domain surface module.
+
+    Runs once after model load.  Uses the instruct model + middle-layer
+    hook to generate embeddings, then caches them to disk.  Subsequent
+    module runs read from cache with zero model access.
+    """
+    project_root = str(Path(__file__).parent)
+    probe_files = _discover_probe_files(project_root)
+    if not probe_files:
+        return
+
+    state = mm.state
+    if state is None or state.model_instruct is None:
+        return
+
+    model_id = state.instruct_model_id or state.pair_id
+    for pf in probe_files:
+        try:
+            embed_and_cache_probes(
+                state.model_instruct, state.tokenizer,
+                project_root, pf, model_id,
+                progress=log_progress)
+        except Exception as e:
+            logger.warning(f"[DOMAIN] Failed to pre-embed {pf}: {e}")
 
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,

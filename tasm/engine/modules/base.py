@@ -143,10 +143,11 @@ class ModuleRunner:
     Each module runs in its own thread with crash isolation.
     """
 
-    def __init__(self):
+    def __init__(self, project_root=None):
         self._modules: dict[str, TASMModule] = {}
         self._state: dict[str, _ModuleState] = {}
         self._lock = threading.Lock()
+        self._project_root = Path(project_root) if project_root else Path(__file__).parent.parent.parent
         self._discover_modules()
 
     def _discover_modules(self):
@@ -165,6 +166,12 @@ class ModuleRunner:
                             and issubclass(attr, TASMModule)
                             and attr is not TASMModule):
                         instance = attr()
+                        # Let modules discover project-root-relative resources
+                        if hasattr(instance, 'set_project_root'):
+                            try:
+                                instance.set_project_root(str(self._project_root))
+                            except Exception as e:
+                                logger.warning(f"[MODULES] {instance.name} set_project_root failed: {e}")
                         self._modules[instance.name] = instance
                         self._state[instance.name] = _ModuleState()
                         logger.info(f"[MODULES] Discovered: {instance.display_name} "

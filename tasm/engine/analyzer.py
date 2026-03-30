@@ -90,6 +90,9 @@ class PromptResult:
     # Rank displacement (LTP companion: base vs instruct ordering)
     rank_displacement: Optional[dict] = None
 
+    # Domain embedding (mean hidden state at middle layer, for domain surface module)
+    domain_embedding: Optional[list] = None
+
     # ─── Field sets for from_dict reconstitution ──────────────────
     # Centralized here so every caller uses the same definitions.
     # "scalar" = what aggregate_batch and statistics need.
@@ -114,6 +117,8 @@ class PromptResult:
         # Trajectory and heatmap
         "amplitude_trajectory", "amplitude_normalized",
         "heatmap", "signal_layer_indices",
+        # Domain surface module
+        "domain_embedding",
     ]
 
     @classmethod
@@ -324,6 +329,19 @@ class Analyzer:
                                 f"entropy_mean={result.sfd.entropy_mean:.4f}")
             except Exception as e:
                 logger.warning(f"[SFD] Computation failed: {e}")
+
+        # Capture domain embedding (mean hidden state at middle layer)
+        # Used by domain surface module for subject-matter proximity analysis.
+        # Cheap: just a mean-pool of an already-captured activation tensor.
+        mid_layer = state.n_layers // 2
+        de_key = f"layer_{mid_layer}_h"
+        de_act = self.mm.activations.get(de_key)
+        if de_act is not None and seq_len > 1:
+            emb = de_act[0, 1:seq_len].mean(dim=0).float().cpu().numpy()
+            norm = float(np.linalg.norm(emb))
+            if norm > 1e-12:
+                emb = emb / norm
+            result.domain_embedding = emb.tolist()
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -773,6 +791,9 @@ def result_to_dict(r: PromptResult) -> dict:
 
     # Rank displacement data
     d["rank_displacement"] = r.rank_displacement
+
+    # Domain embedding (for domain surface module)
+    d["domain_embedding"] = r.domain_embedding
 
     # Final recursive sanitization — the single authoritative point where
     # all NaN/Inf values are guaranteed replaced with None.  This ensures
