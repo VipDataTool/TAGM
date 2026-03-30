@@ -2310,6 +2310,7 @@ var ENGINE_PARAM_META = {
   ltp_overfetch_first:    {group:'LTP',             label:'LTP overfetch (first)',       desc:'Extra candidates on first pass for k non-chosen alternatives.', type:'int', min:1, max:10},
   ltp_overfetch_second:   {group:'LTP',             label:'LTP overfetch (fallback)',    desc:'Wider fetch if first pass insufficient.', type:'int', min:2, max:20},
   disc_sublayers_top_n:   {group:'Visualization',   label:'Discriminative sublayers N',  desc:'Sublayers shown in discriminative sublayers plot.', type:'int', min:5, max:30},
+  precompute_module_caches:{group:'Modules',         label:'Pre-compute module caches',   desc:'Embed probes at model load. Disable to speed up boot.', type:'bool'},
 };
 
 function _advToggleLock(unlocked){

@@ -67,6 +67,12 @@ DEFAULTS = {
     # ── Comparative Plots ──
     # Number of sublayers shown in discriminative sublayers plot.
     "disc_sublayers_top_n": 15,
+
+    # ── Modules ──
+    # Pre-compute module caches at model load time (e.g. domain surface
+    # probe embeddings).  Disable to speed up model loading if you don't
+    # need modules that require pre-computation.
+    "precompute_module_caches": False,
 }
 
 # Current runtime values — initialized from defaults.

@@ -44,7 +44,7 @@ from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
-from engine.modules.domain_surface import embed_and_cache_probes, _discover_probe_files
+from engine.modules.domain_surface import embed_and_cache_probes, _probe_cache_path
 from engine import engine_config
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -153,8 +153,9 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         session = DatasetSession()
         session.set_model(mm.state.display_name)
 
-        # Pre-embed probes for domain surface module
-        _preembed_probes()
+        # Pre-embed probes for domain surface module (if enabled)
+        if engine_config.get("precompute_module_caches"):
+            _preembed_probes()
 
         loading_state["active"] = False
         loading_state["error"] = None
@@ -167,23 +168,32 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 
 
 def _preembed_probes():
-    """Pre-embed all probe CSV files for the domain surface module.
+    """Pre-embed probe CSVs for the domain surface module.
 
-    Runs once after model load.  Uses the instruct model + middle-layer
-    hook to generate embeddings, then caches them to disk.  Subsequent
-    module runs read from cache with zero model access.
+    Runs once after model load, only if the cache is missing or stale.
     """
     project_root = str(Path(__file__).parent)
-    probe_files = _discover_probe_files(project_root)
-    if not probe_files:
-        return
 
     state = mm.state
     if state is None or state.model_instruct is None:
         return
 
     model_id = state.instruct_model_id or state.pair_id
+
+    # Explicit list — only files the domain surface module actually consumes.
+    probe_files = ["alignment_probes.csv"]
+
     for pf in probe_files:
+        csv_path = os.path.join(project_root, pf)
+        if not os.path.exists(csv_path):
+            continue
+
+        # Skip if cache already exists for this model
+        cache_path = _probe_cache_path(project_root, pf, model_id)
+        if os.path.exists(cache_path):
+            logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
+            continue
+
         try:
             embed_and_cache_probes(
                 state.model_instruct, state.tokenizer,
