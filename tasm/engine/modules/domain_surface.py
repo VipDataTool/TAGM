@@ -203,7 +203,7 @@ def _nearest_probe(dx, dy, anchor_pts):
 # ─── Observation Builder ─────────────────────────────────────
 
 def _build_observations(session_results, prompt_coords, anchor_pts,
-                        subjects, top_n=20, progress=None):
+                        subjects, top_n=20, min_appearances=2, progress=None):
     """Build per-token observations with all metrics and proximity."""
     token_freq = defaultdict(int)
     raw_obs = []
@@ -239,8 +239,9 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                 "pi": pi, "pos": pos,
             })
 
-    # Top tokens by frequency, compute CV, order by CV
-    top = sorted(token_freq.keys(), key=lambda t: -token_freq[t])[:top_n]
+    # Top tokens by frequency, filter by min appearances, compute CV, order by CV
+    qualified = {t: n for t, n in token_freq.items() if n >= min_appearances}
+    top = sorted(qualified.keys(), key=lambda t: -qualified[t])[:top_n]
     token_cv = {}
     for tok in top:
         disps = [o["disp"] for o in raw_obs if o["tok"] == tok]
@@ -346,9 +347,27 @@ class DomainSurfaceModule(TASMModule):
                 display_name="Top Tokens",
                 description="Number of most-frequent tokens to include",
                 type="int",
-                default=20,
+                default=30,
                 min_val=5,
-                max_val=50,
+                max_val=100,
+            ),
+            ModuleParameter(
+                name="min_appearances",
+                display_name="Min Appearances",
+                description="Minimum times a token must appear across prompts to be included",
+                type="int",
+                default=2,
+                min_val=1,
+                max_val=20,
+            ),
+            ModuleParameter(
+                name="pca_components",
+                display_name="PCA Components",
+                description="Number of PCA dimensions for the domain surface (2 for scatter plot)",
+                type="int",
+                default=2,
+                min_val=2,
+                max_val=5,
             ),
         ]
 
@@ -383,7 +402,9 @@ class DomainSurfaceModule(TASMModule):
             - Cached probe embeddings (from model load)
         """
         probe_file = params.get("probe_file", "alignment_probes.csv")
-        top_tokens = params.get("top_tokens", 20)
+        top_tokens = params.get("top_tokens", 30)
+        min_appearances = params.get("min_appearances", 2)
+        pca_components = params.get("pca_components", 2)
 
         # Resolve probe path
         if self._project_root:
@@ -447,7 +468,7 @@ class DomainSurfaceModule(TASMModule):
         if progress:
             progress("Fitting PCA...")
         prompt_coords, probe_coords, variance = _cofit_pca(
-            prompt_embs, probe_embs)
+            prompt_embs, probe_embs, n_components=pca_components)
         logger.info(f"[DOMAIN] PCA variance: {variance}")
 
         # Build anchor points
@@ -467,7 +488,7 @@ class DomainSurfaceModule(TASMModule):
             progress("Building per-token observations...")
         obs, ordered_tokens, token_cv = _build_observations(
             session_subset, prompt_coords, anchor_pts,
-            subjects, top_tokens, progress)
+            subjects, top_tokens, min_appearances, progress)
 
         # Stratification
         strat = _stratification(obs, subjects)
@@ -499,9 +520,11 @@ class DomainSurfaceModule(TASMModule):
         # Build output
         output = {
             "pca": variance,
+            "pca_components": pca_components,
             "layer": "middle",
             "n_prompts_used": len(prompt_embs),
             "n_prompts_total": len(session_results),
+            "min_appearances": min_appearances,
             "subjects": subjects,
             "tokens": ordered_tokens,
             "token_cv": token_cv,

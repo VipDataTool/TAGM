@@ -22,7 +22,7 @@ button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; bor
   <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Token × Domain × Correction</div>
   <div id="dsSubtitle" style="font-size:var(--font-legend);color:var(--text2);margin-bottom:10px">Loading...</div>
   <div class="ctrl-row" id="ctrlRow"></div>
-  <div class="legend" id="subjLeg"></div>
+  <div class="ctrl-row" id="subjRow"></div>
   <div style="overflow-x:auto">
     <div style="position:relative;border:1px solid var(--border);border-radius:6px">
       <canvas id="dsCanvas"></canvas>
@@ -40,7 +40,7 @@ var SCOL=["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2","#E69F00","#F0E442",
 var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9"};
 var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak"};
 var D,TOKS,TCV,SUBJ,ANC,O,PROMPTS,LNAME;
-var selCat="all",sizeMode="repl",hover=null,ancHover=null;
+var selCat="all",sizeMode="repl",selSubj="all",hover=null,ancHover=null;
 var fD,fL,fT,rowH,pd,W,H,plotW,plotH,xMin,xMax,lvM,cnv,ctx,curPts=[];
 
 fetch("/api/modules/domain_surface/results").then(function(r){return r.json()}).then(function(resp){
@@ -111,9 +111,16 @@ function buildCtrls(){
   el.innerHTML=h;
   el.querySelectorAll("[data-cat]").forEach(function(b){b.addEventListener("click",function(){selCat=this.dataset.cat;el.querySelectorAll("[data-cat]").forEach(function(x){x.style.opacity="0.4"});this.style.opacity="1";render()})});
   el.querySelectorAll("[data-size]").forEach(function(b){b.addEventListener("click",function(){sizeMode=this.dataset.size;el.querySelectorAll("[data-size]").forEach(function(x){x.style.opacity="0.4";x.style.borderColor="#444"});this.style.opacity="1";this.style.borderColor=this.dataset.col;render()})});
-  var lg=document.getElementById("subjLeg"),lh="";
-  SUBJ.forEach(function(s,i){lh+='<span><span class="sw" style="background:'+SCOL[i%10]+'"></span><span style="color:'+SCOL[i%10]+'">'+s.replace(/_/g," ")+'</span></span>'});
-  lg.innerHTML=lh;
+
+  // Subject filter row
+  var sr=document.getElementById("subjRow");
+  var sh='<span style="color:var(--text2)">Subject:</span> ';
+  sh+='<button data-subj="all" class="bs" style="opacity:1;border-color:#E8ECEF;color:#E8ECEF">all</button>';
+  SUBJ.forEach(function(s,i){
+    sh+='<button data-subj="'+i+'" class="bs" style="opacity:0.4;border-color:#444;color:'+SCOL[i%10]+'"><span class="sw" style="background:'+SCOL[i%10]+';width:6px;height:6px;display:inline-block;border-radius:1px;vertical-align:middle;margin-right:3px"></span>'+s.replace(/_/g," ")+'</button>';
+  });
+  sr.innerHTML=sh;
+  sr.querySelectorAll("[data-subj]").forEach(function(b){b.addEventListener("click",function(){selSubj=this.dataset.subj;sr.querySelectorAll("[data-subj]").forEach(function(x){x.style.opacity="0.4";x.style.borderColor="#444"});this.style.opacity="1";this.style.borderColor=(this.dataset.subj==="all"?"#E8ECEF":SCOL[parseInt(this.dataset.subj)%10]||"#888");render()})});
 }
 function cb(k,l,c){var a=k==="all";return'<button data-cat="'+k+'" class="bc" style="opacity:'+(a?1:.4)+';border-color:'+(a?c:'#444')+';color:'+c+'">'+l+'</button>'}
 function sb(k,l,c){var a=k==="repl";return'<button data-size="'+k+'" data-col="'+c+'" class="bs" style="opacity:'+(a?1:.4)+';border-color:'+(a?c:'#444')+';color:'+(a?c:'var(--text2)')+'">'+l+'</button>'}
@@ -121,7 +128,12 @@ function sb(k,l,c){var a=k==="repl";return'<button data-size="'+k+'" data-col="'
 function toX(v){return pd.l+(v-xMin)/(xMax-xMin)*plotW}
 function toY(i){return pd.t+i*rowH+rowH/2}
 
-function getF(){return selCat==="all"?O:O.filter(function(o){return o[1]===selCat})}
+function getF(){
+  var f=O;
+  if(selCat!=="all")f=f.filter(function(o){return o[1]===selCat});
+  if(selSubj!=="all")f=f.filter(function(o){return o[13]===parseInt(selSubj)});
+  return f;
+}
 function getP(f){return f.map(function(o){var ti=TOKS.indexOf(o[0]);if(ti<0)return null;var r;if(sizeMode==="disp")r=Math.max(2,Math.min(9,o[3]*5));else if(sizeMode==="repl")r=Math.max(2,Math.min(9,o[4]*11));else if(sizeMode==="asm")r=Math.max(2,Math.min(9,(o[6]-1.6)/2.5*9));else if(sizeMode==="sfd_e")r=Math.max(2,Math.min(9,(o[7]-.2)/1.5*9));else if(sizeMode==="sfd_d")r=Math.max(2,Math.min(9,(o[8]-.3)/.2*9));else r=Math.max(2,Math.min(9,(1-Math.min(o[11]/.15,1))*9));return{o:o,sx:toX(o[2]),sy:toY(ti),r:r}}).filter(Boolean)}
 
 function render(){
@@ -169,7 +181,11 @@ function render(){
 
   updateTip();
   var sml={disp:"RD displacement",repl:"RD replacement",asm:"ASM stress",sfd_e:"SFD energy",sfd_d:"SFD density",anch:"subject proximity"};
-  document.getElementById("dsSubtitle").textContent=SUBJ.length+" subjects, "+ANC.length+" anchors, "+filtered.length+" obs. Size = "+(sml[sizeMode]||sizeMode)+".";
+  var sub=SUBJ.length+" subjects, "+ANC.length+" anchors, "+filtered.length+" obs.";
+  if(selSubj!=="all")sub+=" Subject: "+SUBJ[parseInt(selSubj)].replace(/_/g," ")+".";
+  if(selCat!=="all")sub+=" Category: "+CNAME[selCat]+".";
+  sub+=" Size = "+(sml[sizeMode]||sizeMode)+".";
+  document.getElementById("dsSubtitle").textContent=sub;
 }
 
 function esc(s){return String(s).replace(/</g,"&lt;")}
