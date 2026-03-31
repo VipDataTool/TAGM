@@ -260,8 +260,11 @@ class Analyzer:
         if compute_ltp and ltp_layer_strategy == "late":
             late_start = 2 * state.n_layers // 3
             ltp_layers = list(range(late_start, state.n_layers))
+        domain_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+        domain_layer = max(0, min(state.n_layers - 1, int(domain_frac * state.n_layers)))
         self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory or full_capture,
-                                       ltp_layers=ltp_layers)
+                                       ltp_layers=ltp_layers,
+                                       domain_layer=domain_layer)
         tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=full_capture)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
@@ -330,11 +333,10 @@ class Analyzer:
             except Exception as e:
                 logger.warning(f"[SFD] Computation failed: {e}")
 
-        # Capture domain embedding (mean hidden state at middle layer)
+        # Capture domain embedding (mean hidden state at configurable layer)
         # Used by domain surface module for subject-matter proximity analysis.
         # Cheap: just a mean-pool of an already-captured activation tensor.
-        mid_layer = state.n_layers // 2
-        de_key = f"layer_{mid_layer}_h"
+        de_key = f"layer_{domain_layer}_h"
         de_act = self.mm.activations.get(de_key)
         if de_act is not None and seq_len > 1:
             emb = de_act[0, 1:seq_len].mean(dim=0).float().cpu().numpy()

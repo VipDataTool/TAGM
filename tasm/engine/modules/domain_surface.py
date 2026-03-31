@@ -63,13 +63,13 @@ def _load_probes(csv_path):
 PROBE_CACHE_DIR = "probe_cache"
 
 
-def _probe_cache_path(project_root, probe_file, model_id):
+def _probe_cache_path(project_root, probe_file, model_id, layer_frac=0.50):
     """Build the cache file path for pre-computed probe embeddings."""
     cache_dir = os.path.join(project_root, PROBE_CACHE_DIR)
-    # Sanitize model_id for filesystem
     safe_model = model_id.replace("/", "__").replace("\\", "__")
     stem = os.path.splitext(probe_file)[0]
-    return os.path.join(cache_dir, f"{stem}__{safe_model}.json")
+    layer_tag = str(int(layer_frac * 100))
+    return os.path.join(cache_dir, f"{stem}__{safe_model}__L{layer_tag}.json")
 
 
 def _load_probe_cache(cache_path):
@@ -85,11 +85,11 @@ def _load_probe_cache(cache_path):
 
 
 def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
-                           model_id, progress=None):
+                           model_id, layer_frac=0.50, progress=None):
     """Pre-embed all probes from a CSV and save to cache.
 
     Called from app.py after model load.  Registers a forward hook on the
-    middle-layer input_layernorm, runs each probe text through the model,
+    target layer's input_layernorm, runs each probe text through the model,
     and stores the mean hidden-state embedding.
 
     Args:
@@ -98,6 +98,7 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         project_root: TASM project root directory.
         probe_file: Probe CSV filename (relative to project_root).
         model_id: Model identifier string for cache key.
+        layer_frac: Capture depth as fraction of model depth (0.0–1.0).
         progress: Optional status callback.
 
     Returns:
@@ -116,7 +117,7 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         return None
 
     n_layers = model.config.num_hidden_layers
-    target_layer = n_layers // 2
+    target_layer = max(0, min(n_layers - 1, int(layer_frac * n_layers)))
 
     # Set up hook
     captured = {}
@@ -150,12 +151,13 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         handle.remove()
 
     # Save cache
-    cache_path = _probe_cache_path(project_root, probe_file, model_id)
+    cache_path = _probe_cache_path(project_root, probe_file, model_id, layer_frac)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     cache_data = {
         "model_id": model_id,
         "layer": target_layer,
+        "layer_frac": layer_frac,
         "n_layers": n_layers,
         "probe_file": probe_file,
         "n_probes": len(probes),
@@ -360,15 +362,6 @@ class DomainSurfaceModule(TASMModule):
                 min_val=1,
                 max_val=20,
             ),
-            ModuleParameter(
-                name="pca_components",
-                display_name="PCA Components",
-                description="Number of PCA dimensions for the domain surface (2 for scatter plot)",
-                type="int",
-                default=2,
-                min_val=2,
-                max_val=5,
-            ),
         ]
 
     def validate(self, session_results, params):
@@ -549,34 +542,42 @@ class DomainSurfaceModule(TASMModule):
         return output
 
     def _load_probe_embeddings(self, probe_file, session_results):
-        """Load cached probe embeddings matching the current model.
+        """Load cached probe embeddings matching the current model and layer config.
 
-        Infers model_id from session metadata or scans for any available
-        cache file for this probe set.
+        Scans the probe cache directory for matching files. Prefers caches
+        that match the current domain_embedding_layer_frac from engine config.
         """
         if not self._project_root:
             return None
 
-        # Try to find model_id from session results metadata
-        # (session results don't carry model_id directly, so scan cache dir)
         cache_dir = os.path.join(self._project_root, PROBE_CACHE_DIR)
         if not os.path.isdir(cache_dir):
             return None
 
         stem = os.path.splitext(probe_file)[0]
-        # Find any cache file matching this probe set
         candidates = sorted(glob(os.path.join(cache_dir, f"{stem}__*.json")))
         if not candidates:
             return None
 
-        # Use the most recent cache file
-        cache_path = candidates[-1]
+        # Try to match the current layer config
+        try:
+            from engine import engine_config
+            layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+        except Exception:
+            layer_frac = 0.50
+        layer_tag = f"__L{int(layer_frac * 100)}.json"
+
+        # Prefer cache matching current layer, fall back to any available
+        matched = [c for c in candidates if layer_tag in c]
+        cache_path = matched[-1] if matched else candidates[-1]
+
         cache = _load_probe_cache(cache_path)
         if cache is None:
             return None
 
         logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
                      f"(model={cache.get('model_id', '?')}, "
-                     f"layer={cache.get('layer', '?')})")
+                     f"layer={cache.get('layer', '?')}, "
+                     f"frac={cache.get('layer_frac', '?')})")
 
         return cache.get("embeddings")

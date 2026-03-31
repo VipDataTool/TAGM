@@ -73,6 +73,13 @@ DEFAULTS = {
     # probe embeddings).  Disable to speed up model loading if you don't
     # need modules that require pre-computation.
     "precompute_module_caches": False,
+
+    # ── Domain Embedding ──
+    # Hidden-state capture layer for domain embeddings, as a fraction of
+    # model depth (0.0–1.0).  0.25=syntax, 0.50=domain+discourse
+    # (recommended), 0.75=task-specific.  Changing this requires re-analysis
+    # of all prompts and regeneration of probe caches.
+    "domain_embedding_layer_frac": 0.50,
 }
 
 # Current runtime values — initialized from defaults.

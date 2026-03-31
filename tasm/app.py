@@ -179,6 +179,7 @@ def _preembed_probes():
         return
 
     model_id = state.instruct_model_id or state.pair_id
+    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
 
     # Explicit list — only files the domain surface module actually consumes.
     probe_files = ["alignment_probes.csv"]
@@ -188,8 +189,8 @@ def _preembed_probes():
         if not os.path.exists(csv_path):
             continue
 
-        # Skip if cache already exists for this model
-        cache_path = _probe_cache_path(project_root, pf, model_id)
+        # Skip if cache already exists for this model + layer
+        cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
         if os.path.exists(cache_path):
             logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
             continue
@@ -198,6 +199,7 @@ def _preembed_probes():
             embed_and_cache_probes(
                 state.model_instruct, state.tokenizer,
                 project_root, pf, model_id,
+                layer_frac=layer_frac,
                 progress=log_progress)
         except Exception as e:
             logger.warning(f"[DOMAIN] Failed to pre-embed {pf}: {e}")
