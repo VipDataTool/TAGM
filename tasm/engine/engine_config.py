@@ -25,6 +25,16 @@ DEFAULTS = {
     "sfd_layer_end": 16,  # exclusive
     # Number of right singular vectors retained for per-token projection.
     "sfd_svd_k": 16,
+    # Random seed for SVD computation (torch.svd_lowrank uses randomized
+    # algorithm).  Fixed seed ensures deterministic SFD across sessions.
+    "sfd_svd_seed": 42,
+
+    # ── Serialization ──
+    # Decimal places retained when rounding measurement values for JSON
+    # transport.  Lower values reduce file size; higher values preserve
+    # precision for downstream analysis.  Applies to all instrument
+    # summary scalars and per-position arrays in SFD and RD.
+    "serialization_precision": 8,
 
     # ── Rank Displacement ──
     # Minimum shared candidates between base and instruct to compute

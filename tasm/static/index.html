@@ -2297,11 +2297,13 @@ var ENGINE_PARAM_META = {
   sfd_layer_start:        {group:'SFD',             label:'SFD layer start',             desc:'First layer for SFD (when "uses signal layers" is off).', type:'int', min:0, max:30},
   sfd_layer_end:          {group:'SFD',             label:'SFD layer end (exclusive)',    desc:'Last layer (exclusive) for SFD.', type:'int', min:1, max:30},
   sfd_svd_k:              {group:'SFD',             label:'SFD SVD components',          desc:'Right singular vectors retained for per-token projection.', type:'int', min:4, max:64},
+  sfd_svd_seed:           {group:'SFD',             label:'SFD SVD seed',                desc:'Random seed for deterministic SVD. Ensures reproducible SFD across sessions.', type:'int', min:0, max:99999},
   rd_min_shared:          {group:'Rank Displacement',label:'Min shared candidates',      desc:'Min shared candidates for Kendall tau. Below this, tau = 0.', type:'int', min:1, max:8},
   boundary_fraction:      {group:'ASM Attribution', label:'Boundary fraction',           desc:'Fraction of tokens at each end for interior/boundary split.', type:'float', step:0.01, min:0.01, max:0.4},
   response_topk:          {group:'ASM Attribution', label:'Response top-k',              desc:'Next-token predictions captured from each model.', type:'int', min:3, max:50},
   proof1_threshold:       {group:'ASM Attribution', label:'Proof-1 exactness',           desc:'Error threshold for exact attribution decomposition.', type:'float', step:0.0001, min:0.00001, max:0.01},
   delta_svd_k:            {group:'Weight Delta',    label:'Delta SVD rank',              desc:'Max singular values for weight delta spectral summary.', type:'int', min:16, max:128},
+  serialization_precision:{group:'Serialization',   label:'Decimal precision',           desc:'Decimal places for measurement values in JSON. Higher = larger files, more precision.', type:'int', min:4, max:12},
   n_bootstrap:            {group:'Statistics',      label:'Bootstrap resamples',         desc:'Bootstrap iterations for CIs. Higher = slower, tighter.', type:'int', min:500, max:20000, step:500},
   ci_level:               {group:'Statistics',      label:'Confidence level',            desc:'CI width. 0.95 = 95% confidence intervals.', type:'float', step:0.01, min:0.80, max:0.99},
   threshold_steps:        {group:'Statistics',      label:'Threshold search steps',      desc:'Granularity of optimal classification threshold search.', type:'int', min:50, max:2000, step:50},
@@ -2358,7 +2360,7 @@ function renderAdvancedParams(){
   var h = '';
   for(var group in groups){
     var items = groups[group];
-    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':'var(--text-2)';
+    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':group==='Serialization'?'var(--purple)':'var(--text-2)';
     h += '<div style="margin-bottom:14px"><div style="font-size:var(--font-desc);font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
     items.forEach(function(item){

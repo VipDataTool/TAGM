@@ -96,23 +96,24 @@ class SFDResult:
 
     def to_dict(self):
         """Serialize for JSON transport."""
+        p = engine_config.get("serialization_precision")
         return {
             'per_token_energy': self.per_token_energy.tolist() if self.per_token_energy is not None else None,
             'per_token_entropy': self.per_token_entropy.tolist() if self.per_token_entropy is not None else None,
             'per_token_density': self.per_token_density.tolist() if self.per_token_density is not None else None,
-            'energy_mean': round(self.energy_mean, 6),
-            'energy_max': round(self.energy_max, 6),
-            'energy_var': round(self.energy_var, 8),
-            'energy_p90': round(self.energy_p90, 6),
-            'entropy_mean': round(self.entropy_mean, 4),
-            'entropy_max': round(self.entropy_max, 4),
-            'entropy_var': round(self.entropy_var, 6),
-            'entropy_p90': round(self.entropy_p90, 4),
-            'density_mean': round(self.density_mean, 4),
-            'density_max': round(self.density_max, 4),
-            'density_var': round(self.density_var, 6),
-            'density_p90': round(self.density_p90, 4),
-            'global_erank': round(self.global_erank, 2),
+            'energy_mean': round(self.energy_mean, p),
+            'energy_max': round(self.energy_max, p),
+            'energy_var': round(self.energy_var, p),
+            'energy_p90': round(self.energy_p90, p),
+            'entropy_mean': round(self.entropy_mean, p),
+            'entropy_max': round(self.entropy_max, p),
+            'entropy_var': round(self.entropy_var, p),
+            'entropy_p90': round(self.entropy_p90, p),
+            'density_mean': round(self.density_mean, p),
+            'density_max': round(self.density_max, p),
+            'density_var': round(self.density_var, p),
+            'density_p90': round(self.density_p90, p),
+            'global_erank': round(self.global_erank, p),
             'n_layers_monitored': self.n_layers_monitored,
             'k': self.k,
         }
@@ -178,7 +179,10 @@ def precompute_sfd_cache(state, layer_indices: List[int] = None,
             # Concatenate [ΔW_Q; ΔW_K] along rows (they share d_in columns)
             dw_qk = torch.cat([dw_q.float().cpu(), dw_k.float().cpu()], dim=0)
 
-            # Truncated SVD
+            # Truncated SVD — seed for determinism (randomized algorithm)
+            svd_seed = engine_config.get("sfd_svd_seed")
+            if svd_seed is not None:
+                torch.manual_seed(svd_seed)
             # torch.svd_lowrank returns (U, S, V) where A ≈ U @ diag(S) @ V.T
             # V is (d_in, k) — we need V.T = (k, d_in) for projection c = V_k^T @ h
             actual_k = min(k, min(dw_qk.shape))
@@ -451,16 +455,17 @@ def compute_rank_displacement(instruct_cf, base_cf):
                              if total_disp > 0 else 0.0)
         concentration = total_disp / n_matched if n_matched > 0 else 0.0
 
+        p = engine_config.get("serialization_precision")
         per_pos.append({
             'n_matched': n_matched,
             'n_promoted': n_promoted,
             'n_demoted': n_demoted,
-            'matched_disp': round(matched_disp, 6),
-            'promoted_mass': round(promoted_mass, 6),
-            'demoted_mass': round(demoted_mass, 6),
-            'total_disp': round(total_disp, 6),
-            'replacement_ratio': round(replacement_ratio, 4),
-            'concentration': round(concentration, 6),
+            'matched_disp': round(matched_disp, p),
+            'promoted_mass': round(promoted_mass, p),
+            'demoted_mass': round(demoted_mass, p),
+            'total_disp': round(total_disp, p),
+            'replacement_ratio': round(replacement_ratio, p),
+            'concentration': round(concentration, p),
         })
 
         # ── Terrain displacement profiles ──
@@ -515,15 +520,16 @@ def compute_rank_displacement(instruct_cf, base_cf):
     low_match_frac = (sum(1 for p in per_pos if p['n_matched'] < 5) / n
                       if n else 0)
 
+    p = engine_config.get("serialization_precision")
     return {
         # ── New match-concentration metrics ──
-        'mean_matched': round(mean_matched, 2),
-        'mean_replacement': round(mean_replacement, 4),
-        'mean_concentration': round(mean_concentration, 6),
-        'mean_disp_per_token': round(mean_disp_per_token, 4),
-        'total_displacement': round(total_displacement, 4),
-        'high_replacement_frac': round(high_replacement_frac, 4),
-        'low_match_frac': round(low_match_frac, 4),
+        'mean_matched': round(mean_matched, p),
+        'mean_replacement': round(mean_replacement, p),
+        'mean_concentration': round(mean_concentration, p),
+        'mean_disp_per_token': round(mean_disp_per_token, p),
+        'total_displacement': round(total_displacement, p),
+        'high_replacement_frac': round(high_replacement_frac, p),
+        'low_match_frac': round(low_match_frac, p),
         'per_position': per_pos,
 
         # ── Terrain displacement profiles (8 per bank per position) ──
@@ -533,8 +539,8 @@ def compute_rank_displacement(instruct_cf, base_cf):
         # ── Legacy (backward compat) ──
         'mean_tau': float(np.mean(taus)) if taus else 0.0,
         'mean_overlap': float(np.mean(overlaps)) if overlaps else 0.0,
-        'per_position_tau': [round(t, 4) for t in taus],
-        'per_position_overlap': [round(o, 4) for o in overlaps],
+        'per_position_tau': [round(t, p) for t in taus],
+        'per_position_overlap': [round(o, p) for o in overlaps],
         'n_comparable': len(taus),
         'n_positions': n_pos,
     }

@@ -245,9 +245,9 @@ def _compute_spectral_profile(state, log_fn=print):
             top5_energy = float((s[:5] ** 2).sum()) / total_energy if total_energy > 0 else 0
             
             spectral[key] = {
-                'eff_rank': round(eff_rank, 2),
-                'top1_share': round(top1_energy, 4),
-                'top5_share': round(top5_energy, 4),
+                'eff_rank': round(eff_rank, engine_config.get("serialization_precision")),
+                'top1_share': round(top1_energy, engine_config.get("serialization_precision")),
+                'top5_share': round(top5_energy, engine_config.get("serialization_precision")),
             }
             eff_ranks.append(eff_rank)
             top1_shares.append(top1_energy)
@@ -261,12 +261,13 @@ def _compute_spectral_profile(state, log_fn=print):
         attn_ranks = [v['eff_rank'] for k, v in spectral.items() if 'self_attn' in k]
         mlp_ranks = [v['eff_rank'] for k, v in spectral.items() if 'mlp' in k]
         
+        p = engine_config.get("serialization_precision")
         state.spectral_summary = {
-            'mean_eff_rank': round(float(np.mean(eff_ranks)), 2),
-            'std_eff_rank': round(float(np.std(eff_ranks)), 2),
-            'mean_top1_share': round(float(np.mean(top1_shares)), 4),
-            'attn_mean_rank': round(float(np.mean(attn_ranks)), 2) if attn_ranks else 0,
-            'mlp_mean_rank': round(float(np.mean(mlp_ranks)), 2) if mlp_ranks else 0,
+            'mean_eff_rank': round(float(np.mean(eff_ranks)), p),
+            'std_eff_rank': round(float(np.std(eff_ranks)), p),
+            'mean_top1_share': round(float(np.mean(top1_shares)), p),
+            'attn_mean_rank': round(float(np.mean(attn_ranks)), p) if attn_ranks else 0,
+            'mlp_mean_rank': round(float(np.mean(mlp_ranks)), p) if mlp_ranks else 0,
             'n_sublayers': len(eff_ranks),
         }
         log_fn("info", f"Spectral profile: {len(eff_ranks)} sublayers, "

@@ -277,7 +277,7 @@ class Analyzer:
             probs = torch.softmax(logits, dim=-1)
             topk = torch.topk(probs, min(response_topk, probs.shape[0]))
             result.instruct_topk = [
-                (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
+                (state.tokenizer.decode(idx.item()).strip(), round(p.item(), engine_config.get("serialization_precision")))
                 for idx, p in zip(topk.indices, topk.values)
             ]
 
@@ -343,7 +343,7 @@ class Analyzer:
             norm = float(np.linalg.norm(emb))
             if norm > 1e-12:
                 emb = emb / norm
-            result.domain_embedding = [round(float(x), 4) for x in emb]
+            result.domain_embedding = [round(float(x), engine_config.get("serialization_precision")) for x in emb]
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -642,7 +642,7 @@ class Analyzer:
             if len(nonzero) > 1:
                 normed = nonzero / nonzero.sum()
                 ent = -np.sum(normed * np.log(normed))
-                spectral_ranks.append(round(float(np.exp(ent)), 2))
+                spectral_ranks.append(round(float(np.exp(ent)), engine_config.get("serialization_precision")))
             else:
                 spectral_ranks.append(1.0)
         result.per_token_spectral_rank = spectral_ranks
@@ -686,7 +686,7 @@ class Analyzer:
                 probs_base = torch.softmax(logits_base, dim=-1)
                 tk = torch.topk(probs_base, min(topk, probs_base.shape[0]))
                 result.base_topk = [
-                    (state.tokenizer.decode(idx.item()).strip(), round(p.item(), 4))
+                    (state.tokenizer.decode(idx.item()).strip(), round(p.item(), engine_config.get("serialization_precision")))
                     for idx, p in zip(tk.indices, tk.values)
                 ]
                 del logits_base, probs_base
@@ -705,7 +705,7 @@ class Analyzer:
                     if tid != chosen_id and len(alts) < ltp_k:
                         alts.append((
                             state.tokenizer.decode(tid).strip(),
-                            round(probs[j].item(), 4)
+                            round(probs[j].item(), engine_config.get("serialization_precision"))
                         ))
                 base_cf.append(alts)
             result.base_counterfactual_tokens = base_cf
