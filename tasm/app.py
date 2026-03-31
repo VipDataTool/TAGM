@@ -751,13 +751,9 @@ async def get_session_results(page: int = 1, per_page: int = 10):
         r = session.results[i]
         r_copy = dict(r)
 
-        # List available plot keys (not image data)
-        plot_keys = []
-        plot_dir = session.session_dir / "plots" / "individual"
-        if plot_dir.exists():
-            for pfile in sorted(plot_dir.glob(f"{i:04d}_*.png")):
-                plot_keys.append(pfile.stem[5:])  # strip "0000_"
-        r_copy["_plot_keys"] = plot_keys
+        # List available plot keys based on result data (not filesystem —
+        # plots are lazy-generated and may not exist yet on disk).
+        r_copy["_plot_keys"] = _plot_keys_for_result(r)
 
         results.append(r_copy)
 
