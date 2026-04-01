@@ -146,6 +146,9 @@ class PromptResult:
             for key in cls._PLOT_EXTRA_FIELDS:
                 val = d.get(key)
                 if val is not None:
+                    # heatmap must be ndarray (plot_heatmap uses .size, .shape)
+                    if key == "heatmap" and not isinstance(val, np.ndarray):
+                        val = np.array(val)
                     setattr(pr, key, val)
 
         # LTP reconstitution — summary stats for scalar, full profiles for plot
