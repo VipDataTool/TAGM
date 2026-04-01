@@ -3012,6 +3012,8 @@ function renderModuleResults(name, results) {
   } else if (name === 'domain_surface') {
     _dsSurfaceData = results;
     container.innerHTML = renderDomainSurfaceResults(results);
+  } else if (name === 'correction_manifold') {
+    container.innerHTML = renderCorrectionManifoldResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3241,6 +3243,65 @@ function popoutDomainSurface(){
   if(!_dsSurfaceData||!_dsSurfaceData.observations||!_dsSurfaceData.observations.length)return;
   var pw=1100,ph=780,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/domain_surface_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+// ─── Correction Manifold Results Renderer ────────────────────
+function renderCorrectionManifoldResults(r) {
+  var h = '<div class="mod-results">';
+
+  // Summary header
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Classification Results</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div class="mod-summary">';
+
+  var cls = r.classification || {};
+  var bin = cls.binary || {};
+  h += tvStat('Prompts', r.n_prompts || 0);
+  h += tvStat('Binary Accuracy', bin.best_accuracy ? (bin.best_accuracy * 100).toFixed(1) + '%' : '--', bin.best_k ? 'k=' + bin.best_k + ' (safe=' + bin.n_safe + ' risk=' + bin.n_risk + ')' : '');
+  h += tvStat('6-Class Accuracy', cls.overall_accuracy ? (cls.overall_accuracy * 100).toFixed(1) + '%' : '--', cls.best_k ? 'k=' + cls.best_k : '');
+  h += tvStat('Attractor Power', r.attractor_power || '--');
+  h += tvStat('Attractor Floor', r.attractor_floor || '--');
+
+  // Per-k results
+  if (cls.per_k) {
+    var ks = Object.keys(cls.per_k).sort(function(a,b){return a-b});
+    h += '</div><div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>k</th><th>6-Class Acc</th>';
+    if (bin.per_k) h += '<th>Binary Acc</th>';
+    h += '</tr>';
+    for (var i = 0; i < ks.length; i++) {
+      var k = ks[i];
+      h += '<tr><td>' + k + '</td><td>' + (cls.per_k[k].accuracy * 100).toFixed(1) + '%</td>';
+      if (bin.per_k && bin.per_k[k]) h += '<td style="color:var(--green);font-weight:600">' + (bin.per_k[k].accuracy * 100).toFixed(1) + '%</td>';
+      h += '</tr>';
+    }
+    h += '</table></div>';
+  }
+
+  // Escalation levels by category
+  if (r.level_stats) {
+    h += '<div style="margin-top:8px"><div style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-bottom:4px">Mean Probe Level by Category</div>';
+    h += '<table class="data-table" style="font-size:11px"><tr><th>Category</th><th>Mean Level</th></tr>';
+    var ls = r.level_stats;
+    for (var cat in ls) {
+      h += '<tr><td><span class="pill ' + pillClass(cat === 'b' ? 'benign' : cat === 'm' ? 'mild' : cat === 'd' ? 'dual-use' : cat === 'h' ? 'harmful' : cat === 'a' ? 'adversarial' : 'jailbreak') + '">' + cat + '</span></td><td>' + ls[cat] + '</td></tr>';
+    }
+    h += '</table></div>';
+  }
+
+  h += '</div></div>';
+
+  // Popout button
+  h += '<div style="margin-top:8px;text-align:center">';
+  h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open 6D Manifold Visualization</button>';
+  h += '</div>';
+
+  h += '</div>';
+  return h;
+}
+
+function popoutCorrectionManifold(){
+  var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
 
 (function() {
