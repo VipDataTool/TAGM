@@ -89,7 +89,7 @@ class ModelState:
     instruct_model_id: str = ""
     base_safetensors_path: str = ""  # for on-demand delta computation
     device: str = "cpu"
-    dtype: object = torch.float16
+    dtype: object = torch.bfloat16  # bfloat16: same 2-byte footprint as fp16, but fp32 exponent range prevents NaN overflow on CPU
     loaded: bool = False
     full_deltas_available: bool = False  # True if deltas for ALL layers are loaded
 
@@ -318,7 +318,7 @@ class ModelManager:
 
         _memlog("After unload", log)
 
-        dtype = torch.float16
+        dtype = torch.bfloat16
         state = ModelState(
             pair_id=pair_id, display_name=display,
             base_model_id=base_id, instruct_model_id=instruct_id,

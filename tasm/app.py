@@ -581,18 +581,27 @@ async def analyze_single(prompt: str = Form(...),
 
     try:
         logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, SFD={compute_sfd}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
-        if compute_kl or capture_responses or compute_ltp:
-            mm.load_base_for_kl(callback=log_progress)
+
+        # ── Sequential pipeline: batch of one ──
+        # Same path for single and batch — no concurrent model loading.
+        needs_base = compute_kl or capture_responses or compute_ltp
+        base_cache = None
+
+        if needs_base:
+            prompts_batch = [{"prompt": prompt, "category": category}]
+            base_caches = analyzer.run_base_phase(
+                prompts_batch, ltp_k=ltp_k, compute_kl=compute_kl,
+                capture_responses=capture_responses,
+                progress=log_progress)
+            base_cache = base_caches[0] if base_caches else None
 
         result_dict, plot_keys = _analyze_and_record(
             prompt, category, compute_kl, compute_trajectory, capture_responses,
             full_capture=full_capture,
             compute_ltp=compute_ltp, compute_sfd=compute_sfd,
             ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
-            ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
-
-        if compute_kl or capture_responses or compute_ltp:
-            mm.unload_base()
+            ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+            base_cache=base_cache)
 
         return sanitize_for_json({
             "ok": True,
@@ -869,15 +878,20 @@ async def rerun_prompts(request: Request):
     for i, r in enumerate(session.results):
         r["_index"] = i
 
-    # Load base model if needed
+    # ── Sequential pipeline for rerun ──
     needs_base = compute_kl or capture_responses or compute_ltp
-    if needs_base:
-        mm.load_base_for_kl(callback=log_progress)
+    base_caches = None
 
-    # Rerun in the request thread (these are individual prompts, not a huge batch)
+    if needs_base:
+        base_caches = analyzer.run_base_phase(
+            to_rerun, ltp_k=ltp_k, compute_kl=compute_kl,
+            capture_responses=capture_responses,
+            progress=log_progress)
+
     rerun_count = 0
-    for item in to_rerun:
+    for i, item in enumerate(to_rerun):
         try:
+            base_cache = base_caches[i] if base_caches and i < len(base_caches) else None
             _analyze_and_record(
                 item["prompt"], item["category"],
                 compute_kl, compute_trajectory, capture_responses,
@@ -885,13 +899,11 @@ async def rerun_prompts(request: Request):
                 compute_ltp=compute_ltp, compute_sfd=compute_sfd,
                 ltp_k=ltp_k,
                 ltp_layer_strategy=ltp_layer_strategy,
-                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens)
+                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                base_cache=base_cache)
             rerun_count += 1
         except Exception as e:
             logger.error(f"Rerun failed for '{item['prompt'][:40]}': {e}")
-
-    if needs_base:
-        mm.unload_base()
 
     # Rewrite CSV from scratch
     session._csv_initialized = False
