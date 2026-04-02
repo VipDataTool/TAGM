@@ -249,8 +249,19 @@ class Analyzer:
                        ltp_layer_strategy: str = "signal",
                        ltp_svd_rank: int = 0,
                        ltp_tuned_lens: bool = False,
-                       response_topk: int = None) -> PromptResult:
-        """Run the full analysis pipeline in a SINGLE forward pass."""
+                       response_topk: int = None,
+                       base_cache: dict = None) -> PromptResult:
+        """Run the full analysis pipeline in a SINGLE forward pass.
+
+        base_cache: optional dict from run_base_phase() containing pre-computed
+            base model outputs. When provided, the base model is NOT loaded —
+            enables sequential (non-concurrent) model loading for memory-
+            constrained environments. Keys:
+              per_position_base_alts: [[(token_id, prob), ...], ...] for LTP
+              base_topk: [(token_str, prob), ...] for capture_responses
+              base_counterfactual_tokens: [[(tok_str, prob), ...], ...] for RD
+              base_log_softmax: np.ndarray [seq_len, vocab] for KL (optional)
+        """
         if response_topk is None:
             response_topk = engine_config.get("response_topk")
         state = self.mm.state
@@ -304,7 +315,12 @@ class Analyzer:
         if compute_ltp:
             # Get base model logits for base bank probe directions
             base_logits = None
-            if state.model_base is not None:
+            precomputed_base_alts = None
+            if base_cache is not None:
+                # Sequential mode: use pre-computed base alternatives
+                precomputed_base_alts = base_cache.get("per_position_base_alts")
+            elif state.model_base is not None:
+                # Concurrent mode: run base model live
                 with torch.no_grad():
                     base_out = state.model_base(**inputs)
                     base_logits = base_out.logits
@@ -314,7 +330,8 @@ class Analyzer:
                 model_out.logits, tokens, inputs["input_ids"],
                 k=ltp_k, layer_strategy=ltp_layer_strategy,
                 svd_rank=ltp_svd_rank, use_tuned_lens=ltp_tuned_lens,
-                base_logits=base_logits)
+                base_logits=base_logits,
+                precomputed_base_alts=precomputed_base_alts)
 
         # SFD computation (uses same cached activations as ASM — no extra hooks)
         if compute_sfd:
@@ -355,8 +372,32 @@ class Analyzer:
         # KL divergence + base model responses + base counterfactuals (separate base-model pass)
         needs_base = compute_kl or capture_responses or compute_ltp
         has_base = state.model_base is not None
-        logger.info(f"[BASE PASS] needs={needs_base} (kl={compute_kl}, cap={capture_responses}, ltp={compute_ltp}), model_base loaded={has_base}")
-        if needs_base and has_base:
+        has_cache = base_cache is not None
+        logger.info(f"[BASE PASS] needs={needs_base} (kl={compute_kl}, cap={capture_responses}, ltp={compute_ltp}), model_base loaded={has_base}, cached={has_cache}")
+
+        if needs_base and has_cache:
+            # Sequential mode: populate results from pre-computed cache
+            if capture_responses and "base_topk" in base_cache:
+                result.base_topk = base_cache["base_topk"]
+            if "base_counterfactual_tokens" in base_cache:
+                result.base_counterfactual_tokens = base_cache["base_counterfactual_tokens"]
+            # KL from cached base log-softmax
+            if compute_kl and "base_log_softmax" in base_cache:
+                base_log_p = base_cache["base_log_softmax"]
+                if base_log_p is not None:
+                    logits_i = model_out.logits[0]
+                    log_p_i = torch.log_softmax(logits_i, dim=-1)
+                    p_i = torch.softmax(logits_i, dim=-1)
+                    # base_log_p is numpy or tensor [seq_len, vocab]
+                    if not isinstance(base_log_p, torch.Tensor):
+                        base_log_p = torch.tensor(base_log_p, device=logits_i.device, dtype=logits_i.dtype)
+                    per_tok_kl = (p_i * (log_p_i - base_log_p)).sum(dim=-1)
+                    result.per_token_kl = per_tok_kl.cpu().numpy()
+                    result.kl_divergence = float(per_tok_kl[-1].item())
+                    del log_p_i, p_i, per_tok_kl
+            logger.info(f"[BASE CACHE] Used cached base data (topk={len(result.base_topk)}, cf={len(result.base_counterfactual_tokens)}, kl={'yes' if result.kl_divergence is not None else 'no'})")
+        elif needs_base and has_base:
+            # Concurrent mode: run base model live (original path)
             self._compute_behavioral_comparison(
                 result, state,
                 instruct_logits=model_out.logits,
@@ -381,10 +422,131 @@ class Analyzer:
 
         return result
 
+    def run_base_phase(self, prompts, ltp_k=8, compute_kl=False,
+                       capture_responses=False, response_topk=10,
+                       progress=None):
+        """Phase 1 of sequential pipeline: run base model on all prompts.
+
+        Loads the base model, runs each prompt through it, extracts and
+        caches the outputs needed by LTP, RD, and KL, then unloads the
+        base model to free memory for the instruct phase.
+
+        Args:
+            prompts: list of {"prompt": str, "category": str}
+            ltp_k: number of counterfactual alternatives to cache
+            compute_kl: if True, cache full log-softmax per position (large)
+            capture_responses: if True, cache base top-k at last position
+            response_topk: number of top-k to capture for base_topk
+            progress: optional callback(stage, message)
+
+        Returns:
+            list of base_cache dicts, one per prompt, each containing:
+              per_position_base_alts: [[(token_id, prob), ...], ...] for LTP
+              base_topk: [(token_str, prob), ...] for capture_responses
+              base_counterfactual_tokens: [[(tok_str, prob), ...], ...] for RD
+              base_log_softmax: np.ndarray or None for KL
+        """
+        state = self.mm.state
+        overfetch = engine_config.get("ltp_overfetch_second") or 5
+
+        if progress:
+            progress("base_phase", f"Loading base model for sequential phase...")
+
+        # Load the base model
+        self.mm.load_base_for_kl(callback=progress)
+
+        if state.model_base is None:
+            logger.error("[BASE PHASE] Failed to load base model")
+            return [{}] * len(prompts)
+
+        all_caches = []
+        try:
+            for pi, p in enumerate(prompts):
+                prompt_text = p["prompt"]
+                if progress and (pi + 1) % 5 == 0:
+                    progress("base_phase", f"[Base phase {pi+1}/{len(prompts)}] {prompt_text[:40]}...")
+
+                inputs = state.tokenizer(prompt_text, return_tensors="pt").to(state.device)
+                token_ids = inputs["input_ids"][0]
+                seq_len = token_ids.shape[0]
+
+                with torch.no_grad():
+                    out_base = state.model_base(**inputs)
+                    base_logits = out_base.logits[0]  # [seq_len, vocab]
+
+                cache = {}
+
+                # Per-position base alternatives (for LTP + base bank)
+                base_alts = []
+                base_cf = []
+                for i in range(seq_len):
+                    chosen_id = token_ids[i].item()
+                    topk_result = torch.topk(base_logits[i], ltp_k + overfetch)
+                    probs = torch.softmax(topk_result.values, dim=-1)
+                    alts_ids = []
+                    alts_strs = []
+                    for j, tid in enumerate(topk_result.indices.tolist()):
+                        if tid != chosen_id and len(alts_ids) < ltp_k:
+                            alts_ids.append((tid, probs[j].item()))
+                            alts_strs.append((
+                                state.tokenizer.decode(tid).strip(),
+                                round(probs[j].item(), engine_config.get("serialization_precision"))
+                            ))
+                    base_alts.append(alts_ids)
+                    base_cf.append(alts_strs)
+
+                cache["per_position_base_alts"] = base_alts
+                cache["base_counterfactual_tokens"] = base_cf
+
+                # Base top-k at last position (for capture_responses)
+                if capture_responses:
+                    last_probs = torch.softmax(base_logits[-1], dim=-1)
+                    tk = torch.topk(last_probs, min(response_topk, last_probs.shape[0]))
+                    cache["base_topk"] = [
+                        (state.tokenizer.decode(idx.item()).strip(),
+                         round(p.item(), engine_config.get("serialization_precision")))
+                        for idx, p in zip(tk.indices, tk.values)
+                    ]
+                    del last_probs
+
+                # Full log-softmax for KL divergence (optional, large)
+                if compute_kl:
+                    cache["base_log_softmax"] = torch.log_softmax(
+                        base_logits, dim=-1).cpu().numpy().astype(np.float16)
+
+                del base_logits, out_base
+                all_caches.append(cache)
+
+                # Periodic memory cleanup
+                if (pi + 1) % 20 == 0:
+                    import gc as _gc
+                    _gc.collect()
+
+        finally:
+            # Always unload base model, even on error
+            if progress:
+                progress("base_phase", "Unloading base model...")
+            self.mm.unload_base()
+            import gc as _gc
+            _gc.collect()
+            try:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+
+        logger.info(f"[BASE PHASE] Complete: {len(all_caches)} prompts cached, "
+                    f"KL={'yes' if compute_kl else 'no'}")
+        if progress:
+            progress("base_phase", f"Base phase complete: {len(all_caches)} prompts cached")
+
+        return all_caches
+
     def _compute_ltp(self, logits, tokens, input_ids,
                      k: int = 8, layer_strategy: str = "signal",
                      svd_rank: int = 0, use_tuned_lens: bool = False,
-                     base_logits=None) -> LTPResult:
+                     base_logits=None,
+                     precomputed_base_alts=None) -> LTPResult:
         """Compute LTP using cached activations from the forward pass."""
         from engine.ltp import compute_ltp as _compute_ltp
 
@@ -397,7 +559,8 @@ class Analyzer:
             k=k, layer_strategy=layer_strategy,
             svd_cache=svd_cache, svd_rank=svd_rank,
             tuned_lens_cache=tl_cache,
-            base_logits=base_logits)
+            base_logits=base_logits,
+            precomputed_base_alts=precomputed_base_alts)
 
     def _extract_signed_attribution(self, result, seq_len, state):
         """Extract signed attribution with per-layer detail and proof checks."""

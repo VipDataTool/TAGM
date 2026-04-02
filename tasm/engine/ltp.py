@@ -153,11 +153,15 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 svd_cache: Dict[int, torch.Tensor] = None,
                 svd_rank: int = 0,
                 tuned_lens_cache: Dict[int, torch.Tensor] = None,
-                base_logits=None) -> LTPResult:
+                base_logits=None,
+                precomputed_base_alts=None) -> LTPResult:
     """Compute the Lateral Tension Profile for a completed forward pass.
     svd_cache: precomputed truncated dW_V per layer (None = use raw delta).
     svd_rank: the truncation rank used (for recording in results).
-    tuned_lens_cache: precomputed per-layer affine transforms (None = raw probes)."""
+    tuned_lens_cache: precomputed per-layer affine transforms (None = raw probes).
+    precomputed_base_alts: list of [(token_id, prob), ...] per position from a
+        prior base-model pass. If provided, base_logits is not needed — enables
+        sequential (non-concurrent) model loading."""
     state = model_manager.state
     result = LTPResult(
         k=k, layer_strategy=layer_strategy,
@@ -218,7 +222,11 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
     # ── Base model counterfactual alternatives (for base bank probe directions) ──
     per_position_base_alts = []
-    if base_logits is not None:
+    if precomputed_base_alts is not None:
+        # Sequential mode: base alts were pre-computed in a prior base-model phase
+        per_position_base_alts = precomputed_base_alts
+        logger.info(f"[LTP] Using {len(per_position_base_alts)} pre-computed base alts (sequential mode)")
+    elif base_logits is not None:
         base_log_probs = base_logits[0]
         for i in range(seq_len):
             chosen_id = per_position_chosen[i]

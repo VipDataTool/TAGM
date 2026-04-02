@@ -211,7 +211,8 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         full_capture=False,
                         ltp_k=8, ltp_layer_strategy="signal",
                         ltp_svd_rank=0, ltp_tuned_lens=False,
-                        skip_plots=True):
+                        skip_plots=True,
+                        base_cache=None):
     # Serialize access to model activations, hooks, and session state.
     # Without this lock, concurrent API calls can corrupt activation caches
     # (one prompt's hidden states overwriting another's mid-extraction)
@@ -228,7 +229,8 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
             ltp_k=ltp_k,
             ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank,
-            ltp_tuned_lens=ltp_tuned_lens)
+            ltp_tuned_lens=ltp_tuned_lens,
+            base_cache=base_cache)
 
         plots = {}
         if not skip_plots:
@@ -667,7 +669,14 @@ def _run_batch_sync(content, filename,
                     full_capture,
                     compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
                     ltp_svd_rank, ltp_tuned_lens):
-    """Synchronous batch processing — runs in a background thread."""
+    """Synchronous batch processing — runs in a background thread.
+
+    Uses a two-phase sequential pipeline when the base model is needed:
+      Phase 1: Load base model, run all prompts, cache outputs, unload base.
+      Phase 2: Load instruct model (+ deltas), run all prompts with cached
+               base data. No concurrent model loading required.
+    This enables larger models to run on memory-constrained hardware.
+    """
     try:
         reader = csv.DictReader(io.StringIO(content))
         prompts = []
@@ -684,12 +693,24 @@ def _run_batch_sync(content, filename,
         logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, SFD={compute_sfd}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
 
-        if compute_kl or capture_responses or compute_ltp:
-            mm.load_base_for_kl(callback=log_progress)
+        # ── Determine if base model is needed ──
+        needs_base = compute_kl or capture_responses or compute_ltp
+        base_caches = None
 
+        if needs_base:
+            # ── Phase 1: Sequential base-model pass ──
+            log_progress("base_phase", f"Phase 1: Running base model on {len(prompts)} prompts...")
+            base_caches = analyzer.run_base_phase(
+                prompts, ltp_k=ltp_k, compute_kl=compute_kl,
+                capture_responses=capture_responses,
+                progress=log_progress)
+            log_progress("base_phase", f"Phase 1 complete. Base model unloaded. Starting instruct phase...")
+
+        # ── Phase 2: Instruct model pass (base model already freed) ──
         for i, p in enumerate(prompts):
             log_progress("analyzing", f"[{i+1}/{len(prompts)}] {p['prompt'][:60]}...")
             try:
+                base_cache = base_caches[i] if base_caches and i < len(base_caches) else None
                 _analyze_and_record(
                     p["prompt"], p["category"],
                     compute_kl, compute_trajectory, capture_responses,
@@ -698,7 +719,8 @@ def _run_batch_sync(content, filename,
                     ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
                     ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
-                    skip_plots=True)
+                    skip_plots=True,
+                    base_cache=base_cache)
             except Exception as prompt_err:
                 logger.error(f"Prompt {i+1} failed: {prompt_err}")
                 log_progress("warning", f"[{i+1}] FAILED: {str(prompt_err)[:80]}")
@@ -720,8 +742,8 @@ def _run_batch_sync(content, filename,
                 except Exception:
                     log_progress("analyzing", f"[{i+1}/{len(prompts)}] Memory cleaned")
 
-        if compute_kl or capture_responses or compute_ltp:
-            mm.unload_base()
+        # Free base caches
+        del base_caches
 
         log_progress("done", f"Batch complete: {len(prompts)} prompts added to session")
 
