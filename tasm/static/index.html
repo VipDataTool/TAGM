@@ -402,6 +402,21 @@ textarea{resize:vertical;min-height:44px}
       </div>
     </div>
     <div class="card">
+      <div class="card-header"><h3>Probe Caches</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Subject-matter probe CSVs (<code>*_probes.csv</code>) define the domain surface. Active probes are cached at model load and used by Domain Surface. Drop new CSVs into the project root to extend coverage.</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <input type="text" id="probeSearch" placeholder="Filter probes..." oninput="_probeRender()" style="width:180px;padding:4px 8px;font-size:var(--font-desc);font-family:var(--mono);background:var(--bg-1);color:var(--text-0);border:1px solid var(--border);border-radius:4px">
+          <span style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-3)" id="probeCount"></span>
+          <span style="flex:1"></span>
+          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="regenCacheBtn" onclick="regenerateCaches()">Regenerate Active</button>
+          <span id="cacheStatus" style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-2)"></span>
+        </div>
+        <div id="probeFilesPanel" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)">Loading...</div>
+        <div id="probePagination" style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:var(--font-desc);font-family:var(--mono);color:var(--text-2)"></div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-header"><h3>Advanced Parameters</h3></div>
       <div class="card-body">
         <div style="font-size:var(--font-legend);color:var(--red);margin-bottom:10px;line-height:1.5;padding:8px 10px;border:1px solid var(--red);border-radius:4px;background:rgba(213,94,0,0.05)">These parameters directly affect measurement computations. Changing any value requires a full application reset — model unload, session clear, all caches invalidated. Data collected under different settings is not comparable.</div>
@@ -850,7 +865,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -2479,10 +2494,133 @@ async function resetAdvancedParams(){
   }catch(e){log('Reset failed: '+e.message,'error')}
 }
 
+var _probeData = [];
+var _probePage = 0;
+var _probePageSize = 10;
+
+async function regenerateCaches(probeFile){
+  var btn = $('regenCacheBtn');
+  var status = $('cacheStatus');
+  if(!modelLoaded){ status.textContent = 'No model loaded.'; status.style.color='var(--red)'; return; }
+  btn.disabled = true;
+  var origText = btn.textContent;
+  btn.textContent = 'Regenerating...';
+  status.textContent = 'Re-embedding probes...';
+  status.style.color = 'var(--text-2)';
+  try {
+    var body = probeFile ? {probe_file: probeFile} : {};
+    var r = await(await fetch('/api/regenerate_caches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if(r.ok){
+      status.textContent = r.message || 'Done.';
+      status.style.color = 'var(--green)';
+      log('Probe caches regenerated: ' + (r.probes_embedded||0) + ' probes','done');
+      loadProbeFiles();
+    } else {
+      status.textContent = 'Error: ' + (r.error||'Unknown');
+      status.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function loadProbeFiles(){
+  try {
+    var r = await(await fetch('/api/probe_files')).json();
+    _probeData = (r.ok && r.probe_files) ? r.probe_files : [];
+    _probePage = 0;
+    _probeRender();
+  } catch(e) {
+    var panel = $('probeFilesPanel');
+    if(panel) panel.innerHTML = '<span style="color:var(--red)">Failed to load: '+e.message+'</span>';
+  }
+}
+
+async function _probeToggle(filename, active){
+  try {
+    await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:filename,active:active})});
+    var item = _probeData.find(function(f){return f.filename===filename});
+    if(item) item.active = active;
+    _probeRender();
+  } catch(e) { log('Toggle failed: '+e.message,'error') }
+}
+
+function _probeRender(){
+  var panel = $('probeFilesPanel');
+  var pager = $('probePagination');
+  var countEl = $('probeCount');
+  if(!panel) return;
+
+  var query = ($('probeSearch')||{}).value||'';
+  query = query.toLowerCase();
+
+  var filtered = _probeData.filter(function(f){
+    if(!query) return true;
+    return f.filename.toLowerCase().indexOf(query)>=0 || f.subjects.join(' ').toLowerCase().indexOf(query)>=0;
+  });
+
+  var activeCount = _probeData.filter(function(f){return f.active}).length;
+  if(countEl) countEl.textContent = activeCount + '/' + _probeData.length + ' active' + (query ? ', ' + filtered.length + ' shown' : '');
+
+  var totalPages = Math.max(1, Math.ceil(filtered.length / _probePageSize));
+  if(_probePage >= totalPages) _probePage = totalPages - 1;
+  var start = _probePage * _probePageSize;
+  var page = filtered.slice(start, start + _probePageSize);
+
+  if(!_probeData.length){
+    panel.innerHTML = '<span style="color:var(--text-3)">No *_probes.csv files found.</span>';
+    if(pager) pager.innerHTML = '';
+    return;
+  }
+
+  var h = '<table style="width:100%;border-collapse:collapse">';
+  h += '<tr style="color:var(--text-3);text-align:left;border-bottom:1px solid var(--border)">';
+  h += '<th style="padding:4px 8px;width:32px">ON</th>';
+  h += '<th style="padding:4px 8px">FILE</th>';
+  h += '<th style="padding:4px 8px;text-align:right">PROBES</th>';
+  h += '<th style="padding:4px 8px;text-align:right">SUBJECTS</th>';
+  h += '<th style="padding:4px 8px;text-align:center">CACHE</th></tr>';
+
+  page.forEach(function(f){
+    var cacheLabel = f.cached
+      ? '<span style="color:var(--green)">\u2713 '+f.cache_probes+'</span>'
+      : '<span style="color:var(--text-3)">\u2717</span>';
+    var checked = f.active ? ' checked' : '';
+    h += '<tr style="border-bottom:1px solid var(--border)">';
+    h += '<td style="padding:4px 8px"><input type="checkbox"'+checked+' onchange="_probeToggle(\''+f.filename+'\',this.checked)"></td>';
+    h += '<td style="padding:4px 8px;color:var(--text-0)">' + escHtml(f.filename) + '</td>';
+    h += '<td style="padding:4px 8px;text-align:right">' + f.n_probes + '</td>';
+    h += '<td style="padding:4px 8px;text-align:right" title="' + escHtml(f.subjects.join(', ')) + '">' + f.n_subjects + '</td>';
+    h += '<td style="padding:4px 8px;text-align:center">' + cacheLabel + '</td>';
+    h += '</tr>';
+  });
+  h += '</table>';
+  panel.innerHTML = h;
+
+  // Pagination
+  if(pager){
+    if(totalPages <= 1){
+      pager.innerHTML = '';
+    } else {
+      var ph = '';
+      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage=0;_probeRender()" '+((_probePage===0)?'disabled':'')+'>«</button>';
+      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage--;_probeRender()" '+((_probePage===0)?'disabled':'')+'>‹</button>';
+      ph += '<span style="padding:0 6px">Page ' + (_probePage+1) + ' / ' + totalPages + '</span>';
+      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage++;_probeRender()" '+((_probePage>=totalPages-1)?'disabled':'')+'>›</button>';
+      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage='+String(totalPages-1)+';_probeRender()" '+((_probePage>=totalPages-1)?'disabled':'')+'>»</button>';
+      pager.innerHTML = ph;
+    }
+  }
+}
+
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
-    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}

@@ -44,7 +44,9 @@ from engine.comparative import generate_all_comparative
 from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
-from engine.modules.domain_surface import embed_and_cache_probes, _probe_cache_path
+from engine.modules.domain_surface import (embed_and_cache_probes, _probe_cache_path,
+                                            _discover_probe_files, _load_probes,
+                                            _load_probe_cache)
 from engine import engine_config
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -126,6 +128,9 @@ async def lifespan(app: FastAPI):
             logger.info(f"Loaded engine config from disk: {len(saved)} params")
         except Exception as e:
             logger.warning(f"Failed to load engine config: {e}")
+    # Load probe file selection
+    _load_probe_config()
+    logger.info(f"Active probe files: {sorted(_active_probes)}")
     # Clean stale session data from previous server run.
     # This is deliberate: schema changes between versions could make
     # old results.json incompatible with new code. Fresh start is safe.
@@ -181,8 +186,9 @@ def _preembed_probes():
     model_id = state.instruct_model_id or state.pair_id
     layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
 
-    # Explicit list — only files the domain surface module actually consumes.
-    probe_files = ["alignment_probes.csv"]
+    # Discover all probe files, but only cache active ones
+    all_probes = _discover_probe_files(project_root)
+    probe_files = [pf for pf in all_probes if pf in _active_probes]
 
     for pf in probe_files:
         csv_path = os.path.join(project_root, pf)
@@ -1556,6 +1562,32 @@ async def get_log():
 
 CONFIG_FILE = Path(__file__).parent / "ui_config.json"
 ENGINE_CONFIG_FILE = Path(__file__).parent / "engine_config.json"
+PROBE_CONFIG_FILE = Path(__file__).parent / "probe_config.json"
+
+# Active probe files — loaded at startup, persisted on change.
+_active_probes = set()  # filenames, e.g. {"alignment_probes.csv"}
+
+def _load_probe_config():
+    """Load active probe file list from disk."""
+    global _active_probes
+    if PROBE_CONFIG_FILE.exists():
+        try:
+            data = json.loads(PROBE_CONFIG_FILE.read_text())
+            _active_probes = set(data.get("active", []))
+        except Exception:
+            _active_probes = set()
+    if not _active_probes:
+        # First boot default: only the first discovered file.
+        # Keeps startup fast; user opts in to additional sets.
+        project_root = str(Path(__file__).parent)
+        discovered = _discover_probe_files(project_root)
+        if discovered:
+            _active_probes = {discovered[0]}
+    return _active_probes
+
+def _save_probe_config():
+    """Persist active probe file list to disk."""
+    PROBE_CONFIG_FILE.write_text(json.dumps({"active": sorted(_active_probes)}, indent=2))
 
 @app.get("/api/config")
 async def get_config():
@@ -1617,6 +1649,149 @@ async def reset_engine_config():
         ENGINE_CONFIG_FILE.unlink()
     logger.info("[CONFIG] Engine config reset to defaults")
     return {"ok": True, "config": engine_config.as_dict()}
+
+
+@app.get("/api/probe_files")
+async def list_probe_files():
+    """List all discovered *_probes.csv files with metadata and active status."""
+    project_root = str(Path(__file__).parent)
+    files = _discover_probe_files(project_root)
+
+    state = mm.state
+    model_id = (state.instruct_model_id or state.pair_id) if state else None
+    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+
+    result = []
+    for pf in files:
+        csv_path = os.path.join(project_root, pf)
+        probes = _load_probes(csv_path) if os.path.exists(csv_path) else []
+        subjects = sorted(set(p["subject"] for p in probes))
+
+        # Check cache status
+        cached = False
+        cache_probes = 0
+        if model_id:
+            cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
+            if os.path.exists(cache_path):
+                cached = True
+                data = _load_probe_cache(cache_path)
+                cache_probes = len(data.get("embeddings", [])) if data else 0
+
+        result.append({
+            "filename": pf,
+            "n_probes": len(probes),
+            "n_subjects": len(subjects),
+            "subjects": subjects,
+            "cached": cached,
+            "cache_probes": cache_probes,
+            "active": pf in _active_probes,
+        })
+
+    return {"ok": True, "probe_files": result}
+
+
+@app.post("/api/probe_files/toggle")
+async def toggle_probe_file(request: Request):
+    """Toggle a probe file's active status. Persists to probe_config.json."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Invalid JSON."})
+
+    filename = body.get("filename")
+    active = body.get("active")
+    if not filename or active is None:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "error": "Need filename and active fields."})
+
+    if active:
+        _active_probes.add(filename)
+    else:
+        _active_probes.discard(filename)
+
+    _save_probe_config()
+    logger.info(f"[PROBES] {filename} {'activated' if active else 'deactivated'} — active: {sorted(_active_probes)}")
+    return {"ok": True, "active": sorted(_active_probes)}
+
+
+@app.post("/api/regenerate_caches")
+async def regenerate_caches(request: Request):
+    """Delete and regenerate probe caches for the current model.
+
+    Optionally accepts {"probe_file": "name.csv"} to regenerate a
+    specific file. Without it, regenerates all discovered probe files.
+    """
+    if not mm.state or not mm.state.model_instruct:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "error": "No model loaded."})
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    target_file = body.get("probe_file")  # None = all
+
+    import asyncio
+    try:
+        result = await asyncio.to_thread(_regenerate_caches_sync, target_file)
+        return result
+    except Exception as e:
+        logger.error(f"Cache regeneration failed: {traceback.format_exc()}")
+        return JSONResponse(status_code=500,
+                            content={"ok": False, "error": str(e)})
+
+
+def _regenerate_caches_sync(target_file=None):
+    """Synchronous cache regeneration — runs in a thread."""
+    project_root = str(Path(__file__).parent)
+    state = mm.state
+    model_id = state.instruct_model_id or state.pair_id
+    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+
+    # Use specified file, or only active files
+    if target_file:
+        probe_files = [target_file]
+    else:
+        all_files = _discover_probe_files(project_root)
+        probe_files = [pf for pf in all_files if pf in _active_probes]
+
+    deleted = 0
+    embedded = 0
+
+    for pf in probe_files:
+        csv_path = os.path.join(project_root, pf)
+        if not os.path.exists(csv_path):
+            continue
+
+        # Delete existing cache
+        cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
+        if os.path.exists(cache_path):
+            os.remove(cache_path)
+            logger.info(f"[CACHE] Deleted: {os.path.basename(cache_path)}")
+            deleted += 1
+
+        # Regenerate
+        try:
+            embed_and_cache_probes(
+                state.model_instruct, state.tokenizer,
+                project_root, pf, model_id,
+                layer_frac=layer_frac,
+                progress=log_progress)
+            data = _load_probe_cache(cache_path)
+            if data:
+                embedded += len(data.get("embeddings", []))
+        except Exception as e:
+            logger.warning(f"[CACHE] Failed to regenerate {pf}: {e}")
+
+    # Also invalidate analyzer SFD cache (recomputed lazily on next analysis)
+    if analyzer:
+        analyzer._sfd_cache = None
+        logger.info("[CACHE] SFD cache invalidated (will rebuild on next analysis)")
+
+    msg = f"Regenerated: {deleted} cache(s) deleted, {embedded} probes re-embedded."
+    logger.info(f"[CACHE] {msg}")
+    return {"ok": True, "message": msg, "probes_embedded": embedded, "deleted": deleted}
 
 
 @app.post("/api/chat")

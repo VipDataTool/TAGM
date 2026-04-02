@@ -73,12 +73,24 @@ def _probe_cache_path(project_root, probe_file, model_id, layer_frac=0.50):
 
 
 def _load_probe_cache(cache_path):
-    """Load cached probe embeddings. Returns dict or None."""
+    """Load cached probe embeddings. Returns dict or None.
+    
+    Validates that embeddings don't contain NaN (can happen if cache
+    was generated with a dtype that caused overflow, e.g. fp16 on CPU).
+    """
     if not os.path.exists(cache_path):
         return None
     try:
         with open(cache_path) as f:
-            return json.load(f)
+            data = json.load(f)
+        # Validate: check for NaN in embeddings
+        embeddings = data.get("embeddings", [])
+        for emb in embeddings[:3]:  # spot-check first few
+            if any(v is None or (isinstance(v, float) and (v != v)) for v in emb):
+                logger.warning(f"[DOMAIN] Probe cache contains NaN — invalidating stale cache: {cache_path}")
+                os.remove(cache_path)
+                return None
+        return data
     except Exception as e:
         logger.warning(f"[DOMAIN] Failed to load probe cache {cache_path}: {e}")
         return None

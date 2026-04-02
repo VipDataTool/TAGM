@@ -578,13 +578,13 @@ class Analyzer:
             if h_key not in self.mm.activations or a_key not in self.mm.attn_weights:
                 continue
 
-            h = self.mm.activations[h_key][0, :seq_len]
-            alpha = self.mm.attn_weights[a_key][0, :, :seq_len, :seq_len]
+            h = self.mm.activations[h_key][0, :seq_len].float()
+            alpha = self.mm.attn_weights[a_key][0, :, :seq_len, :seq_len].float()
             dw_v = state.v_delta(layer_idx)
             if dw_v is None:
                 continue
 
-            v = torch.matmul(h, dw_v.T)
+            v = torch.matmul(h, dw_v.float().T)
             v_heads = v.view(seq_len, n_kv_heads, head_dim)
 
             alpha_grouped = alpha.view(n_kv_heads, heads_per_kv, seq_len, seq_len)
@@ -687,7 +687,7 @@ class Analyzer:
                     dw = state.deltas[dname]
                     fnorm = state.delta_frob_norms[dname]
                     if dw.shape[1] == h.shape[2] and fnorm > 0:
-                        projected = torch.matmul(h[0, :seq_len], dw.T)
+                        projected = torch.matmul(h[0, :seq_len].float(), dw.float().T)
                         per_token_total += projected.norm(dim=-1) / fnorm
             n_layers += 1
 
@@ -728,8 +728,8 @@ class Analyzer:
                         dw = state.deltas[dname]
                         fnorm = state.delta_frob_norms[dname]
                         if dw.shape[1] == h.shape[2] and fnorm > 0:
-                            h_slice = h[0, :seq_len]  # guard against stale activations
-                            projected = torch.matmul(h_slice, dw.T)
+                            h_slice = h[0, :seq_len].float()  # upcast bfloat16 → float32
+                            projected = torch.matmul(h_slice, dw.float().T)
                             pn = projected.norm(dim=-1)
                             raw_sum += pn.mean().item()
                             norm_sum += (pn / fnorm).mean().item()
