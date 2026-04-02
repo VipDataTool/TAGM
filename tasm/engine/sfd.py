@@ -188,8 +188,8 @@ def precompute_sfd_cache(state, layer_indices: List[int] = None,
             actual_k = min(k, min(dw_qk.shape))
             U, S, V = torch.svd_lowrank(dw_qk, q=actual_k)
 
-            s = S.numpy().astype(np.float64)
-            v_k = V.numpy().astype(np.float32).T  # (k, d_in) — transposed for V_k^T @ h
+            s = S.float().numpy().astype(np.float64)
+            v_k = V.float().numpy().astype(np.float32).T  # (k, d_in) — transposed for V_k^T @ h
 
             # Global measures from singular value spectrum
             s_pos = s[s > 1e-10]

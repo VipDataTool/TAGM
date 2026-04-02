@@ -369,7 +369,7 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
             avg_tension = torch.stack(layer_tensions).mean(dim=0)
         else:
             avg_tension = torch.zeros(state.hidden_size, device=device, dtype=dtype)
-        result.tension_points.append(avg_tension.cpu().numpy())
+        result.tension_points.append(avg_tension.float().cpu().numpy())
         result.tension_magnitudes.append(float(avg_tension.norm().item()))
         result.profile_shapes.append(_classify_profile(avg_profile))
 

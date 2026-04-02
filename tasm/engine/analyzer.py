@@ -343,7 +343,7 @@ class Analyzer:
                     act_key = f"layer_{layer_idx}_h"
                     act = self.mm.activations.get(act_key)
                     if act is not None:
-                        layer_acts[layer_idx] = act[0, :seq_len].cpu().numpy()
+                        layer_acts[layer_idx] = act[0, :seq_len].float().cpu().numpy()
 
                 if layer_acts:
                     result.sfd = compute_sfd_sequence(layer_acts, sfd_cache)
@@ -392,7 +392,7 @@ class Analyzer:
                     if not isinstance(base_log_p, torch.Tensor):
                         base_log_p = torch.tensor(base_log_p, device=logits_i.device, dtype=logits_i.dtype)
                     per_tok_kl = (p_i * (log_p_i - base_log_p)).sum(dim=-1)
-                    result.per_token_kl = per_tok_kl.cpu().numpy()
+                    result.per_token_kl = per_tok_kl.float().cpu().numpy()
                     result.kl_divergence = float(per_tok_kl[-1].item())
                     del log_p_i, p_i, per_tok_kl
             logger.info(f"[BASE CACHE] Used cached base data (topk={len(result.base_topk)}, cf={len(result.base_counterfactual_tokens)}, kl={'yes' if result.kl_divergence is not None else 'no'})")
@@ -512,7 +512,7 @@ class Analyzer:
                 # Full log-softmax for KL divergence (optional, large)
                 if compute_kl:
                     cache["base_log_softmax"] = torch.log_softmax(
-                        base_logits, dim=-1).cpu().numpy().astype(np.float16)
+                        base_logits, dim=-1).float().cpu().numpy().astype(np.float16)
 
                 del base_logits, out_base
                 all_caches.append(cache)
@@ -618,12 +618,12 @@ class Analyzer:
             layer_attr = torch.stack(head_attrs).mean(dim=0)
             layer_attrs.append(layer_attr)
             result.per_layer_amplitude[layer_idx] = layer_amp / n_kv_heads
-            result.per_layer_signed_attr[layer_idx] = layer_attr.numpy().tolist()
+            result.per_layer_signed_attr[layer_idx] = layer_attr.float().numpy().tolist()
 
         if not layer_attrs:
             return
 
-        avg_attr = torch.stack(layer_attrs).mean(dim=0).numpy()
+        avg_attr = torch.stack(layer_attrs).mean(dim=0).float().numpy()
         result.signed_attr = avg_attr
         result.net_correction = float(avg_attr.sum())
         result.n_negative_tokens = int(sum(1 for a in avg_attr if a < 0))
@@ -737,7 +737,7 @@ class Analyzer:
 
                 raw_traj.append(raw_sum)
                 norm_traj.append(norm_sum)
-                heatmap_rows.append(per_tok.numpy())
+                heatmap_rows.append(per_tok.float().numpy())
 
         result.amplitude_trajectory = raw_traj
         result.amplitude_normalized = norm_traj
@@ -843,7 +843,7 @@ class Analyzer:
                 p_i = torch.softmax(logits_i, dim=-1)
 
                 per_tok_kl = (p_i * (log_p_i - log_p_b)).sum(dim=-1)
-                result.per_token_kl = per_tok_kl.cpu().numpy()
+                result.per_token_kl = per_tok_kl.float().cpu().numpy()
                 result.kl_divergence = float(per_tok_kl[-1].item())
                 del log_p_i, log_p_b, p_i, per_tok_kl
 

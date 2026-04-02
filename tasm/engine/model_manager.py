@@ -229,7 +229,7 @@ def _compute_spectral_profile(state, log_fn=print):
             # For large matrices, use truncated SVD (configurable singular values)
             k = min(engine_config.get("delta_svd_k"), min(d.shape))
             U, S, Vh = torch.svd_lowrank(d, q=k)
-            s = S.numpy()
+            s = S.float().numpy()
             
             # Normalize singular values to a probability distribution
             s_norm = s / (s.sum() + 1e-10)
