@@ -67,7 +67,7 @@ TASM is structured as a monolithic FastAPI application (`app.py`, ~1,500 lines) 
 | `ltp.py` | Lateral Tension Profile computation: counterfactual probing, PCA trajectories, M/C/V/L statistics |
 | `sfd.py` | Spectral Field Density: QK-subspace engagement measurement via SVD projection; rank displacement computation |
 | `engine_config.py` | Central registry of all measurement-affecting parameters with typed defaults |
-| `baselines.py` | Length-normalized baseline management from a CSV prompt bank |
+| `baselines.py` | Benign prompt bank management for reference and batch analysis |
 | `statistics.py` | Bootstrap confidence intervals, Cohen's d effect sizes, cross-category aggregation |
 | `visualizations.py` | Matplotlib plot generation for all three signal families (returned as base64 PNGs) |
 | `comparative.py` | Cross-prompt comparative visualizations and batch dashboard plots |
@@ -117,7 +117,7 @@ The model registry (`models.json`) ships with four Qwen 2.5 pairs (0.5B, 1.5B, 3
 ### Auxiliary Inputs
 
 - `prompts.csv` — a library of categorized prompts for the sidebar prompt picker
-- `baselines.csv` — benign prompt bank used for length-normalized signal baselines
+- `baselines.csv` — benign prompt bank used for reference comparisons and tuned-lens calibration
 - `punctuation_probes.csv` — specialized probes for punctuation-sensitivity testing
 
 ---

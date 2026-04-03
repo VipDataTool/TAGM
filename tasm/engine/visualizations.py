@@ -236,9 +236,10 @@ def plot_separability(agg: dict) -> str:
     if not sep:
         return ""
 
-    # Only proven metrics (not length-normalized, not LTP, not Gini)
+    # Proven ASM metrics for the forest plot, plus length-invariant LTP and RD
     proven = ["net_correction", "middle_share", "top2_share",
-              "entropy", "stress_score", "interior_cv"]
+              "entropy", "stress_score", "interior_cv",
+              "ltp_n_dir", "rd_replacement"]
     metrics = [m for m in proven if m in sep]
 
     # Sort by effect size descending
@@ -253,6 +254,8 @@ def plot_separability(agg: dict) -> str:
         "entropy": "Entropy",
         "stress_score": "Stress Score",
         "interior_cv": "Interior CV",
+        "ltp_n_dir": "LTP Directional Tokens",
+        "rd_replacement": "RD Replacement Ratio",
     }
 
     for i, metric in enumerate(metrics):

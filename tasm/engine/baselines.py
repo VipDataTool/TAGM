@@ -4,8 +4,10 @@ Prompt library management.
 Loads and manages the prompt CSV (prompts.csv) used for batch analysis.
 Also provides access to baselines.csv as a source of known-benign prompts.
 
-Length normalization is handled by regression-based residualization in
-engine/statistics.py, not by this module.
+Length sensitivity is assessed by the length_correlations diagnostic in
+engine/statistics.py.  Per-token metric design (means, normalized
+distributions, log-normalization) minimizes length dependency by
+construction rather than post-hoc correction.
 """
 
 import csv

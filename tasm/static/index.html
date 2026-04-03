@@ -1210,10 +1210,10 @@ function _renderDataTablePage(){
     ['_inst_prob','InstP','pct3',null,50],
     ['_base_top1','BaseTop1','s',null,70],
     ['_base_prob','BaseP','pct3',null,50],
-    ['_ltp_M','M','f6',null,68],
-    ['_ltp_C','C','f4',null,52],
     ['_ltp_max_prc','MaxPRC','pct_pp',null,56],
     ['_ltp_n_dir','N_dir','i',null,40],
+    ['_ltp_M','M','f6',null,68],
+    ['_ltp_C','C','f4',null,52],
     ['_sfd_density','Dens','f4',120,56],
     ['_sfd_entropy','SpEnt','f4',null,56],
     ['_sfd_energy','QKE','f4',null,56],
@@ -1475,7 +1475,7 @@ function _buildRecordCardHtml(r,plotKeys,idx){
 
   // Metrics grid
   h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
-  if(r.ltp){h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric');h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric')}
+  if(r.ltp){h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric');h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric')}
   if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
   if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}

@@ -12,7 +12,7 @@ For any prompt, TASM computes two complementary signal families:
 - **Amplitude trajectory**: per-layer measurement of how hard the alignment correction pushes at each depth
 - **Signed attribution**: per-token decomposition of who's driving the correction (and in which direction)
 - **Distribution metrics**: entropy, Gini, boundary/interior concentration of the attribution signal
-- **Length-normalized baselines**: deviation from expected signal for benign prompts at the same token length
+- **Length sensitivity diagnostics**: per-metric Pearson correlation with sequence length, identifying which metrics are length-invariant by construction (stress, entropy, SFD, rank displacement) and which show dataset-composition effects
 - **Behavioral divergence**: KL(instruct ‖ base) at the output distribution
 
 ### LTP (Lateral Tension Profile)
@@ -33,7 +33,7 @@ The ASM tells you *how much* correction is happening. The LTP tells you *which d
 
 | Shortcoming | How TASM Handles It |
 |---|---|
-| **Token length confound** | Built-in benign prompt bank (30+, various lengths), user-supplied baselines, and length-window normalization. Reports `±σ from baseline` alongside raw metrics. |
+| **Token length confound** | Core metrics are designed as per-token means (stress, SFD) or normalized distributions (entropy divides by log(seq_len), attribution sums to 1.0), minimizing length sensitivity by construction. Rank displacement is empirically length-invariant (r ≈ 0). Computes per-metric Pearson correlation with sequence length as a built-in diagnostic. Within-length-bin analysis confirms category separation persists after controlling for length. |
 | **Small n** | CSV batch processing for hundreds of prompts. Bootstrap CIs on all effect sizes instead of point estimates. |
 | **Single model** | Configurable model pairs — ships with Qwen 2.5 presets (0.5B–7B), extensible to any HuggingFace base/instruct pair. |
 | **Weak behavior link (r=0.34)** | Computes KL divergence alongside ASM metrics per-prompt, reports correlation with CIs. |
@@ -132,7 +132,7 @@ tasm/
 │   ├── model_manager.py      # Model loading, delta computation, hooks
 │   ├── analyzer.py           # Core ASM + LTP analysis pipeline
 │   ├── ltp.py                # Lateral Tension Profile computation
-│   ├── baselines.py          # Length-normalization baseline manager
+│   ├── baselines.py          # Benign prompt bank for reference and batch analysis
 │   ├── statistics.py         # Bootstrap CIs, effect sizes, aggregation (ASM + LTP)
 │   ├── visualizations.py     # Matplotlib plot generation (ASM + LTP)
 │   ├── comparative.py        # Cross-prompt comparative plots (ASM + LTP)
