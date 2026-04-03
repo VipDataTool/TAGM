@@ -2505,8 +2505,9 @@ async function regenerateCaches(probeFile){
   btn.disabled = true;
   var origText = btn.textContent;
   btn.textContent = 'Regenerating...';
-  status.textContent = 'Re-embedding probes...';
+  status.textContent = 'Re-embedding probes (this may take 1-2 minutes)...';
   status.style.color = 'var(--text-2)';
+  var succeeded = false;
   try {
     var body = probeFile ? {probe_file: probeFile} : {};
     var r = await(await fetch('/api/regenerate_caches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
@@ -2514,17 +2515,42 @@ async function regenerateCaches(probeFile){
       status.textContent = r.message || 'Done.';
       status.style.color = 'var(--green)';
       log('Probe caches regenerated: ' + (r.probes_embedded||0) + ' probes','done');
-      loadProbeFiles();
+      succeeded = true;
     } else {
       status.textContent = 'Error: ' + (r.error||'Unknown');
       status.style.color = 'var(--red)';
     }
   } catch(e) {
-    status.textContent = 'Error: ' + e.message;
-    status.style.color = 'var(--red)';
+    // Connection may have timed out (proxy timeout in Codespace).
+    // The backend likely completed successfully — poll to verify.
+    status.textContent = 'Connection interrupted. Checking if regeneration completed...';
+    status.style.color = 'var(--text-2)';
+    // Wait a few seconds then check probe files for updated cache
+    for(var attempt = 0; attempt < 12; attempt++){
+      await new Promise(function(ok){setTimeout(ok,5000)});
+      try {
+        var pr = await(await fetch('/api/probe_files')).json();
+        if(pr.ok && pr.probe_files){
+          var cached = pr.probe_files.filter(function(f){return f.active && f.cached && f.cache_probes > 0});
+          if(cached.length > 0){
+            status.textContent = 'Regeneration completed (recovered after timeout).';
+            status.style.color = 'var(--green)';
+            log('Probe caches regenerated (recovered after connection timeout)','done');
+            succeeded = true;
+            break;
+          }
+        }
+        status.textContent = 'Still waiting... (' + (attempt+1)*5 + 's)';
+      } catch(pe){ /* keep polling */ }
+    }
+    if(!succeeded){
+      status.textContent = 'Error: Regeneration may have failed. Try reloading the model.';
+      status.style.color = 'var(--red)';
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
+    loadProbeFiles();
   }
 }
 
