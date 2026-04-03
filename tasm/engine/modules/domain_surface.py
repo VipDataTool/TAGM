@@ -224,7 +224,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
 
     for pi, sr in enumerate(session_results):
         dx, dy = float(prompt_coords[pi, 0]), float(prompt_coords[pi, 1])
-        cat = sr.get("category", "?")[0]
+        cat = (sr.get("category", "") or "?")[0]
         toks = sr.get("tokens", [])
         rd = sr.get("rank_displacement", {})
         per_pos = rd.get("per_position", []) if rd else []

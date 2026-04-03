@@ -260,6 +260,13 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
 
         h = model_manager.activations[h_key][0]
 
+        # Guard: activation length must match seq_len. Mismatch can occur
+        # if a prior failed analysis left stale activations.
+        if h.shape[0] < seq_len:
+            logger.warning(f"[LTP] Activation size mismatch at layer {layer_idx}: "
+                          f"h={h.shape[0]} vs seq_len={seq_len}. Skipping layer.")
+            continue
+
         # ── ΔW_V / 2 ──
         if svd_cache is not None and layer_idx in svd_cache:
             dw_v_full = svd_cache[layer_idx]
@@ -464,6 +471,8 @@ def _compute_dual_trajectory(result, model_manager, monitored, seq_len):
         if h_key not in model_manager.activations:
             return
     h = model_manager.activations[h_key][0].cpu().float().numpy()
+    if h.shape[0] < seq_len:
+        return  # Activation mismatch — skip trajectory
     tension_traj = np.zeros_like(h)
     for i in range(seq_len):
         if i < len(result.tension_points):
