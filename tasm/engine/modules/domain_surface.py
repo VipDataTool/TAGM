@@ -560,6 +560,7 @@ class DomainSurfaceModule(TASMModule):
         that match the current domain_embedding_layer_frac from engine config.
         Validates embedding dimensions against session data to prevent
         crosstalk when switching between models of different sizes.
+        Tries all candidates until one passes validation.
         """
         if not self._project_root:
             return None
@@ -581,36 +582,40 @@ class DomainSurfaceModule(TASMModule):
             layer_frac = 0.50
         layer_tag = f"__L{int(layer_frac * 100)}.json"
 
-        # Prefer cache matching current layer, fall back to any available
+        # Order: layer-matched candidates first, then others
         matched = [c for c in candidates if layer_tag in c]
-        cache_path = matched[-1] if matched else candidates[-1]
+        unmatched = [c for c in candidates if layer_tag not in c]
+        ordered = matched + unmatched
 
-        cache = _load_probe_cache(cache_path)
-        if cache is None:
-            return None
+        # Determine session embedding dimension for validation
+        session_dim = None
+        for r in session_results:
+            de = r.get("domain_embedding")
+            if de and len(de) > 0:
+                session_dim = len(de)
+                break
 
-        # Validate: embedding dimensions must match session data.
-        # Prevents crosstalk when switching between models of different sizes
-        # (e.g. 0.5B hidden_dim=896 vs 1.5B hidden_dim=1536).
-        probe_embs = cache.get("embeddings", [])
-        if probe_embs:
-            probe_dim = len(probe_embs[0])
-            session_dim = None
-            for r in session_results:
-                de = r.get("domain_embedding")
-                if de and len(de) > 0:
-                    session_dim = len(de)
-                    break
-            if session_dim is not None and probe_dim != session_dim:
-                logger.warning(f"[DOMAIN] Probe cache dimension mismatch: "
-                               f"cache={probe_dim}, session={session_dim}. "
-                               f"Stale cache from a different model size. "
-                               f"Re-run with the current model to regenerate.")
-                return None
+        # Try each candidate until one passes dimension validation
+        for cache_path in ordered:
+            cache = _load_probe_cache(cache_path)
+            if cache is None:
+                continue
 
-        logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
-                     f"(model={cache.get('model_id', '?')}, "
-                     f"layer={cache.get('layer', '?')}, "
-                     f"frac={cache.get('layer_frac', '?')})")
+            probe_embs = cache.get("embeddings", [])
+            if probe_embs and session_dim is not None:
+                probe_dim = len(probe_embs[0])
+                if probe_dim != session_dim:
+                    logger.warning(f"[DOMAIN] Probe cache dimension mismatch: "
+                                   f"cache={probe_dim}, session={session_dim}. "
+                                   f"Skipping {os.path.basename(cache_path)}.")
+                    continue
 
-        return probe_embs
+            logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
+                         f"(model={cache.get('model_id', '?')}, "
+                         f"layer={cache.get('layer', '?')}, "
+                         f"frac={cache.get('layer_frac', '?')})")
+            return probe_embs
+
+        logger.warning(f"[DOMAIN] No valid probe cache found for dimension {session_dim}. "
+                       f"Re-run with the current model to regenerate.")
+        return None
