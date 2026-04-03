@@ -170,11 +170,36 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
     """
     n = len(session_results)
 
+    # Resolve signal values from session results, handling nested keys.
+    # Summary CSV flattens sfd.density_mean to sfd_density_mean, but
+    # results.json keeps the nested structure.  This resolver handles both.
+    _NESTED = {
+        "sfd_density_mean":    ("sfd", "density_mean"),
+        "sfd_energy_mean":     ("sfd", "energy_mean"),
+        "sfd_entropy_mean":    ("sfd", "entropy_mean"),
+        "rd_mean_replacement": ("rank_displacement", "mean_replacement"),
+        "rd_mean_overlap":     ("rank_displacement", "mean_overlap"),
+        "rd_mean_tau":         ("rank_displacement", "mean_tau"),
+    }
+
+    def _get_signal(r, key):
+        v = r.get(key)
+        if v is not None:
+            return float(v)
+        nested = _NESTED.get(key)
+        if nested:
+            parent = r.get(nested[0])
+            if isinstance(parent, dict):
+                v2 = parent.get(nested[1])
+                if v2 is not None:
+                    return float(v2)
+        return 0.0
+
     # Extract the 4 independent signals
     raw_4 = np.zeros((n, 4))
     for i, r in enumerate(session_results):
         for j, (key, _) in enumerate(SIGNAL_KEYS):
-            raw_4[i, j] = float(r.get(key, 0))
+            raw_4[i, j] = _get_signal(r, key)
 
     # Normalize to [0, 1]
     mins = raw_4.min(axis=0)
@@ -187,7 +212,7 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
     raw_8 = np.zeros((n, 8))
     for i, r in enumerate(session_results):
         for j, (key, _) in enumerate(ALL_SIGNAL_KEYS):
-            raw_8[i, j] = float(r.get(key, 0))
+            raw_8[i, j] = _get_signal(r, key)
 
     # Normalize all 8
     norm_8 = np.zeros_like(raw_8)

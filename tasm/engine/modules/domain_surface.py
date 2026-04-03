@@ -558,6 +558,8 @@ class DomainSurfaceModule(TASMModule):
 
         Scans the probe cache directory for matching files. Prefers caches
         that match the current domain_embedding_layer_frac from engine config.
+        Validates embedding dimensions against session data to prevent
+        crosstalk when switching between models of different sizes.
         """
         if not self._project_root:
             return None
@@ -587,9 +589,28 @@ class DomainSurfaceModule(TASMModule):
         if cache is None:
             return None
 
+        # Validate: embedding dimensions must match session data.
+        # Prevents crosstalk when switching between models of different sizes
+        # (e.g. 0.5B hidden_dim=896 vs 1.5B hidden_dim=1536).
+        probe_embs = cache.get("embeddings", [])
+        if probe_embs:
+            probe_dim = len(probe_embs[0])
+            session_dim = None
+            for r in session_results:
+                de = r.get("domain_embedding")
+                if de and len(de) > 0:
+                    session_dim = len(de)
+                    break
+            if session_dim is not None and probe_dim != session_dim:
+                logger.warning(f"[DOMAIN] Probe cache dimension mismatch: "
+                               f"cache={probe_dim}, session={session_dim}. "
+                               f"Stale cache from a different model size. "
+                               f"Re-run with the current model to regenerate.")
+                return None
+
         logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
                      f"(model={cache.get('model_id', '?')}, "
                      f"layer={cache.get('layer', '?')}, "
                      f"frac={cache.get('layer_frac', '?')})")
 
-        return cache.get("embeddings")
+        return probe_embs
