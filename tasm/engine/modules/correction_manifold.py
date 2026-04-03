@@ -116,14 +116,13 @@ def _compute_prompt_probe_stats(domain_surface_data):
 # ─── Manifold Construction ───────────────────────────────────
 
 def _get_ring(level):
-    """Map continuous probe level to ring index (0=question, 1=instruct, 2=meta)."""
-    t = max(0.0, min(1.0, (level - 2.0) / 2.0))
-    if t < 0.33:
-        return 0
-    elif t < 0.67:
-        return 1
-    else:
-        return 2
+    """Map continuous probe level to ring index.
+
+    5 rings matching the 5 probe escalation levels:
+        0=nouns, 1=phrase, 2=question, 3=instruct, 4=meta.
+    """
+    idx = int(round(level)) - 1
+    return max(0, min(4, idx))
 
 
 def _cell_corners(angle, ring_idx, ring_bands, wedge_half):
@@ -476,12 +475,16 @@ class CorrectionManifoldModule(TASMModule):
             blended_angle = blended_angle[:n_prompts]
             dom_subject = dom_subject[:n_prompts]
 
-        # ── Ring geometry ──
-        ring_bands = [
-            {"inner": 0.18,            "outer": 0.40 - ring_gap},
-            {"inner": 0.40 + ring_gap, "outer": 0.66 - ring_gap},
-            {"inner": 0.66 + ring_gap, "outer": 0.92},
-        ]
+        # ── Ring geometry (5 rings: nouns, phrase, question, instruct, meta) ──
+        n_rings = 5
+        r_inner = 0.10
+        r_outer = 0.92
+        ring_width = (r_outer - r_inner - ring_gap * (n_rings - 1)) / n_rings
+        ring_bands = []
+        for ri in range(n_rings):
+            inner = r_inner + ri * (ring_width + ring_gap)
+            outer = inner + ring_width
+            ring_bands.append({"inner": round(inner, 4), "outer": round(outer, 4)})
         wedge_half = np.pi / n_subj * 0.88
 
         # ── Build manifold ──
@@ -536,7 +539,7 @@ class CorrectionManifoldModule(TASMModule):
         # Cell corners for visualization
         cells_viz = []
         for si in range(n_subj):
-            for ri in range(3):
+            for ri in range(len(ring_bands)):
                 corners = _cell_corners(subj_angles[si], ri, ring_bands, wedge_half)
                 center = corners.mean(axis=0)
                 cells_viz.append({
@@ -562,12 +565,9 @@ class CorrectionManifoldModule(TASMModule):
             "subj_short": subj_short,
             "subj_angles": [round(float(a), 4) for a in subj_angles],
             "rings": [
-                {"label": "Question", "inner": ring_bands[0]["inner"],
-                 "outer": ring_bands[0]["outer"]},
-                {"label": "Instruct", "inner": ring_bands[1]["inner"],
-                 "outer": ring_bands[1]["outer"]},
-                {"label": "Meta", "inner": ring_bands[2]["inner"],
-                 "outer": ring_bands[2]["outer"]},
+                {"label": lbl, "inner": ring_bands[i]["inner"],
+                 "outer": ring_bands[i]["outer"]}
+                for i, lbl in enumerate(["Nouns", "Phrase", "Question", "Instruct", "Meta"])
             ],
             "corner_labels": [s for _, s in SIGNAL_KEYS],
             "corner_rays": [
