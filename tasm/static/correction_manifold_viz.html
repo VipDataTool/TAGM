@@ -106,7 +106,7 @@ function draw(){
     var ring=rings[ri];
     g.beginPath();g.arc(CX,CY,ring.outer*R,0,Math.PI*2);
     g.arc(CX,CY,ring.inner*R,0,Math.PI*2,true);
-    g.fillStyle=["#ffffff03","#ffffff05","#ffffff07"][ri];g.fill();
+    g.fillStyle=["#ffffff02","#ffffff03","#ffffff05","#ffffff06","#ffffff08"][ri]||"#ffffff05";g.fill();
     g.beginPath();g.arc(CX,CY,ring.inner*R,0,Math.PI*2);
     g.strokeStyle="#ffffff10";g.lineWidth=.5;g.stroke();
     g.beginPath();g.arc(CX,CY,ring.outer*R,0,Math.PI*2);

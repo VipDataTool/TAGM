@@ -2328,7 +2328,8 @@ var ENGINE_PARAM_META = {
   ltp_overfetch_second:   {group:'LTP',             label:'LTP overfetch (fallback)',    desc:'Wider fetch if first pass insufficient.', type:'int', min:2, max:20},
   disc_sublayers_top_n:   {group:'Visualization',   label:'Discriminative sublayers N',  desc:'Sublayers shown in discriminative sublayers plot.', type:'int', min:5, max:30},
   precompute_module_caches:{group:'Modules',         label:'Pre-compute module caches',   desc:'Embed probes at model load. Disable to speed up boot.', type:'bool'},
-  domain_embedding_layer_frac:{group:'Modules',     label:'Domain embedding layer',      desc:'Capture depth (0.0\u20131.0). 0.25=syntax, 0.50=domain (default), 0.75=task-specific.', type:'float', step:0.05, min:0.05, max:0.95},
+  domain_embedding_layer_frac:{group:'Modules',     label:'Angular probe depth',         desc:'Embedding depth for subject/topic identity (angular axis). Lower = better noun separation. 0.50=default.', type:'float', step:0.05, min:0.05, max:0.95},
+  domain_escalation_layer_frac:{group:'Modules',    label:'Radial probe depth',          desc:'Embedding depth for escalation level (radial axis). Higher = better discourse framing. 0.75=default.', type:'float', step:0.05, min:0.05, max:0.95},
 };
 
 function _advToggleLock(unlocked){

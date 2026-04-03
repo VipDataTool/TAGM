@@ -184,31 +184,35 @@ def _preembed_probes():
         return
 
     model_id = state.instruct_model_id or state.pair_id
-    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+    subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+    esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
 
     # Discover all probe files, but only cache active ones
     all_probes = _discover_probe_files(project_root)
     probe_files = [pf for pf in all_probes if pf in _active_probes]
 
-    for pf in probe_files:
-        csv_path = os.path.join(project_root, pf)
-        if not os.path.exists(csv_path):
-            continue
+    # If both fracs are the same, one pass. If different, two sequential.
+    depths = sorted(set([subj_frac, esc_frac]))
 
-        # Skip if cache already exists for this model + layer
-        cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
-        if os.path.exists(cache_path):
-            logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
-            continue
+    for frac in depths:
+        for pf in probe_files:
+            csv_path = os.path.join(project_root, pf)
+            if not os.path.exists(csv_path):
+                continue
 
-        try:
-            embed_and_cache_probes(
-                state.model_instruct, state.tokenizer,
-                project_root, pf, model_id,
-                layer_frac=layer_frac,
-                progress=log_progress)
-        except Exception as e:
-            logger.warning(f"[DOMAIN] Failed to pre-embed {pf}: {e}")
+            cache_path = _probe_cache_path(project_root, pf, model_id, frac)
+            if os.path.exists(cache_path):
+                logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
+                continue
+
+            try:
+                embed_and_cache_probes(
+                    state.model_instruct, state.tokenizer,
+                    project_root, pf, model_id,
+                    layer_frac=frac,
+                    progress=log_progress)
+            except Exception as e:
+                logger.warning(f"[DOMAIN] Failed to pre-embed {pf} at L{int(frac*100)}: {e}")
 
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,

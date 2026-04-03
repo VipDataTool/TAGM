@@ -90,6 +90,11 @@ DEFAULTS = {
     # (recommended), 0.75=task-specific.  Changing this requires re-analysis
     # of all prompts and regeneration of probe caches.
     "domain_embedding_layer_frac": 0.50,
+    # Separate depth for escalation-level probe matching.  When different
+    # from domain_embedding_layer_frac, probes are embedded at both depths:
+    # the first for subject (angular) assignment, the second for escalation
+    # level (radial) assignment.  When equal, one pass is used for both.
+    "domain_escalation_layer_frac": 0.75,
 }
 
 # Current runtime values — initialized from defaults.

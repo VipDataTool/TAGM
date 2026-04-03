@@ -217,8 +217,15 @@ def _nearest_probe(dx, dy, anchor_pts):
 # ─── Observation Builder ─────────────────────────────────────
 
 def _build_observations(session_results, prompt_coords, anchor_pts,
-                        subjects, top_n=20, min_appearances=2, progress=None):
-    """Build per-token observations with all metrics and proximity."""
+                        subjects, top_n=20, min_appearances=2, progress=None,
+                        escalation_levels=None):
+    """Build per-token observations with all metrics and proximity.
+
+    If escalation_levels is provided (dict of prompt_index → level),
+    uses it for the near_level field instead of the PCA-nearest probe's
+    level.  This enables split-depth where subject comes from one layer
+    and escalation from another.
+    """
     token_freq = defaultdict(int)
     raw_obs = []
 
@@ -277,6 +284,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
 
         aidx, adist = _nearest_probe(o["dx"], o["dy"], anchor_pts)
         a = anchor_pts[aidx]
+        level = escalation_levels.get(o["pi"], a["level"]) if escalation_levels else a["level"]
 
         obs_export.append([
             o["tok"], o["cat"],
@@ -284,7 +292,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             round(o["dx"], 4),
             round(o["asm"], 2), round(o["sfd_e"], 3), round(o["sfd_d"], 3),
             o["pi"], o["pos"],
-            round(adist, 4), a["level"], subj_idx.get(a["subject"], 0),
+            round(adist, 4), level, subj_idx.get(a["subject"], 0),
         ])
 
     if progress:
@@ -488,12 +496,38 @@ class DomainSurfaceModule(TASMModule):
                 "y": float(probe_coords[i, 1]),
             })
 
+        # Split-depth escalation levels: if escalation frac differs from
+        # subject frac, load probes at the escalation depth and compute
+        # per-prompt level by cosine similarity in that space.
+        try:
+            from engine import engine_config as _ec
+            esc_frac = _ec.get("domain_escalation_layer_frac") or 0.75
+            subj_frac = _ec.get("domain_embedding_layer_frac") or 0.50
+        except Exception:
+            esc_frac = 0.75
+            subj_frac = 0.50
+
+        escalation_levels = None
+        if esc_frac != subj_frac:
+            esc_probe_embs = self._load_probe_embeddings(
+                probe_file, session_results, layer_frac=esc_frac)
+            if esc_probe_embs is not None and len(esc_probe_embs) == len(probes):
+                esc_arr = np.array(esc_probe_embs)
+                escalation_levels = {}
+                for vi in range(len(prompt_embs)):
+                    dots = esc_arr @ prompt_embs[vi]
+                    nearest = int(np.argmax(dots))
+                    escalation_levels[vi] = probes[nearest]["level"]
+                logger.info(f"[DOMAIN] Split-depth: escalation levels from "
+                            f"L{int(esc_frac*100)} for {len(escalation_levels)} prompts")
+
         # Build observations
         if progress:
             progress("Building per-token observations...")
         obs, ordered_tokens, token_cv = _build_observations(
             session_subset, prompt_coords, anchor_pts,
-            subjects, top_tokens, min_appearances, progress)
+            subjects, top_tokens, min_appearances, progress,
+            escalation_levels=escalation_levels)
 
         # Stratification
         strat = _stratification(obs, subjects)
@@ -553,14 +587,19 @@ class DomainSurfaceModule(TASMModule):
 
         return output
 
-    def _load_probe_embeddings(self, probe_file, session_results):
+    def _load_probe_embeddings(self, probe_file, session_results,
+                               layer_frac=None):
         """Load cached probe embeddings matching the current model and layer config.
 
         Scans the probe cache directory for matching files. Prefers caches
-        that match the current domain_embedding_layer_frac from engine config.
+        that match the specified layer_frac (defaults to domain_embedding_layer_frac).
         Validates embedding dimensions against session data to prevent
         crosstalk when switching between models of different sizes.
         Tries all candidates until one passes validation.
+
+        Args:
+            layer_frac: Override which layer depth to match. If None, uses
+                domain_embedding_layer_frac from engine config.
         """
         if not self._project_root:
             return None
@@ -574,12 +613,13 @@ class DomainSurfaceModule(TASMModule):
         if not candidates:
             return None
 
-        # Try to match the current layer config
-        try:
-            from engine import engine_config
-            layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
-        except Exception:
-            layer_frac = 0.50
+        # Determine target layer frac
+        if layer_frac is None:
+            try:
+                from engine import engine_config
+                layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+            except Exception:
+                layer_frac = 0.50
         layer_tag = f"__L{int(layer_frac * 100)}.json"
 
         # Order: layer-matched candidates first, then others
