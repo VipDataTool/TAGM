@@ -403,18 +403,17 @@ textarea{resize:vertical;min-height:44px}
       </div>
     </div>
     <div class="card">
-      <div class="card-header"><h3>Probe Caches</h3></div>
+      <div class="card-header"><h3>Probe Set</h3></div>
       <div class="card-body">
-        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Subject-matter probe CSVs (<code>*_probes.csv</code>) define the domain surface. Active probes are cached at model load and used by Domain Surface. Drop new CSVs into the project root to extend coverage.</div>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <input type="text" id="probeSearch" placeholder="Filter probes..." oninput="_probeRender()" style="width:180px;padding:4px 8px;font-size:var(--font-desc);font-family:var(--mono);background:var(--bg-1);color:var(--text-0);border:1px solid var(--border);border-radius:4px">
-          <span style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-3)" id="probeCount"></span>
-          <span style="flex:1"></span>
-          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="regenCacheBtn" onclick="regenerateCaches()">Regenerate Active</button>
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Optional probe CSV for domain surface geometry. Without a probe set, the correction manifold uses only intrinsic signals. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by escalation level columns.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <select id="probeFileSelect" onchange="_probeSelect(this.value)" style="padding:4px 8px;font-size:var(--font-desc);font-family:var(--mono);background:var(--bg-1);color:var(--text-0);border:1px solid var(--border);border-radius:4px;min-width:240px">
+            <option value="">Loading...</option>
+          </select>
+          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="regenCacheBtn" onclick="regenerateCaches()">Regenerate Cache</button>
           <span id="cacheStatus" style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-2)"></span>
         </div>
-        <div id="probeFilesPanel" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)">Loading...</div>
-        <div id="probePagination" style="display:flex;gap:8px;align-items:center;margin-top:8px;font-size:var(--font-desc);font-family:var(--mono);color:var(--text-2)"></div>
+        <div id="probeFileInfo" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)"></div>
       </div>
     </div>
     <div class="card">
@@ -2495,155 +2494,88 @@ async function resetAdvancedParams(){
   }catch(e){log('Reset failed: '+e.message,'error')}
 }
 
-var _probeData = [];
-var _probePage = 0;
-var _probePageSize = 10;
+var _probeFiles = [];
 
-async function regenerateCaches(probeFile){
+async function regenerateCaches(){
   var btn = $('regenCacheBtn');
   var status = $('cacheStatus');
   if(!modelLoaded){ status.textContent = 'No model loaded.'; status.style.color='var(--red)'; return; }
   btn.disabled = true;
-  var origText = btn.textContent;
   btn.textContent = 'Regenerating...';
-  status.textContent = 'Re-embedding probes (this may take 1-2 minutes)...';
+  status.textContent = 'Re-embedding probes...';
   status.style.color = 'var(--text-2)';
-  var succeeded = false;
   try {
-    var body = probeFile ? {probe_file: probeFile} : {};
-    var r = await(await fetch('/api/regenerate_caches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    var r = await(await fetch('/api/regenerate_caches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})).json();
     if(r.ok){
       status.textContent = r.message || 'Done.';
       status.style.color = 'var(--green)';
       log('Probe caches regenerated: ' + (r.probes_embedded||0) + ' probes','done');
-      succeeded = true;
     } else {
       status.textContent = 'Error: ' + (r.error||'Unknown');
       status.style.color = 'var(--red)';
     }
   } catch(e) {
-    // Connection may have timed out (proxy timeout in Codespace).
-    // The backend likely completed successfully — poll to verify.
-    status.textContent = 'Connection interrupted. Checking if regeneration completed...';
+    status.textContent = 'Connection interrupted. Check server log.';
     status.style.color = 'var(--text-2)';
-    // Wait a few seconds then check probe files for updated cache
-    for(var attempt = 0; attempt < 12; attempt++){
-      await new Promise(function(ok){setTimeout(ok,5000)});
-      try {
-        var pr = await(await fetch('/api/probe_files')).json();
-        if(pr.ok && pr.probe_files){
-          var cached = pr.probe_files.filter(function(f){return f.active && f.cached && f.cache_probes > 0});
-          if(cached.length > 0){
-            status.textContent = 'Regeneration completed (recovered after timeout).';
-            status.style.color = 'var(--green)';
-            log('Probe caches regenerated (recovered after connection timeout)','done');
-            succeeded = true;
-            break;
-          }
-        }
-        status.textContent = 'Still waiting... (' + (attempt+1)*5 + 's)';
-      } catch(pe){ /* keep polling */ }
-    }
-    if(!succeeded){
-      status.textContent = 'Error: Regeneration may have failed. Try reloading the model.';
-      status.style.color = 'var(--red)';
-    }
   } finally {
     btn.disabled = false;
-    btn.textContent = origText;
+    btn.textContent = 'Regenerate Cache';
     loadProbeFiles();
   }
 }
 
 async function loadProbeFiles(){
+  var sel = $('probeFileSelect');
+  var info = $('probeFileInfo');
+  if(!sel) return;
   try {
     var r = await(await fetch('/api/probe_files')).json();
-    _probeData = (r.ok && r.probe_files) ? r.probe_files : [];
-    _probePage = 0;
-    _probeRender();
-  } catch(e) {
-    var panel = $('probeFilesPanel');
-    if(panel) panel.innerHTML = '<span style="color:var(--red)">Failed to load: '+e.message+'</span>';
-  }
-}
+    _probeFiles = (r.ok && r.probe_files) ? r.probe_files : [];
 
-async function _probeToggle(filename, active){
-  try {
-    await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:filename,active:active})});
-    var item = _probeData.find(function(f){return f.filename===filename});
-    if(item) item.active = active;
-    _probeRender();
-  } catch(e) { log('Toggle failed: '+e.message,'error') }
-}
+    // Find which is currently active
+    var active = _probeFiles.find(function(f){return f.active});
+    var activeFile = active ? active.filename : '';
 
-function _probeRender(){
-  var panel = $('probeFilesPanel');
-  var pager = $('probePagination');
-  var countEl = $('probeCount');
-  if(!panel) return;
+    // Build dropdown
+    var h = '<option value="">(none — intrinsic signals only)</option>';
+    _probeFiles.forEach(function(f){
+      var selected = f.filename === activeFile ? ' selected' : '';
+      var label = f.filename + ' (' + f.n_probes + ' probes, ' + f.n_subjects + ' subjects, ' + (f.n_levels||0) + ' levels)';
+      h += '<option value="' + escHtml(f.filename) + '"' + selected + '>' + escHtml(label) + '</option>';
+    });
+    sel.innerHTML = h;
 
-  var query = ($('probeSearch')||{}).value||'';
-  query = query.toLowerCase();
-
-  var filtered = _probeData.filter(function(f){
-    if(!query) return true;
-    return f.filename.toLowerCase().indexOf(query)>=0 || f.subjects.join(' ').toLowerCase().indexOf(query)>=0;
-  });
-
-  var activeCount = _probeData.filter(function(f){return f.active}).length;
-  if(countEl) countEl.textContent = activeCount + '/' + _probeData.length + ' active' + (query ? ', ' + filtered.length + ' shown' : '');
-
-  var totalPages = Math.max(1, Math.ceil(filtered.length / _probePageSize));
-  if(_probePage >= totalPages) _probePage = totalPages - 1;
-  var start = _probePage * _probePageSize;
-  var page = filtered.slice(start, start + _probePageSize);
-
-  if(!_probeData.length){
-    panel.innerHTML = '<span style="color:var(--text-3)">No *_probes.csv files found.</span>';
-    if(pager) pager.innerHTML = '';
-    return;
-  }
-
-  var h = '<table style="width:100%;border-collapse:collapse">';
-  h += '<tr style="color:var(--text-3);text-align:left;border-bottom:1px solid var(--border)">';
-  h += '<th style="padding:4px 8px;width:32px">ON</th>';
-  h += '<th style="padding:4px 8px">FILE</th>';
-  h += '<th style="padding:4px 8px;text-align:right">PROBES</th>';
-  h += '<th style="padding:4px 8px;text-align:right">SUBJECTS</th>';
-  h += '<th style="padding:4px 8px;text-align:right">LEVELS</th>';
-  h += '<th style="padding:4px 8px;text-align:center">CACHE</th></tr>';
-
-  page.forEach(function(f){
-    var cacheLabel = f.cached
-      ? '<span style="color:var(--green)">\u2713 '+f.cache_probes+'</span>'
-      : '<span style="color:var(--text-3)">\u2717</span>';
-    var checked = f.active ? ' checked' : '';
-    var levelTip = (f.levels||[]).join(', ');
-    h += '<tr style="border-bottom:1px solid var(--border)">';
-    h += '<td style="padding:4px 8px"><input type="checkbox"'+checked+' onchange="_probeToggle(\''+f.filename+'\',this.checked)"></td>';
-    h += '<td style="padding:4px 8px;color:var(--text-0)">' + escHtml(f.filename) + '</td>';
-    h += '<td style="padding:4px 8px;text-align:right">' + f.n_probes + '</td>';
-    h += '<td style="padding:4px 8px;text-align:right" title="' + escHtml(f.subjects.join(', ')) + '">' + f.n_subjects + '</td>';
-    h += '<td style="padding:4px 8px;text-align:right" title="' + escHtml(levelTip) + '">' + (f.n_levels||0) + '</td>';
-    h += '<td style="padding:4px 8px;text-align:center">' + cacheLabel + '</td>';
-    h += '</tr>';
-  });
-  h += '</table>';
-  panel.innerHTML = h;
-
-  // Pagination
-  if(pager){
-    if(totalPages <= 1){
-      pager.innerHTML = '';
+    // Show info for active file
+    if(active){
+      var cache = active.cached ? '<span style="color:var(--green)">\u2713 cached ('+active.cache_probes+' embeddings)</span>' : '<span style="color:var(--text-3)">\u2717 not cached — click Regenerate</span>';
+      var levels = (active.levels||[]).join(' \u2192 ');
+      info.innerHTML = '<div style="margin-top:4px">'
+        + '<div>Subjects: <span style="color:var(--text-0)">' + escHtml(active.subjects.join(', ')) + '</span></div>'
+        + '<div>Levels: <span style="color:var(--text-0)">' + escHtml(levels) + '</span></div>'
+        + '<div>Cache: ' + cache + '</div></div>';
     } else {
-      var ph = '';
-      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage=0;_probeRender()" '+((_probePage===0)?'disabled':'')+'>«</button>';
-      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage--;_probeRender()" '+((_probePage===0)?'disabled':'')+'>‹</button>';
-      ph += '<span style="padding:0 6px">Page ' + (_probePage+1) + ' / ' + totalPages + '</span>';
-      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage++;_probeRender()" '+((_probePage>=totalPages-1)?'disabled':'')+'>›</button>';
-      ph += '<button class="btn btn-sm btn-secondary" style="padding:1px 8px;font-size:11px" onclick="_probePage='+String(totalPages-1)+';_probeRender()" '+((_probePage>=totalPages-1)?'disabled':'')+'>»</button>';
-      pager.innerHTML = ph;
+      info.innerHTML = '<span style="color:var(--text-3)">No probe set selected. Domain Surface and Correction Manifold will use intrinsic signals only.</span>';
     }
+  } catch(e) {
+    if(info) info.innerHTML = '<span style="color:var(--red)">Failed to load: '+e.message+'</span>';
+  }
+}
+
+async function _probeSelect(filename){
+  var info = $('probeFileInfo');
+  try {
+    // Deactivate all, then activate selected
+    for(var f of _probeFiles){
+      if(f.active && f.filename !== filename){
+        await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f.filename,active:false})});
+      }
+    }
+    if(filename){
+      await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:filename,active:true})});
+    }
+    loadProbeFiles();
+  } catch(e) {
+    if(info) info.innerHTML = '<span style="color:var(--red)">Failed: '+e.message+'</span>';
   }
 }
 

@@ -47,10 +47,16 @@ def _detect_level_cols(csv_path):
     """Read the CSV header and return escalation columns (everything after subject/anchor_id).
 
     Returns (level_cols, level_names) where level_names are display-friendly versions.
+    Returns ([], []) if the CSV is not a valid probe file (no 'subject' column).
     """
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         headers = reader.fieldnames or []
+
+    # A valid probe CSV must have a 'subject' column
+    header_lower = {h.strip().lower() for h in headers}
+    if "subject" not in header_lower:
+        return [], []
 
     level_cols = [h for h in headers if h.strip().lower() not in {c.lower() for c in FIXED_COLS}]
 
@@ -67,13 +73,18 @@ def _load_probes(csv_path):
     """Load probes from CSV. Auto-detects escalation columns from header.
 
     Returns list of dicts with subject, anchor_id, level, text.
+    Returns empty list if the CSV is not a valid probe file.
     """
     level_cols, _ = _detect_level_cols(csv_path)
+    if not level_cols:
+        return []
 
     probes = []
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:
+            if "subject" not in row:
+                continue
             for level, col in enumerate(level_cols):
                 text = row.get(col, "").strip()
                 if text:

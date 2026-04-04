@@ -1581,12 +1581,16 @@ def _load_probe_config():
         except Exception:
             _active_probes = set()
     if not _active_probes:
-        # First boot default: only the first discovered file.
-        # Keeps startup fast; user opts in to additional sets.
+        # First boot default: prefer ext_alignment_probes.csv, fall back to first valid file.
         project_root = str(Path(__file__).parent)
         discovered = _discover_probe_files(project_root)
-        if discovered:
-            _active_probes = {discovered[0]}
+        # Filter to valid probe files (must have 'subject' column)
+        valid = [f for f in discovered if _detect_level_cols(
+            os.path.join(project_root, f))[0]]
+        if "ext_alignment_probes.csv" in valid:
+            _active_probes = {"ext_alignment_probes.csv"}
+        elif valid:
+            _active_probes = {valid[0]}
     return _active_probes
 
 def _save_probe_config():
@@ -1657,7 +1661,7 @@ async def reset_engine_config():
 
 @app.get("/api/probe_files")
 async def list_probe_files():
-    """List all discovered *_probes.csv files with metadata and active status."""
+    """List valid probe CSVs (those with a 'subject' column) with metadata."""
     project_root = str(Path(__file__).parent)
     files = _discover_probe_files(project_root)
 
@@ -1668,11 +1672,16 @@ async def list_probe_files():
     result = []
     for pf in files:
         csv_path = os.path.join(project_root, pf)
-        probes = _load_probes(csv_path) if os.path.exists(csv_path) else []
-        subjects = sorted(set(p["subject"] for p in probes))
+        if not os.path.exists(csv_path):
+            continue
 
-        # Detect escalation levels from CSV header
-        level_cols, level_names = _detect_level_cols(csv_path) if os.path.exists(csv_path) else ([], [])
+        # Only include files that are valid probe format (have 'subject' column)
+        level_cols, level_names = _detect_level_cols(csv_path)
+        if not level_cols:
+            continue  # Not a valid probe file
+
+        probes = _load_probes(csv_path)
+        subjects = sorted(set(p["subject"] for p in probes))
 
         # Check cache status
         cached = False
