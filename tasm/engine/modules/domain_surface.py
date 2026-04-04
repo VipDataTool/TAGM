@@ -27,8 +27,11 @@ from .base import TASMModule, ModuleParameter
 
 logger = logging.getLogger("tasm")
 
-LEVEL_COLS = ["nouns", "phrase", "question", "instruction", "meta_instruction"]
-LEVEL_NAMES = ["nouns", "phrase", "question", "instruct", "meta"]
+FIXED_COLS = {"subject", "anchor_id"}  # Non-escalation columns in probe CSVs
+
+# Legacy defaults — used only if CSV has no header or auto-detection fails.
+_DEFAULT_LEVEL_COLS = ["nouns", "phrase", "question", "instruction", "meta_instruction"]
+_DEFAULT_LEVEL_NAMES = ["nouns", "phrase", "question", "instruct", "meta"]
 
 
 # ─── Probe Loading ────────────────────────────────────────────
@@ -40,13 +43,38 @@ def _discover_probe_files(root_dir):
     return [os.path.basename(f) for f in files]
 
 
+def _detect_level_cols(csv_path):
+    """Read the CSV header and return escalation columns (everything after subject/anchor_id).
+
+    Returns (level_cols, level_names) where level_names are display-friendly versions.
+    """
+    with open(csv_path) as f:
+        reader = csv.DictReader(f)
+        headers = reader.fieldnames or []
+
+    level_cols = [h for h in headers if h.strip().lower() not in {c.lower() for c in FIXED_COLS}]
+
+    if not level_cols:
+        return _DEFAULT_LEVEL_COLS[:], _DEFAULT_LEVEL_NAMES[:]
+
+    # Generate display names: replace underscores with spaces
+    level_names = [col.replace("_", " ").strip() for col in level_cols]
+
+    return level_cols, level_names
+
+
 def _load_probes(csv_path):
-    """Load probes from CSV. Returns list of dicts with subject, anchor_id, level, text."""
+    """Load probes from CSV. Auto-detects escalation columns from header.
+
+    Returns list of dicts with subject, anchor_id, level, text.
+    """
+    level_cols, _ = _detect_level_cols(csv_path)
+
     probes = []
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            for level, col in enumerate(LEVEL_COLS):
+            for level, col in enumerate(level_cols):
                 text = row.get(col, "").strip()
                 if text:
                     probes.append({
@@ -429,9 +457,10 @@ class DomainSurfaceModule(TASMModule):
         if progress:
             progress(f"Loading probes from {probe_file}")
         probes = _load_probes(probe_path)
+        _, level_names = _detect_level_cols(probe_path)
         subjects = sorted(set(p["subject"] for p in probes))
         logger.info(f"[DOMAIN] Loaded {len(probes)} probes across "
-                     f"{len(subjects)} subjects")
+                     f"{len(subjects)} subjects, {len(level_names)} levels: {level_names}")
 
         # Load prompt embeddings from session results
         if progress:
@@ -538,8 +567,8 @@ class DomainSurfaceModule(TASMModule):
                 counts = strat["by_level"][level_idx]
                 total = sum(counts.values())
                 li = int(level_idx)
-                if li < len(LEVEL_NAMES):
-                    progress(f"  {LEVEL_NAMES[li]}: {total} obs "
+                if li < len(level_names):
+                    progress(f"  {level_names[li]}: {total} obs "
                              f"(b={counts.get('b',0)} m={counts.get('m',0)} "
                              f"h={counts.get('h',0)} j={counts.get('j',0)})")
 
@@ -577,7 +606,7 @@ class DomainSurfaceModule(TASMModule):
             ],
             "stratification": strat,
             "probe_file": probe_file,
-            "level_names": LEVEL_NAMES,
+            "level_names": level_names,
         }
 
         if progress:

@@ -46,7 +46,7 @@ from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
 from engine.modules.domain_surface import (embed_and_cache_probes, _probe_cache_path,
                                             _discover_probe_files, _load_probes,
-                                            _load_probe_cache)
+                                            _load_probe_cache, _detect_level_cols)
 from engine import engine_config
 
 # ─── Logging ─────────────────────────────────────────────────────
@@ -1671,6 +1671,9 @@ async def list_probe_files():
         probes = _load_probes(csv_path) if os.path.exists(csv_path) else []
         subjects = sorted(set(p["subject"] for p in probes))
 
+        # Detect escalation levels from CSV header
+        level_cols, level_names = _detect_level_cols(csv_path) if os.path.exists(csv_path) else ([], [])
+
         # Check cache status
         cached = False
         cache_probes = 0
@@ -1686,6 +1689,8 @@ async def list_probe_files():
             "n_probes": len(probes),
             "n_subjects": len(subjects),
             "subjects": subjects,
+            "n_levels": len(level_cols),
+            "levels": level_names,
             "cached": cached,
             "cache_probes": cache_probes,
             "active": pf in _active_probes,

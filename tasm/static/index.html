@@ -2610,6 +2610,7 @@ function _probeRender(){
   h += '<th style="padding:4px 8px">FILE</th>';
   h += '<th style="padding:4px 8px;text-align:right">PROBES</th>';
   h += '<th style="padding:4px 8px;text-align:right">SUBJECTS</th>';
+  h += '<th style="padding:4px 8px;text-align:right">LEVELS</th>';
   h += '<th style="padding:4px 8px;text-align:center">CACHE</th></tr>';
 
   page.forEach(function(f){
@@ -2617,11 +2618,13 @@ function _probeRender(){
       ? '<span style="color:var(--green)">\u2713 '+f.cache_probes+'</span>'
       : '<span style="color:var(--text-3)">\u2717</span>';
     var checked = f.active ? ' checked' : '';
+    var levelTip = (f.levels||[]).join(', ');
     h += '<tr style="border-bottom:1px solid var(--border)">';
     h += '<td style="padding:4px 8px"><input type="checkbox"'+checked+' onchange="_probeToggle(\''+f.filename+'\',this.checked)"></td>';
     h += '<td style="padding:4px 8px;color:var(--text-0)">' + escHtml(f.filename) + '</td>';
     h += '<td style="padding:4px 8px;text-align:right">' + f.n_probes + '</td>';
     h += '<td style="padding:4px 8px;text-align:right" title="' + escHtml(f.subjects.join(', ')) + '">' + f.n_subjects + '</td>';
+    h += '<td style="padding:4px 8px;text-align:right" title="' + escHtml(levelTip) + '">' + (f.n_levels||0) + '</td>';
     h += '<td style="padding:4px 8px;text-align:center">' + cacheLabel + '</td>';
     h += '</tr>';
   });

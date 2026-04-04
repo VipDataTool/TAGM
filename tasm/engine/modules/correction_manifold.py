@@ -53,8 +53,6 @@ ALL_SIGNAL_KEYS = [
     ("rd_mean_overlap",     "RD_ovlp"),
 ]
 
-LEVEL_NAMES = ["nouns", "phrase", "question", "instruct", "meta"]
-
 
 # ─── Probe-Level Computation ─────────────────────────────────
 
@@ -115,14 +113,36 @@ def _compute_prompt_probe_stats(domain_surface_data):
 
 # ─── Manifold Construction ───────────────────────────────────
 
-def _get_ring(level):
-    """Map continuous probe level to ring index.
+def _get_ring(level, n_levels):
+    """Map continuous probe level to ring index for n_levels rings.
 
-    5 rings matching the 5 probe escalation levels:
-        0=nouns, 1=phrase, 2=question, 3=instruct, 4=meta.
+    level is a continuous value in [0, n_levels-1].
+    Maps linearly to ring indices [0, n_levels-1].
     """
-    idx = int(round(level)) - 1
-    return max(0, min(4, idx))
+    if n_levels <= 1:
+        return 0
+    t = max(0.0, min(1.0, level / (n_levels - 1)))
+    ring = int(t * (n_levels - 0.01))
+    return min(ring, n_levels - 1)
+
+
+def _make_ring_bands(n_rings, ring_gap=0.04, r_inner=0.18, r_outer=0.92):
+    """Generate evenly-spaced ring bands for n_rings rings.
+
+    Returns list of {"inner": float, "outer": float} dicts.
+    """
+    if n_rings <= 0:
+        return []
+    total_gap = ring_gap * (n_rings - 1)
+    usable = r_outer - r_inner - total_gap
+    band_width = usable / n_rings
+
+    bands = []
+    cursor = r_inner
+    for i in range(n_rings):
+        bands.append({"inner": round(cursor, 4), "outer": round(cursor + band_width, 4)})
+        cursor += band_width + ring_gap
+    return bands
 
 
 def _cell_corners(angle, ring_idx, ring_bands, wedge_half):
@@ -152,7 +172,7 @@ def _cell_corners(angle, ring_idx, ring_bands, wedge_half):
 
 def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
                      ring_bands, wedge_half, attractor_power, attractor_floor,
-                     progress=None):
+                     n_levels=5, progress=None):
     """Compute 2D manifold positions for all prompts.
 
     For each prompt:
@@ -224,7 +244,7 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
     rings = np.zeros(n, dtype=int)
 
     for i in range(n):
-        ri = _get_ring(mean_level[i])
+        ri = _get_ring(mean_level[i], n_levels)
         rings[i] = ri
         corners = _cell_corners(blended_angle[i], ri, ring_bands, wedge_half)
 
@@ -475,26 +495,22 @@ class CorrectionManifoldModule(TASMModule):
             blended_angle = blended_angle[:n_prompts]
             dom_subject = dom_subject[:n_prompts]
 
-        # ── Ring geometry (5 rings: nouns, phrase, question, instruct, meta) ──
-        n_rings = 5
-        r_inner = 0.10
-        r_outer = 0.92
-        ring_width = (r_outer - r_inner - ring_gap * (n_rings - 1)) / n_rings
-        ring_bands = []
-        for ri in range(n_rings):
-            inner = r_inner + ri * (ring_width + ring_gap)
-            outer = inner + ring_width
-            ring_bands.append({"inner": round(inner, 4), "outer": round(outer, 4)})
+        # ── Level names from domain surface ──
+        level_names = ds_data.get("level_names", ["nouns", "phrase", "question", "instruct", "meta"])
+        n_levels = len(level_names)
+
+        # ── Ring geometry (one ring per escalation level) ──
+        ring_bands = _make_ring_bands(n_levels, ring_gap=ring_gap, r_inner=0.10)
         wedge_half = np.pi / n_subj * 0.88
 
         # ── Build manifold ──
         if progress:
-            progress("Building 6D manifold positions...")
+            progress(f"Building manifold: {n_levels} rings × {n_subj} subjects...")
 
         positions, norm_4, norm_8, raw_8, rings = _build_manifold(
             session_results, mean_level, blended_angle, dom_subject,
             ring_bands, wedge_half, attractor_power, attractor_floor,
-            progress)
+            n_levels=n_levels, progress=progress)
 
         # ── KNN classification ──
         categories = []
@@ -565,9 +581,10 @@ class CorrectionManifoldModule(TASMModule):
             "subj_short": subj_short,
             "subj_angles": [round(float(a), 4) for a in subj_angles],
             "rings": [
-                {"label": lbl, "inner": ring_bands[i]["inner"],
+                {"label": level_names[i].title() if i < len(level_names) else f"Ring {i}",
+                 "inner": ring_bands[i]["inner"],
                  "outer": ring_bands[i]["outer"]}
-                for i, lbl in enumerate(["Nouns", "Phrase", "Question", "Instruct", "Meta"])
+                for i in range(len(ring_bands))
             ],
             "corner_labels": [s for _, s in SIGNAL_KEYS],
             "corner_rays": [
