@@ -175,23 +175,22 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
                      n_levels=5, progress=None):
     """Compute 2D manifold positions for all prompts.
 
-    For each prompt:
-        1. Determine cell from subject angle × probe ring
-        2. Compute 4 corner positions for that cell
-        3. Weight corners by signal values raised to attractor_power
-        4. Position = weighted centroid of corners
+    Geometry:
+        - Subject angle determines angular direction (wedge)
+        - Probe level determines ring band (escalation)
+        - RD_repl controls radial displacement within ring
+          (low RD = near center = boring; high RD = pushed outward)
+        - ASM, IntCV, SFD_d provide angular displacement at 120° intervals
 
     Returns:
         positions: (n, 2) array of manifold positions
-        norm_signals: (n, 4) normalized signal values
+        norm_signals: (n, 4) normalized signal values [ASM, IntCV, RD_repl, SFD_d]
         raw_signals: (n, 8) all 8 raw signal values
         rings: (n,) ring assignments
     """
     n = len(session_results)
 
-    # Resolve signal values from session results, handling nested keys.
-    # Summary CSV flattens sfd.density_mean to sfd_density_mean, but
-    # results.json keeps the nested structure.  This resolver handles both.
+    # Resolve signal values from session results
     _NESTED = {
         "sfd_density_mean":    ("sfd", "density_mean"),
         "sfd_energy_mean":     ("sfd", "energy_mean"),
@@ -214,7 +213,7 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
                     return float(v2)
         return 0.0
 
-    # Extract the 4 independent signals
+    # Extract the 4 independent signals: ASM[0], IntCV[1], RD_repl[2], SFD_d[3]
     raw_4 = np.zeros((n, 4))
     for i, r in enumerate(session_results):
         for j, (key, _) in enumerate(SIGNAL_KEYS):
@@ -239,21 +238,41 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         mn, mx = raw_8[:, j].min(), raw_8[:, j].max()
         norm_8[:, j] = (raw_8[:, j] - mn) / (mx - mn) if mx > mn else 0
 
-    # Compute positions
+    # ── RD-centered position computation ──
+    # 3 angular attractor directions at 120° intervals (global)
+    ATTR_ANGLES = [np.pi / 6, 5 * np.pi / 6, 3 * np.pi / 2]  # ASM=30°, IntCV=150°, SFD_d=270°
+    ATTR_IDX = [0, 1, 3]  # indices into norm_4: ASM, IntCV, SFD_d
+
     positions = np.zeros((n, 2))
     rings = np.zeros(n, dtype=int)
 
     for i in range(n):
         ri = _get_ring(mean_level[i], n_levels)
         rings[i] = ri
-        corners = _cell_corners(blended_angle[i], ri, ring_bands, wedge_half)
+        inner = ring_bands[ri]["inner"]
+        outer = ring_bands[ri]["outer"]
 
-        # Attractor weights
-        w = norm_4[i] ** attractor_power + attractor_floor
+        # RD controls radial displacement within ring
+        rd_frac = norm_4[i, 2]  # RD_repl normalized
+        base_r = inner + (outer - inner) * rd_frac
+
+        # Base position from subject angle
+        angle = blended_angle[i]
+        bx = base_r * np.cos(angle)
+        by = base_r * np.sin(angle)
+
+        # 3-signal angular displacement
+        w = np.array([norm_4[i, idx] ** attractor_power + attractor_floor
+                       for idx in ATTR_IDX])
         w_sum = w.sum()
 
-        positions[i, 0] = np.dot(w, corners[:, 0]) / w_sum
-        positions[i, 1] = np.dot(w, corners[:, 1]) / w_sum
+        pull_x = sum(w[j] * np.cos(ATTR_ANGLES[j]) for j in range(3)) / w_sum
+        pull_y = sum(w[j] * np.sin(ATTR_ANGLES[j]) for j in range(3)) / w_sum
+
+        # Scale displacement to fit within ring band
+        disp_scale = (outer - inner) * 0.35
+        positions[i, 0] = bx + pull_x * disp_scale
+        positions[i, 1] = by + pull_y * disp_scale
 
     if progress:
         progress(f"Computed manifold positions for {n} prompts")
@@ -586,13 +605,13 @@ class CorrectionManifoldModule(TASMModule):
                  "outer": ring_bands[i]["outer"]}
                 for i in range(len(ring_bands))
             ],
-            "corner_labels": [s for _, s in SIGNAL_KEYS],
+            "corner_labels": ["ASM", "IntCV", "SFD_d"],
             "corner_rays": [
-                {"angle": 45,   "name": "ASM",     "color": "#ef4444"},
-                {"angle": 135,  "name": "IntCV",   "color": "#22d3ee"},
-                {"angle": 225,  "name": "SFD_d",   "color": "#4ade80"},
-                {"angle": 315,  "name": "RD_repl", "color": "#a78bfa"},
+                {"angle": 30,   "name": "ASM",   "color": "#ef4444"},
+                {"angle": 150,  "name": "IntCV", "color": "#22d3ee"},
+                {"angle": 270,  "name": "SFD_d", "color": "#4ade80"},
             ],
+            "center_signal": {"name": "RD", "color": "#a78bfa"},
 
             # Signal metadata
             "signal_keys": [s for _, s in SIGNAL_KEYS],
