@@ -258,7 +258,8 @@ def _nearest_probe(dx, dy, anchor_pts):
 def _build_observations(session_results, prompt_coords, anchor_pts,
                         subjects, top_n=20, min_appearances=2, progress=None,
                         probe_embs=None, probes=None,
-                        esc_probe_embs=None):
+                        esc_probe_embs=None,
+                        tv_eta_weights=None):
     """Build per-token observations with all metrics and proximity.
 
     Split-depth probe matching: each token gets TWO independent probe lookups.
@@ -266,6 +267,10 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         embedding against probe embeddings cached at domain_embedding_layer_frac.
       - Escalation (ring): cosine similarity of token's escalation-layer
         embedding against probe embeddings cached at domain_escalation_layer_frac.
+
+    If tv_eta_weights is provided (dict of token → eta_sq_density from Token
+    Variance module), content words are weighted higher than function words
+    in the top-N selection. Without it, falls back to pure frequency ranking.
 
     Falls back to prompt-level PCA nearest-probe matching when per-token
     embeddings are not available.
@@ -318,7 +323,17 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
 
     # Top tokens by frequency, filter by min appearances, compute CV, order by CV
     qualified = {t: n for t, n in token_freq.items() if n >= min_appearances}
-    top = sorted(qualified.keys(), key=lambda t: -qualified[t])[:top_n]
+
+    # If token variance eta² is available, weight selection so category-
+    # dependent tokens (high eta_sq = content words) rank above category-
+    # independent tokens (low eta_sq = function words).
+    # score = freq × (eta² + floor)
+    ETA_FLOOR = 0.01
+    if tv_eta_weights:
+        top = sorted(qualified.keys(),
+                     key=lambda t: -(qualified[t] * (tv_eta_weights.get(t, ETA_FLOOR) + ETA_FLOOR)))[:top_n]
+    else:
+        top = sorted(qualified.keys(), key=lambda t: -qualified[t])[:top_n]
     token_cv = {}
     for tok in top:
         disps = [o["disp"] for o in raw_obs if o["tok"] == tok]
@@ -614,11 +629,42 @@ class DomainSurfaceModule(TASMModule):
         # Build observations
         if progress:
             progress("Building per-token observations...")
+
+        # Load token variance data if available (to weight content words
+        # over function words in top-N selection). Uses eta-squared
+        # (category-dependence) rather than raw CV — tokens whose correction
+        # signals vary WITH category (content words) rank above tokens whose
+        # signals vary independently of category (function words).
+        tv_weights = None
+        tv_paths = [
+            "datasets/current/module_token_variance.json",
+            "module_token_variance.json",
+        ]
+        for tv_path in tv_paths:
+            if os.path.exists(tv_path):
+                try:
+                    with open(tv_path) as f:
+                        tv_data = json.load(f)
+                    all_tv = tv_data.get("all_tokens", [])
+                    if all_tv:
+                        tv_weights = {t["token"]: t.get("eta_sq_density", 0)
+                                      for t in all_tv}
+                        logger.info(f"[DOMAIN] Loaded token variance eta² for "
+                                    f"{len(tv_weights)} tokens")
+                    break
+                except Exception as e:
+                    logger.warning(f"[DOMAIN] Failed to load token variance: {e}")
+
+        if tv_weights is None:
+            logger.info("[DOMAIN] Token variance data not found — using frequency-only "
+                        "token selection. Run Token Variance first for better subject accuracy.")
+
         obs, ordered_tokens, token_cv = _build_observations(
             session_subset, prompt_coords, anchor_pts,
             subjects, top_tokens, min_appearances, progress,
             probe_embs=probe_embs, probes=probes,
-            esc_probe_embs=esc_probe_embs)
+            esc_probe_embs=esc_probe_embs,
+            tv_eta_weights=tv_weights)
 
         # Stratification
         strat = _stratification(obs, subjects)
