@@ -365,7 +365,7 @@ class Analyzer:
         de_act = self.mm.activations.get(de_key)
         if de_act is not None and seq_len > 1:
             # Check if first token should be included
-            skip_first = not engine_config.get("include_first_token", False)
+            skip_first = not engine_config.get("include_first_token")
 
             start_pos = 1 if skip_first else 0
             per_tok = de_act[0, start_pos:seq_len].float().cpu().numpy()
