@@ -112,8 +112,8 @@ function init(){
     var rect=cvs.getBoundingClientRect();
     var mx=(e.clientX-rect.left)*(W/rect.width);
     var my=(e.clientY-rect.top)*(H/rect.height);
-    var factor=e.deltaY<0?1.05:1/1.05;
-    var nz=Math.max(0.4,Math.min(12,zoom*factor));
+    var factor=e.deltaY<0?1.03:1/1.03;
+    var nz=Math.max(0.8,Math.min(6,zoom*factor));
     panX=mx-(mx-panX)*(nz/zoom);
     panY=my-(my-panY)*(nz/zoom);
     zoom=nz;
@@ -169,18 +169,21 @@ function draw(){
     g.beginPath();g.arc(ox,oy,ring.outer*r,0,Math.PI*2);g.stroke();
   }
 
-  // ── Ring labels (rotated vertically, left side) ──
+  // ── Ring labels (horizontal, stacked vertically on left) ──
   g.font="600 "+fontSize+"px monospace";
-  g.textAlign="center";g.textBaseline="middle";
+  g.textAlign="right";g.textBaseline="middle";
+  g.fillStyle="#ffffff50";
+  var labelX=ox-outerR*r-14;
+  var labelSpacing=Math.max(12,fontSize+3);
+  var labelBlockH=rings.length*labelSpacing;
+  var labelStartY=oy-labelBlockH/2+labelSpacing/2;
   for(var ri=0;ri<rings.length;ri++){
-    var ring=rings[ri];
-    var mid=(ring.inner+ring.outer)/2;
-    g.save();
-    g.translate(ox-mid*r, oy);
-    g.rotate(-Math.PI/2);
-    g.fillStyle="#ffffff50";
-    g.fillText(ring.label,0,0);
-    g.restore();
+    var ly=labelStartY+ri*labelSpacing;
+    g.fillText(rings[ri].label, labelX, ly);
+    // Tick line connecting label to ring band
+    var mid=(rings[ri].inner+rings[ri].outer)/2;
+    g.strokeStyle="#ffffff15";g.lineWidth=0.5;
+    g.beginPath();g.moveTo(labelX+4,ly);g.lineTo(ox-mid*r,oy);g.stroke();
   }
 
   // ── Subject centerlines from vertex ──
