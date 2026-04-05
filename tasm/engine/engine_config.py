@@ -95,6 +95,11 @@ DEFAULTS = {
     # the first for subject (angular) assignment, the second for escalation
     # level (radial) assignment.  When equal, one pass is used for both.
     "domain_escalation_layer_frac": 0.75,
+    # Include position-0 token in per-token domain embeddings.  Position 0
+    # is usually excluded because it exhibits positional artifacts unrelated
+    # to semantic content.  Enable this if your tokenizer does not prepend
+    # a BOS/system token and position 0 carries meaningful content.
+    "include_first_token": False,
 }
 
 # Current runtime values — initialized from defaults.

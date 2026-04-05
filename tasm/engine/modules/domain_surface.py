@@ -285,6 +285,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
 
         # Per-token domain embeddings (if available)
         ptde = sr.get("per_token_domain_emb")
+        ptde_offset = sr.get("per_token_domain_offset", 1)  # how many leading positions were skipped
 
         for pos in range(len(per_pos)):
             if pos >= len(toks):
@@ -304,11 +305,10 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                 "sfd_e": float(sfd_e[pos]) if pos < len(sfd_e) else 0,
                 "sfd_d": float(sfd_d[pos]) if pos < len(sfd_d) else 0,
                 "pi": pi, "pos": pos,
-                # Per-token embedding for this position (pos is 0-indexed over
-                # per_pos which covers all token positions; ptde skips BOS so
-                # ptde[pos] aligns with token at position pos+1 in the sequence,
-                # but per_pos also starts at position 0 of the input tokens)
-                "_emb": ptde[pos] if ptde and pos < len(ptde) else None,
+                # Per-token embedding at this position.
+                # ptde starts at position ptde_offset, so ptde[pos - ptde_offset]
+                # aligns with per_pos[pos].
+                "_emb": ptde[pos - ptde_offset] if ptde and pos >= ptde_offset and (pos - ptde_offset) < len(ptde) else None,
             })
 
     # Top tokens by frequency, filter by min appearances, compute CV, order by CV
