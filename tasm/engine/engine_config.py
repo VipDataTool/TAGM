@@ -105,6 +105,18 @@ DEFAULTS = {
     # re-analysis of the witness plate with different probe sets or depths.
     # Off by default to keep export files compact.
     "export_domain_embeddings": False,
+    # Project embeddings through the o_proj delta before probe matching.
+    # Instead of matching in raw hidden-state space, this matches in the
+    # correction field's own coordinate system: "does the RLHF correction
+    # see this token the same way it sees this probe?"  Requires deltas
+    # at the domain/escalation layers (full_deltas_available or layers
+    # within signal range).
+    "probe_projection_space": False,
+    # Use attention-weighted pooling for prompt-level domain embeddings
+    # instead of uniform mean-pool.  Weights each token's contribution
+    # by how much the model attends to it at the domain layer, naturally
+    # de-emphasizing function words without external filtering.
+    "attention_weighted_pool": False,
 }
 
 # Current runtime values — initialized from defaults.

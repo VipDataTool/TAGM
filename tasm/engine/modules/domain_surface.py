@@ -102,13 +102,15 @@ def _load_probes(csv_path):
 PROBE_CACHE_DIR = "probe_cache"
 
 
-def _probe_cache_path(project_root, probe_file, model_id, layer_frac=0.50):
+def _probe_cache_path(project_root, probe_file, model_id, layer_frac=0.50,
+                      projected=False):
     """Build the cache file path for pre-computed probe embeddings."""
     cache_dir = os.path.join(project_root, PROBE_CACHE_DIR)
     safe_model = model_id.replace("/", "__").replace("\\", "__")
     stem = os.path.splitext(probe_file)[0]
     layer_tag = str(int(layer_frac * 100))
-    return os.path.join(cache_dir, f"{stem}__{safe_model}__L{layer_tag}.json")
+    proj_tag = "_proj" if projected else ""
+    return os.path.join(cache_dir, f"{stem}__{safe_model}__L{layer_tag}{proj_tag}.json")
 
 
 def _load_probe_cache(cache_path):
@@ -136,7 +138,8 @@ def _load_probe_cache(cache_path):
 
 
 def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
-                           model_id, layer_frac=0.50, progress=None):
+                           model_id, layer_frac=0.50, progress=None,
+                           delta_matrix=None):
     """Pre-embed all probes from a CSV and save to cache.
 
     Called from app.py after model load.  Registers a forward hook on the
@@ -151,6 +154,9 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         model_id: Model identifier string for cache key.
         layer_frac: Capture depth as fraction of model depth (0.0–1.0).
         progress: Optional status callback.
+        delta_matrix: Optional o_proj delta tensor for correction-space
+            projection. If provided, embeddings are projected through
+            h @ delta.T before normalization.
 
     Returns:
         Path to the saved cache file, or None on failure.
@@ -191,7 +197,11 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
             with torch.no_grad():
                 model(**inputs)
             h = captured["h"][0]
-            emb = h[1:].mean(dim=0).float().cpu().numpy() if h.shape[0] > 1 else h[0].float().cpu().numpy()
+            emb = h[1:].mean(dim=0).float() if h.shape[0] > 1 else h[0].float()
+            # Project through correction field if delta provided
+            if delta_matrix is not None:
+                emb = torch.matmul(emb.cpu(), delta_matrix.float().cpu().T)
+            emb = emb.cpu().numpy()
             norm = float(np.linalg.norm(emb))
             if norm > 1e-12:
                 emb = emb / norm
@@ -202,7 +212,8 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         handle.remove()
 
     # Save cache
-    cache_path = _probe_cache_path(project_root, probe_file, model_id, layer_frac)
+    cache_path = _probe_cache_path(project_root, probe_file, model_id, layer_frac,
+                                    projected=delta_matrix is not None)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     cache_data = {
@@ -757,7 +768,15 @@ class DomainSurfaceModule(TASMModule):
                 layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
             except Exception:
                 layer_frac = 0.50
-        layer_tag = f"__L{int(layer_frac * 100)}.json"
+
+        # Check projection mode
+        try:
+            from engine import engine_config as _ec
+            use_proj = _ec.get("probe_projection_space")
+        except Exception:
+            use_proj = False
+        proj_tag = "_proj" if use_proj else ""
+        layer_tag = f"__L{int(layer_frac * 100)}{proj_tag}.json"
 
         # Order: layer-matched candidates first, then others
         matched = [c for c in candidates if layer_tag in c]

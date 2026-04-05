@@ -468,6 +468,10 @@ class ModelManager:
                 self._hooks.append(
                     layer.input_layernorm.register_forward_hook(
                         make_output_hook(f"layer_{dl}_h")))
+                # Also capture attention weights for attention-weighted pooling
+                self._hooks.append(
+                    layer.self_attn.register_forward_hook(
+                        make_attn_hook(f"layer_{dl}_attn")))
                 hooked.add(dl)
 
         # Hook additional LTP layers (e.g. late layers) if requested

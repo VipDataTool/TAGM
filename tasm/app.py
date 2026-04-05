@@ -186,6 +186,7 @@ def _preembed_probes():
     model_id = state.instruct_model_id or state.pair_id
     subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
     esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+    use_proj = engine_config.get("probe_projection_space")
 
     # Discover all probe files, but only cache active ones
     all_probes = _discover_probe_files(project_root)
@@ -195,12 +196,23 @@ def _preembed_probes():
     depths = sorted(set([subj_frac, esc_frac]))
 
     for frac in depths:
+        # Get delta for projection if enabled
+        delta = None
+        if use_proj:
+            n_layers = state.n_layers
+            target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
+            delta = state.o_delta(target_layer)
+            if delta is None:
+                logger.warning(f"[DOMAIN] No o_proj delta at layer {target_layer} "
+                               f"for projection — falling back to raw space")
+
         for pf in probe_files:
             csv_path = os.path.join(project_root, pf)
             if not os.path.exists(csv_path):
                 continue
 
-            cache_path = _probe_cache_path(project_root, pf, model_id, frac)
+            cache_path = _probe_cache_path(project_root, pf, model_id, frac,
+                                           projected=use_proj and delta is not None)
             if os.path.exists(cache_path):
                 logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
                 continue
@@ -210,7 +222,8 @@ def _preembed_probes():
                     state.model_instruct, state.tokenizer,
                     project_root, pf, model_id,
                     layer_frac=frac,
-                    progress=log_progress)
+                    progress=log_progress,
+                    delta_matrix=delta if use_proj else None)
             except Exception as e:
                 logger.warning(f"[DOMAIN] Failed to pre-embed {pf} at L{int(frac*100)}: {e}")
 
@@ -1687,7 +1700,8 @@ async def list_probe_files():
         cached = False
         cache_probes = 0
         if model_id:
-            cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
+            cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac,
+                                           projected=engine_config.get("probe_projection_space"))
             if os.path.exists(cache_path):
                 cached = True
                 data = _load_probe_cache(cache_path)
@@ -1767,6 +1781,7 @@ def _regenerate_caches_sync(target_file=None):
     model_id = state.instruct_model_id or state.pair_id
     subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
     esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+    use_proj = engine_config.get("probe_projection_space")
     depths = sorted(set([subj_frac, esc_frac]))
 
     # Use specified file, or only active files
@@ -1781,13 +1796,22 @@ def _regenerate_caches_sync(target_file=None):
 
     with _analysis_lock:
         for frac in depths:
+            # Get delta for projection if enabled
+            delta = None
+            if use_proj:
+                target_layer = max(0, min(state.n_layers - 1, int(frac * state.n_layers)))
+                delta = state.o_delta(target_layer)
+
+            projected = use_proj and delta is not None
+
             for pf in probe_files:
                 csv_path = os.path.join(project_root, pf)
                 if not os.path.exists(csv_path):
                     continue
 
                 # Delete existing cache
-                cache_path = _probe_cache_path(project_root, pf, model_id, frac)
+                cache_path = _probe_cache_path(project_root, pf, model_id, frac,
+                                               projected=projected)
                 if os.path.exists(cache_path):
                     os.remove(cache_path)
                     logger.info(f"[CACHE] Deleted: {os.path.basename(cache_path)}")
@@ -1799,7 +1823,8 @@ def _regenerate_caches_sync(target_file=None):
                         state.model_instruct, state.tokenizer,
                         project_root, pf, model_id,
                         layer_frac=frac,
-                        progress=log_progress)
+                        progress=log_progress,
+                        delta_matrix=delta if use_proj else None)
                     data = _load_probe_cache(cache_path)
                     if data:
                         embedded += len(data.get("embeddings", []))

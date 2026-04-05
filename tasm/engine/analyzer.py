@@ -288,7 +288,9 @@ class Analyzer:
                                        ltp_layers=ltp_layers,
                                        domain_layer=domain_layer,
                                        escalation_layer=escalation_layer)
-        tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=full_capture)
+        _attn_pool = engine_config.get("attention_weighted_pool")
+        tokens, inputs, model_out = self.mm.forward(
+            prompt, output_attentions=full_capture or _attn_pool)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
         result.seq_len = len(tokens)
@@ -369,18 +371,51 @@ class Analyzer:
         skip_first = not engine_config.get("include_first_token")
         start_pos = 1 if skip_first else 0
 
+        use_projection = engine_config.get("probe_projection_space")
+        use_attn_pool = engine_config.get("attention_weighted_pool")
+
+        def _project_and_normalize(raw_tok, layer_idx):
+            """Optionally project through o_proj delta, then L2-normalize."""
+            tok = raw_tok
+            if use_projection:
+                delta = state.o_delta(layer_idx)
+                if delta is not None:
+                    # h @ delta.T → correction-space projection
+                    tok = torch.matmul(
+                        torch.tensor(raw_tok, dtype=torch.float32),
+                        delta.float().cpu().T
+                    ).numpy()
+            norms = np.linalg.norm(tok, axis=1, keepdims=True)
+            norms[norms < 1e-12] = 1.0
+            return tok / norms
+
+        def _pool_embedding(raw_tok, layer_idx):
+            """Pool per-token embeddings into prompt embedding."""
+            if use_attn_pool:
+                attn_key = f"layer_{layer_idx}_attn"
+                attn = self.mm.attn_weights.get(attn_key)
+                if attn is not None:
+                    # Use last position's attention as pooling weights
+                    # attn shape: [1, n_heads, seq_len, seq_len]
+                    # Mean over heads, take last row, slice to match raw_tok
+                    w = attn[0, :, -1, start_pos:seq_len].mean(dim=0).float().cpu().numpy()
+                    w_sum = w.sum()
+                    if w_sum > 1e-12 and len(w) == len(raw_tok):
+                        return (raw_tok * w[:, None] / w_sum).sum(axis=0)
+            # Fallback: uniform mean
+            return raw_tok.mean(axis=0)
+
         de_key = f"layer_{domain_layer}_h"
         de_act = self.mm.activations.get(de_key)
         if de_act is not None and seq_len > 1:
-            per_tok = de_act[0, start_pos:seq_len].float().cpu().numpy()
-            norms = np.linalg.norm(per_tok, axis=1, keepdims=True)
-            norms[norms < 1e-12] = 1.0
-            per_tok_normed = per_tok / norms
+            raw_tok = de_act[0, start_pos:seq_len].float().cpu().numpy()
+
+            per_tok_normed = _project_and_normalize(raw_tok, domain_layer)
             result.per_token_domain_emb = per_tok_normed.tolist()
             result.per_token_domain_offset = start_pos
 
-            # Mean-pooled prompt embedding (for PCA co-fitting)
-            emb = per_tok.mean(axis=0)
+            # Prompt embedding (attention-weighted or mean-pooled)
+            emb = _pool_embedding(raw_tok, domain_layer)
             norm = float(np.linalg.norm(emb))
             if norm > 1e-12:
                 emb = emb / norm
@@ -391,10 +426,8 @@ class Analyzer:
             esc_key = f"layer_{escalation_layer}_h"
             esc_act = self.mm.activations.get(esc_key)
             if esc_act is not None and seq_len > 1:
-                esc_tok = esc_act[0, start_pos:seq_len].float().cpu().numpy()
-                norms = np.linalg.norm(esc_tok, axis=1, keepdims=True)
-                norms[norms < 1e-12] = 1.0
-                result.per_token_escalation_emb = (esc_tok / norms).tolist()
+                esc_raw = esc_act[0, start_pos:seq_len].float().cpu().numpy()
+                result.per_token_escalation_emb = _project_and_normalize(esc_raw, escalation_layer).tolist()
         else:
             # Same depth for both — reuse subject embeddings for escalation
             result.per_token_escalation_emb = result.per_token_domain_emb
