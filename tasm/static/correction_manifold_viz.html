@@ -23,7 +23,7 @@ button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px
     <div id="tip"></div>
   </div>
   <div style="font-size:10px;color:#808890;margin-top:8px;text-align:center" id="footer">
-    RD (center) = radial displacement. ASM / IntCV / SFD_d at 120° = angular pull. Scroll to zoom, drag to pan.
+    RD = ring position. Anchor-repulsor: signals push tokens from subject×level anchors via local axes. Scroll to zoom, drag to pan.
   </div>
   <div id="err"></div>
 </div>
@@ -35,10 +35,12 @@ var W=900,H=900;
 var cats={b:1,m:1,d:1,h:1,a:1,j:1};
 var viewMode="prompts"; // "prompts" or "tokens"
 var DATA=null;
+var pinnedTip=null; // pinned tooltip data, or null
 
 // ─── Zoom / Pan state ───
 var zoom=1, panX=0, panY=0;
 var dragging=false, dragSX=0, dragSY=0, dragPX=0, dragPY=0;
+var didDrag=false;
 
 fetch("/api/modules/correction_manifold/results").then(function(r){return r.json()}).then(function(resp){
   if(!resp.ok||!resp.results){document.getElementById("err").textContent="No results: "+(resp.error||"run the module first");return}
@@ -79,7 +81,7 @@ function init(){
       draw();
     }
   });
-  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;draw()});
+  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";draw()});
   document.getElementById("viewToggle").addEventListener("click",function(){
     var btn=this;
     if(viewMode==="prompts"){
@@ -91,19 +93,26 @@ function init(){
       btn.textContent="View: Prompts";
       btn.style.borderColor="#58a6ff";btn.style.color="#58a6ff";btn.style.background="#58a6ff10";
     }
+    pinnedTip=null;
+    document.getElementById("tip").style.display="none";
+    updateLegend();
     draw();
   });
 
   // Legend
-  var lr=document.getElementById("legRow");
-  var rays=DATA.corner_rays||[];
-  var cs=DATA.center_signal;
-  var lh="";
-  if(cs) lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:'+cs.color+';display:inline-block"></span><span style="color:#a0aab4">'+cs.name+' (radial)</span></span>';
-  for(var i=0;i<rays.length;i++){
-    lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:'+rays[i].color+';display:inline-block"></span><span style="color:#a0aab4">'+rays[i].name+' (angular)</span></span>';
+  function updateLegend(){
+    var lr=document.getElementById("legRow");
+    var cs=DATA.center_signal;
+    var ra=DATA.repulsor_axes||{};
+    var mode=viewMode==="tokens"?"token":"prompt";
+    var axes=ra[mode]||{radial:{signal:"?",color:"#ff6347"},tangential:{signal:"?",color:"#4fc3f7"}};
+    var lh="";
+    if(cs) lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:'+cs.color+';display:inline-block"></span><span style="color:#a0aab4">'+cs.name+' (ring position)</span></span>';
+    lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:12px;height:2px;background:'+axes.radial.color+';display:inline-block"></span><span style="color:#a0aab4">'+axes.radial.signal+' (radial push)</span></span>';
+    lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:12px;height:2px;background:'+axes.tangential.color+';display:inline-block"></span><span style="color:#a0aab4">'+axes.tangential.signal+' (tangential push)</span></span>';
+    lr.innerHTML=lh;
   }
-  lr.innerHTML=lh;
+  updateLegend();
 
   // Zoom/pan events
   var cvs=document.getElementById("cvs");
@@ -120,19 +129,34 @@ function init(){
     draw();
   },{passive:false});
   cvs.addEventListener("mousedown",function(e){
-    dragging=true;dragSX=e.clientX;dragSY=e.clientY;dragPX=panX;dragPY=panY;
+    dragging=true;didDrag=false;dragSX=e.clientX;dragSY=e.clientY;dragPX=panX;dragPY=panY;
     cvs.style.cursor="grabbing";
   });
   window.addEventListener("mousemove",function(e){
     if(!dragging) return;
+    var dx=e.clientX-dragSX, dy=e.clientY-dragSY;
+    if(Math.abs(dx)+Math.abs(dy)>3) didDrag=true;
     var rect=cvs.getBoundingClientRect();
-    panX=dragPX+(e.clientX-dragSX)*(W/rect.width);
-    panY=dragPY+(e.clientY-dragSY)*(H/rect.height);
+    panX=dragPX+dx*(W/rect.width);
+    panY=dragPY+dy*(H/rect.height);
     draw();
   });
   window.addEventListener("mouseup",function(){dragging=false;document.getElementById("cvs").style.cursor="grab"});
+  cvs.addEventListener("click",function(e){
+    if(didDrag) return; // ignore drag-end clicks
+    var hit=hitTest(e);
+    if(hit){
+      pinnedTip=hit;
+      showTip(hit);
+    } else {
+      pinnedTip=null;
+      document.getElementById("tip").style.display="none";
+    }
+  });
   cvs.addEventListener("mousemove",onMove);
-  cvs.addEventListener("mouseleave",function(){document.getElementById("tip").style.display="none"});
+  cvs.addEventListener("mouseleave",function(){
+    if(!pinnedTip) document.getElementById("tip").style.display="none";
+  });
 
   draw();
 }
@@ -203,25 +227,29 @@ function draw(){
     g.restore();
   }
 
-  // ── 3 attractor rays from center (half-lines, not through-lines) ──
-  var rays=DATA.corner_rays||[];
-  g.setLineDash([4,4]);
-  for(var i=0;i<rays.length;i++){
-    var a=rays[i].angle*Math.PI/180;
+  // ── Anchor dots and local axes at subject × ring intersections ──
+  var ra=DATA.repulsor_axes||{};
+  var mode=viewMode==="tokens"?"token":"prompt";
+  var axes=ra[mode]||{radial:{color:"#ff6347"},tangential:{color:"#4fc3f7"}};
+  var axLen=rings.length>0?(rings[0].outer-rings[0].inner)*r*0.4:10;
+  for(var si=0;si<sa.length;si++){
+    var a=sa[si];
     var ca=Math.cos(a),sn=Math.sin(a);
-    var rLen=(outerR+0.02)*r;
-    g.strokeStyle=rays[i].color+"30";g.lineWidth=1.5;
-    g.beginPath();
-    g.moveTo(ox,oy);
-    g.lineTo(ox+ca*rLen, oy-sn*rLen);
-    g.stroke();
-    // Label beyond outer ring
-    var llr=(outerR+0.12)*r;
-    g.fillStyle=rays[i].color+"cc";g.font="700 "+Math.max(10,12*zoom)+"px monospace";
-    g.textAlign="center";g.textBaseline="middle";
-    g.fillText(rays[i].name, ox+ca*llr, oy-sn*llr);
+    var ta=Math.cos(a+Math.PI/2),ts=Math.sin(a+Math.PI/2);
+    for(var ri=0;ri<rings.length;ri++){
+      var mid=(rings[ri].inner+rings[ri].outer)/2;
+      var ax=ox+ca*mid*r, ay=oy-sn*mid*r;
+      // Anchor dot
+      g.beginPath();g.arc(ax,ay,1.5,0,Math.PI*2);
+      g.fillStyle="#ffffff15";g.fill();
+      // Radial axis
+      g.beginPath();g.moveTo(ax-ca*axLen,ay+sn*axLen);g.lineTo(ax+ca*axLen,ay-sn*axLen);
+      g.strokeStyle=axes.radial.color+"18";g.lineWidth=0.7;g.stroke();
+      // Tangential axis
+      g.beginPath();g.moveTo(ax-ta*axLen,ay+ts*axLen);g.lineTo(ax+ta*axLen,ay-ts*axLen);
+      g.strokeStyle=axes.tangential.color+"18";g.lineWidth=0.7;g.stroke();
+    }
   }
-  g.setLineDash([]);
 
   // ── RD indicator at center ──
   var cs=DATA.center_signal;
@@ -266,15 +294,12 @@ function draw(){
   }
 }
 
-function onMove(e){
-  if(dragging) return;
+function hitTest(e){
   var cvs=document.getElementById("cvs");
   var rect=cvs.getBoundingClientRect();
   var mx=(e.clientX-rect.left)*(W/rect.width);
   var my=(e.clientY-rect.top)*(H/rect.height);
-
   var best=null,bd=15;
-
   if(viewMode==="tokens"){
     var toks=DATA.tokens||[];
     for(var i=0;i<toks.length;i++){
@@ -292,10 +317,12 @@ function onMove(e){
       if(d<bd){bd=d;best={mode:"prompt",d:p}}
     }
   }
+  return best;
+}
 
+function showTip(best){
   var tip=document.getElementById("tip");
   if(!best){tip.style.display="none";return}
-
   var h="";
   if(best.mode==="token"){
     var t=best.d;
@@ -306,10 +333,9 @@ function onMove(e){
     h+='<span style="color:#f0f4f8;font-weight:700;font-size:13px">"'+t[0]+'"</span> ';
     h+='<span style="color:#a0aab4">'+ringLabel+'</span></div>';
     h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
-    h+='<span style="color:#a78bfa">RD='+t[6].toFixed(2)+'</span> (radial) &nbsp;';
-    h+='<span style="color:#ef4444">ASM='+t[7].toFixed(2)+'</span> ';
-    h+='<span style="color:#4ade80">SFD_d='+t[8].toFixed(2)+'</span></div>';
-    // Show parent prompt
+    h+='<span style="color:#a78bfa">RD='+t[6].toFixed(2)+'</span> &nbsp;';
+    h+='<span style="color:#ff6347">SFD_e='+t[7].toFixed(2)+'</span> (radial) &nbsp;';
+    h+='<span style="color:#4fc3f7">ASM='+t[8].toFixed(2)+'</span> (tangential)</div>';
     var pi=t[9];
     var pp=DATA.prompts&&DATA.prompts[pi];
     if(pp) h+='<div style="color:#a0aab4;font-size:10px;margin-top:4px;word-break:break-word">Prompt: '+pp[0]+'</div>';
@@ -324,10 +350,9 @@ function onMove(e){
     h+=' <span style="color:#a0aab4">'+ringLabel+'</span></div>';
     h+='<div style="color:#a0aab4;font-size:10px;margin-bottom:6px;word-break:break-word">'+p[0]+'</div>';
     h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
-    h+='<span style="color:#a78bfa">RD='+p[8].toFixed(2)+'</span> (radial) &nbsp;';
-    h+='<span style="color:#ef4444">ASM='+p[6].toFixed(2)+'</span> ';
-    h+='<span style="color:#22d3ee">IntCV='+p[7].toFixed(2)+'</span> ';
-    h+='<span style="color:#4ade80">SFD_d='+p[9].toFixed(2)+'</span></div>';
+    h+='<span style="color:#a78bfa">RD='+p[8].toFixed(2)+'</span> &nbsp;';
+    h+='<span style="color:#ff6347">Entropy='+p[6].toFixed(2)+'</span> (radial) &nbsp;';
+    h+='<span style="color:#4fc3f7">KL='+p[7].toFixed(2)+'</span> (tangential)</div>';
     if(fnames.length){
       h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:10px;margin-top:4px">';
       for(var i=0;i<fnames.length&&i<8;i++){
@@ -336,10 +361,16 @@ function onMove(e){
       h+='</div>';
     }
   }
-
+  if(pinnedTip) h+='<div style="color:#484f58;font-size:9px;margin-top:4px;text-align:center">click canvas to dismiss</div>';
   tip.innerHTML=h;
   tip.style.display="block";
   tip.style.left="16px";tip.style.top="16px";
+}
+
+function onMove(e){
+  if(dragging||pinnedTip) return;
+  var best=hitTest(e);
+  showTip(best);
 }
 
 }catch(e){document.getElementById("err").textContent="Error: "+e.message+"\n"+e.stack}})();

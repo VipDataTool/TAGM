@@ -1,19 +1,21 @@
 """
-Correction Manifold Module for TASM.
+Correction Manifold Module for TASM — The Witness Plate.
 
-Constructs a 6-dimensional intrinsic manifold from correction field
-measurements and probe geometry, enabling unsupervised classification
-of prompts by their alignment signature.
+Constructs a manifold from correction field measurements and probe
+geometry using anchor-repulsor design, enabling unsupervised
+classification of prompts by their alignment signature.
 
 The manifold combines:
   1. Subject domain angle (from domain surface probe proximity)
-  2. Probe escalation level (from domain surface probe proximity)
-  3-6. Four orthogonal correction signals as corner attractors
-       within each subject × level cell
+  2. Probe escalation level (ring, from domain surface probe proximity)
+  3. RD replacement ratio (radial position within ring)
+  4-5. Signal-driven repulsion from anchor points in locally-oriented
+       coordinate frames: Entropy/SFD_e (radial), KL/ASM (tangential)
 
-Achieves 94.1% binary classification (safe vs. adversarial) using
-KNN on the resulting 2D projected positions, with zero human-assigned
-category labels in the feature pipeline.
+Each probe anchor (subject × level intersection) pushes tokens outward
+via its own rotated coordinate frame. "North" = radially outward from
+center. Clusters self-organize from signal patterns without global
+attractor geometry.
 
 Pure post-processor: requires session results and a completed
 domain_surface module run.
@@ -35,10 +37,10 @@ logger = logging.getLogger("tasm")
 # The four independent signals (|r| < 0.40 between all pairs)
 # Selected from the full set of 8 by correlation analysis
 SIGNAL_KEYS = [
-    ("stress_score",        "ASM"),
-    ("interior_cv",         "IntCV"),
-    ("rd_mean_replacement", "RD_repl"),
-    ("sfd_density_mean",    "SFD_d"),
+    ("entropy",             "Entropy"),      # prompt radial repulsor
+    ("kl_divergence",       "KL"),           # prompt tangential repulsor
+    ("rd_mean_replacement", "RD_repl"),      # radial position within ring
+    ("sfd_energy_mean",     "SFD_e"),        # token radial repulsor (proxy for Entropy)
 ]
 
 # Full set of 8 signals for reporting
@@ -171,20 +173,22 @@ def _cell_corners(angle, ring_idx, ring_bands, wedge_half):
 
 
 def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
-                     ring_bands, wedge_half, attractor_power, attractor_floor,
+                     ring_bands, wedge_half, push_strength,
                      n_levels=5, progress=None):
     """Compute 2D manifold positions for all prompts.
 
-    Geometry:
+    Anchor-repulsor geometry:
         - Subject angle determines angular direction (wedge)
         - Probe level determines ring band (escalation)
-        - RD_repl controls radial displacement within ring
-          (low RD = near center = boring; high RD = pushed outward)
-        - ASM, IntCV, SFD_d provide angular displacement at 120° intervals
+        - RD_repl controls radial position within ring
+        - Entropy pushes radially from anchor (outward when high)
+        - KL pushes tangentially from anchor (clockwise when high)
+        Each anchor has a local coordinate frame: "north" = radially
+        outward, "east" = tangential clockwise.
 
     Returns:
         positions: (n, 2) array of manifold positions
-        norm_signals: (n, 4) normalized signal values [ASM, IntCV, RD_repl, SFD_d]
+        norm_signals: (n, 4) normalized signal values [Entropy, KL, RD_repl, SFD_e]
         raw_signals: (n, 8) all 8 raw signal values
         rings: (n,) ring assignments
     """
@@ -213,7 +217,7 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
                     return float(v2)
         return 0.0
 
-    # Extract the 4 independent signals: ASM[0], IntCV[1], RD_repl[2], SFD_d[3]
+    # Extract the 4 signals: Entropy[0], KL[1], RD_repl[2], SFD_e[3]
     raw_4 = np.zeros((n, 4))
     for i, r in enumerate(session_results):
         for j, (key, _) in enumerate(SIGNAL_KEYS):
@@ -238,11 +242,7 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         mn, mx = raw_8[:, j].min(), raw_8[:, j].max()
         norm_8[:, j] = (raw_8[:, j] - mn) / (mx - mn) if mx > mn else 0
 
-    # ── RD-centered position computation ──
-    # 3 angular attractor directions at 120° intervals (global)
-    ATTR_ANGLES = [np.pi / 6, 5 * np.pi / 6, 3 * np.pi / 2]  # ASM=30°, IntCV=150°, SFD_d=270°
-    ATTR_IDX = [0, 1, 3]  # indices into norm_4: ASM, IntCV, SFD_d
-
+    # ── Anchor-repulsor position computation ──
     positions = np.zeros((n, 2))
     rings = np.zeros(n, dtype=int)
 
@@ -252,27 +252,29 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         inner = ring_bands[ri]["inner"]
         outer = ring_bands[ri]["outer"]
 
-        # RD controls radial displacement within ring
+        # RD controls radial position within ring
         rd_frac = norm_4[i, 2]  # RD_repl normalized
-        base_r = inner + (outer - inner) * rd_frac
+        anchor_r = inner + (outer - inner) * 0.5  # anchor at ring midpoint
 
-        # Base position from subject angle
+        # Subject angle
         angle = blended_angle[i]
-        bx = base_r * np.cos(angle)
-        by = base_r * np.sin(angle)
 
-        # 3-signal angular displacement
-        w = np.array([norm_4[i, idx] ** attractor_power + attractor_floor
-                       for idx in ATTR_IDX])
-        w_sum = w.sum()
+        # Anchor position
+        ax = anchor_r * np.cos(angle)
+        ay = anchor_r * np.sin(angle)
 
-        pull_x = sum(w[j] * np.cos(ATTR_ANGLES[j]) for j in range(3)) / w_sum
-        pull_y = sum(w[j] * np.sin(ATTR_ANGLES[j]) for j in range(3)) / w_sum
+        # Local coordinate frame at this anchor
+        rad_x, rad_y = np.cos(angle), np.sin(angle)  # radial outward
+        tan_x, tan_y = np.cos(angle + np.pi / 2), np.sin(angle + np.pi / 2)  # tangential
 
-        # Scale displacement to fit within ring band
-        disp_scale = (outer - inner) * 0.35
-        positions[i, 0] = bx + pull_x * disp_scale
-        positions[i, 1] = by + pull_y * disp_scale
+        # Signal-driven push from anchor
+        max_push = (outer - inner) * push_strength
+        e_push = (norm_4[i, 0] - 0.5) * 2 * max_push   # Entropy → radial
+        k_push = (norm_4[i, 1] - 0.5) * 2 * max_push   # KL → tangential
+        rd_push = (rd_frac - 0.5) * max_push * 0.3       # RD → secondary radial
+
+        positions[i, 0] = ax + rad_x * (e_push + rd_push) + tan_x * k_push
+        positions[i, 1] = ay + rad_y * (e_push + rd_push) + tan_y * k_push
 
     if progress:
         progress(f"Computed manifold positions for {n} prompts")
@@ -385,12 +387,13 @@ class CorrectionManifoldModule(TASMModule):
     name = "correction_manifold"
     display_name = "Correction Manifold"
     description = (
-        "Constructs a 6D intrinsic manifold from correction signals and "
-        "probe geometry. Each prompt is positioned by subject domain "
-        "(angular), escalation level (radial), and four corner-attractor "
-        "correction signals. Enables unsupervised KNN classification."
+        "Constructs the witness plate from correction signals and "
+        "probe geometry. Anchor-repulsor design: each probe anchor "
+        "pushes tokens outward via locally-oriented signal axes "
+        "(Entropy/SFD_e radial, KL/ASM tangential). Enables "
+        "unsupervised KNN classification."
     )
-    version = "0.1.0"
+    version = "0.2.0"
 
     min_results = 20
     requires_sfd = True
@@ -401,30 +404,17 @@ class CorrectionManifoldModule(TASMModule):
     def parameters(self):
         return [
             ModuleParameter(
-                name="attractor_power",
-                display_name="Attractor Power",
+                name="push_strength",
+                display_name="Push Strength",
                 description=(
-                    "Exponent applied to normalized signal values before "
-                    "corner weighting. Higher values pull points more "
-                    "aggressively toward dominant signal corners."
+                    "How strongly signals push tokens away from their "
+                    "anchor points. Higher values create more spread "
+                    "within each cell, revealing local structure."
                 ),
                 type="float",
-                default=3.0,
-                min_val=1.0,
-                max_val=6.0,
-            ),
-            ModuleParameter(
-                name="attractor_floor",
-                display_name="Attractor Floor",
-                description=(
-                    "Minimum weight for each corner attractor to prevent "
-                    "zero-signal collapse. Lower values allow sharper "
-                    "corner clustering."
-                ),
-                type="float",
-                default=0.01,
-                min_val=0.001,
-                max_val=0.2,
+                default=0.55,
+                min_val=0.1,
+                max_val=1.5,
             ),
             ModuleParameter(
                 name="knn_k_values",
@@ -474,8 +464,7 @@ class CorrectionManifoldModule(TASMModule):
         proximity data. Computes 6D manifold positions and runs
         KNN classification as validation.
         """
-        attractor_power = params.get("attractor_power", 3.0)
-        attractor_floor = params.get("attractor_floor", 0.01)
+        push_strength = params.get("push_strength", 0.55)
         k_str = params.get("knn_k_values", "3,5,7,11,15")
         k_values = [int(k.strip()) for k in k_str.split(",")]
         ring_gap = params.get("ring_gap", 0.04)
@@ -528,7 +517,7 @@ class CorrectionManifoldModule(TASMModule):
 
         positions, norm_4, norm_8, raw_8, rings = _build_manifold(
             session_results, mean_level, blended_angle, dom_subject,
-            ring_bands, wedge_half, attractor_power, attractor_floor,
+            ring_bands, wedge_half, push_strength,
             n_levels=n_levels, progress=progress)
 
         # ── KNN classification ──
@@ -564,10 +553,10 @@ class CorrectionManifoldModule(TASMModule):
                 round(float(-positions[i, 1]), 4), # 3: y position (flip for canvas)
                 int(dom_subject[i]),               # 4: dominant subject
                 int(rings[i]),                     # 5: ring index
-                round(float(norm_4[i, 0]), 4),     # 6: ASM normalized
-                round(float(norm_4[i, 1]), 4),     # 7: IntCV normalized
+                round(float(norm_4[i, 0]), 4),     # 6: Entropy normalized (radial)
+                round(float(norm_4[i, 1]), 4),     # 7: KL normalized (tangential)
                 round(float(norm_4[i, 2]), 4),     # 8: RD_repl normalized
-                round(float(norm_4[i, 3]), 4),     # 9: SFD_d normalized
+                round(float(norm_4[i, 3]), 4),     # 9: SFD_e normalized
                 round(float(mean_level[i]), 2),    # 10: mean probe level
             ] + [round(float(raw_8[i, j]), 4) for j in range(8)])  # 11-18: raw
 
@@ -577,9 +566,8 @@ class CorrectionManifoldModule(TASMModule):
         if obs:
             # Collect per-token signal ranges for normalization
             tok_asm = [o[6] for o in obs]
-            tok_sfd_d = [o[8] for o in obs]
-            tok_repl = [o[4] for o in obs]
             tok_sfd_e = [o[7] for o in obs]
+            tok_repl = [o[4] for o in obs]
 
             def _norm(vals):
                 mn, mx = min(vals), max(vals)
@@ -587,18 +575,14 @@ class CorrectionManifoldModule(TASMModule):
                 return mn, rng
 
             asm_mn, asm_rng = _norm(tok_asm)
-            sfd_d_mn, sfd_d_rng = _norm(tok_sfd_d)
-            repl_mn, repl_rng = _norm(tok_repl)
             sfd_e_mn, sfd_e_rng = _norm(tok_sfd_e)
-
-            ATTR_ANGLES = [np.pi / 6, 5 * np.pi / 6, 3 * np.pi / 2]
+            repl_mn, repl_rng = _norm(tok_repl)
 
             for o in obs:
                 # Token signals normalized to [0,1]
                 n_asm = (o[6] - asm_mn) / asm_rng
-                n_sfd_d = (o[8] - sfd_d_mn) / sfd_d_rng
-                n_repl = (o[4] - repl_mn) / repl_rng
                 n_sfd_e = (o[7] - sfd_e_mn) / sfd_e_rng
+                n_repl = (o[4] - repl_mn) / repl_rng
 
                 # Ring from probe level
                 t_level = o[12]  # near_level
@@ -606,26 +590,25 @@ class CorrectionManifoldModule(TASMModule):
                 t_inner = ring_bands[t_ri]["inner"]
                 t_outer = ring_bands[t_ri]["outer"]
 
-                # RD → radial displacement within ring
-                base_r = t_inner + (t_outer - t_inner) * n_repl
-
                 # Subject angle from nearest probe
                 t_si = int(o[13])  # near_subj_idx
                 t_angle = subj_angles[t_si] if t_si < len(subj_angles) else 0
 
-                # Angular pull: ASM, SFD_e, SFD_d at 120°
-                w = np.array([
-                    n_asm ** attractor_power + attractor_floor,
-                    n_sfd_e ** attractor_power + attractor_floor,
-                    n_sfd_d ** attractor_power + attractor_floor,
-                ])
-                w_sum = w.sum()
-                pull_x = sum(w[j] * np.cos(ATTR_ANGLES[j]) for j in range(3)) / w_sum
-                pull_y = sum(w[j] * np.sin(ATTR_ANGLES[j]) for j in range(3)) / w_sum
-                disp_scale = (t_outer - t_inner) * 0.35
+                # Anchor at ring midpoint on subject centerline
+                anchor_r = (t_inner + t_outer) / 2
 
-                t_x = base_r * np.cos(t_angle) + pull_x * disp_scale
-                t_y = base_r * np.sin(t_angle) + pull_y * disp_scale
+                # Local coordinate frame
+                rad_x, rad_y = np.cos(t_angle), np.sin(t_angle)
+                tan_x, tan_y = np.cos(t_angle + np.pi / 2), np.sin(t_angle + np.pi / 2)
+
+                # Signal-driven push from anchor
+                max_push = (t_outer - t_inner) * push_strength
+                e_push = (n_sfd_e - 0.5) * 2 * max_push   # SFD_e → radial
+                a_push = (n_asm - 0.5) * 2 * max_push      # ASM → tangential
+                rd_push = (n_repl - 0.5) * max_push * 0.3   # RD → secondary radial
+
+                t_x = anchor_r * np.cos(t_angle) + rad_x * (e_push + rd_push) + tan_x * a_push
+                t_y = anchor_r * np.sin(t_angle) + rad_y * (e_push + rd_push) + tan_y * a_push
 
                 pi = o[9]  # prompt index
                 cat = categories[pi] if pi < len(categories) else "?"
@@ -637,8 +620,8 @@ class CorrectionManifoldModule(TASMModule):
                     t_si,                          # 4: subject index
                     t_ri,                          # 5: ring index
                     round(float(n_repl), 3),       # 6: RD normalized
-                    round(float(n_asm), 3),        # 7: ASM normalized
-                    round(float(n_sfd_d), 3),      # 8: SFD_d normalized
+                    round(float(n_sfd_e), 3),      # 7: SFD_e normalized (radial)
+                    round(float(n_asm), 3),        # 8: ASM normalized (tangential)
                     pi,                            # 9: prompt index
                 ])
 
@@ -663,8 +646,7 @@ class CorrectionManifoldModule(TASMModule):
             # Metadata
             "version": self.version,
             "n_prompts": n_prompts,
-            "attractor_power": attractor_power,
-            "attractor_floor": attractor_floor,
+            "push_strength": push_strength,
 
             # Geometry
             "subjects": subjects,
@@ -676,12 +658,16 @@ class CorrectionManifoldModule(TASMModule):
                  "outer": ring_bands[i]["outer"]}
                 for i in range(len(ring_bands))
             ],
-            "corner_labels": ["ASM", "IntCV", "SFD_d"],
-            "corner_rays": [
-                {"angle": 30,   "name": "ASM",   "color": "#ef4444"},
-                {"angle": 150,  "name": "IntCV", "color": "#22d3ee"},
-                {"angle": 270,  "name": "SFD_d", "color": "#4ade80"},
-            ],
+            "repulsor_axes": {
+                "prompt": {
+                    "radial": {"signal": "Entropy", "color": "#ff6347"},
+                    "tangential": {"signal": "KL", "color": "#4fc3f7"},
+                },
+                "token": {
+                    "radial": {"signal": "SFD_e", "color": "#ff6347"},
+                    "tangential": {"signal": "ASM", "color": "#4fc3f7"},
+                },
+            },
             "center_signal": {"name": "RD", "color": "#a78bfa"},
 
             # Signal metadata
