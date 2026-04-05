@@ -247,6 +247,8 @@ class DatasetSession:
             # Internal metadata (not analysis data)
             "per_layer_amplitude", "signal_layer_indices", "spectral_summary",
             "delta_scale", "full_capture_enabled", "per_layer_signed_attr",
+            # Per-token embeddings (large, used only during domain surface module run)
+            "per_token_domain_emb",
             # Obsolete fields from old baseline normalization
             "entropy_ln", "stress_score_ln", "top2_share_ln", "middle_share_ln",
         }

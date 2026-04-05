@@ -257,16 +257,20 @@ def _nearest_probe(dx, dy, anchor_pts):
 
 def _build_observations(session_results, prompt_coords, anchor_pts,
                         subjects, top_n=20, min_appearances=2, progress=None,
-                        escalation_levels=None):
+                        probe_embs=None, probes=None):
     """Build per-token observations with all metrics and proximity.
 
-    If escalation_levels is provided (dict of prompt_index → level),
-    uses it for the near_level field instead of the PCA-nearest probe's
-    level.  This enables split-depth where subject comes from one layer
-    and escalation from another.
+    If probe_embs and probes are provided and session results contain
+    per_token_domain_emb, uses per-token cosine similarity against probe
+    embeddings for near_level and near_subj_idx assignment. Otherwise
+    falls back to prompt-level PCA nearest-probe matching.
     """
     token_freq = defaultdict(int)
     raw_obs = []
+
+    # Pre-build subject index for probe-level matching
+    subj_set = sorted(set(p["subject"] for p in probes)) if probes else sorted(subjects)
+    subj_to_idx = {s: i for i, s in enumerate(subj_set)}
 
     for pi, sr in enumerate(session_results):
         dx, dy = float(prompt_coords[pi, 0]), float(prompt_coords[pi, 1])
@@ -278,6 +282,9 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         sfd = sr.get("sfd", {})
         sfd_e = sfd.get("per_token_energy", []) if sfd else []
         sfd_d = sfd.get("per_token_density", []) if sfd else []
+
+        # Per-token domain embeddings (if available)
+        ptde = sr.get("per_token_domain_emb")
 
         for pos in range(len(per_pos)):
             if pos >= len(toks):
@@ -297,6 +304,11 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                 "sfd_e": float(sfd_e[pos]) if pos < len(sfd_e) else 0,
                 "sfd_d": float(sfd_d[pos]) if pos < len(sfd_d) else 0,
                 "pi": pi, "pos": pos,
+                # Per-token embedding for this position (pos is 0-indexed over
+                # per_pos which covers all token positions; ptde skips BOS so
+                # ptde[pos] aligns with token at position pos+1 in the sequence,
+                # but per_pos also starts at position 0 of the input tokens)
+                "_emb": ptde[pos] if ptde and pos < len(ptde) else None,
             })
 
     # Top tokens by frequency, filter by min appearances, compute CV, order by CV
@@ -317,13 +329,34 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     subj_idx = {s: i for i, s in enumerate(subjects)}
     obs_export = []
 
+    # Precompute probe embedding matrix for per-token cosine similarity
+    probe_mat = np.array(probe_embs) if probe_embs is not None else None
+
     for o in raw_obs:
         if o["tok"] not in top_set:
             continue
 
-        aidx, adist = _nearest_probe(o["dx"], o["dy"], anchor_pts)
-        a = anchor_pts[aidx]
-        level = escalation_levels.get(o["pi"], a["level"]) if escalation_levels else a["level"]
+        tok_emb = o.get("_emb")
+
+        if tok_emb is not None and probe_mat is not None and probes is not None:
+            # Per-token probe matching via cosine similarity
+            tok_vec = np.array(tok_emb, dtype=np.float32)
+            tok_norm = np.linalg.norm(tok_vec)
+            if tok_norm > 1e-12:
+                tok_vec = tok_vec / tok_norm
+            sims = probe_mat @ tok_vec
+            best_probe_idx = int(np.argmax(sims))
+            best_dist = float(1.0 - sims[best_probe_idx])  # cosine distance
+            best_probe = probes[best_probe_idx]
+            level = best_probe["level"]
+            near_subj = subj_idx.get(best_probe["subject"], 0)
+        else:
+            # Fallback: prompt-level PCA nearest-probe
+            aidx, adist = _nearest_probe(o["dx"], o["dy"], anchor_pts)
+            a = anchor_pts[aidx]
+            best_dist = adist
+            level = a["level"]
+            near_subj = subj_idx.get(a["subject"], 0)
 
         obs_export.append([
             o["tok"], o["cat"],
@@ -331,7 +364,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             round(o["dx"], 4),
             round(o["asm"], 2), round(o["sfd_e"], 3), round(o["sfd_d"], 3),
             o["pi"], o["pos"],
-            round(adist, 4), level, subj_idx.get(a["subject"], 0),
+            round(best_dist, 4), level, near_subj,
         ])
 
     if progress:
@@ -536,38 +569,13 @@ class DomainSurfaceModule(TASMModule):
                 "y": float(probe_coords[i, 1]),
             })
 
-        # Split-depth escalation levels: if escalation frac differs from
-        # subject frac, load probes at the escalation depth and compute
-        # per-prompt level by cosine similarity in that space.
-        try:
-            from engine import engine_config as _ec
-            esc_frac = _ec.get("domain_escalation_layer_frac") or 0.75
-            subj_frac = _ec.get("domain_embedding_layer_frac") or 0.50
-        except Exception:
-            esc_frac = 0.75
-            subj_frac = 0.50
-
-        escalation_levels = None
-        if esc_frac != subj_frac:
-            esc_probe_embs = self._load_probe_embeddings(
-                probe_file, session_results, layer_frac=esc_frac)
-            if esc_probe_embs is not None and len(esc_probe_embs) == len(probes):
-                esc_arr = np.array(esc_probe_embs)
-                escalation_levels = {}
-                for vi in range(len(prompt_embs)):
-                    dots = esc_arr @ prompt_embs[vi]
-                    nearest = int(np.argmax(dots))
-                    escalation_levels[vi] = probes[nearest]["level"]
-                logger.info(f"[DOMAIN] Split-depth: escalation levels from "
-                            f"L{int(esc_frac*100)} for {len(escalation_levels)} prompts")
-
         # Build observations
         if progress:
             progress("Building per-token observations...")
         obs, ordered_tokens, token_cv = _build_observations(
             session_subset, prompt_coords, anchor_pts,
             subjects, top_tokens, min_appearances, progress,
-            escalation_levels=escalation_levels)
+            probe_embs=probe_embs, probes=probes)
 
         # Stratification
         strat = _stratification(obs, subjects)

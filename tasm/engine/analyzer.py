@@ -93,6 +93,10 @@ class PromptResult:
     # Domain embedding (mean hidden state at middle layer, for domain surface module)
     domain_embedding: Optional[list] = None
 
+    # Per-token domain embeddings (L2-normalized hidden states at domain layer)
+    # Used by domain surface for per-token probe matching. Not serialized to JSON export.
+    per_token_domain_emb: Optional[list] = None
+
     # ─── Field sets for from_dict reconstitution ──────────────────
     # Centralized here so every caller uses the same definitions.
     # "scalar" = what aggregate_batch and statistics need.
@@ -359,7 +363,15 @@ class Analyzer:
         de_key = f"layer_{domain_layer}_h"
         de_act = self.mm.activations.get(de_key)
         if de_act is not None and seq_len > 1:
-            emb = de_act[0, 1:seq_len].mean(dim=0).float().cpu().numpy()
+            # Per-token embeddings (L2-normalized) for per-token probe matching
+            per_tok = de_act[0, 1:seq_len].float().cpu().numpy()
+            norms = np.linalg.norm(per_tok, axis=1, keepdims=True)
+            norms[norms < 1e-12] = 1.0
+            per_tok_normed = per_tok / norms
+            result.per_token_domain_emb = per_tok_normed.tolist()
+
+            # Mean-pooled prompt embedding (for PCA co-fitting)
+            emb = per_tok.mean(axis=0)
             norm = float(np.linalg.norm(emb))
             if norm > 1e-12:
                 emb = emb / norm
@@ -962,6 +974,7 @@ def result_to_dict(r: PromptResult) -> dict:
 
     # Domain embedding (for domain surface module)
     d["domain_embedding"] = r.domain_embedding
+    d["per_token_domain_emb"] = r.per_token_domain_emb
 
     # Final recursive sanitization — the single authoritative point where
     # all NaN/Inf values are guaranteed replaced with None.  This ensures
