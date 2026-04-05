@@ -4,25 +4,30 @@
 <title>Correction Manifold — TASM</title>
 <style>
 :root { --bg:#0c1017; --text:#e0e6ed; --text2:#a0aab4; --border:#252b33; }
-body { background:var(--bg); color:var(--text); font-family:"Courier New",monospace; padding:16px; margin:0; }
+* { box-sizing:border-box; }
+html,body { height:100%; background:var(--bg); color:var(--text); font-family:"Courier New",monospace; padding:0; margin:0; overflow:hidden; }
 button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px; cursor:pointer; }
-.ctrl { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; align-items:center; }
+.ctrl { display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap; align-items:center; }
 .cat-btn { transition:all .15s; }
 #tip { display:none; position:absolute; background:#151a22f0; border:1px solid #303840; border-radius:5px; padding:10px 14px; pointer-events:none; max-width:420px; font-size:11px; line-height:1.6; z-index:10; }
+#tipHover { display:none; position:absolute; background:#151a22f0; border:1px solid #58a6ff40; border-radius:5px; padding:10px 14px; pointer-events:none; max-width:420px; font-size:11px; line-height:1.6; z-index:11; }
 #err { color:#ef4444; font-size:12px; padding:10px; }
+#wrap { display:flex; flex-direction:column; height:100vh; padding:10px 14px; }
+#canvasWrap { flex:1; position:relative; border:1px solid var(--border); border-radius:6px; overflow:hidden; min-height:0; }
 </style>
 </head>
 <body>
-<div style="max-width:940px;margin:0 auto">
-  <h2 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#f0f4f8;letter-spacing:.4px" id="title">Correction Manifold</h2>
-  <p style="margin:0 0 10px;font-size:11px;color:#a0aab4" id="subtitle">Loading...</p>
+<div id="wrap">
+  <h2 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f0f4f8;letter-spacing:.4px" id="title">Correction Manifold</h2>
+  <p style="margin:0 0 6px;font-size:11px;color:#a0aab4" id="subtitle">Loading...</p>
   <div class="ctrl" id="catRow"></div>
   <div class="ctrl" id="legRow"></div>
-  <div style="position:relative;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-    <canvas id="cvs" style="width:100%;height:auto;cursor:grab;display:block"></canvas>
+  <div id="canvasWrap">
+    <canvas id="cvs" style="width:100%;height:100%;cursor:grab;display:block"></canvas>
     <div id="tip"></div>
+    <div id="tipHover"></div>
   </div>
-  <div style="font-size:10px;color:#808890;margin-top:8px;text-align:center" id="footer">
+  <div style="font-size:10px;color:#808890;margin-top:6px;text-align:center" id="footer">
     RD = ring position. Anchor-repulsor: signals push tokens from subject×level anchors via local axes. Scroll to zoom, drag to pan.
   </div>
   <div id="err"></div>
@@ -31,7 +36,7 @@ button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px
 (function(){try{
 
 var CAT={b:{l:"benign",c:"#0072B2"},m:{l:"mild",c:"#E69F00"},d:{l:"dual-use",c:"#009E73"},h:{l:"harmful",c:"#D55E00"},a:{l:"adversarial",c:"#882255"},j:{l:"jailbreak",c:"#CC79A7"}};
-var W=900,H=900;
+var W=100,H=100; // updated dynamically on resize
 var cats={b:1,m:1,d:1,h:1,a:1,j:1};
 var viewMode="prompts"; // "prompts" or "tokens"
 var DATA=null;
@@ -41,6 +46,8 @@ var pinnedTip=null; // pinned tooltip data, or null
 var zoom=1, panX=0, panY=0;
 var dragging=false, dragSX=0, dragSY=0, dragPX=0, dragPY=0;
 var didDrag=false;
+
+function baseScale(){return Math.min(W,H)*0.43}
 
 fetch("/api/modules/correction_manifold/results").then(function(r){return r.json()}).then(function(resp){
   if(!resp.ok||!resp.results){document.getElementById("err").textContent="No results: "+(resp.error||"run the module first");return}
@@ -81,7 +88,7 @@ function init(){
       draw();
     }
   });
-  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";draw()});
+  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";document.getElementById("tipHover").style.display="none";draw()});
   document.getElementById("viewToggle").addEventListener("click",function(){
     var btn=this;
     if(viewMode==="prompts"){
@@ -95,6 +102,7 @@ function init(){
     }
     pinnedTip=null;
     document.getElementById("tip").style.display="none";
+    document.getElementById("tipHover").style.display="none";
     updateLegend();
     draw();
   });
@@ -121,8 +129,8 @@ function init(){
     var rect=cvs.getBoundingClientRect();
     var mx=(e.clientX-rect.left)*(W/rect.width);
     var my=(e.clientY-rect.top)*(H/rect.height);
-    var factor=e.deltaY<0?1.03:1/1.03;
-    var nz=Math.max(0.8,Math.min(6,zoom*factor));
+    var factor=e.deltaY<0?1.015:1/1.015;
+    var nz=Math.max(0.9,Math.min(2.5,zoom*factor));
     panX=mx-(mx-panX)*(nz/zoom);
     panY=my-(my-panY)*(nz/zoom);
     zoom=nz;
@@ -152,22 +160,29 @@ function init(){
       pinnedTip=null;
       document.getElementById("tip").style.display="none";
     }
+    document.getElementById("tipHover").style.display="none";
   });
   cvs.addEventListener("mousemove",onMove);
   cvs.addEventListener("mouseleave",function(){
+    document.getElementById("tipHover").style.display="none";
     if(!pinnedTip) document.getElementById("tip").style.display="none";
   });
+
+  // Responsive resize
+  new ResizeObserver(function(){draw()}).observe(document.getElementById("canvasWrap"));
 
   draw();
 }
 
 // ─── Coordinate transform (manifold → canvas) ───
-function tx(v){return W/2+v*390*zoom+panX}
-function ty(v){return H/2+v*390*zoom+panY}
-function R(){return 390*zoom}
+function tx(v){return W/2+v*baseScale()*zoom+panX}
+function ty(v){return H/2+v*baseScale()*zoom+panY}
+function R(){return baseScale()*zoom}
 
 function draw(){
   var c=document.getElementById("cvs");
+  var wrap=document.getElementById("canvasWrap");
+  W=wrap.clientWidth;H=wrap.clientHeight;
   var dpr=devicePixelRatio||1;
   c.width=W*dpr;c.height=H*dpr;
   c.style.width=W+"px";c.style.height=H+"px";
@@ -320,9 +335,7 @@ function hitTest(e){
   return best;
 }
 
-function showTip(best){
-  var tip=document.getElementById("tip");
-  if(!best){tip.style.display="none";return}
+function buildTipHtml(best){
   var h="";
   if(best.mode==="token"){
     var t=best.d;
@@ -361,6 +374,13 @@ function showTip(best){
       h+='</div>';
     }
   }
+  return h;
+}
+
+function showTip(best){
+  var tip=document.getElementById("tip");
+  if(!best){tip.style.display="none";return}
+  var h=buildTipHtml(best);
   if(pinnedTip) h+='<div style="color:#484f58;font-size:9px;margin-top:4px;text-align:center">click canvas to dismiss</div>';
   tip.innerHTML=h;
   tip.style.display="block";
@@ -368,9 +388,30 @@ function showTip(best){
 }
 
 function onMove(e){
-  if(dragging||pinnedTip) return;
+  if(dragging) return;
+  var hoverTip=document.getElementById("tipHover");
+  if(!pinnedTip){
+    // Normal hover mode — use primary tip
+    hoverTip.style.display="none";
+    var best=hitTest(e);
+    showTip(best);
+    return;
+  }
+  // Pinned mode — show secondary hover tip for other points
   var best=hitTest(e);
-  showTip(best);
+  if(!best){hoverTip.style.display="none";return}
+  // Don't show hover for the same point that's pinned
+  if(best.d===pinnedTip.d){hoverTip.style.display="none";return}
+  var h=buildTipHtml(best);
+  hoverTip.innerHTML=h;
+  hoverTip.style.display="block";
+  // Position near mouse, offset from pinned tip
+  var rect=document.getElementById("canvasWrap").getBoundingClientRect();
+  var mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  var tipW=hoverTip.offsetWidth||200, tipH=hoverTip.offsetHeight||100;
+  var posX=Math.min(mx+16, rect.width-tipW-8);
+  var posY=Math.max(my-tipH-8, 8);
+  hoverTip.style.left=posX+"px";hoverTip.style.top=posY+"px";
 }
 
 }catch(e){document.getElementById("err").textContent="Error: "+e.message+"\n"+e.stack}})();
