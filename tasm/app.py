@@ -1765,7 +1765,9 @@ def _regenerate_caches_sync(target_file=None):
     project_root = str(Path(__file__).parent)
     state = mm.state
     model_id = state.instruct_model_id or state.pair_id
-    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+    subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+    esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+    depths = sorted(set([subj_frac, esc_frac]))
 
     # Use specified file, or only active files
     if target_file:
@@ -1777,30 +1779,32 @@ def _regenerate_caches_sync(target_file=None):
     deleted = 0
     embedded = 0
 
-    for pf in probe_files:
-        csv_path = os.path.join(project_root, pf)
-        if not os.path.exists(csv_path):
-            continue
+    with _analysis_lock:
+        for frac in depths:
+            for pf in probe_files:
+                csv_path = os.path.join(project_root, pf)
+                if not os.path.exists(csv_path):
+                    continue
 
-        # Delete existing cache
-        cache_path = _probe_cache_path(project_root, pf, model_id, layer_frac)
-        if os.path.exists(cache_path):
-            os.remove(cache_path)
-            logger.info(f"[CACHE] Deleted: {os.path.basename(cache_path)}")
-            deleted += 1
+                # Delete existing cache
+                cache_path = _probe_cache_path(project_root, pf, model_id, frac)
+                if os.path.exists(cache_path):
+                    os.remove(cache_path)
+                    logger.info(f"[CACHE] Deleted: {os.path.basename(cache_path)}")
+                    deleted += 1
 
-        # Regenerate
-        try:
-            embed_and_cache_probes(
-                state.model_instruct, state.tokenizer,
-                project_root, pf, model_id,
-                layer_frac=layer_frac,
-                progress=log_progress)
-            data = _load_probe_cache(cache_path)
-            if data:
-                embedded += len(data.get("embeddings", []))
-        except Exception as e:
-            logger.warning(f"[CACHE] Failed to regenerate {pf}: {e}")
+                # Regenerate
+                try:
+                    embed_and_cache_probes(
+                        state.model_instruct, state.tokenizer,
+                        project_root, pf, model_id,
+                        layer_frac=frac,
+                        progress=log_progress)
+                    data = _load_probe_cache(cache_path)
+                    if data:
+                        embedded += len(data.get("embeddings", []))
+                except Exception as e:
+                    logger.warning(f"[CACHE] Failed to regenerate {pf} at L{int(frac*100)}: {e}")
 
     # Also invalidate analyzer SFD cache (recomputed lazily on next analysis)
     if analyzer:

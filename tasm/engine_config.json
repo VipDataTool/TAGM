@@ -4,6 +4,8 @@
   "sfd_layer_start": 9,
   "sfd_layer_end": 16,
   "sfd_svd_k": 16,
+  "sfd_svd_seed": 42,
+  "serialization_precision": 8,
   "rd_min_shared": 2,
   "boundary_fraction": 0.1,
   "response_topk": 10,
@@ -17,5 +19,9 @@
   "ltp_overfetch_first": 1,
   "ltp_overfetch_second": 5,
   "disc_sublayers_top_n": 15,
-  "precompute_module_caches": true
+  "precompute_module_caches": true,
+  "domain_embedding_layer_frac": 6.0,
+  "domain_escalation_layer_frac": 0.75,
+  "include_first_token": false,
+  "export_domain_embeddings": false
 }
