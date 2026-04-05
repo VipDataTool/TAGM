@@ -95,7 +95,8 @@ class PromptResult:
 
     # Per-token domain embeddings (L2-normalized hidden states at domain layer)
     # Used by domain surface for per-token probe matching. Not serialized to JSON export.
-    per_token_domain_emb: Optional[list] = None
+    per_token_domain_emb: Optional[list] = None       # subject layer (domain_embedding_layer_frac)
+    per_token_escalation_emb: Optional[list] = None   # escalation layer (domain_escalation_layer_frac)
     per_token_domain_offset: int = 1  # position offset (0 or 1) — how many leading tokens were skipped
 
     # ─── Field sets for from_dict reconstitution ──────────────────
@@ -281,9 +282,12 @@ class Analyzer:
             ltp_layers = list(range(late_start, state.n_layers))
         domain_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
         domain_layer = max(0, min(state.n_layers - 1, int(domain_frac * state.n_layers)))
+        esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+        escalation_layer = max(0, min(state.n_layers - 1, int(esc_frac * state.n_layers)))
         self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory or full_capture,
                                        ltp_layers=ltp_layers,
-                                       domain_layer=domain_layer)
+                                       domain_layer=domain_layer,
+                                       escalation_layer=escalation_layer)
         tokens, inputs, model_out = self.mm.forward(prompt, output_attentions=full_capture)
 
         result.tokens = [t.replace("\u0120", " ").replace("\u010a", "\\n") for t in tokens]
@@ -358,22 +362,22 @@ class Analyzer:
             except Exception as e:
                 logger.warning(f"[SFD] Computation failed: {e}")
 
-        # Capture domain embedding (mean hidden state at configurable layer)
-        # Used by domain surface module for subject-matter proximity analysis.
+        # Capture per-token domain embeddings at two depths:
+        #   - Subject layer (domain_embedding_layer_frac): determines angular wedge
+        #   - Escalation layer (domain_escalation_layer_frac): determines ring
         # Position 0 is skipped by default (positional artifact).
+        skip_first = not engine_config.get("include_first_token")
+        start_pos = 1 if skip_first else 0
+
         de_key = f"layer_{domain_layer}_h"
         de_act = self.mm.activations.get(de_key)
         if de_act is not None and seq_len > 1:
-            # Check if first token should be included
-            skip_first = not engine_config.get("include_first_token")
-
-            start_pos = 1 if skip_first else 0
             per_tok = de_act[0, start_pos:seq_len].float().cpu().numpy()
             norms = np.linalg.norm(per_tok, axis=1, keepdims=True)
             norms[norms < 1e-12] = 1.0
             per_tok_normed = per_tok / norms
             result.per_token_domain_emb = per_tok_normed.tolist()
-            result.per_token_domain_offset = start_pos  # 0 or 1
+            result.per_token_domain_offset = start_pos
 
             # Mean-pooled prompt embedding (for PCA co-fitting)
             emb = per_tok.mean(axis=0)
@@ -381,6 +385,19 @@ class Analyzer:
             if norm > 1e-12:
                 emb = emb / norm
             result.domain_embedding = [round(float(x), engine_config.get("serialization_precision")) for x in emb]
+
+        # Escalation layer (may be same as domain layer)
+        if escalation_layer != domain_layer:
+            esc_key = f"layer_{escalation_layer}_h"
+            esc_act = self.mm.activations.get(esc_key)
+            if esc_act is not None and seq_len > 1:
+                esc_tok = esc_act[0, start_pos:seq_len].float().cpu().numpy()
+                norms = np.linalg.norm(esc_tok, axis=1, keepdims=True)
+                norms[norms < 1e-12] = 1.0
+                result.per_token_escalation_emb = (esc_tok / norms).tolist()
+        else:
+            # Same depth for both — reuse subject embeddings for escalation
+            result.per_token_escalation_emb = result.per_token_domain_emb
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -980,6 +997,7 @@ def result_to_dict(r: PromptResult) -> dict:
     # Domain embedding (for domain surface module)
     d["domain_embedding"] = r.domain_embedding
     d["per_token_domain_emb"] = r.per_token_domain_emb
+    d["per_token_escalation_emb"] = r.per_token_escalation_emb
     d["per_token_domain_offset"] = r.per_token_domain_offset
 
     # Final recursive sanitization — the single authoritative point where

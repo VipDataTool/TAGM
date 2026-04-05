@@ -100,6 +100,11 @@ DEFAULTS = {
     # to semantic content.  Enable this if your tokenizer does not prepend
     # a BOS/system token and position 0 carries meaningful content.
     "include_first_token": False,
+    # Include per-token domain embeddings in session JSON export.  These are
+    # large (hidden_dim floats per token per prompt) but enable offline
+    # re-analysis of the witness plate with different probe sets or depths.
+    # Off by default to keep export files compact.
+    "export_domain_embeddings": False,
 }
 
 # Current runtime values — initialized from defaults.

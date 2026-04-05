@@ -427,7 +427,8 @@ class ModelManager:
 
     def install_analysis_hooks(self, full_trajectory: bool = False,
                                ltp_layers: list = None,
-                               domain_layer: int = None):
+                               domain_layer: int = None,
+                               escalation_layer: int = None):
         self._remove_hooks()
         self.activations.clear()
         self.attn_weights.clear()
@@ -460,13 +461,14 @@ class ModelManager:
                     make_attn_hook(f"layer_{layer_idx}_attn")))
             hooked.add(layer_idx)
 
-        # Hook domain embedding layer if outside signal range
-        if domain_layer is not None and domain_layer not in hooked and domain_layer < len(model.model.layers):
-            layer = model.model.layers[domain_layer]
-            self._hooks.append(
-                layer.input_layernorm.register_forward_hook(
-                    make_output_hook(f"layer_{domain_layer}_h")))
-            hooked.add(domain_layer)
+        # Hook domain embedding layers if outside signal range
+        for dl in [domain_layer, escalation_layer]:
+            if dl is not None and dl not in hooked and dl < len(model.model.layers):
+                layer = model.model.layers[dl]
+                self._hooks.append(
+                    layer.input_layernorm.register_forward_hook(
+                        make_output_hook(f"layer_{dl}_h")))
+                hooked.add(dl)
 
         # Hook additional LTP layers (e.g. late layers) if requested
         if ltp_layers:

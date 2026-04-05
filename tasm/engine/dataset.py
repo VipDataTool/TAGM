@@ -247,11 +247,21 @@ class DatasetSession:
             # Internal metadata (not analysis data)
             "per_layer_amplitude", "signal_layer_indices", "spectral_summary",
             "delta_scale", "full_capture_enabled", "per_layer_signed_attr",
-            # Per-token embeddings (large, used only during domain surface module run)
-            "per_token_domain_emb",
             # Obsolete fields from old baseline normalization
             "entropy_ln", "stress_score_ln", "top2_share_ln", "middle_share_ln",
         }
+
+        # Per-token domain embeddings: large, excluded by default.
+        # Include when export_domain_embeddings is enabled (for offline
+        # witness plate re-analysis with different probe sets).
+        try:
+            from engine import engine_config
+            include_embs = engine_config.get("export_domain_embeddings")
+        except Exception:
+            include_embs = False
+        if not include_embs:
+            EXCLUDE_ALWAYS.add("per_token_domain_emb")
+            EXCLUDE_ALWAYS.add("per_token_escalation_emb")
         ARRAY_FIELDS = {
             "heatmap", "amplitude_trajectory", "amplitude_normalized",
             "per_token_stress", "signed_attr",
