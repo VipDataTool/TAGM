@@ -571,6 +571,77 @@ class CorrectionManifoldModule(TASMModule):
                 round(float(mean_level[i]), 2),    # 10: mean probe level
             ] + [round(float(raw_8[i, j]), 4) for j in range(8)])  # 11-18: raw
 
+        # ── Token-level positions from domain surface observations ──
+        tokens_viz = []
+        obs = ds_data.get("observations", [])
+        if obs:
+            # Collect per-token signal ranges for normalization
+            tok_asm = [o[6] for o in obs]
+            tok_sfd_d = [o[8] for o in obs]
+            tok_repl = [o[4] for o in obs]
+            tok_sfd_e = [o[7] for o in obs]
+
+            def _norm(vals):
+                mn, mx = min(vals), max(vals)
+                rng = mx - mn if mx > mn else 1
+                return mn, rng
+
+            asm_mn, asm_rng = _norm(tok_asm)
+            sfd_d_mn, sfd_d_rng = _norm(tok_sfd_d)
+            repl_mn, repl_rng = _norm(tok_repl)
+            sfd_e_mn, sfd_e_rng = _norm(tok_sfd_e)
+
+            ATTR_ANGLES = [np.pi / 6, 5 * np.pi / 6, 3 * np.pi / 2]
+
+            for o in obs:
+                # Token signals normalized to [0,1]
+                n_asm = (o[6] - asm_mn) / asm_rng
+                n_sfd_d = (o[8] - sfd_d_mn) / sfd_d_rng
+                n_repl = (o[4] - repl_mn) / repl_rng
+                n_sfd_e = (o[7] - sfd_e_mn) / sfd_e_rng
+
+                # Ring from probe level
+                t_level = o[12]  # near_level
+                t_ri = _get_ring(t_level, n_levels)
+                t_inner = ring_bands[t_ri]["inner"]
+                t_outer = ring_bands[t_ri]["outer"]
+
+                # RD → radial displacement within ring
+                base_r = t_inner + (t_outer - t_inner) * n_repl
+
+                # Subject angle from nearest probe
+                t_si = int(o[13])  # near_subj_idx
+                t_angle = subj_angles[t_si] if t_si < len(subj_angles) else 0
+
+                # Angular pull: ASM, SFD_e, SFD_d at 120°
+                w = np.array([
+                    n_asm ** attractor_power + attractor_floor,
+                    n_sfd_e ** attractor_power + attractor_floor,
+                    n_sfd_d ** attractor_power + attractor_floor,
+                ])
+                w_sum = w.sum()
+                pull_x = sum(w[j] * np.cos(ATTR_ANGLES[j]) for j in range(3)) / w_sum
+                pull_y = sum(w[j] * np.sin(ATTR_ANGLES[j]) for j in range(3)) / w_sum
+                disp_scale = (t_outer - t_inner) * 0.35
+
+                t_x = base_r * np.cos(t_angle) + pull_x * disp_scale
+                t_y = base_r * np.sin(t_angle) + pull_y * disp_scale
+
+                pi = o[9]  # prompt index
+                cat = categories[pi] if pi < len(categories) else "?"
+                tokens_viz.append([
+                    o[0],                          # 0: token text
+                    cat,                           # 1: category code
+                    round(float(t_x), 4),          # 2: x
+                    round(float(-t_y), 4),         # 3: y (flip)
+                    t_si,                          # 4: subject index
+                    t_ri,                          # 5: ring index
+                    round(float(n_repl), 3),       # 6: RD normalized
+                    round(float(n_asm), 3),        # 7: ASM normalized
+                    round(float(n_sfd_d), 3),      # 8: SFD_d normalized
+                    pi,                            # 9: prompt index
+                ])
+
         # Cell corners for visualization
         cells_viz = []
         for si in range(n_subj):
@@ -619,6 +690,8 @@ class CorrectionManifoldModule(TASMModule):
 
             # Per-prompt data
             "prompts": prompts_viz,
+            "tokens": tokens_viz,
+            "n_tokens": len(tokens_viz),
             "cells": cells_viz,
 
             # Classification results

@@ -33,6 +33,7 @@ button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px
 var CAT={b:{l:"benign",c:"#0072B2"},m:{l:"mild",c:"#E69F00"},d:{l:"dual-use",c:"#009E73"},h:{l:"harmful",c:"#D55E00"},a:{l:"adversarial",c:"#882255"},j:{l:"jailbreak",c:"#CC79A7"}};
 var W=900,H=900;
 var cats={b:1,m:1,d:1,h:1,a:1,j:1};
+var viewMode="prompts"; // "prompts" or "tokens"
 var DATA=null;
 
 // ─── Zoom / Pan state ───
@@ -51,7 +52,8 @@ function init(){
   var binAcc=cls.binary?cls.binary.best_accuracy:0;
   var nRings=(DATA.rings||[]).length;
   var nSubj=(DATA.subj_short||[]).length;
-  sub.textContent=DATA.n_prompts+" prompts · "+nRings+" rings · "+nSubj+" subjects · binary "+(binAcc*100).toFixed(1)+"%";
+  var nTokens=DATA.n_tokens||0;
+  sub.textContent=DATA.n_prompts+" prompts · "+nTokens+" tokens · "+nRings+" rings · "+nSubj+" subjects · binary "+(binAcc*100).toFixed(1)+"%";
 
   // Category toggle buttons
   var cr=document.getElementById("catRow");
@@ -63,6 +65,7 @@ function init(){
   }
   h+='<span style="color:#30363d">|</span>';
   h+='<button style="border:1px solid #404850;color:#a0aab4;background:transparent" id="resetBtn">Reset view</button>';
+  h+='<button style="border:1px solid #58a6ff;color:#58a6ff;background:#58a6ff10" id="viewToggle">View: Prompts</button>';
   cr.innerHTML=h;
 
   cr.addEventListener("click",function(e){
@@ -77,6 +80,19 @@ function init(){
     }
   });
   document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;draw()});
+  document.getElementById("viewToggle").addEventListener("click",function(){
+    var btn=this;
+    if(viewMode==="prompts"){
+      viewMode="tokens";
+      btn.textContent="View: Tokens";
+      btn.style.borderColor="#4ade80";btn.style.color="#4ade80";btn.style.background="#4ade8010";
+    } else {
+      viewMode="prompts";
+      btn.textContent="View: Prompts";
+      btn.style.borderColor="#58a6ff";btn.style.color="#58a6ff";btn.style.background="#58a6ff10";
+    }
+    draw();
+  });
 
   // Legend
   var lr=document.getElementById("legRow");
@@ -96,7 +112,7 @@ function init(){
     var rect=cvs.getBoundingClientRect();
     var mx=(e.clientX-rect.left)*(W/rect.width);
     var my=(e.clientY-rect.top)*(H/rect.height);
-    var factor=e.deltaY<0?1.12:1/1.12;
+    var factor=e.deltaY<0?1.05:1/1.05;
     var nz=Math.max(0.4,Math.min(12,zoom*factor));
     panX=mx-(mx-panX)*(nz/zoom);
     panY=my-(my-panY)*(nz/zoom);
@@ -221,20 +237,35 @@ function draw(){
     g.fillText(cs.name, ox, oy-Math.max(10,14*zoom));
   }
 
-  // ── Prompt dots ──
-  var ps=DATA.prompts||[];
-  var dotR=Math.max(2.5,4*Math.sqrt(zoom));
-  for(var i=0;i<ps.length;i++){
-    var p=ps[i];
-    if(!cats[p[1]]) continue;
-    var px=tx(p[2]),py=ty(p[3]);
-    // Skip if off-screen
-    if(px<-20||px>W+20||py<-20||py>H+20) continue;
-    g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
-    var ci=CAT[p[1]];
-    g.fillStyle=ci?ci.c:"#888";
-    g.globalAlpha=0.85;
-    g.fill();g.globalAlpha=1;
+  // ── Data points ──
+  if(viewMode==="tokens"){
+    var toks=DATA.tokens||[];
+    var dotR=Math.max(1.5,2.5*Math.sqrt(zoom));
+    for(var i=0;i<toks.length;i++){
+      var t=toks[i];
+      if(!cats[t[1]]) continue;
+      var px=tx(t[2]),py=ty(t[3]);
+      if(px<-20||px>W+20||py<-20||py>H+20) continue;
+      g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
+      var ci=CAT[t[1]];
+      g.fillStyle=ci?ci.c:"#888";
+      g.globalAlpha=0.55;
+      g.fill();g.globalAlpha=1;
+    }
+  } else {
+    var ps=DATA.prompts||[];
+    var dotR=Math.max(2.5,4*Math.sqrt(zoom));
+    for(var i=0;i<ps.length;i++){
+      var p=ps[i];
+      if(!cats[p[1]]) continue;
+      var px=tx(p[2]),py=ty(p[3]);
+      if(px<-20||px>W+20||py<-20||py>H+20) continue;
+      g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
+      var ci=CAT[p[1]];
+      g.fillStyle=ci?ci.c:"#888";
+      g.globalAlpha=0.85;
+      g.fill();g.globalAlpha=1;
+    }
   }
 }
 
@@ -246,35 +277,67 @@ function onMove(e){
   var my=(e.clientY-rect.top)*(H/rect.height);
 
   var best=null,bd=15;
-  var ps=DATA.prompts||[];
-  for(var i=0;i<ps.length;i++){
-    var p=ps[i];
-    if(!cats[p[1]]) continue;
-    var dx=tx(p[2])-mx, dy=ty(p[3])-my, d=Math.sqrt(dx*dx+dy*dy);
-    if(d<bd){bd=d;best=p}
+
+  if(viewMode==="tokens"){
+    var toks=DATA.tokens||[];
+    for(var i=0;i<toks.length;i++){
+      var t=toks[i];
+      if(!cats[t[1]]) continue;
+      var dx=tx(t[2])-mx, dy=ty(t[3])-my, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<bd){bd=d;best={mode:"token",d:t}}
+    }
+  } else {
+    var ps=DATA.prompts||[];
+    for(var i=0;i<ps.length;i++){
+      var p=ps[i];
+      if(!cats[p[1]]) continue;
+      var dx=tx(p[2])-mx, dy=ty(p[3])-my, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<bd){bd=d;best={mode:"prompt",d:p}}
+    }
   }
 
   var tip=document.getElementById("tip");
   if(!best){tip.style.display="none";return}
 
-  var fnames=DATA.all_signal_keys||[];
-  var ci=CAT[best[1]]||{l:"?",c:"#888"};
-  var h='<div style="margin-bottom:4px">';
-  h+='<span style="color:'+ci.c+';font-weight:700">'+ci.l+'</span> ';
-  h+='<span style="color:#f0f4f8;font-weight:600">'+(DATA.subj_short[best[4]]||"")+'</span>';
-  h+=' <span style="color:#a0aab4">ring '+best[5]+'</span></div>';
-  h+='<div style="color:#a0aab4;font-size:10px;margin-bottom:6px;word-break:break-word">'+best[0]+'</div>';
-  h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
-  h+='<span style="color:#a78bfa">RD='+best[8].toFixed(2)+'</span> (radial) &nbsp;';
-  h+='<span style="color:#ef4444">ASM='+best[6].toFixed(2)+'</span> ';
-  h+='<span style="color:#22d3ee">IntCV='+best[7].toFixed(2)+'</span> ';
-  h+='<span style="color:#4ade80">SFD_d='+best[9].toFixed(2)+'</span></div>';
-  if(fnames.length){
-    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:10px;margin-top:4px">';
-    for(var i=0;i<fnames.length&&i<8;i++){
-      h+='<span style="color:#a0aab4">'+fnames[i]+': <b style="color:#f0f4f8">'+best[11+i].toFixed(4)+'</b></span>';
+  var h="";
+  if(best.mode==="token"){
+    var t=best.d;
+    var ci=CAT[t[1]]||{l:"?",c:"#888"};
+    var ringLabel=(DATA.rings&&DATA.rings[t[5]])?DATA.rings[t[5]].label:"ring "+t[5];
+    h+='<div style="margin-bottom:4px">';
+    h+='<span style="color:'+ci.c+';font-weight:700">'+ci.l+'</span> ';
+    h+='<span style="color:#f0f4f8;font-weight:700;font-size:13px">"'+t[0]+'"</span> ';
+    h+='<span style="color:#a0aab4">'+ringLabel+'</span></div>';
+    h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
+    h+='<span style="color:#a78bfa">RD='+t[6].toFixed(2)+'</span> (radial) &nbsp;';
+    h+='<span style="color:#ef4444">ASM='+t[7].toFixed(2)+'</span> ';
+    h+='<span style="color:#4ade80">SFD_d='+t[8].toFixed(2)+'</span></div>';
+    // Show parent prompt
+    var pi=t[9];
+    var pp=DATA.prompts&&DATA.prompts[pi];
+    if(pp) h+='<div style="color:#a0aab4;font-size:10px;margin-top:4px;word-break:break-word">Prompt: '+pp[0]+'</div>';
+  } else {
+    var p=best.d;
+    var fnames=DATA.all_signal_keys||[];
+    var ci=CAT[p[1]]||{l:"?",c:"#888"};
+    var ringLabel=(DATA.rings&&DATA.rings[p[5]])?DATA.rings[p[5]].label:"ring "+p[5];
+    h+='<div style="margin-bottom:4px">';
+    h+='<span style="color:'+ci.c+';font-weight:700">'+ci.l+'</span> ';
+    h+='<span style="color:#f0f4f8;font-weight:600">'+(DATA.subj_short[p[4]]||"")+'</span>';
+    h+=' <span style="color:#a0aab4">'+ringLabel+'</span></div>';
+    h+='<div style="color:#a0aab4;font-size:10px;margin-bottom:6px;word-break:break-word">'+p[0]+'</div>';
+    h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
+    h+='<span style="color:#a78bfa">RD='+p[8].toFixed(2)+'</span> (radial) &nbsp;';
+    h+='<span style="color:#ef4444">ASM='+p[6].toFixed(2)+'</span> ';
+    h+='<span style="color:#22d3ee">IntCV='+p[7].toFixed(2)+'</span> ';
+    h+='<span style="color:#4ade80">SFD_d='+p[9].toFixed(2)+'</span></div>';
+    if(fnames.length){
+      h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:10px;margin-top:4px">';
+      for(var i=0;i<fnames.length&&i<8;i++){
+        h+='<span style="color:#a0aab4">'+fnames[i]+': <b style="color:#f0f4f8">'+p[11+i].toFixed(4)+'</b></span>';
+      }
+      h+='</div>';
     }
-    h+='</div>';
   }
 
   tip.innerHTML=h;
