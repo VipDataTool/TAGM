@@ -3114,6 +3114,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderDomainSurfaceResults(results);
   } else if (name === 'correction_manifold') {
     container.innerHTML = renderCorrectionManifoldResults(results);
+  } else if (name === 'probe_generator') {
+    container.innerHTML = renderProbeGeneratorResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3394,6 +3396,58 @@ function renderCorrectionManifoldResults(r) {
   h += '<div style="margin-top:8px;text-align:center">';
   h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open 6D Manifold Visualization</button>';
   h += '</div>';
+
+  h += '</div>';
+  return h;
+}
+
+// ─── Probe Generator Results Renderer ──────────────────────────
+
+function renderProbeGeneratorResults(r) {
+  var h = '<div class="mod-results">';
+
+  // Summary
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
+  h += '<div class="mod-results-body"><div class="mod-summary">';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_raw_tokens + '</span><span class="mod-stat-label">Raw Tokens</span></div>';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_shared_removed + '</span><span class="mod-stat-label">Shared (removed)</span></div>';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_discriminative + '</span><span class="mod-stat-label">Discriminative</span></div>';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + r.queries_per_subject + '</span><span class="mod-stat-label">Queries/Subject</span></div>';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + r.sampling_seconds + 's</span><span class="mod-stat-label">Sampling Time</span></div>';
+  h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.output_file) + '</span><span class="mod-stat-label">Output File</span></div>';
+  h += '</div></div>';
+
+  // Per-subject table
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Breakdown</div>';
+  h += '<div class="mod-results-body" style="max-height:500px">';
+  h += '<table class="data-table" style="width:100%;font-size:11px">';
+  h += '<tr><th style="text-align:left">Subject</th><th>Raw</th><th>Discriminative</th><th style="text-align:left">Top Words</th></tr>';
+
+  var subjects = r.subjects || [];
+  var ps = r.per_subject || {};
+  subjects.forEach(function(subj) {
+    var s = ps[subj] || {};
+    var top = (s.top_20 || []).slice(0, 10).join(', ');
+    var pct = s.raw_tokens > 0 ? Math.round(100 * s.discriminative_tokens / s.raw_tokens) : 0;
+    h += '<tr>';
+    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">' + escHtml(subj.replace('_', ' ')) + '</td>';
+    h += '<td>' + (s.raw_tokens || 0) + '</td>';
+    h += '<td><span style="color:var(--green)">' + (s.discriminative_tokens || 0) + '</span> <span style="color:var(--text-3);font-size:10px">(' + pct + '%)</span></td>';
+    h += '<td style="text-align:left;color:var(--text-2);font-size:10px">' + escHtml(top) + '</td>';
+    h += '</tr>';
+  });
+
+  h += '</table></div>';
+
+  // Shared tokens list
+  var shared = r.shared_tokens || [];
+  if (shared.length > 0) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Shared Tokens Removed (' + shared.length + ')</div>';
+    h += '<div class="mod-results-body collapsed" style="max-height:300px">';
+    h += '<div style="padding:10px 16px;font-size:10px;color:var(--text-2);font-family:var(--mono);line-height:1.8;word-break:break-all">';
+    h += escHtml(shared.join(', '));
+    h += '</div></div>';
+  }
 
   h += '</div>';
   return h;
