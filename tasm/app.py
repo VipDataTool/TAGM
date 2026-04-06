@@ -208,7 +208,7 @@ def _preembed_probes():
                 logger.warning(f"[DOMAIN] No o_proj delta at layer {target_layer} "
                                f"for projection — falling back to raw space")
 
-        for pf in probe_files:
+        for fi, pf in enumerate(probe_files):
             csv_path = os.path.join(project_root, pf)
             if not os.path.exists(csv_path):
                 continue
@@ -219,12 +219,18 @@ def _preembed_probes():
                 logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
                 continue
 
+            label = f"[{fi+1}/{len(probe_files)}] {pf} (L{int(frac*100)})"
+            log_progress("probes", f"Embedding {label}...")
+
+            def _file_progress(stage, msg):
+                log_progress("probes", f"{label}: {msg}")
+
             try:
                 embed_and_cache_probes(
                     state.model_instruct, state.tokenizer,
                     project_root, pf, model_id,
                     layer_frac=frac,
-                    progress=log_progress,
+                    progress=_file_progress,
                     delta_matrix=delta if use_proj else None)
             except Exception as e:
                 logger.warning(f"[DOMAIN] Failed to pre-embed {pf} at L{int(frac*100)}: {e}")
@@ -479,7 +485,7 @@ async def load_model(pair_id: str = Form(None),
                             content={"error": "Select a model pair or provide custom IDs."})
 
     progress_log.clear()
-    log_progress("starting", "Starting model load...")
+    log_progress("starting", "Initializing model pair...")
 
     thread = threading.Thread(
         target=_load_model_worker,
