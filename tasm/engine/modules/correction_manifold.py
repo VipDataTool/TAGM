@@ -267,11 +267,14 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         rad_x, rad_y = np.cos(angle), np.sin(angle)  # radial outward
         tan_x, tan_y = np.cos(angle + np.pi / 2), np.sin(angle + np.pi / 2)  # tangential
 
-        # Signal-driven push from anchor
-        max_push = (outer - inner) * push_strength
-        e_push = (norm_4[i, 0] - 0.5) * 2 * max_push   # Entropy → radial
-        k_push = (norm_4[i, 1] - 0.5) * 2 * max_push   # KL → tangential
-        rd_push = (rd_frac - 0.5) * max_push * 0.3       # RD → secondary radial
+        # Signal-driven push from anchor.
+        # (norm - 0.5) maps [0,1] → [-0.5, +0.5].
+        # × ring_width × push_strength = displacement in manifold units.
+        # push_strength=1.0 → extreme signals reach the ring edge.
+        rw = outer - inner
+        e_push = (norm_4[i, 0] - 0.5) * rw * push_strength   # Entropy → radial
+        k_push = (norm_4[i, 1] - 0.5) * rw * push_strength   # KL → tangential
+        rd_push = (rd_frac - 0.5) * rw * push_strength         # RD → secondary radial
 
         positions[i, 0] = ax + rad_x * (e_push + rd_push) + tan_x * k_push
         positions[i, 1] = ay + rad_y * (e_push + rd_push) + tan_y * k_push
@@ -407,12 +410,12 @@ class CorrectionManifoldModule(TASMModule):
                 name="push_strength",
                 display_name="Push Strength",
                 description=(
-                    "How strongly signals push tokens away from their "
-                    "anchor points. Higher values create more spread "
-                    "within each cell, revealing local structure."
+                    "Fraction of ring width that extreme signal values "
+                    "can push a token from its anchor. 1.0 = ring edge. "
+                    "Values above 1.0 allow crossing into adjacent rings."
                 ),
                 type="float",
-                default=0.55,
+                default=0.5,
                 min_val=0.1,
                 max_val=1.5,
             ),
@@ -464,7 +467,7 @@ class CorrectionManifoldModule(TASMModule):
         proximity data. Computes 6D manifold positions and runs
         KNN classification as validation.
         """
-        push_strength = params.get("push_strength", 0.55)
+        push_strength = params.get("push_strength", 0.5)
         k_str = params.get("knn_k_values", "3,5,7,11,15")
         k_values = [int(k.strip()) for k in k_str.split(",")]
         ring_gap = params.get("ring_gap", 0.04)
@@ -602,10 +605,10 @@ class CorrectionManifoldModule(TASMModule):
                 tan_x, tan_y = np.cos(t_angle + np.pi / 2), np.sin(t_angle + np.pi / 2)
 
                 # Signal-driven push from anchor
-                max_push = (t_outer - t_inner) * push_strength
-                e_push = (n_sfd_e - 0.5) * 2 * max_push   # SFD_e → radial
-                a_push = (n_asm - 0.5) * 2 * max_push      # ASM → tangential
-                rd_push = (n_repl - 0.5) * max_push * 0.3   # RD → secondary radial
+                rw = t_outer - t_inner
+                e_push = (n_sfd_e - 0.5) * rw * push_strength   # SFD_e → radial
+                a_push = (n_asm - 0.5) * rw * push_strength      # ASM → tangential
+                rd_push = (n_repl - 0.5) * rw * push_strength    # RD → secondary radial
 
                 t_x = anchor_r * np.cos(t_angle) + rad_x * (e_push + rd_push) + tan_x * a_push
                 t_y = anchor_r * np.sin(t_angle) + rad_y * (e_push + rd_push) + tan_y * a_push
