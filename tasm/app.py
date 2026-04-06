@@ -131,6 +131,7 @@ async def lifespan(app: FastAPI):
     # Load probe file selection
     _load_probe_config()
     logger.info(f"Active probe files: {sorted(_active_probes)}")
+    module_runner.propagate_active_probes(_active_probes)
     # Clean stale session data from previous server run.
     # This is deliberate: schema changes between versions could make
     # old results.json incompatible with new code. Fresh start is safe.
@@ -188,7 +189,7 @@ def _preembed_probes():
     esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
     use_proj = engine_config.get("probe_projection_space")
 
-    # Discover all probe files, but only cache active ones
+    # Discover all probe files, embed only config-activated ones
     all_probes = _discover_probe_files(project_root)
     probe_files = [pf for pf in all_probes if pf in _active_probes]
 
@@ -1742,6 +1743,7 @@ async def toggle_probe_file(request: Request):
         _active_probes.discard(filename)
 
     _save_probe_config()
+    module_runner.propagate_active_probes(_active_probes)
     logger.info(f"[PROBES] {filename} {'activated' if active else 'deactivated'} — active: {sorted(_active_probes)}")
     return {"ok": True, "active": sorted(_active_probes)}
 

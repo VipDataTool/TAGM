@@ -462,7 +462,7 @@ def _stratification(obs, subjects):
 
     for o in obs:
         cat = o[1]
-        by_level[o[12]][cat] += 1
+        by_level[int(round(o[12]))][cat] += 1
         if o[13] < len(subjects):
             by_subject[subjects[o[13]]][cat] += 1
 
@@ -499,6 +499,7 @@ class DomainSurfaceModule(TASMModule):
     def __init__(self):
         super().__init__()
         self._probe_files = []
+        self._active_probes = None  # set by app.py; None = show all
         self._project_root = None
 
     def set_project_root(self, root):
@@ -506,9 +507,19 @@ class DomainSurfaceModule(TASMModule):
         self._project_root = root
         self._probe_files = _discover_probe_files(root)
 
+    def set_active_probes(self, active):
+        """Set which probe files are config-activated."""
+        self._active_probes = set(active) if active else None
+
     @property
     def parameters(self):
-        options = self._probe_files if self._probe_files else ["alignment_probes.csv"]
+        # Only show config-activated probe files
+        if self._active_probes is not None:
+            options = [pf for pf in self._probe_files if pf in self._active_probes]
+        else:
+            options = self._probe_files
+        if not options:
+            options = ["alignment_probes.csv"]
         return [
             ModuleParameter(
                 name="probe_file",
@@ -722,7 +733,7 @@ class DomainSurfaceModule(TASMModule):
             for level_idx in sorted(strat["by_level"].keys()):
                 counts = strat["by_level"][level_idx]
                 total = sum(counts.values())
-                li = int(level_idx)
+                li = int(round(float(level_idx)))
                 if li < len(level_names):
                     progress(f"  {level_names[li]}: {total} obs "
                              f"(b={counts.get('b',0)} m={counts.get('m',0)} "
