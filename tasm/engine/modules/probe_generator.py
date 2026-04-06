@@ -21,6 +21,7 @@ import os
 import csv
 import json
 import logging
+import re
 import time
 from collections import Counter
 
@@ -31,13 +32,16 @@ logger = logging.getLogger("tasm")
 
 
 def _tokenize_response(text, tokenizer):
-    """Extract individual tokens from model output text."""
+    """Extract whole words from model output, keep only single-token words."""
     words = Counter()
-    ids = tokenizer.encode(text, add_special_tokens=False)
-    for tid in ids:
-        tok = tokenizer.decode([tid]).strip().lower()
-        if tok.isalpha() and len(tok) > 1:
-            words[tok] += 1
+    raw_words = re.findall(r'[a-zA-Z]+', text.lower())
+    for w in raw_words:
+        if len(w) < 2:
+            continue
+        # Check if this word is a single token
+        ids = tokenizer.encode(w, add_special_tokens=False)
+        if len(ids) == 1:
+            words[w] += 1
     return words
 
 

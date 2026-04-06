@@ -1597,6 +1597,15 @@ async def module_results(module_name: str):
     return sanitize_for_json({"ok": True, "results": results})
 
 
+@app.post("/api/modules/{module_name}/reset")
+async def reset_module(module_name: str):
+    """Reset a module to idle state."""
+    result = module_runner.reset_module(module_name)
+    if not result["ok"]:
+        return JSONResponse(status_code=400, content=result)
+    return result
+
+
 @app.get("/api/log")
 async def get_log():
     """Return the log file for download."""

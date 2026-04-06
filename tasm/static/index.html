@@ -2956,6 +2956,7 @@ function renderModuleCard(m) {
   // Actions
   h += '<div class="mod-actions">';
   h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="event.stopPropagation();runModule(\'' + m.name + '\')">Run</button>';
+  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();resetModule(\'' + m.name + '\')">Reset</button>';
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
@@ -3017,6 +3018,25 @@ function getModuleParams(modName) {
     else params[p.name] = el.value;
   });
   return params;
+}
+
+async function resetModule(name) {
+  try {
+    var r = await fetch('/api/modules/' + name + '/reset', {method: 'POST'});
+    var d = await r.json();
+    if (d.ok) {
+      var st = $('mod-status-' + name);
+      if (st) { st.className = 'mod-status idle'; st.textContent = 'idle'; }
+      var pr = $('mod-progress-' + name);
+      if (pr) pr.textContent = '';
+      var res = $('mod-results-' + name);
+      if (res) res.innerHTML = '';
+      var btn = $('mod-run-' + name);
+      if (btn) btn.disabled = false;
+    }
+  } catch(e) {
+    console.error('Reset failed:', e);
+  }
 }
 
 async function runModule(name) {

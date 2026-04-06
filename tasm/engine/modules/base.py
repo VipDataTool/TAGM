@@ -213,6 +213,22 @@ class ModuleRunner:
         state = self._state.get(name)
         return state.results if state else None
 
+    def reset_module(self, name: str) -> dict:
+        """Reset a module to idle state, clearing results and errors."""
+        state = self._state.get(name)
+        if not state:
+            return {"ok": False, "error": f"Module '{name}' not found."}
+        if state.status == "running":
+            return {"ok": False, "error": f"Module '{name}' is currently running."}
+        state.status = "idle"
+        state.progress = ""
+        state.results = None
+        state.error = None
+        state.started_at = None
+        state.completed_at = None
+        logger.info(f"[MODULES] {name} reset to idle")
+        return {"ok": True}
+
     def run_module(self, name: str, session_results: list,
                    params: dict, session_dir: Path = None) -> dict:
         """Start a module in a background thread.
