@@ -158,6 +158,11 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         session = DatasetSession()
         session.set_model(mm.state.display_name)
 
+        # Give probe generator access to the loaded model
+        pg = module_runner.get_module("probe_generator")
+        if pg and hasattr(pg, 'set_model'):
+            pg.set_model(mm.state.model_instruct, mm.state.tokenizer)
+
         # Pre-embed probe files if configured
         if engine_config.get("precompute_probe_caches"):
             _preembed_probes()
@@ -1553,18 +1558,23 @@ async def list_modules():
 @app.post("/api/modules/{module_name}/run")
 async def run_module(module_name: str, request: Request):
     """Start a module in a background thread."""
-    if not session or session.n_results == 0:
-        return JSONResponse(status_code=400,
-                            content={"ok": False, "error": "No session data."})
+    # Check if module needs session data
+    mod = module_runner.get_module(module_name)
+    if mod and mod.min_results > 0:
+        if not session or session.n_results == 0:
+            return JSONResponse(status_code=400,
+                                content={"ok": False, "error": "No session data."})
+
+    session_results = session.results if session else []
 
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     params = body.get("params", {})
 
     result = module_runner.run_module(
         module_name,
-        session.results,
+        session_results,
         params,
-        session_dir=session.session_dir,
+        session_dir=session.session_dir if session else None,
     )
     if not result["ok"]:
         return JSONResponse(status_code=400, content=result)
