@@ -131,7 +131,6 @@ async def lifespan(app: FastAPI):
     # Load probe file selection
     _load_probe_config()
     logger.info(f"Active probe files: {sorted(_active_probes)}")
-    module_runner.propagate_active_probes(_active_probes)
     # Clean stale session data from previous server run.
     # This is deliberate: schema changes between versions could make
     # old results.json incompatible with new code. Fresh start is safe.
@@ -159,9 +158,11 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         session = DatasetSession()
         session.set_model(mm.state.display_name)
 
-        # Pre-embed probes for domain surface module (if enabled)
-        if engine_config.get("precompute_module_caches"):
+        # Pre-embed probe files if configured
+        if engine_config.get("precompute_probe_caches"):
             _preembed_probes()
+        else:
+            logger.info("[DOMAIN] Probe precompute disabled — will embed on first module run")
 
         loading_state["active"] = False
         loading_state["error"] = None
@@ -189,9 +190,9 @@ def _preembed_probes():
     esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
     use_proj = engine_config.get("probe_projection_space")
 
-    # Discover all probe files, embed only config-activated ones
+    # Discover and embed all probe files (cached to disk, cost paid once)
     all_probes = _discover_probe_files(project_root)
-    probe_files = [pf for pf in all_probes if pf in _active_probes]
+    probe_files = all_probes
 
     # If both fracs are the same, one pass. If different, two sequential.
     depths = sorted(set([subj_frac, esc_frac]))
@@ -1743,7 +1744,6 @@ async def toggle_probe_file(request: Request):
         _active_probes.discard(filename)
 
     _save_probe_config()
-    module_runner.propagate_active_probes(_active_probes)
     logger.info(f"[PROBES] {filename} {'activated' if active else 'deactivated'} — active: {sorted(_active_probes)}")
     return {"ok": True, "active": sorted(_active_probes)}
 
@@ -1786,12 +1786,11 @@ def _regenerate_caches_sync(target_file=None):
     use_proj = engine_config.get("probe_projection_space")
     depths = sorted(set([subj_frac, esc_frac]))
 
-    # Use specified file, or only active files
+    # Use specified file, or all discovered files
     if target_file:
         probe_files = [target_file]
     else:
-        all_files = _discover_probe_files(project_root)
-        probe_files = [pf for pf in all_files if pf in _active_probes]
+        probe_files = _discover_probe_files(project_root)
 
     deleted = 0
     embedded = 0

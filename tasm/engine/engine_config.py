@@ -79,11 +79,6 @@ DEFAULTS = {
     "disc_sublayers_top_n": 15,
 
     # ── Modules ──
-    # Pre-compute module caches at model load time (e.g. domain surface
-    # probe embeddings).  Disable to speed up model loading if you don't
-    # need modules that require pre-computation.
-    "precompute_module_caches": False,
-
     # ── Domain Embedding ──
     # Hidden-state capture layer for domain embeddings, as a fraction of
     # model depth (0.0–1.0).  0.25=syntax, 0.50=domain+discourse
@@ -117,6 +112,12 @@ DEFAULTS = {
     # by how much the model attends to it at the domain layer, naturally
     # de-emphasizing function words without external filtering.
     "attention_weighted_pool": False,
+    # Pre-embed all probe files at model load time.  When enabled,
+    # probe embeddings are cached to disk during model loading so the
+    # domain surface module can run immediately.  When disabled, probes
+    # are embedded on first domain surface run (avoids load timeout for
+    # large probe sets).
+    "precompute_probe_caches": True,
 }
 
 # Current runtime values — initialized from defaults.

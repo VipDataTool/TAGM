@@ -196,15 +196,6 @@ class ModuleRunner:
     def get_module(self, name: str) -> Optional[TASMModule]:
         return self._modules.get(name)
 
-    def propagate_active_probes(self, active_probes):
-        """Tell all modules which probe files are config-activated."""
-        for mod in self._modules.values():
-            if hasattr(mod, 'set_active_probes'):
-                try:
-                    mod.set_active_probes(active_probes)
-                except Exception:
-                    pass
-
     def get_status(self, name: str) -> dict:
         state = self._state.get(name)
         if not state:

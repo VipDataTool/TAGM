@@ -499,7 +499,6 @@ class DomainSurfaceModule(TASMModule):
     def __init__(self):
         super().__init__()
         self._probe_files = []
-        self._active_probes = None  # set by app.py; None = show all
         self._project_root = None
 
     def set_project_root(self, root):
@@ -507,19 +506,9 @@ class DomainSurfaceModule(TASMModule):
         self._project_root = root
         self._probe_files = _discover_probe_files(root)
 
-    def set_active_probes(self, active):
-        """Set which probe files are config-activated."""
-        self._active_probes = set(active) if active else None
-
     @property
     def parameters(self):
-        # Only show config-activated probe files
-        if self._active_probes is not None:
-            options = [pf for pf in self._probe_files if pf in self._active_probes]
-        else:
-            options = self._probe_files
-        if not options:
-            options = ["alignment_probes.csv"]
+        options = self._probe_files if self._probe_files else ["alignment_probes.csv"]
         return [
             ModuleParameter(
                 name="probe_file",
@@ -629,9 +618,9 @@ class DomainSurfaceModule(TASMModule):
         probe_embs = self._load_probe_embeddings(probe_file, session_results)
         if probe_embs is None:
             raise RuntimeError(
-                "Probe embeddings not found. They are generated automatically "
-                "at model load time. Try reloading the model, or check that "
-                f"{probe_file} exists in the project root."
+                "Probe embeddings not found. Either enable "
+                "'precompute_probe_caches' in config and reload the model, "
+                "or click 'Regenerate Caches' in the module panel."
             )
 
         if len(probe_embs) != len(probes):
