@@ -364,6 +364,12 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     subj_probe_mat = np.array(probe_embs) if probe_embs is not None else None
     esc_probe_mat = np.array(esc_probe_embs) if esc_probe_embs is not None else subj_probe_mat
 
+    # Subject angles for continuous positioning
+    n_subj = len(subjects)
+    _subj_angles = np.linspace(0, 2 * np.pi, n_subj, endpoint=False) - np.pi / 2
+
+    token_knn = 5  # k nearest probes per token
+
     for o in raw_obs:
         if o["tok"] not in top_set:
             continue
@@ -371,33 +377,63 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         subj_emb = o.get("_emb")
         esc_emb = o.get("_esc_emb")
 
-        # ── Subject assignment (from subject-layer embedding) ──
+        # ── Subject assignment (kNN from subject-layer embedding) ──
+        near_angle = 0.0
         if subj_emb is not None and subj_probe_mat is not None and probes is not None:
             tok_vec = np.array(subj_emb, dtype=np.float32)
             tok_norm = np.linalg.norm(tok_vec)
             if tok_norm > 1e-12:
                 tok_vec = tok_vec / tok_norm
             sims = subj_probe_mat @ tok_vec
-            best_subj_probe = int(np.argmax(sims))
-            best_dist = float(1.0 - sims[best_subj_probe])
-            near_subj = subj_idx.get(probes[best_subj_probe]["subject"], 0)
+
+            # Top-k nearest probes
+            k = min(token_knn, len(sims))
+            top_k = np.argsort(sims)[-k:][::-1]
+            top_sims = sims[top_k]
+            best_dist = float(1.0 - top_sims[0])
+
+            # Similarity-weighted position
+            weights = np.exp(top_sims * 10)
+            weights /= weights.sum()
+
+            sin_sum = 0
+            cos_sum = 0
+            subj_w = defaultdict(float)
+            for idx, w in zip(top_k, weights):
+                if idx < len(probes):
+                    si = subj_idx.get(probes[idx]["subject"], 0)
+                    sin_sum += w * np.sin(_subj_angles[si])
+                    cos_sum += w * np.cos(_subj_angles[si])
+                    subj_w[si] += w
+
+            near_angle = float(np.arctan2(sin_sum, cos_sum))
+            near_subj = max(subj_w, key=subj_w.get) if subj_w else 0
         else:
             # Fallback: prompt-level PCA
             aidx, best_dist = _nearest_probe(o["dx"], o["dy"], anchor_pts)
             near_subj = subj_idx.get(anchor_pts[aidx]["subject"], 0)
+            near_angle = float(_subj_angles[near_subj])
 
-        # ── Escalation assignment (from escalation-layer embedding) ──
+        # ── Escalation assignment (kNN from escalation-layer embedding) ──
         if esc_emb is not None and esc_probe_mat is not None and probes is not None:
             esc_vec = np.array(esc_emb, dtype=np.float32)
             esc_norm = np.linalg.norm(esc_vec)
             if esc_norm > 1e-12:
                 esc_vec = esc_vec / esc_norm
             esc_sims = esc_probe_mat @ esc_vec
-            best_esc_probe = int(np.argmax(esc_sims))
-            level = probes[best_esc_probe]["level"]
+
+            k = min(token_knn, len(esc_sims))
+            esc_top_k = np.argsort(esc_sims)[-k:][::-1]
+            esc_weights = np.exp(esc_sims[esc_top_k] * 10)
+            esc_weights /= esc_weights.sum()
+            level = float(sum(probes[idx]["level"] * w
+                              for idx, w in zip(esc_top_k, esc_weights)
+                              if idx < len(probes)))
         elif subj_emb is not None and subj_probe_mat is not None and probes is not None:
-            # Same depth for both — use subject probe match for level too
-            level = probes[best_subj_probe]["level"]
+            # Use subject-layer kNN for level too
+            level = float(sum(probes[idx]["level"] * w
+                              for idx, w in zip(top_k, weights)
+                              if idx < len(probes)))
         else:
             # Fallback: prompt-level PCA
             aidx, _ = _nearest_probe(o["dx"], o["dy"], anchor_pts)
@@ -410,6 +446,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             round(o["asm"], 2), round(o["sfd_e"], 3), round(o["sfd_d"], 3),
             o["pi"], o["pos"],
             round(best_dist, 4), level, near_subj,
+            round(near_angle, 4),  # index 14: kNN-weighted continuous angle
         ])
 
     if progress:
@@ -722,6 +759,7 @@ class DomainSurfaceModule(TASMModule):
                 "tok", "cat", "dy", "disp", "repl", "dx",
                 "asm", "sfd_e", "sfd_d", "pi", "pos",
                 "near_dist", "near_level", "near_subj_idx",
+                "near_angle",
             ],
             "stratification": strat,
             "probe_file": probe_file,

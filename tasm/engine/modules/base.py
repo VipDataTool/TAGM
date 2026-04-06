@@ -247,6 +247,13 @@ class ModuleRunner:
 
         def _run():
             try:
+                # Set session directory on module if supported
+                if session_dir and hasattr(mod, 'set_session_dir'):
+                    try:
+                        mod.set_session_dir(str(session_dir))
+                    except Exception:
+                        pass
+
                 results = mod.run(session_results, params, progress=_progress)
                 state.results = results
                 state.status = "completed"

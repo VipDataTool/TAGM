@@ -31,6 +31,7 @@ import numpy as np
 from collections import Counter, defaultdict
 
 from .base import TASMModule, ModuleParameter
+from .domain_surface import _load_probe_cache, _probe_cache_path, _load_probes
 
 logger = logging.getLogger("tasm")
 
@@ -58,25 +59,110 @@ ALL_SIGNAL_KEYS = [
 
 # ─── Probe-Level Computation ─────────────────────────────────
 
-def _compute_prompt_probe_stats(domain_surface_data):
-    """Extract per-prompt probe level and subject from domain surface observations.
+def _compute_prompt_probe_stats(domain_surface_data, session_results=None,
+                                 probe_embs=None, probes_meta=None,
+                                 knn_probes=5):
+    """Position prompts on the manifold by kNN against probe embeddings.
+
+    Primary path: each prompt's domain_embedding is compared directly
+    against probe embeddings via cosine similarity. The k nearest probes
+    define the prompt's angular position (weighted centroid) and level.
+
+    Fallback: if prompt embeddings or probe cache unavailable, falls back
+    to token-vote from domain surface observations.
 
     Returns:
         mean_level: array of mean probe escalation level per prompt
         blended_angle: array of blended subject angle per prompt
         dom_subject: array of dominant subject index per prompt
         n_prompts: number of prompts
+        nearest_probes: list of k nearest probe indices per prompt (or None)
     """
-    obs = domain_surface_data.get("observations", [])
     subjects = domain_surface_data.get("subjects", [])
     n_subj = len(subjects)
 
     # Subject angles: evenly spaced around circle, starting at top
     subj_angles = np.linspace(0, 2 * np.pi, n_subj, endpoint=False) - np.pi / 2
 
-    # Accumulate per-prompt statistics
-    # obs fields: tok, cat, dy, disp, repl, dx, asm, sfd_e, sfd_d, pi, pos,
-    #             near_dist, near_level, near_subj_idx
+    n_prompts = domain_surface_data.get("n_prompts_used",
+                domain_surface_data.get("n_prompts_total", 0))
+
+    mean_level = np.full(n_prompts, 2.0)
+    blended_angle = np.zeros(n_prompts)
+    dom_subject = np.zeros(n_prompts, dtype=int)
+    nearest_probes = None
+
+    # ── Primary path: direct prompt→probe cosine similarity ──
+    if (session_results is not None and probe_embs is not None
+            and probes_meta is not None):
+
+        probe_mat = np.array(probe_embs, dtype=np.float32)
+        # L2-normalize probe matrix
+        probe_norms = np.linalg.norm(probe_mat, axis=1, keepdims=True)
+        probe_norms[probe_norms < 1e-12] = 1
+        probe_mat_n = probe_mat / probe_norms
+
+        used_direct = 0
+        nearest_probes = []
+
+        for pi in range(min(n_prompts, len(session_results))):
+            r = session_results[pi]
+            emb = r.get("domain_embedding")
+            if emb is None or len(emb) == 0:
+                nearest_probes.append([])
+                continue
+
+            # Cosine similarity: prompt embedding vs all probes
+            emb_arr = np.array(emb, dtype=np.float32)
+            norm = np.linalg.norm(emb_arr)
+            if norm < 1e-12:
+                nearest_probes.append([])
+                continue
+            emb_n = emb_arr / norm
+
+            sims = probe_mat_n @ emb_n  # [n_probes]
+
+            # Top-k nearest probes
+            k = min(knn_probes, len(sims))
+            top_k = np.argsort(sims)[-k:][::-1]
+            top_sims = sims[top_k]
+            nearest_probes.append(top_k.tolist())
+
+            # Weighted position from nearest probes
+            # Weights: softmax of similarities for smooth blending
+            weights = np.exp(top_sims * 10)  # temperature-scaled
+            weights /= weights.sum()
+
+            # Angular position: circular weighted mean of probe subjects
+            sin_sum = 0
+            cos_sum = 0
+            level_sum = 0
+            subj_counts = Counter()
+            for idx, w in zip(top_k, weights):
+                if idx < len(probes_meta):
+                    pm = probes_meta[idx]
+                    si = pm["subj_idx"]
+                    li = pm["level"]
+                    sin_sum += w * np.sin(subj_angles[si])
+                    cos_sum += w * np.cos(subj_angles[si])
+                    level_sum += w * li
+                    subj_counts[si] += w
+
+            blended_angle[pi] = np.arctan2(sin_sum, cos_sum)
+            mean_level[pi] = level_sum
+            dom_subject[pi] = subj_counts.most_common(1)[0][0] if subj_counts else 0
+            used_direct += 1
+
+        logger.info(f"[MANIFOLD] Direct prompt→probe kNN: {used_direct}/{n_prompts} "
+                     f"prompts positioned (k={knn_probes})")
+
+        if used_direct > 0:
+            return mean_level, blended_angle, dom_subject, n_prompts, subj_angles, nearest_probes
+
+    # ── Fallback: token-vote from observations ──
+    logger.info("[MANIFOLD] Falling back to token-vote for prompt positioning")
+    obs = domain_surface_data.get("observations", [])
+
     prompt_subjects = defaultdict(Counter)
     prompt_levels = defaultdict(Counter)
 
@@ -84,14 +170,6 @@ def _compute_prompt_probe_stats(domain_surface_data):
         pi = o[9]   # prompt index
         prompt_subjects[pi][o[13]] += 1  # near_subj_idx
         prompt_levels[pi][o[12]] += 1    # near_level
-
-    # Determine prompt count from domain surface
-    n_prompts = domain_surface_data.get("n_prompts_used",
-                domain_surface_data.get("n_prompts_total", 0))
-
-    mean_level = np.full(n_prompts, 2.0)
-    blended_angle = np.zeros(n_prompts)
-    dom_subject = np.zeros(n_prompts, dtype=int)
 
     for pi in range(n_prompts):
         if pi in prompt_levels:
@@ -110,7 +188,7 @@ def _compute_prompt_probe_stats(domain_surface_data):
                           for si, n in counts.items())
             blended_angle[pi] = np.arctan2(sin_sum, cos_sum)
 
-    return mean_level, blended_angle, dom_subject, n_prompts, subj_angles
+    return mean_level, blended_angle, dom_subject, n_prompts, subj_angles, None
 
 
 # ─── Manifold Construction ───────────────────────────────────
@@ -223,12 +301,16 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         for j, (key, _) in enumerate(SIGNAL_KEYS):
             raw_4[i, j] = _get_signal(r, key)
 
-    # Normalize to [0, 1]
-    mins = raw_4.min(axis=0)
-    maxs = raw_4.max(axis=0)
-    ranges = maxs - mins
-    ranges[ranges == 0] = 1
-    norm_4 = (raw_4 - mins) / ranges
+    # Z-score normalization: each signal measured in standard deviations
+    # from its mean, clipped to ±2σ, rescaled to [0,1].
+    # This makes the push axes proportionate — each contributes equally
+    # to the visual spread regardless of raw range.
+    means = raw_4.mean(axis=0)
+    stds = raw_4.std(axis=0)
+    stds[stds < 1e-12] = 1
+    z_4 = (raw_4 - means) / stds
+    z_4 = np.clip(z_4, -2, 2)
+    norm_4 = (z_4 + 2) / 4  # rescale [-2,2] → [0,1]
 
     # Extract all 8 signals
     raw_8 = np.zeros((n, 8))
@@ -252,9 +334,9 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         inner = ring_bands[ri]["inner"]
         outer = ring_bands[ri]["outer"]
 
-        # RD controls radial position within ring
+        # RD positions the point within the ring (structural axis)
         rd_frac = norm_4[i, 2]  # RD_repl normalized
-        anchor_r = inner + (outer - inner) * 0.5  # anchor at ring midpoint
+        anchor_r = inner + (outer - inner) * rd_frac
 
         # Subject angle
         angle = blended_angle[i]
@@ -267,17 +349,16 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
         rad_x, rad_y = np.cos(angle), np.sin(angle)  # radial outward
         tan_x, tan_y = np.cos(angle + np.pi / 2), np.sin(angle + np.pi / 2)  # tangential
 
-        # Signal-driven push from anchor.
+        # Signal-driven displacement from anchor.
         # (norm - 0.5) maps [0,1] → [-0.5, +0.5].
         # × ring_width × push_strength = displacement in manifold units.
         # push_strength=1.0 → extreme signals reach the ring edge.
         rw = outer - inner
         e_push = (norm_4[i, 0] - 0.5) * rw * push_strength   # Entropy → radial
         k_push = (norm_4[i, 1] - 0.5) * rw * push_strength   # KL → tangential
-        rd_push = (rd_frac - 0.5) * rw * push_strength         # RD → secondary radial
 
-        positions[i, 0] = ax + rad_x * (e_push + rd_push) + tan_x * k_push
-        positions[i, 1] = ay + rad_y * (e_push + rd_push) + tan_y * k_push
+        positions[i, 0] = ax + rad_x * e_push + tan_x * k_push
+        positions[i, 1] = ay + rad_y * e_push + tan_y * k_push
 
     if progress:
         progress(f"Computed manifold positions for {n} prompts")
@@ -403,6 +484,14 @@ class CorrectionManifoldModule(TASMModule):
     requires_ltp = False
     requires_rd = True
 
+    def set_project_root(self, root):
+        """Set project root for probe cache access."""
+        self._project_root = root
+
+    def set_session_dir(self, path):
+        """Set session directory for loading domain surface output."""
+        self._session_dir = path
+
     @property
     def parameters(self):
         return [
@@ -442,6 +531,19 @@ class CorrectionManifoldModule(TASMModule):
                 min_val=0.0,
                 max_val=0.1,
             ),
+            ModuleParameter(
+                name="probe_knn",
+                display_name="Probe kNN",
+                description=(
+                    "Number of nearest probes used to position each prompt. "
+                    "Prompt embedding is compared against all probes by "
+                    "cosine similarity; the top-k define its position."
+                ),
+                type="float",
+                default=5,
+                min_val=1,
+                max_val=20,
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -471,6 +573,7 @@ class CorrectionManifoldModule(TASMModule):
         k_str = params.get("knn_k_values", "3,5,7,11,15")
         k_values = [int(k.strip()) for k in k_str.split(",")]
         ring_gap = params.get("ring_gap", 0.04)
+        probe_knn = int(params.get("probe_knn", 5))
 
         # ── Load domain surface output ──
         if progress:
@@ -488,12 +591,82 @@ class CorrectionManifoldModule(TASMModule):
         if n_subj == 0:
             raise RuntimeError("No subjects found in domain surface data.")
 
-        # ── Compute probe stats ──
+        # ── Load probe embeddings for direct prompt→probe matching ──
+        probe_embs = None
+        probes_meta = None
+        probe_file = ds_data.get("probe_file")
+
+        if probe_file and getattr(self, '_project_root', None):
+            if progress:
+                progress("Loading probe embeddings for kNN positioning...")
+            try:
+                from engine import engine_config
+                layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+                use_proj = engine_config.get("probe_projection_space")
+            except Exception:
+                layer_frac = 0.50
+                use_proj = False
+
+            # Load probe cache
+            cache_path = _probe_cache_path(
+                self._project_root, probe_file,
+                "",  # model_id — scan for any matching cache
+                layer_frac, projected=use_proj)
+
+            # Try exact path first, then scan cache dir
+            cache_data = _load_probe_cache(cache_path)
+            if cache_data is None:
+                # Scan for any matching cache file
+                cache_dir = os.path.join(self._project_root, "probe_cache")
+                if os.path.isdir(cache_dir):
+                    stem = os.path.splitext(probe_file)[0]
+                    for fn in sorted(os.listdir(cache_dir)):
+                        if fn.startswith(stem) and fn.endswith(".json"):
+                            candidate = _load_probe_cache(os.path.join(cache_dir, fn))
+                            if candidate and candidate.get("embeddings"):
+                                cache_data = candidate
+                                logger.info(f"[MANIFOLD] Using probe cache: {fn}")
+                                break
+
+            if cache_data and cache_data.get("embeddings"):
+                probe_embs = cache_data["embeddings"]
+
+                # Build probe metadata: subject_idx and level per probe
+                # Probes are stored in CSV iteration order (rows × level_cols)
+                csv_path = os.path.join(self._project_root, probe_file)
+                if os.path.exists(csv_path):
+                    raw_probes = _load_probes(csv_path)
+                    # Build subject→index mapping from domain surface subjects
+                    subj_idx_map = {s: i for i, s in enumerate(subjects)}
+                    probes_meta = []
+                    for p in raw_probes:
+                        si = subj_idx_map.get(p["subject"], 0)
+                        probes_meta.append({
+                            "subj_idx": si,
+                            "level": p["level"],
+                            "subject": p["subject"],
+                            "text": p["text"],
+                        })
+
+                    if len(probes_meta) != len(probe_embs):
+                        logger.warning(
+                            f"[MANIFOLD] Probe count mismatch: meta={len(probes_meta)} "
+                            f"embs={len(probe_embs)}. Disabling kNN positioning.")
+                        probe_embs = None
+                        probes_meta = None
+                    else:
+                        logger.info(f"[MANIFOLD] Loaded {len(probe_embs)} probe "
+                                     f"embeddings for kNN positioning")
+
+        # ── Compute probe stats (kNN or fallback) ──
         if progress:
             progress("Computing per-prompt probe statistics...")
 
-        mean_level, blended_angle, dom_subject, n_prompts, subj_angles = \
-            _compute_prompt_probe_stats(ds_data)
+        mean_level, blended_angle, dom_subject, n_prompts, subj_angles, nearest_probes = \
+            _compute_prompt_probe_stats(
+                ds_data, session_results=session_results,
+                probe_embs=probe_embs, probes_meta=probes_meta,
+                knn_probes=probe_knn)
 
         if n_prompts != len(session_results):
             logger.warning(
@@ -572,33 +745,42 @@ class CorrectionManifoldModule(TASMModule):
             tok_sfd_e = [o[7] for o in obs]
             tok_repl = [o[4] for o in obs]
 
-            def _norm(vals):
-                mn, mx = min(vals), max(vals)
-                rng = mx - mn if mx > mn else 1
-                return mn, rng
+            # Z-score normalization for token signals (same as prompt level)
+            def _zstats(vals):
+                n = len(vals)
+                m = sum(vals) / n
+                s = (sum((v - m)**2 for v in vals) / n) ** 0.5
+                return m, s if s > 1e-12 else 1
 
-            asm_mn, asm_rng = _norm(tok_asm)
-            sfd_e_mn, sfd_e_rng = _norm(tok_sfd_e)
-            repl_mn, repl_rng = _norm(tok_repl)
+            asm_m, asm_s = _zstats(tok_asm)
+            sfd_e_m, sfd_e_s = _zstats(tok_sfd_e)
+            repl_m, repl_s = _zstats(tok_repl)
+
+            def _znorm(val, m, s):
+                z = max(-2, min(2, (val - m) / s))
+                return (z + 2) / 4  # [-2,2] → [0,1]
 
             for o in obs:
-                # Token signals normalized to [0,1]
-                n_asm = (o[6] - asm_mn) / asm_rng
-                n_sfd_e = (o[7] - sfd_e_mn) / sfd_e_rng
-                n_repl = (o[4] - repl_mn) / repl_rng
+                n_asm = _znorm(o[6], asm_m, asm_s)
+                n_sfd_e = _znorm(o[7], sfd_e_m, sfd_e_s)
+                n_repl = _znorm(o[4], repl_m, repl_s)
 
-                # Ring from probe level
+                # Ring from probe level (now kNN-weighted float)
                 t_level = o[12]  # near_level
                 t_ri = _get_ring(t_level, n_levels)
                 t_inner = ring_bands[t_ri]["inner"]
                 t_outer = ring_bands[t_ri]["outer"]
 
-                # Subject angle from nearest probe
-                t_si = int(o[13])  # near_subj_idx
-                t_angle = subj_angles[t_si] if t_si < len(subj_angles) else 0
+                # Continuous angle from kNN (index 14), fallback to subject snap
+                t_si = int(o[13])  # near_subj_idx (dominant, for metadata)
+                if len(o) > 14 and o[14] is not None:
+                    t_angle = o[14]  # kNN-weighted continuous angle
+                else:
+                    t_angle = subj_angles[t_si] if t_si < len(subj_angles) else 0
 
-                # Anchor at ring midpoint on subject centerline
-                anchor_r = (t_inner + t_outer) / 2
+                # RD positions within ring (structural axis)
+                rd_frac = max(0, min(1, n_repl))
+                anchor_r = t_inner + (t_outer - t_inner) * rd_frac
 
                 # Local coordinate frame
                 rad_x, rad_y = np.cos(t_angle), np.sin(t_angle)
@@ -608,10 +790,9 @@ class CorrectionManifoldModule(TASMModule):
                 rw = t_outer - t_inner
                 e_push = (n_sfd_e - 0.5) * rw * push_strength   # SFD_e → radial
                 a_push = (n_asm - 0.5) * rw * push_strength      # ASM → tangential
-                rd_push = (n_repl - 0.5) * rw * push_strength    # RD → secondary radial
 
-                t_x = anchor_r * np.cos(t_angle) + rad_x * (e_push + rd_push) + tan_x * a_push
-                t_y = anchor_r * np.sin(t_angle) + rad_y * (e_push + rd_push) + tan_y * a_push
+                t_x = anchor_r * np.cos(t_angle) + rad_x * e_push + tan_x * a_push
+                t_y = anchor_r * np.sin(t_angle) + rad_y * e_push + tan_y * a_push
 
                 pi = o[9]  # prompt index
                 cat = categories[pi] if pi < len(categories) else "?"
@@ -682,6 +863,11 @@ class CorrectionManifoldModule(TASMModule):
             "tokens": tokens_viz,
             "n_tokens": len(tokens_viz),
             "cells": cells_viz,
+
+            # Prompt positioning method
+            "prompt_positioning": "probe_knn" if nearest_probes is not None else "token_vote",
+            "probe_knn": probe_knn if nearest_probes is not None else None,
+            "nearest_probes": nearest_probes,
 
             # Classification results
             "classification": knn_results,
