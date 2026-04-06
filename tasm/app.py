@@ -174,6 +174,17 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         log_progress("error", f"Loading failed: {e}")
 
 
+def _get_layer_fracs():
+    """Read and validate domain layer fractions from config."""
+    subj = engine_config.get("domain_embedding_layer_frac") or 0.50
+    esc = engine_config.get("domain_escalation_layer_frac") or 0.75
+    for name, val in [("domain_embedding_layer_frac", subj),
+                      ("domain_escalation_layer_frac", esc)]:
+        if val < 0 or val > 1:
+            logger.warning(f"[CONFIG] {name}={val} out of range [0,1] — clamping")
+    return max(0, min(1, subj)), max(0, min(1, esc))
+
+
 def _preembed_probes():
     """Pre-embed probe CSVs for the domain surface module.
 
@@ -186,8 +197,7 @@ def _preembed_probes():
         return
 
     model_id = state.instruct_model_id or state.pair_id
-    subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
-    esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+    subj_frac, esc_frac = _get_layer_fracs()
     use_proj = engine_config.get("probe_projection_space")
 
     # Discover and embed all probe files (cached to disk, cost paid once)
@@ -1688,7 +1698,7 @@ async def list_probe_files():
 
     state = mm.state
     model_id = (state.instruct_model_id or state.pair_id) if state else None
-    layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+    layer_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
 
     result = []
     for pf in files:
@@ -1787,8 +1797,7 @@ def _regenerate_caches_sync(target_file=None):
     project_root = str(Path(__file__).parent)
     state = mm.state
     model_id = state.instruct_model_id or state.pair_id
-    subj_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
-    esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+    subj_frac, esc_frac = _get_layer_fracs()
     use_proj = engine_config.get("probe_projection_space")
     depths = sorted(set([subj_frac, esc_frac]))
 
@@ -1802,6 +1811,17 @@ def _regenerate_caches_sync(target_file=None):
     embedded = 0
 
     with _analysis_lock:
+        # Clear entire cache directory first (removes stale files from bad configs)
+        cache_dir = os.path.join(project_root, "probe_cache")
+        if os.path.isdir(cache_dir):
+            for fn in os.listdir(cache_dir):
+                fp = os.path.join(cache_dir, fn)
+                if fn.endswith(".json") and os.path.isfile(fp):
+                    os.remove(fp)
+                    deleted += 1
+            if deleted:
+                logger.info(f"[CACHE] Cleared {deleted} cached files")
+
         for frac in depths:
             # Get delta for projection if enabled
             delta = None
@@ -1816,16 +1836,10 @@ def _regenerate_caches_sync(target_file=None):
                 if not os.path.exists(csv_path):
                     continue
 
-                # Delete existing cache
-                cache_path = _probe_cache_path(project_root, pf, model_id, frac,
-                                               projected=projected)
-                if os.path.exists(cache_path):
-                    os.remove(cache_path)
-                    logger.info(f"[CACHE] Deleted: {os.path.basename(cache_path)}")
-                    deleted += 1
-
                 # Regenerate
                 try:
+                    cache_path = _probe_cache_path(project_root, pf, model_id, frac,
+                                                   projected=projected)
                     embed_and_cache_probes(
                         state.model_instruct, state.tokenizer,
                         project_root, pf, model_id,

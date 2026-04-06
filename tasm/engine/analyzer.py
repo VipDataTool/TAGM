@@ -280,9 +280,9 @@ class Analyzer:
         if compute_ltp and ltp_layer_strategy == "late":
             late_start = 2 * state.n_layers // 3
             ltp_layers = list(range(late_start, state.n_layers))
-        domain_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+        domain_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
         domain_layer = max(0, min(state.n_layers - 1, int(domain_frac * state.n_layers)))
-        esc_frac = engine_config.get("domain_escalation_layer_frac") or 0.75
+        esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
         escalation_layer = max(0, min(state.n_layers - 1, int(esc_frac * state.n_layers)))
         self.mm.install_analysis_hooks(full_trajectory=compute_full_trajectory or full_capture,
                                        ltp_layers=ltp_layers,

@@ -803,7 +803,7 @@ class DomainSurfaceModule(TASMModule):
         if layer_frac is None:
             try:
                 from engine import engine_config
-                layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+                layer_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
             except Exception:
                 layer_frac = 0.50
 

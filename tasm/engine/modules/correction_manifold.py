@@ -601,7 +601,7 @@ class CorrectionManifoldModule(TASMModule):
                 progress("Loading probe embeddings for kNN positioning...")
             try:
                 from engine import engine_config
-                layer_frac = engine_config.get("domain_embedding_layer_frac") or 0.50
+                layer_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
                 use_proj = engine_config.get("probe_projection_space")
             except Exception:
                 layer_frac = 0.50

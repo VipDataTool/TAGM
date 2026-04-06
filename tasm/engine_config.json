@@ -19,9 +19,11 @@
   "ltp_overfetch_first": 1,
   "ltp_overfetch_second": 5,
   "disc_sublayers_top_n": 15,
-  "precompute_module_caches": true,
-  "domain_embedding_layer_frac": 6.0,
+  "domain_embedding_layer_frac": 0.5,
   "domain_escalation_layer_frac": 0.75,
   "include_first_token": false,
-  "export_domain_embeddings": false
+  "export_domain_embeddings": false,
+  "probe_projection_space": false,
+  "attention_weighted_pool": false,
+  "precompute_probe_caches": true
 }
