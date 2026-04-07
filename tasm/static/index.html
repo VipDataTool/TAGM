@@ -3598,6 +3598,7 @@ function renderProbeGeneratorResults(r) {
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.queries_per_subject + '</span><span class="mod-stat-label">Queries/Subject</span></div>';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.sampling_seconds + 's</span><span class="mod-stat-label">Sampling Time</span></div>';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.output_file) + '</span><span class="mod-stat-label">Output File</span></div>';
+  if (r.catalog_file) h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.catalog_file) + '</span><span class="mod-stat-label">Catalog File</span></div>';
   h += '</div></div>';
 
   // Per-subject table
@@ -3630,6 +3631,34 @@ function renderProbeGeneratorResults(r) {
     h += '<div style="padding:10px 16px;font-size:10px;color:var(--text-2);font-family:var(--mono);line-height:1.8;word-break:break-all">';
     h += escHtml(shared.join(', '));
     h += '</div></div>';
+  }
+
+  // Inference catalog
+  var catalog = r.catalog || {};
+  var catalogKeys = Object.keys(catalog);
+  if (catalogKeys.length > 0) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Inference Catalog (' + (r.total_queries||0) + ' queries' + (r.catalog_file ? ' — ' + escHtml(r.catalog_file) : '') + ')</div>';
+    h += '<div class="mod-results-body collapsed" style="max-height:600px">';
+    catalogKeys.forEach(function(key) {
+      var parts = key.split('|');
+      var cls = parts[0] || '?';
+      var sub = parts[1] || '?';
+      var entries = catalog[key] || [];
+      h += '<div style="border-bottom:1px solid var(--border);padding:8px 12px">';
+      h += '<div style="cursor:pointer;font-weight:600;color:var(--text-0);font-size:11px" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+      h += escHtml(cls.replace('_',' ')) + ' × ' + escHtml(sub.replace('_',' '));
+      h += ' <span style="color:var(--text-3);font-weight:400">(' + entries.length + ' queries)</span></div>';
+      h += '<div class="collapsed" style="max-height:400px;overflow-y:auto">';
+      entries.forEach(function(e) {
+        h += '<div style="padding:6px 0;border-top:1px solid var(--border);font-size:10px">';
+        h += '<span style="color:var(--cyan);font-weight:600">Q' + e.q + '</span> ';
+        h += '<span style="color:var(--text-3)">(' + e.n_tokens + ' tokens)</span>';
+        h += '<div style="color:var(--text-2);margin-top:3px;line-height:1.5;white-space:pre-wrap;word-break:break-word">' + escHtml(e.response) + '</div>';
+        h += '</div>';
+      });
+      h += '</div></div>';
+    });
+    h += '</div>';
   }
 
   h += '</div>';

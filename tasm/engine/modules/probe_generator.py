@@ -243,6 +243,16 @@ class ProbeGeneratorModule(TASMModule):
                 type="textarea",
                 default=DEFAULT_PROMPT_TEMPLATE,
             ),
+            ModuleParameter(
+                name="export_catalog",
+                display_name="Export Inference Catalog",
+                description=(
+                    "Save a CSV log of every model query and response. "
+                    "Useful for auditing prompt quality."
+                ),
+                type="bool",
+                default=False,
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -266,6 +276,13 @@ class ProbeGeneratorModule(TASMModule):
         if not output.endswith(".csv"):
             return False, "Output file name must end in .csv"
 
+        # Prevent overwriting the template
+        template = params.get("template_file", "")
+        if output and template:
+            tmpl_name = os.path.basename(template)
+            if output == tmpl_name:
+                return False, f"Output name matches template file '{tmpl_name}'. Use a different name."
+
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
@@ -275,6 +292,7 @@ class ProbeGeneratorModule(TASMModule):
         max_tokens = int(params.get("max_new_tokens", 256))
         min_freq = int(params.get("min_frequency", 3))
         prompt_template = params.get("prompt_template", "").strip() or None
+        export_catalog = bool(params.get("export_catalog", False))
 
         # Resolve template path
         csv_path = template_file
@@ -299,6 +317,7 @@ class ProbeGeneratorModule(TASMModule):
         device = next(self._model.parameters()).device
 
         cell_vocab = {}  # (class, subclass_col) -> Counter
+        catalog = []     # [{class, subclass, query, prompt, response, tokens}]
         t0 = time.time()
         cell_idx = 0
 
@@ -338,6 +357,14 @@ class ProbeGeneratorModule(TASMModule):
                     word_counts = _tokenize_response(
                         response, self._tokenizer)
                     vocab.update(word_counts)
+
+                    catalog.append({
+                        "class": cls,
+                        "subclass": col,
+                        "query": qi + 1,
+                        "response": response.strip(),
+                        "tokens_extracted": sorted(word_counts.keys()),
+                    })
 
                 cell_vocab[(cls, col)] = vocab
 
@@ -424,6 +451,37 @@ class ProbeGeneratorModule(TASMModule):
                         row.append(" ".join(chunk))
                     writer.writerow(row)
 
+        # ── Export catalog CSV (optional) ──
+        catalog_name = None
+        if export_catalog:
+            catalog_name = output_name.replace(".csv", "_catalog.csv")
+            catalog_path = catalog_name
+            if not os.path.isabs(catalog_path) and self._project_root:
+                catalog_path = os.path.join(self._project_root, catalog_path)
+
+            with open(catalog_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["class", "subclass", "query", "response",
+                                 "tokens_extracted"])
+                for entry in catalog:
+                    writer.writerow([
+                        entry["class"],
+                        entry["subclass"],
+                        entry["query"],
+                        entry["response"],
+                        " ".join(entry["tokens_extracted"]),
+                    ])
+
+        # ── Per-cell catalog summary for frontend ──
+        cell_catalog = {}
+        for entry in catalog:
+            key = f"{entry['class']}|{entry['subclass']}"
+            cell_catalog.setdefault(key, []).append({
+                "q": entry["query"],
+                "response": entry["response"][:300],
+                "n_tokens": len(entry["tokens_extracted"]),
+            })
+
         # ── Build results ──
         per_class = {}
         for cls in classes:
@@ -471,6 +529,9 @@ class ProbeGeneratorModule(TASMModule):
             "total_discriminative": total_disc,
             "per_subject": per_class,  # backward compat
             "shared_tokens": sorted(all_shared),
+            "catalog_file": catalog_name,  # None if export disabled
+            "catalog": cell_catalog,
+            "total_queries": len(catalog),
         }
 
         if progress:
