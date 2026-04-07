@@ -1,0 +1,299 @@
+"""
+Correction Heatmap Module for TASM.
+
+Measures how each prompt's tokens interact with the correction field
+by projecting them through probe refinement deltas.
+
+Process:
+  1. Load probe embeddings at L50 (subject) and L75 (escalation)
+  2. Compute probe deltas: L75 - L50 per probe (the refinement direction)
+  3. For each analyzed prompt, take per-token final hidden states
+  4. Dot product each token's final state against each probe delta
+  5. Aggregate per cell (subject × subclass) into a heatmap
+
+The heatmap shows how strongly each prompt's tokens excite each
+region of the probe landscape when viewed through the refinement lens.
+
+Pure post-processor: requires session results with per_token_final_emb
+and probe caches at both depths.
+"""
+
+import os
+import json
+import logging
+import numpy as np
+from collections import defaultdict
+
+from .base import TASMModule, ModuleParameter
+from .domain_surface import (_discover_probe_files, _detect_level_cols,
+                              _load_probe_cache, _probe_cache_path,
+                              _load_probes)
+
+logger = logging.getLogger("tasm")
+
+
+class CorrectionHeatmapModule(TASMModule):
+    name = "correction_heatmap"
+    display_name = "Correction Heatmap"
+    description = (
+        "Projects prompt tokens through probe refinement deltas "
+        "(L75 - L50) to produce a per-prompt heatmap of correction "
+        "field interaction across subject × subclass cells."
+    )
+    version = "0.1.0"
+
+    min_results = 1
+    requires_sfd = False
+    requires_ltp = False
+    requires_rd = False
+
+    def __init__(self):
+        super().__init__()
+        self._probe_files = []
+        self._project_root = None
+
+    def set_project_root(self, root):
+        self._project_root = root
+        self._probe_files = _discover_probe_files(root)
+
+    @property
+    def parameters(self):
+        options = self._probe_files if self._probe_files else ["probes_grammar.csv"]
+        return [
+            ModuleParameter(
+                name="probe_file",
+                display_name="Probe File",
+                description="Probe definitions (provides subjects and subclasses)",
+                type="select",
+                default=options[0] if options else "probes_grammar.csv",
+                options=options,
+            ),
+        ]
+
+    def validate(self, session_results, params):
+        ok, msg = super().validate(session_results, params)
+        if not ok:
+            return ok, msg
+
+        # Check that final embeddings exist
+        has_final = any(r.get("per_token_final_emb") for r in session_results)
+        if not has_final:
+            return False, (
+                "No final-layer token embeddings found in session results. "
+                "Re-analyze prompts with the current build to capture them."
+            )
+        return True, "OK"
+
+    def run(self, session_results, params, progress=None):
+        probe_file = params.get("probe_file", "probes_grammar.csv")
+
+        if progress:
+            progress("Loading probe structure...")
+
+        # ── Load probe CSV for subject × subclass structure ──
+        csv_path = os.path.join(self._project_root, probe_file)
+        level_cols, level_names = _detect_level_cols(csv_path)
+        if not level_cols:
+            raise RuntimeError(f"No level columns found in {probe_file}")
+
+        raw_probes = _load_probes(csv_path)
+        if not raw_probes:
+            raise RuntimeError(f"No probes loaded from {probe_file}")
+
+        # Build subject list (ordered by first appearance)
+        subjects = []
+        for p in raw_probes:
+            if p["subject"] not in subjects:
+                subjects.append(p["subject"])
+        n_subj = len(subjects)
+        n_levels = len(level_cols)
+        subj_idx = {s: i for i, s in enumerate(subjects)}
+
+        # ── Load probe caches at both depths ──
+        if progress:
+            progress("Loading probe embeddings at L50 and L75...")
+
+        try:
+            from engine import engine_config
+            subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
+            esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
+            use_proj = engine_config.get("probe_projection_space")
+        except Exception:
+            subj_frac = 0.50
+            esc_frac = 0.75
+            use_proj = False
+
+        projected = use_proj  # match whatever projection mode is active
+
+        # Find probe caches
+        cache_dir = os.path.join(self._project_root, "probe_cache")
+        stem = os.path.splitext(probe_file)[0]
+
+        def _find_cache(frac):
+            """Find a matching probe cache file."""
+            # Try exact path first
+            if hasattr(session_results[0], 'get'):
+                # Scan cache dir for matching files
+                if os.path.isdir(cache_dir):
+                    tag = f"__L{int(frac * 100)}"
+                    for fn in sorted(os.listdir(cache_dir)):
+                        if fn.startswith(stem) and tag in fn and fn.endswith(".json"):
+                            data = _load_probe_cache(os.path.join(cache_dir, fn))
+                            if data and data.get("embeddings"):
+                                logger.info(f"[HEATMAP] Using cache: {fn}")
+                                return data["embeddings"]
+            return None
+
+        embs_L50 = _find_cache(subj_frac)
+        embs_L75 = _find_cache(esc_frac)
+
+        if embs_L50 is None:
+            raise RuntimeError(
+                f"Probe cache at L{int(subj_frac*100)} not found for {probe_file}. "
+                "Regenerate caches.")
+        if embs_L75 is None:
+            raise RuntimeError(
+                f"Probe cache at L{int(esc_frac*100)} not found for {probe_file}. "
+                "Regenerate caches.")
+
+        if len(embs_L50) != len(raw_probes) or len(embs_L75) != len(raw_probes):
+            raise RuntimeError(
+                f"Probe count mismatch: CSV={len(raw_probes)}, "
+                f"L50={len(embs_L50)}, L75={len(embs_L75)}. "
+                "Regenerate caches.")
+
+        # ── Compute probe deltas ──
+        if progress:
+            progress("Computing probe refinement deltas (L75 - L50)...")
+
+        mat_L50 = np.array(embs_L50, dtype=np.float32)
+        mat_L75 = np.array(embs_L75, dtype=np.float32)
+        deltas = mat_L75 - mat_L50  # [n_probes, hidden_dim]
+
+        # L2-normalize deltas so dot products are comparable
+        delta_norms = np.linalg.norm(deltas, axis=1, keepdims=True)
+        delta_norms[delta_norms < 1e-12] = 1.0
+        deltas_n = deltas / delta_norms
+
+        # Map each probe to its cell
+        probe_cells = []  # [(subj_idx, level_idx)] per probe
+        for p in raw_probes:
+            si = subj_idx.get(p["subject"], 0)
+            li = p["level"]
+            probe_cells.append((si, li))
+
+        # ── Project prompt tokens through probe deltas ──
+        if progress:
+            progress("Projecting prompt tokens through refinement deltas...")
+
+        n_prompts = len(session_results)
+        per_prompt_heatmaps = []
+        aggregate_heatmap = np.zeros((n_subj, n_levels))
+        aggregate_count = 0
+
+        for pi, r in enumerate(session_results):
+            final_emb = r.get("per_token_final_emb")
+            if final_emb is None or len(final_emb) == 0:
+                per_prompt_heatmaps.append(None)
+                continue
+
+            if progress and (pi + 1) % 10 == 0:
+                progress(f"Processing prompt {pi+1}/{n_prompts}...")
+
+            tok_mat = np.array(final_emb, dtype=np.float32)  # [n_tokens, hidden_dim]
+
+            # Dot product: each token against each probe delta
+            # [n_tokens, hidden_dim] @ [hidden_dim, n_probes] = [n_tokens, n_probes]
+            projections = tok_mat @ deltas_n.T
+
+            # Aggregate per cell: mean of absolute projections across
+            # all tokens and all probes in that cell
+            cell_grid = np.zeros((n_subj, n_levels))
+            cell_counts = np.zeros((n_subj, n_levels))
+
+            for probe_idx, (si, li) in enumerate(probe_cells):
+                # Mean absolute projection of all tokens against this probe
+                cell_grid[si, li] += np.abs(projections[:, probe_idx]).mean()
+                cell_counts[si, li] += 1
+
+            # Normalize by number of probes per cell
+            mask = cell_counts > 0
+            cell_grid[mask] /= cell_counts[mask]
+
+            per_prompt_heatmaps.append(cell_grid.tolist())
+            aggregate_heatmap += cell_grid
+            aggregate_count += 1
+
+        if aggregate_count > 0:
+            aggregate_heatmap /= aggregate_count
+
+        # ── Per-cell variance across prompts ──
+        if progress:
+            progress("Computing per-cell variance...")
+
+        cell_values = defaultdict(list)
+        for hm in per_prompt_heatmaps:
+            if hm is None:
+                continue
+            arr = np.array(hm)
+            for si in range(n_subj):
+                for li in range(n_levels):
+                    cell_values[(si, li)].append(arr[si, li])
+
+        variance_grid = np.zeros((n_subj, n_levels))
+        for (si, li), vals in cell_values.items():
+            if len(vals) > 1:
+                variance_grid[si, li] = float(np.var(vals))
+
+        # ── Build output ──
+        if progress:
+            progress("Building output...")
+
+        subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
+
+        # Per-prompt heatmap list with prompt metadata
+        prompt_maps = []
+        for pi, r in enumerate(session_results):
+            hm = per_prompt_heatmaps[pi]
+            if hm is None:
+                continue
+            prompt_maps.append({
+                "prompt": (r.get("prompt", "") or "")[:60],
+                "category": (r.get("category", "?") or "?"),
+                "heatmap": hm,
+            })
+
+        output = {
+            "version": self.version,
+            "probe_file": probe_file,
+            "subjects": subjects,
+            "subj_short": subj_short,
+            "levels": level_names,
+            "n_prompts": n_prompts,
+            "n_probes": len(raw_probes),
+
+            # Aggregate heatmap (session mean)
+            "aggregate": aggregate_heatmap.tolist(),
+
+            # Per-cell variance (turbulence)
+            "variance": variance_grid.tolist(),
+
+            # Per-prompt heatmaps
+            "prompt_heatmaps": prompt_maps,
+
+            # Summary stats per subject
+            "per_subject": {
+                subj: {
+                    "mean_activation": float(aggregate_heatmap[si].mean()),
+                    "max_activation": float(aggregate_heatmap[si].max()),
+                    "mean_variance": float(variance_grid[si].mean()),
+                }
+                for si, subj in enumerate(subjects)
+            },
+        }
+
+        if progress:
+            progress(f"Complete: {n_subj} subjects × {n_levels} levels, "
+                     f"{aggregate_count} prompts mapped")
+
+        return output

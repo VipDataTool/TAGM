@@ -474,6 +474,12 @@ class ModelManager:
                         make_attn_hook(f"layer_{dl}_attn")))
                 hooked.add(dl)
 
+        # Hook final norm layer for correction heatmap (final hidden state)
+        if hasattr(model.model, 'norm'):
+            self._hooks.append(
+                model.model.norm.register_forward_hook(
+                    make_output_hook("final_norm_h")))
+
         # Hook additional LTP layers (e.g. late layers) if requested
         if ltp_layers:
             for layer_idx in ltp_layers:

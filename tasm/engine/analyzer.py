@@ -97,6 +97,7 @@ class PromptResult:
     # Used by domain surface for per-token probe matching. Not serialized to JSON export.
     per_token_domain_emb: Optional[list] = None       # subject layer (domain_embedding_layer_frac)
     per_token_escalation_emb: Optional[list] = None   # escalation layer (domain_escalation_layer_frac)
+    per_token_final_emb: Optional[list] = None         # final norm layer (model output)
     per_token_domain_offset: int = 1  # position offset (0 or 1) — how many leading tokens were skipped
 
     # ─── Field sets for from_dict reconstitution ──────────────────
@@ -431,6 +432,14 @@ class Analyzer:
         else:
             # Same depth for both — reuse subject embeddings for escalation
             result.per_token_escalation_emb = result.per_token_domain_emb
+
+        # Final hidden state (from model's final norm layer)
+        final_act = self.mm.activations.get("final_norm_h")
+        if final_act is not None and seq_len > 1:
+            final_raw = final_act[0, start_pos:seq_len].float().cpu().numpy()
+            norms = np.linalg.norm(final_raw, axis=1, keepdims=True)
+            norms[norms < 1e-12] = 1.0
+            result.per_token_final_emb = (final_raw / norms).tolist()
 
         # Free activations and hooks before KL/response pass
         self.mm.clear_activations()
@@ -1031,6 +1040,7 @@ def result_to_dict(r: PromptResult) -> dict:
     d["domain_embedding"] = r.domain_embedding
     d["per_token_domain_emb"] = r.per_token_domain_emb
     d["per_token_escalation_emb"] = r.per_token_escalation_emb
+    d["per_token_final_emb"] = r.per_token_final_emb
     d["per_token_domain_offset"] = r.per_token_domain_offset
 
     # Final recursive sanitization — the single authoritative point where

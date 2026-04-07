@@ -3136,6 +3136,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderCorrectionManifoldResults(results);
   } else if (name === 'probe_generator') {
     container.innerHTML = renderProbeGeneratorResults(results);
+  } else if (name === 'correction_heatmap') {
+    container.innerHTML = renderCorrectionHeatmapResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3416,6 +3418,108 @@ function renderCorrectionManifoldResults(r) {
   h += '<div style="margin-top:8px;text-align:center">';
   h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open 6D Manifold Visualization</button>';
   h += '</div>';
+
+  h += '</div>';
+  return h;
+}
+
+// ─── Correction Heatmap Results Renderer ───────────────────────
+
+function renderCorrectionHeatmapResults(r) {
+  var h = '<div class="mod-results">';
+  var subjects = r.subjects || [];
+  var levels = r.levels || [];
+  var agg = r.aggregate || [];
+  var variance = r.variance || [];
+
+  // Find global max for color scaling
+  var maxVal = 0;
+  for (var si = 0; si < agg.length; si++)
+    for (var li = 0; li < (agg[si]||[]).length; li++)
+      if (agg[si][li] > maxVal) maxVal = agg[si][li];
+  if (maxVal < 1e-6) maxVal = 1;
+
+  // Summary stats
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Aggregate Heatmap</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="padding:10px;overflow-x:auto">';
+
+  // Heatmap table
+  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
+  for (var li = 0; li < levels.length; li++) {
+    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
+  }
+  h += '</tr>';
+
+  for (var si = 0; si < subjects.length; si++) {
+    h += '<tr>';
+    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
+    for (var li = 0; li < levels.length; li++) {
+      var val = (agg[si] && agg[si][li]) ? agg[si][li] : 0;
+      var vari = (variance[si] && variance[si][li]) ? variance[si][li] : 0;
+      var intensity = val / maxVal;
+      var red = Math.round(intensity * 255);
+      var green = Math.round((1 - intensity) * 40);
+      var blue = Math.round((1 - intensity) * 60 + intensity * 40);
+      var bg = 'rgb(' + red + ',' + green + ',' + blue + ')';
+      var textCol = intensity > 0.5 ? '#fff' : 'var(--text-2)';
+      var title = subjects[si] + ' × ' + levels[li] + ': activation=' + val.toFixed(4) + ' variance=' + vari.toFixed(4);
+      h += '<td style="padding:4px 6px;text-align:center;background:' + bg + ';color:' + textCol + '" title="' + escHtml(title) + '">';
+      h += val.toFixed(3);
+      h += '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  h += '</div></div>';
+
+  // Per-subject summary
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
+  h += '<div class="mod-results-body">';
+  h += '<table class="data-table" style="width:100%;font-size:11px">';
+  h += '<tr><th style="text-align:left">Subject</th><th>Mean</th><th>Max</th><th>Variance</th></tr>';
+  var ps = r.per_subject || {};
+  subjects.forEach(function(subj) {
+    var s = ps[subj] || {};
+    h += '<tr>';
+    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">' + escHtml(subj.replace('_',' ')) + '</td>';
+    h += '<td>' + (s.mean_activation || 0).toFixed(4) + '</td>';
+    h += '<td>' + (s.max_activation || 0).toFixed(4) + '</td>';
+    h += '<td>' + (s.mean_variance || 0).toFixed(6) + '</td>';
+    h += '</tr>';
+  });
+  h += '</table></div>';
+
+  // Per-prompt heatmaps (collapsed, scrollable)
+  var pms = r.prompt_heatmaps || [];
+  if (pms.length > 0) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per-Prompt Heatmaps (' + pms.length + ')</div>';
+    h += '<div class="mod-results-body collapsed" style="max-height:500px">';
+    pms.forEach(function(pm, pi) {
+      var catColor = {b:'#58a6ff',m:'#f0c050',h:'#ff6b6b',j:'#da70d6',d:'#4ade80',a:'#882255'};
+      var cat = (pm.category || '?')[0];
+      h += '<div style="padding:8px 12px;border-bottom:1px solid var(--border)">';
+      h += '<div style="margin-bottom:4px"><span style="color:' + (catColor[cat]||'var(--text-2)') + ';font-weight:600">' + escHtml(pm.category) + '</span> ';
+      h += '<span style="color:var(--text-1)">' + escHtml(pm.prompt) + '</span></div>';
+
+      // Mini heatmap for this prompt
+      h += '<div style="display:flex;gap:2px;flex-wrap:wrap">';
+      var pmh = pm.heatmap || [];
+      for (var si = 0; si < subjects.length; si++) {
+        for (var li = 0; li < levels.length; li++) {
+          var v = (pmh[si] && pmh[si][li]) ? pmh[si][li] : 0;
+          var pct = Math.min(1, v / maxVal);
+          var r2 = Math.round(pct * 255);
+          var bg2 = 'rgb(' + r2 + ',' + Math.round((1-pct)*40) + ',' + Math.round((1-pct)*60+pct*40) + ')';
+          h += '<span style="width:12px;height:12px;display:inline-block;background:' + bg2 + '" title="' + escHtml(subjects[si] + '×' + levels[li] + ': ' + v.toFixed(3)) + '"></span>';
+        }
+        h += '<span style="width:4px;display:inline-block"></span>';
+      }
+      h += '</div></div>';
+    });
+    h += '</div>';
+  }
 
   h += '</div>';
   return h;
