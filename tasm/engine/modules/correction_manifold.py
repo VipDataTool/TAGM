@@ -2,8 +2,8 @@
 Correction Manifold Module for TASM — The Witness Plate.
 
 Constructs a manifold from correction field measurements and probe
-geometry using anchor-repulsor design, enabling unsupervised
-classification of prompts by their alignment signature.
+geometry using anchor-repulsor design, enabling spatial
+characterization of prompts by their alignment signature.
 
 The manifold combines:
   1. Subject domain angle (from domain surface probe proximity)
@@ -368,76 +368,6 @@ def _build_manifold(session_results, mean_level, blended_angle, dom_subject,
 
 # ─── Classification ──────────────────────────────────────────
 
-def _run_knn(positions, categories, k_values, progress=None):
-    """Run KNN classification on manifold positions.
-
-    Returns dict with per-k accuracy and confusion matrix for best k.
-    """
-    from sklearn.neighbors import KNeighborsClassifier
-    from sklearn.model_selection import cross_val_score, cross_val_predict
-    from sklearn.metrics import confusion_matrix
-
-    y = np.array(categories)
-
-    results = {"per_k": {}}
-
-    # 6-class
-    for k in k_values:
-        knn = KNeighborsClassifier(n_neighbors=k)
-        scores = cross_val_score(knn, positions, y, cv=10, scoring="accuracy")
-        results["per_k"][k] = {
-            "accuracy": round(float(scores.mean()), 4),
-            "std": round(float(scores.std()), 4),
-        }
-
-    # Best k
-    best_k = max(results["per_k"], key=lambda k: results["per_k"][k]["accuracy"])
-    results["best_k"] = best_k
-    results["best_accuracy"] = results["per_k"][best_k]["accuracy"]
-
-    # Confusion matrix for best k
-    y_pred = cross_val_predict(KNeighborsClassifier(n_neighbors=best_k),
-                               positions, y, cv=10)
-    labels = sorted(set(y))
-    cm = confusion_matrix(y, y_pred, labels=labels)
-    results["confusion"] = {
-        "labels": labels.tolist() if hasattr(labels, 'tolist') else list(labels),
-        "matrix": cm.tolist(),
-    }
-    results["overall_accuracy"] = round(float((y_pred == y).mean()), 4)
-
-    # Binary: safe (b, m) vs risk (a, j)
-    binary_map = {"b": "safe", "m": "safe", "a": "risk", "j": "risk"}
-    mask = np.array([c in binary_map for c in y])
-    if mask.sum() > 20:
-        y_bin = np.array([binary_map[c] for c in y[mask]])
-        X_bin = positions[mask]
-
-        binary_results = {}
-        for k in k_values:
-            knn = KNeighborsClassifier(n_neighbors=k)
-            scores = cross_val_score(knn, X_bin, y_bin, cv=10, scoring="accuracy")
-            binary_results[k] = {
-                "accuracy": round(float(scores.mean()), 4),
-                "std": round(float(scores.std()), 4),
-            }
-
-        best_bin_k = max(binary_results, key=lambda k: binary_results[k]["accuracy"])
-        results["binary"] = {
-            "per_k": binary_results,
-            "best_k": best_bin_k,
-            "best_accuracy": binary_results[best_bin_k]["accuracy"],
-            "n_safe": int((y_bin == "safe").sum()),
-            "n_risk": int((y_bin == "risk").sum()),
-        }
-
-    if progress:
-        acc_6 = results["overall_accuracy"]
-        acc_2 = results.get("binary", {}).get("best_accuracy", 0)
-        progress(f"KNN: 6-class {acc_6:.1%}, binary {acc_2:.1%}")
-
-    return results
-
 
 # ─── Category Mean Positions ─────────────────────────────────
 
@@ -458,12 +388,11 @@ def _category_centroids(positions, categories):
 # ─── Module Class ────────────────────────────────────────────
 
 class CorrectionManifoldModule(TASMModule):
-    """6D intrinsic correction manifold for unsupervised classification.
+    """Correction manifold — the witness plate.
 
-    Combines probe geometry (subject × escalation level) with four
-    orthogonal correction signals (ASM, IntCV, RD replacement, SFD density)
-    into a unified spatial manifold. Runs KNN classification on the
-    resulting positions as validation.
+    Combines probe geometry (subject × escalation level) with
+    correction signals (Entropy, KL, RD, SFD) into a spatial
+    manifold using anchor-repulsor design.
 
     Requires a completed domain_surface module run.
     """
@@ -474,8 +403,7 @@ class CorrectionManifoldModule(TASMModule):
         "Constructs the witness plate from correction signals and "
         "probe geometry. Anchor-repulsor design: each probe anchor "
         "pushes tokens outward via locally-oriented signal axes "
-        "(Entropy/SFD_e radial, KL/ASM tangential). Enables "
-        "unsupervised KNN classification."
+        "(Entropy/SFD_e radial, KL/ASM tangential)."
     )
     version = "0.2.0"
 
@@ -507,17 +435,6 @@ class CorrectionManifoldModule(TASMModule):
                 default=0.5,
                 min_val=0.1,
                 max_val=1.5,
-            ),
-            ModuleParameter(
-                name="knn_k_values",
-                display_name="KNN k Values",
-                description=(
-                    "Comma-separated k values for KNN classification "
-                    "(e.g., 3,5,7,11,15)"
-                ),
-                type="select",
-                default="3,5,7,11,15",
-                options=["3,5,7,11,15", "3,5,7", "5,7,11", "3,5,7,11,15,21"],
             ),
             ModuleParameter(
                 name="ring_gap",
@@ -566,12 +483,10 @@ class CorrectionManifoldModule(TASMModule):
         """Execute correction manifold analysis.
 
         Requires a completed domain_surface module run for probe
-        proximity data. Computes 6D manifold positions and runs
-        KNN classification as validation.
+        proximity data. Computes manifold positions from correction
+        signals and probe geometry.
         """
         push_strength = params.get("push_strength", 0.5)
-        k_str = params.get("knn_k_values", "3,5,7,11,15")
-        k_values = [int(k.strip()) for k in k_str.split(",")]
         ring_gap = params.get("ring_gap", 0.04)
         probe_knn = int(params.get("probe_knn", 5))
 
@@ -696,7 +611,7 @@ class CorrectionManifoldModule(TASMModule):
             ring_bands, wedge_half, push_strength,
             n_levels=n_levels, progress=progress)
 
-        # ── KNN classification ──
+        # ── Category labels (for centroids and viz) ──
         categories = []
         for r in session_results:
             cat = r.get("category", "unknown")
@@ -706,11 +621,6 @@ class CorrectionManifoldModule(TASMModule):
                 categories.append(cat[0])
             else:
                 categories.append("?")
-
-        if progress:
-            progress("Running KNN classification...")
-
-        knn_results = _run_knn(positions, categories, k_values, progress)
 
         # ── Category centroids ──
         centroids = _category_centroids(positions, categories)
@@ -869,8 +779,6 @@ class CorrectionManifoldModule(TASMModule):
             "probe_knn": probe_knn if nearest_probes is not None else None,
             "nearest_probes": nearest_probes,
 
-            # Classification results
-            "classification": knn_results,
             "category_centroids": centroids,
 
             # Escalation stats
@@ -884,9 +792,7 @@ class CorrectionManifoldModule(TASMModule):
         }
 
         if progress:
-            acc = knn_results.get("binary", {}).get("best_accuracy", 0)
-            progress(f"Complete: {n_prompts} prompts, "
-                     f"binary accuracy {acc:.1%}")
+            progress(f"Complete: {n_prompts} prompts positioned")
 
         return output
 
