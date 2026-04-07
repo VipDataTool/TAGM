@@ -130,7 +130,22 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Failed to load engine config: {e}")
     # Load probe file selection
     _load_probe_config()
-    logger.info(f"Active probe files: {sorted(_active_probes)}")
+    # Clear probe caches on startup if persistence is disabled
+    if not engine_config.get("persist_probe_caches"):
+        cache_dir = Path(__file__).parent / "probe_cache"
+        if cache_dir.exists():
+            cleared = 0
+            for fn in cache_dir.iterdir():
+                if fn.suffix == ".json":
+                    fn.unlink()
+                    cleared += 1
+            if cleared:
+                logger.info(f"Cleared {cleared} probe cache(s) (persist disabled)")
+        _active_probes.clear()
+        _save_probe_config()
+        logger.info("Probe set cleared (persist disabled)")
+    else:
+        logger.info(f"Active probe files: {sorted(_active_probes)}")
     # Clean stale session data from previous server run.
     # This is deliberate: schema changes between versions could make
     # old results.json incompatible with new code. Fresh start is safe.
@@ -163,12 +178,6 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         if pg and hasattr(pg, 'set_model'):
             pg.set_model(mm.state.model_instruct, mm.state.tokenizer)
 
-        # Pre-embed probe files if configured
-        if engine_config.get("precompute_probe_caches"):
-            _preembed_probes()
-        else:
-            logger.info("[DOMAIN] Probe precompute disabled — will embed on first module run")
-
         loading_state["active"] = False
         loading_state["error"] = None
         log_progress("ready", "Model loaded. Session started. Ready to analyze.")
@@ -188,67 +197,6 @@ def _get_layer_fracs():
         if val < 0 or val > 1:
             logger.warning(f"[CONFIG] {name}={val} out of range [0,1] — clamping")
     return max(0, min(1, subj)), max(0, min(1, esc))
-
-
-def _preembed_probes():
-    """Pre-embed probe CSVs for the domain surface module.
-
-    Runs once after model load, only if the cache is missing or stale.
-    """
-    project_root = str(Path(__file__).parent)
-
-    state = mm.state
-    if state is None or state.model_instruct is None:
-        return
-
-    model_id = state.instruct_model_id or state.pair_id
-    subj_frac, esc_frac = _get_layer_fracs()
-    use_proj = engine_config.get("probe_projection_space")
-
-    # Discover and embed all probe files (cached to disk, cost paid once)
-    all_probes = _discover_probe_files(project_root)
-    probe_files = all_probes
-
-    # If both fracs are the same, one pass. If different, two sequential.
-    depths = sorted(set([subj_frac, esc_frac]))
-
-    for frac in depths:
-        # Get delta for projection if enabled
-        delta = None
-        if use_proj:
-            n_layers = state.n_layers
-            target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
-            delta = state.o_delta(target_layer)
-            if delta is None:
-                logger.warning(f"[DOMAIN] No o_proj delta at layer {target_layer} "
-                               f"for projection — falling back to raw space")
-
-        for fi, pf in enumerate(probe_files):
-            csv_path = os.path.join(project_root, pf)
-            if not os.path.exists(csv_path):
-                continue
-
-            cache_path = _probe_cache_path(project_root, pf, model_id, frac,
-                                           projected=use_proj and delta is not None)
-            if os.path.exists(cache_path):
-                logger.info(f"[DOMAIN] Probe cache exists, skipping: {os.path.basename(cache_path)}")
-                continue
-
-            label = f"[{fi+1}/{len(probe_files)}] {pf} (L{int(frac*100)})"
-            log_progress("probes", f"Embedding {label}...")
-
-            def _file_progress(stage, msg):
-                log_progress("probes", f"{label}: {msg}")
-
-            try:
-                embed_and_cache_probes(
-                    state.model_instruct, state.tokenizer,
-                    project_root, pf, model_id,
-                    layer_frac=frac,
-                    progress=_file_progress,
-                    delta_matrix=delta if use_proj else None)
-            except Exception as e:
-                logger.warning(f"[DOMAIN] Failed to pre-embed {pf} at L{int(frac*100)}: {e}")
 
 
 def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
@@ -1641,17 +1589,6 @@ def _load_probe_config():
             _active_probes = set(data.get("active", []))
         except Exception:
             _active_probes = set()
-    if not _active_probes:
-        # First boot default: prefer ext_alignment_probes.csv, fall back to first valid file.
-        project_root = str(Path(__file__).parent)
-        discovered = _discover_probe_files(project_root)
-        # Filter to valid probe files (must have 'subject' column)
-        valid = [f for f in discovered if _detect_level_cols(
-            os.path.join(project_root, f))[0]]
-        if "ext_alignment_probes.csv" in valid:
-            _active_probes = {"ext_alignment_probes.csv"}
-        elif valid:
-            _active_probes = {valid[0]}
     return _active_probes
 
 def _save_probe_config():
@@ -2056,6 +1993,22 @@ async def probe_set_status():
         "levels": level_names,
         "cached": cached,
     }
+
+
+@app.post("/api/probe_set/clear_caches")
+async def clear_probe_caches():
+    """Delete all probe cache files."""
+    project_root = str(Path(__file__).parent)
+    cache_dir = os.path.join(project_root, "probe_cache")
+    deleted = 0
+    if os.path.isdir(cache_dir):
+        for fn in os.listdir(cache_dir):
+            fp = os.path.join(cache_dir, fn)
+            if fn.endswith(".json") and os.path.isfile(fp):
+                os.remove(fp)
+                deleted += 1
+    logger.info(f"[PROBE_SET] Cleared {deleted} cache files")
+    return {"ok": True, "deleted": deleted}
 
 
 @app.post("/api/chat")

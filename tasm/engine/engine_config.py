@@ -112,12 +112,11 @@ DEFAULTS = {
     # by how much the model attends to it at the domain layer, naturally
     # de-emphasizing function words without external filtering.
     "attention_weighted_pool": False,
-    # Pre-embed all probe files at model load time.  When enabled,
-    # probe embeddings are cached to disk during model loading so the
-    # domain surface module can run immediately.  When disabled, probes
-    # are embedded on first domain surface run (avoids load timeout for
-    # large probe sets).
-    "precompute_probe_caches": True,
+    # Persist probe embeddings across sessions.  When enabled,
+    # probe caches and active probe selection survive server restarts.
+    # When disabled, probe caches are cleared on startup — you must
+    # re-apply a probe set each session.
+    "persist_probe_caches": True,
 }
 
 # Current runtime values — initialized from defaults.

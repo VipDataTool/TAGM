@@ -409,6 +409,7 @@ textarea{resize:vertical;min-height:44px}
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <div class="file-input-wrapper" style="flex:1"><input type="file" id="probeFilePicker" accept=".csv"></div>
           <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="probeApplyBtn" onclick="applyProbeSet()">Apply</button>
+          <button class="btn btn-sm" style="background:transparent;color:var(--text-2);border:1px solid var(--border)" onclick="clearProbeCaches()">Clear Caches</button>
         </div>
         <div id="probeStatus" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)"></div>
       </div>
@@ -2323,7 +2324,7 @@ var ENGINE_PARAM_META = {
   ltp_overfetch_first:    {group:'LTP',             label:'LTP overfetch (first)',       desc:'Extra candidates on first pass for k non-chosen alternatives.', type:'int', min:1, max:10},
   ltp_overfetch_second:   {group:'LTP',             label:'LTP overfetch (fallback)',    desc:'Wider fetch if first pass insufficient.', type:'int', min:2, max:20},
   disc_sublayers_top_n:   {group:'Visualization',   label:'Discriminative sublayers N',  desc:'Sublayers shown in discriminative sublayers plot.', type:'int', min:5, max:30},
-  precompute_module_caches:{group:'Modules',         label:'Pre-compute module caches',   desc:'Embed probes at model load. Disable to speed up boot.', type:'bool'},
+  persist_probe_caches:    {group:'Modules',         label:'Persist probe caches',        desc:'Keep probe embeddings across sessions. When off, caches clear on startup.', type:'bool'},
   domain_embedding_layer_frac:{group:'Modules',     label:'Angular probe depth',         desc:'Embedding depth for subject/topic identity (angular axis). Lower = better noun separation. 0.50=default.', type:'float', step:0.05, min:0.05, max:0.95},
   domain_escalation_layer_frac:{group:'Modules',    label:'Radial probe depth',          desc:'Embedding depth for escalation level (radial axis). Higher = better discourse framing. 0.75=default.', type:'float', step:0.05, min:0.05, max:0.95},
 };
@@ -2568,6 +2569,24 @@ async function loadProbeFiles(){
       status.innerHTML = '<span style="color:var(--text-3)">No probe set active.</span>';
     }
   } catch(e) {}
+}
+
+async function clearProbeCaches(){
+  var status = $('probeStatus');
+  try {
+    var r = await(await fetch('/api/probe_set/clear_caches', {method:'POST'})).json();
+    if(r.ok){
+      status.textContent = 'Cleared ' + r.deleted + ' cache file(s).';
+      status.style.color = 'var(--text-2)';
+      log('Probe caches cleared: ' + r.deleted + ' files', 'done');
+    } else {
+      status.textContent = 'Error: ' + (r.error||'Unknown');
+      status.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
 }
 
 // ─── Init ───────────────────────────────────────────────────────
