@@ -405,15 +405,12 @@ textarea{resize:vertical;min-height:44px}
     <div class="card">
       <div class="card-header"><h3>Probe Set</h3></div>
       <div class="card-body">
-        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Optional probe CSV for domain surface geometry. Without a probe set, the correction manifold uses only intrinsic signals. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by escalation level columns.</div>
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Active probe CSV for domain surface, heatmap, and manifold modules. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by subclass columns.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <select id="probeFileSelect" onchange="_probeSelect(this.value)" style="padding:4px 8px;font-size:var(--font-desc);font-family:var(--mono);background:var(--bg-1);color:var(--text-0);border:1px solid var(--border);border-radius:4px;min-width:240px">
-            <option value="">Loading...</option>
-          </select>
-          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="regenCacheBtn" onclick="regenerateCaches()">Regenerate Cache</button>
-          <span id="cacheStatus" style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-2)"></span>
+          <div class="file-input-wrapper" style="flex:1"><input type="file" id="probeFilePicker" accept=".csv"></div>
+          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="probeApplyBtn" onclick="applyProbeSet()">Apply</button>
         </div>
-        <div id="probeFileInfo" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)"></div>
+        <div id="probeStatus" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)"></div>
       </div>
     </div>
     <div class="card">
@@ -2496,87 +2493,61 @@ async function resetAdvancedParams(){
 
 var _probeFiles = [];
 
-async function regenerateCaches(){
-  var btn = $('regenCacheBtn');
-  var status = $('cacheStatus');
-  if(!modelLoaded){ status.textContent = 'No model loaded.'; status.style.color='var(--red)'; return; }
+async function applyProbeSet(){
+  var picker = $('probeFilePicker');
+  var btn = $('probeApplyBtn');
+  var status = $('probeStatus');
+  if(!picker.files || picker.files.length === 0){
+    status.textContent = 'No file selected.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+  if(!modelLoaded){
+    status.textContent = 'Load a model first.';
+    status.style.color = 'var(--red)';
+    return;
+  }
   btn.disabled = true;
-  btn.textContent = 'Regenerating...';
-  status.textContent = 'Re-embedding probes...';
+  btn.textContent = 'Applying...';
+  status.textContent = 'Uploading and embedding probes...';
   status.style.color = 'var(--text-2)';
   try {
-    var r = await(await fetch('/api/regenerate_caches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})).json();
+    var fd = new FormData();
+    fd.append('file', picker.files[0]);
+    var r = await(await fetch('/api/probe_set/apply', {method:'POST', body:fd})).json();
     if(r.ok){
-      status.textContent = r.message || 'Done.';
-      status.style.color = 'var(--green)';
-      log('Probe caches regenerated: ' + (r.probes_embedded||0) + ' probes','done');
+      status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(r.filename) + '</span>'
+        + ' — ' + r.n_probes + ' probes, ' + r.n_subjects + ' subjects, ' + r.n_levels + ' subclasses'
+        + ' — embedded at L' + r.layer_L50 + ' and L' + r.layer_L75;
+      status.style.color = 'var(--text-1)';
+      log('Probe set applied: ' + r.filename + ' (' + r.n_probes + ' probes embedded)', 'done');
     } else {
       status.textContent = 'Error: ' + (r.error||'Unknown');
       status.style.color = 'var(--red)';
     }
   } catch(e) {
-    status.textContent = 'Connection interrupted. Check server log.';
-    status.style.color = 'var(--text-2)';
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Regenerate Cache';
-    loadProbeFiles();
+    btn.textContent = 'Apply';
   }
 }
 
 async function loadProbeFiles(){
-  var sel = $('probeFileSelect');
-  var info = $('probeFileInfo');
-  if(!sel) return;
+  // Show current active probe if any
+  var status = $('probeStatus');
+  if(!status) return;
   try {
-    var r = await(await fetch('/api/probe_files')).json();
-    _probeFiles = (r.ok && r.probe_files) ? r.probe_files : [];
-
-    // Find which is currently active
-    var active = _probeFiles.find(function(f){return f.active});
-    var activeFile = active ? active.filename : '';
-
-    // Build dropdown
-    var h = '<option value="">(none — intrinsic signals only)</option>';
-    _probeFiles.forEach(function(f){
-      var selected = f.filename === activeFile ? ' selected' : '';
-      var label = f.filename + ' (' + f.n_probes + ' probes, ' + f.n_subjects + ' subjects, ' + (f.n_levels||0) + ' levels)';
-      h += '<option value="' + escHtml(f.filename) + '"' + selected + '>' + escHtml(label) + '</option>';
-    });
-    sel.innerHTML = h;
-
-    // Show info for active file
-    if(active){
-      var cache = active.cached ? '<span style="color:var(--green)">\u2713 cached ('+active.cache_probes+' embeddings)</span>' : '<span style="color:var(--text-3)">\u2717 not cached — click Regenerate</span>';
-      var levels = (active.levels||[]).join(' \u2192 ');
-      info.innerHTML = '<div style="margin-top:4px">'
-        + '<div>Subjects: <span style="color:var(--text-0)">' + escHtml(active.subjects.join(', ')) + '</span></div>'
-        + '<div>Levels: <span style="color:var(--text-0)">' + escHtml(levels) + '</span></div>'
-        + '<div>Cache: ' + cache + '</div></div>';
+    var r = await(await fetch('/api/probe_set/status')).json();
+    if(r.ok && r.active){
+      status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(r.filename) + '</span>'
+        + ' — ' + r.n_probes + ' probes, ' + r.n_subjects + ' subjects'
+        + (r.cached ? ' — <span style="color:var(--green)">cached</span>' : ' — <span style="color:var(--text-3)">not cached</span>');
     } else {
-      info.innerHTML = '<span style="color:var(--text-3)">No probe set selected. Domain Surface and Correction Manifold will use intrinsic signals only.</span>';
+      status.innerHTML = '<span style="color:var(--text-3)">No probe set active.</span>';
     }
-  } catch(e) {
-    if(info) info.innerHTML = '<span style="color:var(--red)">Failed to load: '+e.message+'</span>';
-  }
-}
-
-async function _probeSelect(filename){
-  var info = $('probeFileInfo');
-  try {
-    // Deactivate all, then activate selected
-    for(var f of _probeFiles){
-      if(f.active && f.filename !== filename){
-        await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f.filename,active:false})});
-      }
-    }
-    if(filename){
-      await fetch('/api/probe_files/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:filename,active:true})});
-    }
-    loadProbeFiles();
-  } catch(e) {
-    if(info) info.innerHTML = '<span style="color:var(--red)">Failed: '+e.message+'</span>';
-  }
+  } catch(e) {}
 }
 
 // ─── Init ───────────────────────────────────────────────────────
