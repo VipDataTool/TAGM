@@ -5,7 +5,8 @@ Generates a discriminative probe set by statistically sampling the
 loaded model's output distribution per class × subclass cell.
 
 Process:
-  1. Read classes and subclasses from a source probe CSV template
+  1. Read a template CSV — any CSV with a 'subject' column and one
+     or more subclass columns (everything after subject/anchor_id)
   2. For each (class, subclass) cell, query the model N times
      using a prompt steered toward that specific cell
   3. Tokenize all responses, count per-cell token frequencies
@@ -14,13 +15,15 @@ Process:
      appear in more than one class
   6. Cross-subclass dedup: for each class, remove tokens that
      appear in more than one subclass
-  7. Export as *_auto_probes.csv
+  7. Export to the specified output path
 
 The two-axis deduplication is the discriminative filter.  A token
 must be unique to its cell — unique to its class along the subclass
 axis, and unique to its subclass along the class axis.  What survives
 is the model-specific vocabulary fingerprint for each cell in the
 class × subclass lattice.
+
+No dependencies on other TASM modules.  Reads any conforming CSV.
 """
 
 import os
@@ -31,10 +34,67 @@ import time
 from collections import Counter
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import _discover_probe_files, _detect_level_cols
 
 logger = logging.getLogger("tasm")
 
+FIXED_COLS = {"subject", "anchor_id"}
+
+
+# ─── Template Parsing (self-contained) ────────────────────────
+
+def _parse_template(csv_path):
+    """Parse a template CSV into classes, subclass columns, and per-cell seeds.
+
+    Returns:
+        classes:      list of class names (ordered by first appearance)
+        subclass_cols: list of subclass column names
+        cell_seeds:   dict of (class, subclass_col) -> [seed words]
+    """
+    classes = []
+    subclass_cols = []
+    cell_seeds = {}
+
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise RuntimeError(f"Empty or headerless CSV: {csv_path}")
+
+        # Subclass columns = everything that isn't subject or anchor_id
+        subclass_cols = [
+            col for col in reader.fieldnames
+            if col.strip().lower() not in FIXED_COLS
+        ]
+        if not subclass_cols:
+            raise RuntimeError(
+                f"No subclass columns found in {csv_path}. "
+                f"Need columns beyond 'subject' and 'anchor_id'."
+            )
+
+        for row in reader:
+            cls = row.get("subject", "").strip()
+            if not cls:
+                continue
+            if cls not in classes:
+                classes.append(cls)
+
+            for col in subclass_cols:
+                text = row.get(col, "").strip()
+                if text:
+                    key = (cls, col)
+                    cell_seeds.setdefault(key, [])
+                    for w in text.split():
+                        wl = w.strip().lower()
+                        if wl.isalpha() and len(wl) > 1:
+                            cell_seeds[key].append(wl)
+
+    # Deduplicate seed lists preserving order
+    for key in cell_seeds:
+        cell_seeds[key] = list(dict.fromkeys(cell_seeds[key]))
+
+    return classes, subclass_cols, cell_seeds
+
+
+# ─── Tokenization ─────────────────────────────────────────────
 
 def _tokenize_response(text, tokenizer):
     """Extract whole words from model output, keep only single-token words."""
@@ -48,6 +108,8 @@ def _tokenize_response(text, tokenizer):
             words[w] += 1
     return words
 
+
+# ─── Prompt Construction ──────────────────────────────────────
 
 def _build_cell_prompt(cls, subclass, seeds, tokenizer, word_count=200):
     """Build a prompt steered toward a specific class × subclass cell."""
@@ -69,6 +131,8 @@ def _build_cell_prompt(cls, subclass, seeds, tokenizer, word_count=200):
         text = prompt
     return text
 
+
+# ─── Module ───────────────────────────────────────────────────
 
 class ProbeGeneratorModule(TASMModule):
     name = "probe_generator"
@@ -92,11 +156,10 @@ class ProbeGeneratorModule(TASMModule):
         super().__init__()
         self._model = None
         self._tokenizer = None
-        self._probe_files = []
+        self._project_root = None
 
     def set_project_root(self, root):
         self._project_root = root
-        self._probe_files = _discover_probe_files(root)
 
     def set_model(self, model, tokenizer):
         """Provide access to the loaded instruct model."""
@@ -105,15 +168,26 @@ class ProbeGeneratorModule(TASMModule):
 
     @property
     def parameters(self):
-        options = self._probe_files if self._probe_files else ["probes_grammar.csv"]
         return [
             ModuleParameter(
-                name="source_file",
-                display_name="Source Probe File",
-                description="Template probe file (provides classes and subclasses)",
-                type="select",
-                default=options[0] if options else "probes_grammar.csv",
-                options=options,
+                name="template_file",
+                display_name="Template File",
+                description=(
+                    "CSV template with 'subject' column and one or more "
+                    "subclass columns. Defines the class × subclass lattice."
+                ),
+                type="file",
+                default="",
+            ),
+            ModuleParameter(
+                name="output_name",
+                display_name="Output File Name",
+                description=(
+                    "Name for the generated probe file. "
+                    "Saved in the project root."
+                ),
+                type="text",
+                default="auto_probes.csv",
             ),
             ModuleParameter(
                 name="queries_per_cell",
@@ -153,55 +227,50 @@ class ProbeGeneratorModule(TASMModule):
     def validate(self, session_results, params):
         if self._model is None or self._tokenizer is None:
             return False, "Model not loaded. Load a model first."
-        source = params.get("source_file", "")
-        if source and self._project_root:
-            path = os.path.join(self._project_root, source)
-            if not os.path.exists(path):
-                return False, f"Source file not found: {source}"
+
+        template = params.get("template_file", "")
+        if not template:
+            return False, "No template file selected."
+
+        # Resolve path
+        path = template
+        if not os.path.isabs(path) and self._project_root:
+            path = os.path.join(self._project_root, path)
+        if not os.path.exists(path):
+            return False, f"Template file not found: {template}"
+
+        output = params.get("output_name", "").strip()
+        if not output:
+            return False, "No output file name specified."
+        if not output.endswith(".csv"):
+            return False, "Output file name must end in .csv"
+
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        source_file = params.get("source_file", "probes_grammar.csv")
+        template_file = params.get("template_file", "")
+        output_name = params.get("output_name", "auto_probes.csv").strip()
         n_queries = int(params.get("queries_per_cell", 50))
         max_tokens = int(params.get("max_new_tokens", 256))
         min_freq = int(params.get("min_frequency", 3))
 
-        csv_path = os.path.join(self._project_root, source_file)
-        level_cols, level_names = _detect_level_cols(csv_path)
-        n_subclasses = len(level_cols)
+        # Resolve template path
+        csv_path = template_file
+        if not os.path.isabs(csv_path) and self._project_root:
+            csv_path = os.path.join(self._project_root, csv_path)
 
-        # ── Read classes and per-cell seed terms from template ──
-        classes = []
-        cell_seeds = {}  # (class, subclass_col) -> [seed words]
+        # ── Parse template ──
+        if progress:
+            progress("Parsing template...")
 
-        with open(csv_path) as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                cls = row.get("subject", "").strip()
-                if not cls:
-                    continue
-                if cls not in classes:
-                    classes.append(cls)
-                for col in level_cols:
-                    text = row.get(col, "").strip()
-                    if text:
-                        key = (cls, col)
-                        cell_seeds.setdefault(key, [])
-                        for w in text.split():
-                            wl = w.strip().lower()
-                            if wl.isalpha() and len(wl) > 1:
-                                cell_seeds[key].append(wl)
-
-        # Deduplicate seed lists preserving order
-        for key in cell_seeds:
-            cell_seeds[key] = list(dict.fromkeys(cell_seeds[key]))
-
+        classes, subclass_cols, cell_seeds = _parse_template(csv_path)
         n_classes = len(classes)
+        n_subclasses = len(subclass_cols)
         total_cells = n_classes * n_subclasses
 
         if progress:
             progress(f"Loaded {n_classes} classes × {n_subclasses} subclasses "
-                     f"= {total_cells} cells from {source_file}")
+                     f"= {total_cells} cells")
 
         # ── Sample model output distribution per cell ──
         import torch
@@ -212,7 +281,7 @@ class ProbeGeneratorModule(TASMModule):
         cell_idx = 0
 
         for cls in classes:
-            for col in level_cols:
+            for col in subclass_cols:
                 cell_idx += 1
                 sub_label = col.replace("_", " ")
                 seeds = cell_seeds.get((cls, col), [cls.replace("_", " ")])
@@ -264,9 +333,8 @@ class ProbeGeneratorModule(TASMModule):
             })
 
         # ── Cross-class dedup ──
-        # For each subclass, remove tokens appearing in >1 class
         cross_class_shared = set()
-        for col in level_cols:
+        for col in subclass_cols:
             token_classes = Counter()
             for cls in classes:
                 for tok in cell_vocab.get((cls, col), {}):
@@ -276,11 +344,10 @@ class ProbeGeneratorModule(TASMModule):
                     cross_class_shared.add(tok)
 
         # ── Cross-subclass dedup ──
-        # For each class, remove tokens appearing in >1 subclass
         cross_subclass_shared = set()
         for cls in classes:
             token_subclasses = Counter()
-            for col in level_cols:
+            for col in subclass_cols:
                 for tok in cell_vocab.get((cls, col), {}):
                     token_subclasses[tok] += 1
             for tok, cnt in token_subclasses.items():
@@ -292,7 +359,7 @@ class ProbeGeneratorModule(TASMModule):
         # ── Apply filters ──
         discriminative = {}
         for cls in classes:
-            for col in level_cols:
+            for col in subclass_cols:
                 key = (cls, col)
                 discriminative[key] = Counter({
                     tok: cnt for tok, cnt in cell_vocab.get(key, {}).items()
@@ -300,22 +367,20 @@ class ProbeGeneratorModule(TASMModule):
                 })
 
         # ── Export CSV ──
-        stem = os.path.splitext(source_file)[0]
-        if stem.endswith("_probes"):
-            stem = stem[:-7]
-        out_name = f"{stem}_auto_probes.csv"
-        out_path = os.path.join(self._project_root, out_name)
+        out_path = output_name
+        if not os.path.isabs(out_path) and self._project_root:
+            out_path = os.path.join(self._project_root, out_path)
 
         words_per_cell = 3
 
         with open(out_path, "w", newline="") as f:
             writer = csv.writer(f)
-            header = ["subject", "anchor_id"] + level_cols
+            header = ["subject", "anchor_id"] + subclass_cols
             writer.writerow(header)
 
             for cls in classes:
                 col_words = {}
-                for col in level_cols:
+                for col in subclass_cols:
                     col_words[col] = [
                         tok for tok, _ in
                         discriminative[(cls, col)].most_common()
@@ -323,13 +388,13 @@ class ProbeGeneratorModule(TASMModule):
 
                 max_rows = max(1, max(
                     (len(col_words[col]) + words_per_cell - 1) // words_per_cell
-                    for col in level_cols
+                    for col in subclass_cols
                 ))
 
                 aid_base = cls[:4]
                 for ri in range(max_rows):
                     row = [cls, f"{aid_base}_{ri+1:03d}"]
-                    for col in level_cols:
+                    for col in subclass_cols:
                         start = ri * words_per_cell
                         end = start + words_per_cell
                         chunk = col_words[col][start:end]
@@ -340,11 +405,11 @@ class ProbeGeneratorModule(TASMModule):
         per_class = {}
         for cls in classes:
             raw_count = sum(len(cell_vocab.get((cls, col), {}))
-                           for col in level_cols)
+                           for col in subclass_cols)
             disc_count = sum(len(discriminative[(cls, col)])
-                            for col in level_cols)
+                            for col in subclass_cols)
             merged = Counter()
-            for col in level_cols:
+            for col in subclass_cols:
                 merged.update(discriminative[(cls, col)])
             top_words = [tok for tok, _ in merged.most_common(20)]
             per_class[cls] = {
@@ -355,20 +420,22 @@ class ProbeGeneratorModule(TASMModule):
 
         total_raw = sum(
             len(cell_vocab.get((cls, col), {}))
-            for cls in classes for col in level_cols
+            for cls in classes for col in subclass_cols
         )
         total_disc = sum(
             len(discriminative[(cls, col)])
-            for cls in classes for col in level_cols
+            for cls in classes for col in subclass_cols
         )
 
+        subclass_names = [c.replace("_", " ") for c in subclass_cols]
+
         output = {
-            "source_file": source_file,
-            "output_file": out_name,
+            "template_file": template_file,
+            "output_file": output_name,
             "subjects": classes,
-            "levels": level_names,
+            "levels": subclass_names,
             "queries_per_cell": n_queries,
-            "queries_per_subject": n_queries,  # backward compat for frontend
+            "queries_per_subject": n_queries,  # backward compat
             "max_new_tokens": max_tokens,
             "min_frequency": min_freq,
             "elapsed_seconds": round(time.time() - t0, 1),
@@ -379,14 +446,14 @@ class ProbeGeneratorModule(TASMModule):
             "cross_class_shared": len(cross_class_shared),
             "cross_subclass_shared": len(cross_subclass_shared),
             "total_discriminative": total_disc,
-            "per_subject": per_class,  # backward compat for frontend
+            "per_subject": per_class,  # backward compat
             "shared_tokens": sorted(all_shared),
         }
 
         if progress:
-            progress(f"Exported {out_name}: {total_disc} discriminative tokens "
-                     f"({len(cross_class_shared)} shared across classes, "
-                     f"{len(cross_subclass_shared)} shared across subclasses) "
-                     f"across {total_cells} cells")
+            progress(f"Exported {output_name}: {total_disc} discriminative "
+                     f"tokens ({len(cross_class_shared)} shared across "
+                     f"classes, {len(cross_subclass_shared)} shared across "
+                     f"subclasses) across {total_cells} cells")
 
         return output

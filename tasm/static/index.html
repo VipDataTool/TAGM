@@ -3002,6 +3002,9 @@ function renderParamControl(modName, p) {
     var maxA = p.max_val != null ? ' max="' + p.max_val + '"' : '';
     return '<input type="number" id="' + id + '" value="' + p.default + '" step="' + step + '"' + minA + maxA + ' style="width:80px">';
   }
+  if (p.type === 'file') {
+    return '<div class="file-input-wrapper"><input type="file" id="' + id + '" accept=".csv" data-param-type="file"></div>';
+  }
   return '<input type="text" id="' + id + '" value="' + (p.default || '') + '">';
 }
 
@@ -3013,6 +3016,7 @@ function getModuleParams(modName) {
     var el = $('modp-' + modName + '-' + p.name);
     if (!el) { params[p.name] = p.default; return; }
     if (p.type === 'bool') params[p.name] = el.checked;
+    else if (p.type === 'file') params[p.name] = '';  // resolved by upload in runModule
     else if (p.type === 'int') params[p.name] = parseInt(el.value) || p.default;
     else if (p.type === 'float') params[p.name] = parseFloat(el.value) || p.default;
     else params[p.name] = el.value;
@@ -3047,6 +3051,31 @@ async function runModule(name) {
   prog.textContent = 'Starting...';
 
   var params = getModuleParams(name);
+
+  // Upload any file params first
+  try {
+    var fileInputs = document.querySelectorAll('[data-param-type="file"]');
+    for (var i = 0; i < fileInputs.length; i++) {
+      var fi = fileInputs[i];
+      if (fi.id.startsWith('modp-' + name + '-') && fi.files && fi.files.length > 0) {
+        var paramName = fi.id.replace('modp-' + name + '-', '');
+        prog.textContent = 'Uploading ' + fi.files[0].name + '...';
+        var fd = new FormData();
+        fd.append('file', fi.files[0]);
+        var ur = await fetch('/api/modules/upload_template', {method:'POST', body:fd});
+        var ud = await ur.json();
+        if (!ud.ok) { throw new Error(ud.error || 'Upload failed'); }
+        params[paramName] = ud.filename;
+      }
+    }
+  } catch(e) {
+    prog.textContent = '';
+    btn.disabled = false;
+    btn.textContent = 'Run';
+    alert('Upload error: ' + e.message);
+    return;
+  }
+
   try {
     const r = await fetch('/api/modules/' + name + '/run', {
       method: 'POST',

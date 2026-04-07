@@ -1555,6 +1555,17 @@ async def list_modules():
     return {"ok": True, "modules": module_runner.list_modules()}
 
 
+@app.post("/api/modules/upload_template")
+async def upload_module_template(file: UploadFile = File(...)):
+    """Upload a template CSV for module use. Saves to project root."""
+    project_root = Path(__file__).parent
+    dest = project_root / file.filename
+    content = await file.read()
+    with open(dest, "wb") as f:
+        f.write(content)
+    return {"ok": True, "filename": file.filename}
+
+
 @app.post("/api/modules/{module_name}/run")
 async def run_module(module_name: str, request: Request):
     """Start a module in a background thread."""
