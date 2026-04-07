@@ -1892,12 +1892,19 @@ def _regenerate_caches_sync(target_file=None):
     return {"ok": True, "message": msg, "probes_embedded": embedded, "deleted": deleted}
 
 
+_probe_apply_state = {"active": False, "progress": "", "error": None, "result": None}
+
+
 @app.post("/api/probe_set/apply")
 async def apply_probe_set(file: UploadFile = File(...)):
-    """Upload a probe CSV, save it, embed at both depths, set as active."""
+    """Upload a probe CSV, validate, kick off background embedding."""
     if not mm.state or not mm.state.model_instruct:
         return JSONResponse(status_code=400,
                             content={"ok": False, "error": "No model loaded."})
+
+    if _probe_apply_state["active"]:
+        return JSONResponse(status_code=409,
+                            content={"ok": False, "error": "Probe embedding already in progress."})
 
     project_root = str(Path(__file__).parent)
     filename = file.filename
@@ -1919,68 +1926,97 @@ async def apply_probe_set(file: UploadFile = File(...)):
     probes = _load_probes(dest)
     subjects = sorted(set(p["subject"] for p in probes))
 
-    # Embed at both depths
-    import asyncio
-    try:
-        result = await asyncio.to_thread(
-            _embed_probe_set_sync, filename, project_root)
-        if not result["ok"]:
-            return JSONResponse(status_code=500, content=result)
-    except Exception as e:
-        logger.error(f"Probe embedding failed: {e}")
-        return JSONResponse(status_code=500,
-                            content={"ok": False, "error": str(e)})
+    # Start background thread
+    _probe_apply_state["active"] = True
+    _probe_apply_state["progress"] = "Starting..."
+    _probe_apply_state["error"] = None
+    _probe_apply_state["result"] = None
 
-    # Set as sole active probe
-    _active_probes.clear()
-    _active_probes.add(filename)
-    _save_probe_config()
+    import threading
+    threading.Thread(
+        target=_probe_apply_worker,
+        args=(filename, project_root, len(probes), len(subjects),
+              len(level_cols), level_names, subjects),
+        daemon=True
+    ).start()
 
-    subj_frac, esc_frac = _get_layer_fracs()
+    return {"ok": True, "status": "started", "filename": filename}
 
+
+@app.get("/api/probe_set/apply_status")
+async def probe_apply_status():
+    """Poll embedding progress."""
     return {
         "ok": True,
-        "filename": filename,
-        "n_probes": len(probes),
-        "n_subjects": len(subjects),
-        "n_levels": len(level_cols),
-        "levels": level_names,
-        "subjects": subjects,
-        "layer_L50": int(subj_frac * 100),
-        "layer_L75": int(esc_frac * 100),
+        "active": _probe_apply_state["active"],
+        "progress": _probe_apply_state["progress"],
+        "error": _probe_apply_state["error"],
+        "result": _probe_apply_state["result"],
     }
 
 
-def _embed_probe_set_sync(filename, project_root):
-    """Embed a probe file at both configured depths."""
-    state = mm.state
-    model_id = state.instruct_model_id or state.pair_id
-    subj_frac, esc_frac = _get_layer_fracs()
-    use_proj = engine_config.get("probe_projection_space")
-    depths = sorted(set([subj_frac, esc_frac]))
-    embedded = 0
+def _probe_apply_worker(filename, project_root, n_probes, n_subjects,
+                         n_levels, level_names, subjects):
+    """Background worker: embed probes and set as active."""
+    try:
+        state = mm.state
+        model_id = state.instruct_model_id or state.pair_id
+        subj_frac, esc_frac = _get_layer_fracs()
+        use_proj = engine_config.get("probe_projection_space")
+        depths = sorted(set([subj_frac, esc_frac]))
+        embedded = 0
 
-    with _analysis_lock:
-        for frac in depths:
-            delta = None
-            if use_proj:
-                target_layer = max(0, min(state.n_layers - 1, int(frac * state.n_layers)))
-                delta = state.o_delta(target_layer)
-            try:
-                embed_and_cache_probes(
-                    state.model_instruct, state.tokenizer,
-                    project_root, filename, model_id,
-                    layer_frac=frac,
-                    progress=log_progress,
-                    delta_matrix=delta if use_proj else None)
-                embedded += 1
-            except Exception as e:
-                logger.warning(f"[PROBE_SET] Failed to embed {filename} at L{int(frac*100)}: {e}")
+        with _analysis_lock:
+            for frac in depths:
+                _probe_apply_state["progress"] = f"Embedding at L{int(frac*100)}..."
 
-    if embedded == 0:
-        return {"ok": False, "error": "Failed to embed probes at any depth."}
+                def _probe_progress(stage, msg, _frac=frac):
+                    _probe_apply_state["progress"] = f"L{int(_frac*100)}: {msg}"
+                    log_progress(stage, msg)
 
-    return {"ok": True, "embedded_depths": embedded}
+                delta = None
+                if use_proj:
+                    target_layer = max(0, min(state.n_layers - 1, int(frac * state.n_layers)))
+                    delta = state.o_delta(target_layer)
+                try:
+                    embed_and_cache_probes(
+                        state.model_instruct, state.tokenizer,
+                        project_root, filename, model_id,
+                        layer_frac=frac,
+                        progress=_probe_progress,
+                        delta_matrix=delta if use_proj else None)
+                    embedded += 1
+                except Exception as e:
+                    logger.warning(f"[PROBE_SET] Failed at L{int(frac*100)}: {e}")
+
+        if embedded == 0:
+            _probe_apply_state["error"] = "Failed to embed probes at any depth."
+            _probe_apply_state["active"] = False
+            return
+
+        # Set as sole active probe
+        _active_probes.clear()
+        _active_probes.add(filename)
+        _save_probe_config()
+
+        _probe_apply_state["result"] = {
+            "filename": filename,
+            "n_probes": n_probes,
+            "n_subjects": n_subjects,
+            "n_levels": n_levels,
+            "levels": level_names,
+            "subjects": subjects,
+            "layer_L50": int(subj_frac * 100),
+            "layer_L75": int(esc_frac * 100),
+        }
+        _probe_apply_state["progress"] = "Complete."
+        logger.info(f"[PROBE_SET] Applied {filename}: {n_probes} probes embedded")
+
+    except Exception as e:
+        logger.error(f"[PROBE_SET] Worker failed: {e}")
+        _probe_apply_state["error"] = str(e)
+    finally:
+        _probe_apply_state["active"] = False
 
 
 @app.get("/api/probe_set/status")

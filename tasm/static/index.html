@@ -2509,26 +2509,46 @@ async function applyProbeSet(){
   }
   btn.disabled = true;
   btn.textContent = 'Applying...';
-  status.textContent = 'Uploading and embedding probes...';
+  status.textContent = 'Uploading...';
   status.style.color = 'var(--text-2)';
   try {
     var fd = new FormData();
     fd.append('file', picker.files[0]);
     var r = await(await fetch('/api/probe_set/apply', {method:'POST', body:fd})).json();
-    if(r.ok){
-      status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(r.filename) + '</span>'
-        + ' — ' + r.n_probes + ' probes, ' + r.n_subjects + ' subjects, ' + r.n_levels + ' subclasses'
-        + ' — embedded at L' + r.layer_L50 + ' and L' + r.layer_L75;
-      status.style.color = 'var(--text-1)';
-      log('Probe set applied: ' + r.filename + ' (' + r.n_probes + ' probes embedded)', 'done');
-    } else {
+    if(!r.ok){
       status.textContent = 'Error: ' + (r.error||'Unknown');
       status.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.textContent = 'Apply';
+      return;
     }
+    status.textContent = 'Embedding probes...';
+    // Poll for completion
+    var poll = setInterval(async function(){
+      try {
+        var s = await(await fetch('/api/probe_set/apply_status')).json();
+        if(s.progress) status.textContent = s.progress;
+        if(!s.active){
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.textContent = 'Apply';
+          if(s.error){
+            status.textContent = 'Error: ' + s.error;
+            status.style.color = 'var(--red)';
+          } else if(s.result){
+            var res = s.result;
+            status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(res.filename) + '</span>'
+              + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' subclasses'
+              + ' — embedded at L' + res.layer_L50 + ' and L' + res.layer_L75;
+            status.style.color = 'var(--text-1)';
+            log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
+          }
+        }
+      } catch(e){}
+    }, 1000);
   } catch(e) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--red)';
-  } finally {
     btn.disabled = false;
     btn.textContent = 'Apply';
   }
