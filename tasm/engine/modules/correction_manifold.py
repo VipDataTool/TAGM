@@ -27,9 +27,10 @@ import numpy as np
 from collections import defaultdict, Counter
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import (_discover_probe_files, _detect_level_cols,
+from .domain_surface import (_detect_level_cols,
                               _load_probe_cache, _probe_cache_path,
                               _load_probes)
+from .correction_heatmap import _get_active_probe
 
 logger = logging.getLogger("tasm")
 
@@ -193,28 +194,17 @@ class CorrectionManifoldModule(TASMModule):
 
     def __init__(self):
         super().__init__()
-        self._probe_files = []
         self._project_root = None
 
     def set_project_root(self, root):
         self._project_root = root
-        self._probe_files = _discover_probe_files(root)
 
     def set_session_dir(self, path):
         self._session_dir = path
 
     @property
     def parameters(self):
-        options = self._probe_files if self._probe_files else ["probes_grammar.csv"]
         return [
-            ModuleParameter(
-                name="probe_file",
-                display_name="Probe File",
-                description="Probe definitions (provides classes and subclasses)",
-                type="select",
-                default=options[0] if options else "probes_grammar.csv",
-                options=options,
-            ),
             ModuleParameter(
                 name="n_clusters",
                 display_name="Clusters (k)",
@@ -234,6 +224,13 @@ class CorrectionManifoldModule(TASMModule):
         if not ok:
             return ok, msg
 
+        probe_file = _get_active_probe(self._project_root)
+        if not probe_file:
+            return False, (
+                "No probe set active. Apply a probe set in the "
+                "Configuration tab first."
+            )
+
         has_final = any(r.get("per_token_final_emb") for r in session_results)
         if not has_final:
             return False, (
@@ -243,7 +240,7 @@ class CorrectionManifoldModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        probe_file = params.get("probe_file", "probes_grammar.csv")
+        probe_file = _get_active_probe(self._project_root)
         n_clusters = int(params.get("n_clusters", 0))
 
         if progress:

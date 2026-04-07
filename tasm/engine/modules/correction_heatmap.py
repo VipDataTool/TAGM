@@ -25,11 +25,28 @@ import numpy as np
 from collections import defaultdict
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import (_discover_probe_files, _detect_level_cols,
+from .domain_surface import (_detect_level_cols,
                               _load_probe_cache, _probe_cache_path,
                               _load_probes)
 
 logger = logging.getLogger("tasm")
+
+PROBE_CONFIG = "probe_config.json"
+
+
+def _get_active_probe(project_root):
+    """Read the active probe file from probe_config.json."""
+    config_path = os.path.join(project_root, PROBE_CONFIG)
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+            active = data.get("active", [])
+            if active:
+                return active[0]
+        except Exception:
+            pass
+    return None
 
 
 class CorrectionHeatmapModule(TASMModule):
@@ -49,33 +66,27 @@ class CorrectionHeatmapModule(TASMModule):
 
     def __init__(self):
         super().__init__()
-        self._probe_files = []
         self._project_root = None
 
     def set_project_root(self, root):
         self._project_root = root
-        self._probe_files = _discover_probe_files(root)
 
     @property
     def parameters(self):
-        options = self._probe_files if self._probe_files else ["probes_grammar.csv"]
-        return [
-            ModuleParameter(
-                name="probe_file",
-                display_name="Probe File",
-                description="Probe definitions (provides subjects and subclasses)",
-                type="select",
-                default=options[0] if options else "probes_grammar.csv",
-                options=options,
-            ),
-        ]
+        return []
 
     def validate(self, session_results, params):
         ok, msg = super().validate(session_results, params)
         if not ok:
             return ok, msg
 
-        # Check that final embeddings exist
+        probe_file = _get_active_probe(self._project_root)
+        if not probe_file:
+            return False, (
+                "No probe set active. Apply a probe set in the "
+                "Configuration tab first."
+            )
+
         has_final = any(r.get("per_token_final_emb") for r in session_results)
         if not has_final:
             return False, (
@@ -85,7 +96,7 @@ class CorrectionHeatmapModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        probe_file = params.get("probe_file", "probes_grammar.csv")
+        probe_file = _get_active_probe(self._project_root)
 
         if progress:
             progress("Loading probe structure...")

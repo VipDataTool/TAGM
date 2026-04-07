@@ -498,26 +498,15 @@ class DomainSurfaceModule(TASMModule):
 
     def __init__(self):
         super().__init__()
-        self._probe_files = []
         self._project_root = None
 
     def set_project_root(self, root):
-        """Set project root for probe file discovery."""
+        """Set project root."""
         self._project_root = root
-        self._probe_files = _discover_probe_files(root)
 
     @property
     def parameters(self):
-        options = self._probe_files if self._probe_files else ["alignment_probes.csv"]
         return [
-            ModuleParameter(
-                name="probe_file",
-                display_name="Probe File",
-                description="Subject-matter probe definitions (CSV)",
-                type="select",
-                default=options[0] if options else "alignment_probes.csv",
-                options=options,
-            ),
             ModuleParameter(
                 name="top_tokens",
                 display_name="Top Tokens",
@@ -552,23 +541,24 @@ class DomainSurfaceModule(TASMModule):
                 "Re-run analysis to capture domain embeddings."
             )
 
-        # Check probe file
-        probe_file = params.get("probe_file", "alignment_probes.csv")
-        if self._project_root:
-            path = os.path.join(self._project_root, probe_file)
-            if not os.path.exists(path):
-                return False, f"Probe file not found: {path}"
+        # Check active probe
+        from .correction_heatmap import _get_active_probe
+        probe_file = _get_active_probe(self._project_root)
+        if not probe_file:
+            return False, (
+                "No probe set active. Apply a probe set in the "
+                "Configuration tab first."
+            )
+        path = os.path.join(self._project_root, probe_file)
+        if not os.path.exists(path):
+            return False, f"Active probe file not found: {probe_file}"
 
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        """Execute domain surface analysis using pre-computed embeddings.
-
-        Requires:
-            - domain_embedding fields in session_results (from analyzer)
-            - Cached probe embeddings (from model load)
-        """
-        probe_file = params.get("probe_file", "alignment_probes.csv")
+        """Execute domain surface analysis using pre-computed embeddings."""
+        from .correction_heatmap import _get_active_probe
+        probe_file = _get_active_probe(self._project_root)
         top_tokens = params.get("top_tokens", 30)
         min_appearances = params.get("min_appearances", 2)
         pca_components = params.get("pca_components", 2)
