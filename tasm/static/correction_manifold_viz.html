@@ -10,7 +10,6 @@ button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px
 .ctrl { display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap; align-items:center; }
 .cat-btn { transition:all .15s; }
 #tip { display:none; position:absolute; background:#151a22f0; border:1px solid #303840; border-radius:5px; padding:10px 14px; pointer-events:none; max-width:420px; font-size:11px; line-height:1.6; z-index:10; }
-#tipHover { display:none; position:absolute; background:#151a22f0; border:1px solid #58a6ff40; border-radius:5px; padding:10px 14px; pointer-events:none; max-width:420px; font-size:11px; line-height:1.6; z-index:11; }
 #err { color:#ef4444; font-size:12px; padding:10px; }
 #wrap { display:flex; flex-direction:column; height:100vh; padding:10px 14px; }
 #canvasWrap { flex:1; position:relative; border:1px solid var(--border); border-radius:6px; overflow:hidden; min-height:0; }
@@ -18,36 +17,37 @@ button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px
 </head>
 <body>
 <div id="wrap">
-  <h2 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f0f4f8;letter-spacing:.4px" id="title">Correction Manifold</h2>
+  <h2 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f0f4f8;letter-spacing:.4px">Correction Manifold</h2>
   <p style="margin:0 0 6px;font-size:11px;color:#a0aab4" id="subtitle">Loading...</p>
-  <div class="ctrl" id="catRow"></div>
-  <div class="ctrl" id="legRow"></div>
+  <div class="ctrl" id="ctrlRow"></div>
   <div id="canvasWrap">
     <canvas id="cvs" style="width:100%;height:100%;cursor:grab;display:block"></canvas>
     <div id="tip"></div>
-    <div id="tipHover"></div>
   </div>
   <div style="font-size:10px;color:#808890;margin-top:6px;text-align:center" id="footer">
-    RD = ring position. Anchor-repulsor: signals push tokens from subject×level anchors via local axes. Scroll to zoom, drag to pan.
+    PCA projection of correction field fingerprints. Scroll to zoom, drag to pan. Click points for details.
   </div>
   <div id="err"></div>
 </div>
 <script>
 (function(){try{
 
-var CAT={b:{l:"benign",c:"#0072B2"},m:{l:"mild",c:"#E69F00"},d:{l:"dual-use",c:"#009E73"},h:{l:"harmful",c:"#D55E00"},a:{l:"adversarial",c:"#882255"},j:{l:"jailbreak",c:"#CC79A7"}};
-var W=100,H=100; // updated dynamically on resize
-var cats={b:1,m:1,d:1,h:1,a:1,j:1};
-var viewMode="prompts"; // "prompts" or "tokens"
+var CAT_COLORS={b:"#0072B2",m:"#E69F00",d:"#009E73",h:"#D55E00",a:"#882255",j:"#CC79A7"};
+var CAT_LABELS={b:"benign",m:"mild",d:"dual-use",h:"harmful",a:"adversarial",j:"jailbreak"};
+var CLUSTER_COLORS=["#58a6ff","#4ade80","#f59e0b","#ef4444","#a78bfa","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1",
+                    "#14b8a6","#e879f9","#22d3ee","#facc15","#fb923c","#818cf8","#2dd4bf","#f472b6","#38bdf8","#a3e635"];
+
+var W=100, H=100;
 var DATA=null;
-var pinnedTip=null; // pinned tooltip data, or null
+var colorMode="category"; // "category" or "cluster"
+var cats={b:1,m:1,d:1,h:1,a:1,j:1};
+var pinnedTip=null;
 
-// ─── Zoom / Pan state ───
+// Zoom/pan
 var zoom=1, panX=0, panY=0;
-var dragging=false, dragSX=0, dragSY=0, dragPX=0, dragPY=0;
-var didDrag=false;
+var dragging=false, dragSX=0, dragSY=0, dragPX=0, dragPY=0, didDrag=false;
 
-function baseScale(){return Math.min(W,H)*0.43}
+function scale(){return Math.min(W,H)*0.42*zoom}
 
 fetch("/api/modules/correction_manifold/results").then(function(r){return r.json()}).then(function(resp){
   if(!resp.ok||!resp.results){document.getElementById("err").textContent="No results: "+(resp.error||"run the module first");return}
@@ -59,22 +59,22 @@ function init(){
   var sub=document.getElementById("subtitle");
   var cls=DATA.classification||{};
   var binAcc=cls.binary?cls.binary.best_accuracy:0;
-  var nRings=(DATA.rings||[]).length;
-  var nSubj=(DATA.subj_short||[]).length;
-  var nTokens=DATA.n_tokens||0;
-  sub.textContent=DATA.n_prompts+" prompts · "+nTokens+" tokens · "+nRings+" rings · "+nSubj+" subjects · binary "+(binAcc*100).toFixed(1)+"%";
+  var pca=DATA.pca_explained||[0,0];
+  sub.textContent=DATA.n_prompts+" prompts · "+DATA.n_clusters+" clusters · silhouette "+
+    (DATA.silhouette_score||0).toFixed(3)+" · accuracy "+(cls.overall_accuracy*100||0).toFixed(1)+
+    "% · binary "+(binAcc*100).toFixed(1)+"% · PCA "+(100*(pca[0]+pca[1])).toFixed(0)+"%";
 
-  // Category toggle buttons
-  var cr=document.getElementById("catRow");
+  // Controls
+  var cr=document.getElementById("ctrlRow");
   var h="";
-  for(var k in CAT){
-    var sty=cats[k]?"border:1px solid "+CAT[k].c+";background:"+CAT[k].c+"20;color:"+CAT[k].c
+  for(var k in CAT_LABELS){
+    var sty=cats[k]?"border:1px solid "+CAT_COLORS[k]+";background:"+CAT_COLORS[k]+"20;color:"+CAT_COLORS[k]
                     :"border:1px solid #30363d;background:transparent;color:#606870";
-    h+='<button class="cat-btn" data-cat="'+k+'" style="'+sty+'">'+CAT[k].l+'</button>';
+    h+='<button class="cat-btn" data-cat="'+k+'" style="'+sty+'">'+CAT_LABELS[k]+'</button>';
   }
   h+='<span style="color:#30363d">|</span>';
-  h+='<button style="border:1px solid #404850;color:#a0aab4;background:transparent" id="resetBtn">Reset view</button>';
-  h+='<button style="border:1px solid #58a6ff;color:#58a6ff;background:#58a6ff10" id="viewToggle">View: Prompts</button>';
+  h+='<button style="border:1px solid #404850;color:#a0aab4;background:transparent" id="resetBtn">Reset</button>';
+  h+='<button style="border:1px solid #58a6ff;color:#58a6ff;background:#58a6ff10" id="colorToggle">Color: Category</button>';
   cr.innerHTML=h;
 
   cr.addEventListener("click",function(e){
@@ -82,102 +82,68 @@ function init(){
     if(btn){
       var c=btn.dataset.cat;
       cats[c]=cats[c]?0:1;
-      btn.style.borderColor=cats[c]?CAT[c].c:"#30363d";
-      btn.style.background=cats[c]?CAT[c].c+"20":"transparent";
-      btn.style.color=cats[c]?CAT[c].c:"#606870";
+      btn.style.borderColor=cats[c]?CAT_COLORS[c]:"#30363d";
+      btn.style.background=cats[c]?CAT_COLORS[c]+"20":"transparent";
+      btn.style.color=cats[c]?CAT_COLORS[c]:"#606870";
       draw();
     }
   });
-  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";document.getElementById("tipHover").style.display="none";draw()});
-  document.getElementById("viewToggle").addEventListener("click",function(){
-    var btn=this;
-    if(viewMode==="prompts"){
-      viewMode="tokens";
-      btn.textContent="View: Tokens";
-      btn.style.borderColor="#4ade80";btn.style.color="#4ade80";btn.style.background="#4ade8010";
+  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";draw()});
+  document.getElementById("colorToggle").addEventListener("click",function(){
+    if(colorMode==="category"){
+      colorMode="cluster";
+      this.textContent="Color: Cluster";
+      this.style.borderColor="#4ade80";this.style.color="#4ade80";this.style.background="#4ade8010";
     } else {
-      viewMode="prompts";
-      btn.textContent="View: Prompts";
-      btn.style.borderColor="#58a6ff";btn.style.color="#58a6ff";btn.style.background="#58a6ff10";
+      colorMode="category";
+      this.textContent="Color: Category";
+      this.style.borderColor="#58a6ff";this.style.color="#58a6ff";this.style.background="#58a6ff10";
     }
-    pinnedTip=null;
-    document.getElementById("tip").style.display="none";
-    document.getElementById("tipHover").style.display="none";
-    updateLegend();
     draw();
   });
 
-  // Legend
-  function updateLegend(){
-    var lr=document.getElementById("legRow");
-    var cs=DATA.center_signal;
-    var ra=DATA.repulsor_axes||{};
-    var mode=viewMode==="tokens"?"token":"prompt";
-    var axes=ra[mode]||{radial:{signal:"?",color:"#ff6347"},tangential:{signal:"?",color:"#4fc3f7"}};
-    var lh="";
-    if(cs) lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:'+cs.color+';display:inline-block"></span><span style="color:#a0aab4">'+cs.name+' (ring position)</span></span>';
-    lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:12px;height:2px;background:'+axes.radial.color+';display:inline-block"></span><span style="color:#a0aab4">'+axes.radial.signal+' (radial push)</span></span>';
-    lh+='<span style="font-size:10px;display:flex;align-items:center;gap:3px"><span style="width:12px;height:2px;background:'+axes.tangential.color+';display:inline-block"></span><span style="color:#a0aab4">'+axes.tangential.signal+' (tangential push)</span></span>';
-    lr.innerHTML=lh;
-  }
-  updateLegend();
-
-  // Zoom/pan events
+  // Events
   var cvs=document.getElementById("cvs");
   cvs.addEventListener("wheel",function(e){
     e.preventDefault();
     var rect=cvs.getBoundingClientRect();
     var mx=(e.clientX-rect.left)*(W/rect.width);
     var my=(e.clientY-rect.top)*(H/rect.height);
-    var factor=e.deltaY<0?1.015:1/1.015;
-    var nz=Math.max(0.9,Math.min(2.5,zoom*factor));
+    var factor=e.deltaY<0?1.08:1/1.08;
+    var nz=Math.max(0.5,Math.min(10,zoom*factor));
     panX=mx-(mx-panX)*(nz/zoom);
     panY=my-(my-panY)*(nz/zoom);
     zoom=nz;
     draw();
   },{passive:false});
-  cvs.addEventListener("mousedown",function(e){
-    dragging=true;didDrag=false;dragSX=e.clientX;dragSY=e.clientY;dragPX=panX;dragPY=panY;
-    cvs.style.cursor="grabbing";
-  });
+  cvs.addEventListener("mousedown",function(e){dragging=true;didDrag=false;dragSX=e.clientX;dragSY=e.clientY;dragPX=panX;dragPY=panY;cvs.style.cursor="grabbing"});
   window.addEventListener("mousemove",function(e){
     if(!dragging) return;
-    var dx=e.clientX-dragSX, dy=e.clientY-dragSY;
+    var dx=e.clientX-dragSX,dy=e.clientY-dragSY;
     if(Math.abs(dx)+Math.abs(dy)>3) didDrag=true;
     var rect=cvs.getBoundingClientRect();
-    panX=dragPX+dx*(W/rect.width);
-    panY=dragPY+dy*(H/rect.height);
+    panX=dragPX+dx*(W/rect.width);panY=dragPY+dy*(H/rect.height);
     draw();
   });
   window.addEventListener("mouseup",function(){dragging=false;document.getElementById("cvs").style.cursor="grab"});
   cvs.addEventListener("click",function(e){
-    if(didDrag) return; // ignore drag-end clicks
+    if(didDrag) return;
     var hit=hitTest(e);
-    if(hit){
-      pinnedTip=hit;
-      showTip(hit);
-    } else {
-      pinnedTip=null;
-      document.getElementById("tip").style.display="none";
-    }
-    document.getElementById("tipHover").style.display="none";
+    if(hit){pinnedTip=hit;showTip(hit)} else {pinnedTip=null;document.getElementById("tip").style.display="none"}
   });
-  cvs.addEventListener("mousemove",onMove);
-  cvs.addEventListener("mouseleave",function(){
-    document.getElementById("tipHover").style.display="none";
-    if(!pinnedTip) document.getElementById("tip").style.display="none";
+  cvs.addEventListener("mousemove",function(e){
+    if(dragging||pinnedTip) return;
+    var hit=hitTest(e);
+    showTip(hit);
   });
+  cvs.addEventListener("mouseleave",function(){if(!pinnedTip) document.getElementById("tip").style.display="none"});
 
-  // Responsive resize
   new ResizeObserver(function(){draw()}).observe(document.getElementById("canvasWrap"));
-
   draw();
 }
 
-// ─── Coordinate transform (manifold → canvas) ───
-function tx(v){return W/2+v*baseScale()*zoom+panX}
-function ty(v){return H/2+v*baseScale()*zoom+panY}
-function R(){return baseScale()*zoom}
+function tx(v){return W/2+v*scale()+panX}
+function ty(v){return H/2-v*scale()+panY}
 
 function draw(){
   var c=document.getElementById("cvs");
@@ -187,125 +153,104 @@ function draw(){
   c.width=W*dpr;c.height=H*dpr;
   c.style.width=W+"px";c.style.height=H+"px";
   var g=c.getContext("2d");g.scale(dpr,dpr);
-  g.fillStyle="#0c1017";g.fillRect(0,0,W,H);
 
-  var ox=tx(0),oy=ty(0),r=R();
-  var rings=DATA.rings||[];
-  var sa=DATA.subj_angles||[];
-  var ss=DATA.subj_short||[];
-  var outerR=rings.length?rings[rings.length-1].outer:0.92;
-  var innerR=rings.length?rings[0].inner:0.10;
-  var fontSize=Math.max(7,Math.min(13,10*zoom));
+  var ox=W/2+panX, oy=H/2+panY;
+  var s=scale();
 
-  // ── Ring bands ──
-  for(var ri=0;ri<rings.length;ri++){
-    var ring=rings[ri];
-    g.beginPath();g.arc(ox,oy,ring.outer*r,0,Math.PI*2);
-    g.arc(ox,oy,ring.inner*r,0,Math.PI*2,true);
-    g.fillStyle="rgba(255,255,255,"+(0.015+ri*0.006)+")";g.fill();
-    g.strokeStyle="#ffffff10";g.lineWidth=0.5;
-    g.beginPath();g.arc(ox,oy,ring.inner*r,0,Math.PI*2);g.stroke();
-    g.beginPath();g.arc(ox,oy,ring.outer*r,0,Math.PI*2);g.stroke();
+  // Grid
+  g.strokeStyle="#ffffff08";g.lineWidth=0.5;
+  for(var i=-5;i<=5;i++){
+    var gx=ox+i*s*0.2;g.beginPath();g.moveTo(gx,0);g.lineTo(gx,H);g.stroke();
+    var gy=oy+i*s*0.2;g.beginPath();g.moveTo(0,gy);g.lineTo(W,gy);g.stroke();
   }
 
-  // ── Ring labels (horizontal, each above its ring band on the left) ──
-  g.font="600 "+fontSize+"px monospace";
-  g.textAlign="center";g.textBaseline="bottom";
-  g.fillStyle="#ffffff50";
-  for(var ri=0;ri<rings.length;ri++){
-    var ring=rings[ri];
-    // Place label just above the inner edge of this ring, on the left side
-    var ly=oy-(ring.outer*r+2);
-    g.fillText(ring.label, ox, ly);
-  }
+  // Axes
+  g.strokeStyle="#ffffff15";g.lineWidth=1;
+  g.beginPath();g.moveTo(ox-s,oy);g.lineTo(ox+s,oy);g.stroke();
+  g.beginPath();g.moveTo(ox,oy-s);g.lineTo(ox,oy+s);g.stroke();
 
-  // ── Subject centerlines from vertex ──
-  for(var si=0;si<sa.length;si++){
-    var a=sa[si];
-    var ca=Math.cos(a), sn=Math.sin(a);
-    // Line from center to outer edge
-    g.strokeStyle="#ffffff14";g.lineWidth=0.7;g.setLineDash([]);
+  // Axis labels
+  g.fillStyle="#ffffff40";g.font="10px monospace";g.textAlign="center";
+  g.fillText("PC1",ox+s+16,oy+4);
+  g.fillText("PC2",ox+4,oy-s-8);
+
+  // Cluster regions (convex hull approximation — just draw filled circles at centroids)
+  var clusters=DATA.clusters||[];
+  for(var i=0;i<clusters.length;i++){
+    var cl=clusters[i];
+    var cx=tx(cl.cx),cy=ty(cl.cy);
+    var col=CLUSTER_COLORS[i%CLUSTER_COLORS.length];
+
+    // Gather points in this cluster to compute spread
+    var pts=[];
+    (DATA.prompts||[]).forEach(function(p){if(p.cluster===i&&cats[p.category]) pts.push(p)});
+    if(pts.length<2) continue;
+
+    // Draw hull as a shaded region
+    g.globalAlpha=0.06;
+    g.fillStyle=col;
     g.beginPath();
-    g.moveTo(ox,oy);
-    g.lineTo(ox+ca*(outerR+0.02)*r, oy-sn*(outerR+0.02)*r);
-    g.stroke();
-    // Subject label (rotated along radial)
-    var lr=(outerR+0.06)*r;
-    var lx=ox+ca*lr, ly=oy-sn*lr;
-    g.fillStyle="#ffffffb0";
-    g.font="600 "+fontSize+"px monospace";
-    g.save();g.translate(lx,ly);
-    var ta=-a+Math.PI/2;
-    if(a>Math.PI/2||a<-Math.PI/2) ta+=Math.PI;
-    g.rotate(ta);g.textAlign="center";g.textBaseline="middle";
-    g.fillText(ss[si]||"",0,0);
-    g.restore();
+    // Compute radius as max distance from centroid
+    var maxR=0;
+    pts.forEach(function(p){
+      var dx=tx(p.x)-cx,dy=ty(p.y)-cy;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      if(d>maxR) maxR=d;
+    });
+    g.beginPath();g.arc(cx,cy,maxR+10,0,Math.PI*2);g.fill();
+    g.globalAlpha=1;
+
+    // Cluster label
+    g.fillStyle=col;g.font="bold 11px monospace";g.textAlign="center";g.textBaseline="middle";
+    g.fillText("K"+i,cx,cy-maxR-12);
   }
 
-  // ── Anchor dots and local axes at subject × ring intersections ──
-  var ra=DATA.repulsor_axes||{};
-  var mode=viewMode==="tokens"?"token":"prompt";
-  var axes=ra[mode]||{radial:{color:"#ff6347"},tangential:{color:"#4fc3f7"}};
-  var axLen=rings.length>0?(rings[0].outer-rings[0].inner)*r*0.4:10;
-  for(var si=0;si<sa.length;si++){
-    var a=sa[si];
-    var ca=Math.cos(a),sn=Math.sin(a);
-    var ta=Math.cos(a+Math.PI/2),ts=Math.sin(a+Math.PI/2);
-    for(var ri=0;ri<rings.length;ri++){
-      var mid=(rings[ri].inner+rings[ri].outer)/2;
-      var ax=ox+ca*mid*r, ay=oy-sn*mid*r;
-      // Anchor dot
-      g.beginPath();g.arc(ax,ay,1.5,0,Math.PI*2);
-      g.fillStyle="#ffffff15";g.fill();
-      // Radial axis
-      g.beginPath();g.moveTo(ax-ca*axLen,ay+sn*axLen);g.lineTo(ax+ca*axLen,ay-sn*axLen);
-      g.strokeStyle=axes.radial.color+"18";g.lineWidth=0.7;g.stroke();
-      // Tangential axis
-      g.beginPath();g.moveTo(ax-ta*axLen,ay+ts*axLen);g.lineTo(ax+ta*axLen,ay-ts*axLen);
-      g.strokeStyle=axes.tangential.color+"18";g.lineWidth=0.7;g.stroke();
+  // Data points
+  var ps=DATA.prompts||[];
+  var dotR=Math.max(3,5*Math.sqrt(zoom));
+
+  for(var i=0;i<ps.length;i++){
+    var p=ps[i];
+    if(!cats[p.category]) continue;
+    var px=tx(p.x),py=ty(p.y);
+    if(px<-20||px>W+20||py<-20||py>H+20) continue;
+
+    var col;
+    if(colorMode==="cluster"){
+      col=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+    } else {
+      col=CAT_COLORS[p.category]||"#888";
     }
+
+    g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
+    g.fillStyle=col;
+    g.globalAlpha=0.85;
+    g.fill();
+    g.globalAlpha=1;
+
+    // Category ring when in cluster color mode (or vice versa)
+    var ringCol;
+    if(colorMode==="cluster"){
+      ringCol=CAT_COLORS[p.category]||"#888";
+    } else {
+      ringCol=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+    }
+    g.beginPath();g.arc(px,py,dotR+1.5,0,Math.PI*2);
+    g.strokeStyle=ringCol;g.lineWidth=1.5;g.globalAlpha=0.5;g.stroke();
+    g.globalAlpha=1;
   }
 
-  // ── RD indicator at center ──
-  var cs=DATA.center_signal;
-  if(cs){
-    g.beginPath();g.arc(ox,oy,Math.max(3,5*zoom),0,Math.PI*2);
-    g.fillStyle=cs.color+"30";g.fill();
-    g.strokeStyle=cs.color+"70";g.lineWidth=1;g.stroke();
-    g.fillStyle=cs.color+"90";g.font="700 "+Math.max(9,11*zoom)+"px monospace";
+  // Category centroids
+  var cc=DATA.category_centroids||{};
+  for(var cat in cc){
+    if(!cats[cat]) continue;
+    var c2=cc[cat];
+    var cx2=tx(c2.x),cy2=ty(c2.y);
+    g.beginPath();g.arc(cx2,cy2,8,0,Math.PI*2);
+    g.strokeStyle=CAT_COLORS[cat]||"#888";g.lineWidth=2;g.stroke();
+    g.fillStyle=CAT_COLORS[cat]||"#888";g.font="bold 10px monospace";
     g.textAlign="center";g.textBaseline="middle";
-    g.fillText(cs.name, ox, oy-Math.max(10,14*zoom));
-  }
-
-  // ── Data points ──
-  if(viewMode==="tokens"){
-    var toks=DATA.tokens||[];
-    var dotR=Math.max(1.5,2.5*Math.sqrt(zoom));
-    for(var i=0;i<toks.length;i++){
-      var t=toks[i];
-      if(!cats[t[1]]) continue;
-      var px=tx(t[2]),py=ty(t[3]);
-      if(px<-20||px>W+20||py<-20||py>H+20) continue;
-      g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
-      var ci=CAT[t[1]];
-      g.fillStyle=ci?ci.c:"#888";
-      g.globalAlpha=0.55;
-      g.fill();g.globalAlpha=1;
-    }
-  } else {
-    var ps=DATA.prompts||[];
-    var dotR=Math.max(2.5,4*Math.sqrt(zoom));
-    for(var i=0;i<ps.length;i++){
-      var p=ps[i];
-      if(!cats[p[1]]) continue;
-      var px=tx(p[2]),py=ty(p[3]);
-      if(px<-20||px>W+20||py<-20||py>H+20) continue;
-      g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
-      var ci=CAT[p[1]];
-      g.fillStyle=ci?ci.c:"#888";
-      g.globalAlpha=0.85;
-      g.fill();g.globalAlpha=1;
-    }
+    g.fillText(cat.toUpperCase(),cx2,cy2);
   }
 }
 
@@ -315,103 +260,41 @@ function hitTest(e){
   var mx=(e.clientX-rect.left)*(W/rect.width);
   var my=(e.clientY-rect.top)*(H/rect.height);
   var best=null,bd=15;
-  if(viewMode==="tokens"){
-    var toks=DATA.tokens||[];
-    for(var i=0;i<toks.length;i++){
-      var t=toks[i];
-      if(!cats[t[1]]) continue;
-      var dx=tx(t[2])-mx, dy=ty(t[3])-my, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<bd){bd=d;best={mode:"token",d:t}}
-    }
-  } else {
-    var ps=DATA.prompts||[];
-    for(var i=0;i<ps.length;i++){
-      var p=ps[i];
-      if(!cats[p[1]]) continue;
-      var dx=tx(p[2])-mx, dy=ty(p[3])-my, d=Math.sqrt(dx*dx+dy*dy);
-      if(d<bd){bd=d;best={mode:"prompt",d:p}}
-    }
+  var ps=DATA.prompts||[];
+  for(var i=0;i<ps.length;i++){
+    var p=ps[i];
+    if(!cats[p.category]) continue;
+    var dx=tx(p.x)-mx,dy=ty(p.y)-my,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<bd){bd=d;best=ps[i]}
   }
   return best;
 }
 
-function buildTipHtml(best){
-  var h="";
-  if(best.mode==="token"){
-    var t=best.d;
-    var ci=CAT[t[1]]||{l:"?",c:"#888"};
-    var ringLabel=(DATA.rings&&DATA.rings[t[5]])?DATA.rings[t[5]].label:"ring "+t[5];
-    h+='<div style="margin-bottom:4px">';
-    h+='<span style="color:'+ci.c+';font-weight:700">'+ci.l+'</span> ';
-    h+='<span style="color:#f0f4f8;font-weight:700;font-size:13px">"'+t[0]+'"</span> ';
-    h+='<span style="color:#a0aab4">'+ringLabel+'</span></div>';
-    h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
-    h+='<span style="color:#a78bfa">RD='+t[6].toFixed(2)+'</span> &nbsp;';
-    h+='<span style="color:#ff6347">SFD_e='+t[7].toFixed(2)+'</span> (radial) &nbsp;';
-    h+='<span style="color:#4fc3f7">ASM='+t[8].toFixed(2)+'</span> (tangential)</div>';
-    var pi=t[9];
-    var pp=DATA.prompts&&DATA.prompts[pi];
-    if(pp) h+='<div style="color:#a0aab4;font-size:10px;margin-top:4px;word-break:break-word">Prompt: '+pp[0]+'</div>';
-  } else {
-    var p=best.d;
-    var fnames=DATA.all_signal_keys||[];
-    var ci=CAT[p[1]]||{l:"?",c:"#888"};
-    var ringLabel=(DATA.rings&&DATA.rings[p[5]])?DATA.rings[p[5]].label:"ring "+p[5];
-    h+='<div style="margin-bottom:4px">';
-    h+='<span style="color:'+ci.c+';font-weight:700">'+ci.l+'</span> ';
-    h+='<span style="color:#f0f4f8;font-weight:600">'+(DATA.subj_short[p[4]]||"")+'</span>';
-    h+=' <span style="color:#a0aab4">'+ringLabel+'</span></div>';
-    h+='<div style="color:#a0aab4;font-size:10px;margin-bottom:6px;word-break:break-word">'+p[0]+'</div>';
-    h+='<div style="color:#808890;font-size:10px;border-top:1px solid #252b33;padding-top:4px">';
-    h+='<span style="color:#a78bfa">RD='+p[8].toFixed(2)+'</span> &nbsp;';
-    h+='<span style="color:#ff6347">Entropy='+p[6].toFixed(2)+'</span> (radial) &nbsp;';
-    h+='<span style="color:#4fc3f7">KL='+p[7].toFixed(2)+'</span> (tangential)</div>';
-    if(fnames.length){
-      h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:10px;margin-top:4px">';
-      for(var i=0;i<fnames.length&&i<8;i++){
-        h+='<span style="color:#a0aab4">'+fnames[i]+': <b style="color:#f0f4f8">'+p[11+i].toFixed(4)+'</b></span>';
-      }
-      h+='</div>';
-    }
-  }
-  return h;
-}
-
-function showTip(best){
+function showTip(p){
   var tip=document.getElementById("tip");
-  if(!best){tip.style.display="none";return}
-  var h=buildTipHtml(best);
-  if(pinnedTip) h+='<div style="color:#484f58;font-size:9px;margin-top:4px;text-align:center">click canvas to dismiss</div>';
-  tip.innerHTML=h;
-  tip.style.display="block";
-  tip.style.left="16px";tip.style.top="16px";
-}
+  if(!p){tip.style.display="none";return}
+  var catCol=CAT_COLORS[p.category]||"#888";
+  var clCol=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+  var h='<div style="margin-bottom:4px">';
+  h+='<span style="color:'+catCol+';font-weight:700">'+(CAT_LABELS[p.category]||p.category)+'</span> ';
+  h+='<span style="color:'+clCol+';font-weight:600">Cluster '+p.cluster+'</span></div>';
+  h+='<div style="color:#e0e6ed;font-size:11px;margin-bottom:6px;word-break:break-word">'+p.prompt+'</div>';
 
-function onMove(e){
-  if(dragging) return;
-  var hoverTip=document.getElementById("tipHover");
-  if(!pinnedTip){
-    // Normal hover mode — use primary tip
-    hoverTip.style.display="none";
-    var best=hitTest(e);
-    showTip(best);
-    return;
+  // Mini fingerprint bar
+  if(p.fingerprint){
+    var maxF=Math.max.apply(null,p.fingerprint);
+    if(maxF<1e-6) maxF=1;
+    h+='<div style="display:flex;gap:1px;height:16px;align-items:flex-end;margin-top:4px" title="Correction field fingerprint">';
+    for(var i=0;i<p.fingerprint.length;i++){
+      var pct=p.fingerprint[i]/maxF*100;
+      h+='<div style="flex:1;background:#ff634780;height:'+pct+'%;min-height:1px;border-radius:1px"></div>';
+    }
+    h+='</div>';
+    h+='<div style="color:#606870;font-size:9px;margin-top:2px">Fingerprint: '+DATA.n_cells+' cells (class × subclass)</div>';
   }
-  // Pinned mode — show secondary hover tip for other points
-  var best=hitTest(e);
-  if(!best){hoverTip.style.display="none";return}
-  // Don't show hover for the same point that's pinned
-  if(best.d===pinnedTip.d){hoverTip.style.display="none";return}
-  var h=buildTipHtml(best);
-  hoverTip.innerHTML=h;
-  hoverTip.style.display="block";
-  // Position near mouse, offset from pinned tip
-  var rect=document.getElementById("canvasWrap").getBoundingClientRect();
-  var mx=e.clientX-rect.left, my=e.clientY-rect.top;
-  var tipW=hoverTip.offsetWidth||200, tipH=hoverTip.offsetHeight||100;
-  var posX=Math.min(mx+16, rect.width-tipW-8);
-  var posY=Math.max(my-tipH-8, 8);
-  hoverTip.style.left=posX+"px";hoverTip.style.top=posY+"px";
+
+  if(pinnedTip) h+='<div style="color:#484f58;font-size:9px;margin-top:4px;text-align:center">click canvas to dismiss</div>';
+  tip.innerHTML=h;tip.style.display="block";tip.style.left="16px";tip.style.top="16px";
 }
 
 }catch(e){document.getElementById("err").textContent="Error: "+e.message+"\n"+e.stack}})();

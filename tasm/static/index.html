@@ -3373,50 +3373,54 @@ function popoutDomainSurface(){
 function renderCorrectionManifoldResults(r) {
   var h = '<div class="mod-results">';
 
-  // Summary header
+  // Summary
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Classification Results</div>';
   h += '<div class="mod-results-body">';
   h += '<div class="mod-summary">';
 
   var cls = r.classification || {};
   var bin = cls.binary || {};
+  var pca = r.pca_explained || [0,0];
   h += tvStat('Prompts', r.n_prompts || 0);
-  h += tvStat('Binary Accuracy', bin.best_accuracy ? (bin.best_accuracy * 100).toFixed(1) + '%' : '--', bin.best_k ? 'k=' + bin.best_k + ' (safe=' + bin.n_safe + ' risk=' + bin.n_risk + ')' : '');
-  h += tvStat('6-Class Accuracy', cls.overall_accuracy ? (cls.overall_accuracy * 100).toFixed(1) + '%' : '--', cls.best_k ? 'k=' + cls.best_k : '');
-  h += tvStat('Attractor Power', r.attractor_power || '--');
-  h += tvStat('Attractor Floor', r.attractor_floor || '--');
+  h += tvStat('Clusters', r.n_clusters || 0);
+  h += tvStat('Silhouette', (r.silhouette_score || 0).toFixed(3));
+  h += tvStat('Cluster Accuracy', cls.overall_accuracy ? (cls.overall_accuracy * 100).toFixed(1) + '%' : '--');
+  h += tvStat('Binary Accuracy', bin.best_accuracy ? (bin.best_accuracy * 100).toFixed(1) + '%' : '--', 'safe=' + (bin.n_safe||0) + ' risk=' + (bin.n_risk||0));
+  h += tvStat('PCA Variance', ((pca[0]+pca[1])*100).toFixed(1) + '%', 'PC1=' + (pca[0]*100).toFixed(1) + '% PC2=' + (pca[1]*100).toFixed(1) + '%');
+  h += tvStat('Fingerprint Dim', r.n_cells || 0, (r.classes||[]).length + ' classes × ' + (r.subclasses||[]).length + ' subclasses');
 
-  // Per-k results
-  if (cls.per_k) {
-    var ks = Object.keys(cls.per_k).sort(function(a,b){return a-b});
-    h += '</div><div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>k</th><th>6-Class Acc</th>';
-    if (bin.per_k) h += '<th>Binary Acc</th>';
-    h += '</tr>';
-    for (var i = 0; i < ks.length; i++) {
-      var k = ks[i];
-      h += '<tr><td>' + k + '</td><td>' + (cls.per_k[k].accuracy * 100).toFixed(1) + '%</td>';
-      if (bin.per_k && bin.per_k[k]) h += '<td style="color:var(--green);font-weight:600">' + (bin.per_k[k].accuracy * 100).toFixed(1) + '%</td>';
-      h += '</tr>';
+  h += '</div>';
+
+  // Cluster-to-category mapping
+  var mapping = r.cluster_mapping || [];
+  if (mapping.length > 0) {
+    h += '<div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>Cluster</th><th>Best Match</th><th>Overlap</th></tr>';
+    for (var i = 0; i < mapping.length; i++) {
+      var m = mapping[i];
+      var catName = m.category === 'b' ? 'benign' : m.category === 'm' ? 'mild' : m.category === 'd' ? 'dual-use' : m.category === 'h' ? 'harmful' : m.category === 'j' ? 'jailbreak' : m.category;
+      h += '<tr><td>K' + m.cluster + '</td><td><span class="pill ' + pillClass(catName) + '">' + catName + '</span></td><td>' + m.overlap + '</td></tr>';
     }
     h += '</table></div>';
   }
 
-  // Escalation levels by category
-  if (r.level_stats) {
-    h += '<div style="margin-top:8px"><div style="font-family:var(--mono);font-size:11px;color:var(--text-2);margin-bottom:4px">Mean Probe Level by Category</div>';
-    h += '<table class="data-table" style="font-size:11px"><tr><th>Category</th><th>Mean Level</th></tr>';
-    var ls = r.level_stats;
-    for (var cat in ls) {
-      h += '<tr><td><span class="pill ' + pillClass(cat === 'b' ? 'benign' : cat === 'm' ? 'mild' : cat === 'd' ? 'dual-use' : cat === 'h' ? 'harmful' : cat === 'a' ? 'adversarial' : 'jailbreak') + '">' + cat + '</span></td><td>' + ls[cat] + '</td></tr>';
+  // Cluster detail
+  var clusters = r.clusters || [];
+  if (clusters.length > 0) {
+    h += '<div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>Cluster</th><th>Size</th><th>Distribution</th></tr>';
+    for (var i = 0; i < clusters.length; i++) {
+      var cl = clusters[i];
+      var dist = cl.category_distribution || {};
+      var distStr = Object.keys(dist).map(function(k){ return k + ':' + dist[k] }).join(' ');
+      h += '<tr><td>K' + cl.id + '</td><td>' + cl.size + '</td><td style="font-size:10px;color:var(--text-2)">' + escHtml(distStr) + '</td></tr>';
     }
     h += '</table></div>';
   }
 
-  h += '</div></div>';
+  h += '</div>';
 
   // Popout button
   h += '<div style="margin-top:8px;text-align:center">';
-  h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open 6D Manifold Visualization</button>';
+  h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open Manifold Visualization</button>';
   h += '</div>';
 
   h += '</div>';
