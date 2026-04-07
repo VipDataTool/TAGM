@@ -3005,6 +3005,10 @@ function renderParamControl(modName, p) {
   if (p.type === 'file') {
     return '<div class="file-input-wrapper"><input type="file" id="' + id + '" accept=".csv" data-param-type="file"></div>';
   }
+  if (p.type === 'textarea') {
+    var val = (p.default || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return '<textarea id="' + id + '" rows="4" style="width:100%;resize:vertical;font-size:11px;line-height:1.5">' + val + '</textarea>';
+  }
   return '<input type="text" id="' + id + '" value="' + (p.default || '') + '">';
 }
 
@@ -3037,6 +3041,18 @@ async function resetModule(name) {
       if (res) res.innerHTML = '';
       var btn = $('mod-run-' + name);
       if (btn) btn.disabled = false;
+      // Reset params to defaults
+      var m = _moduleData[name];
+      if (m && m.parameters) {
+        m.parameters.forEach(function(p) {
+          var el = $('modp-' + name + '-' + p.name);
+          if (!el) return;
+          if (p.type === 'bool') el.checked = !!p.default;
+          else if (p.type === 'file') el.value = '';
+          else if (p.type === 'textarea') el.value = p.default || '';
+          else el.value = p.default != null ? p.default : '';
+        });
+      }
     }
   } catch(e) {
     console.error('Reset failed:', e);

@@ -111,18 +111,29 @@ def _tokenize_response(text, tokenizer):
 
 # ─── Prompt Construction ──────────────────────────────────────
 
-def _build_cell_prompt(cls, subclass, seeds, tokenizer, word_count=200):
+DEFAULT_PROMPT_TEMPLATE = (
+    "Provide a comprehensive {word_count}-word description of "
+    "{subclass} within context of and/or related to {class}. "
+    "Examples include: {seeds}. "
+    "Provide only the response and nothing more."
+)
+
+
+def _build_cell_prompt(cls, subclass, seeds, tokenizer,
+                       word_count=200, template=None):
     """Build a prompt steered toward a specific class × subclass cell."""
     cls_label = cls.replace("_", " ")
     sub_label = subclass.replace("_", " ")
     seed_str = ", ".join(seeds[:15]) if seeds else cls_label
 
-    prompt = (
-        f"Provide a comprehensive {word_count}-word description of "
-        f"{sub_label} within context of and/or related to {cls_label}. "
-        f"Examples include: {seed_str}. "
-        f"Provide only the response and nothing more."
-    )
+    tmpl = template or DEFAULT_PROMPT_TEMPLATE
+    prompt = tmpl.format(**{
+        "class": cls_label,
+        "subclass": sub_label,
+        "seeds": seed_str,
+        "word_count": word_count,
+    })
+
     try:
         text = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
@@ -222,6 +233,16 @@ class ProbeGeneratorModule(TASMModule):
                 min_val=1,
                 max_val=20,
             ),
+            ModuleParameter(
+                name="prompt_template",
+                display_name="Prompt Template",
+                description=(
+                    "Template sent to the model for each cell. "
+                    "Placeholders: {class}, {subclass}, {seeds}, {word_count}"
+                ),
+                type="textarea",
+                default=DEFAULT_PROMPT_TEMPLATE,
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -253,6 +274,7 @@ class ProbeGeneratorModule(TASMModule):
         n_queries = int(params.get("queries_per_cell", 50))
         max_tokens = int(params.get("max_new_tokens", 256))
         min_freq = int(params.get("min_frequency", 3))
+        prompt_template = params.get("prompt_template", "").strip() or None
 
         # Resolve template path
         csv_path = template_file
@@ -295,7 +317,8 @@ class ProbeGeneratorModule(TASMModule):
 
                     prompt_text = _build_cell_prompt(
                         cls, col, seeds, self._tokenizer,
-                        word_count=max_tokens)
+                        word_count=max_tokens,
+                        template=prompt_template)
                     inputs = self._tokenizer(prompt_text, return_tensors="pt")
                     inputs = {k: v.to(device) for k, v in inputs.items()}
 
