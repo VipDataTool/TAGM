@@ -73,7 +73,20 @@ class CorrectionHeatmapModule(TASMModule):
 
     @property
     def parameters(self):
-        return []
+        return [
+            ModuleParameter(
+                name="projection_method",
+                display_name="Projection Method",
+                description=(
+                    "How to measure interaction intensity. "
+                    "abs = linear magnitude. squared = energy. "
+                    "signed = raw directional (positive = aligned, negative = opposed)."
+                ),
+                type="select",
+                default="abs",
+                options=["abs", "squared", "signed"],
+            ),
+        ]
 
     def validate(self, session_results, params):
         ok, msg = super().validate(session_results, params)
@@ -97,6 +110,7 @@ class CorrectionHeatmapModule(TASMModule):
 
     def run(self, session_results, params, progress=None):
         probe_file = _get_active_probe(self._project_root)
+        proj_method = params.get("projection_method", "abs")
 
         if progress:
             progress("Loading probe structure...")
@@ -223,8 +237,13 @@ class CorrectionHeatmapModule(TASMModule):
             cell_counts = np.zeros((n_subj, n_levels))
 
             for probe_idx, (si, li) in enumerate(probe_cells):
-                # Mean absolute projection of all tokens against this probe
-                cell_grid[si, li] += np.abs(projections[:, probe_idx]).mean()
+                p = projections[:, probe_idx]
+                if proj_method == "squared":
+                    cell_grid[si, li] += (p ** 2).mean()
+                elif proj_method == "signed":
+                    cell_grid[si, li] += p.mean()
+                else:
+                    cell_grid[si, li] += np.abs(p).mean()
                 cell_counts[si, li] += 1
 
             # Normalize by number of probes per cell
