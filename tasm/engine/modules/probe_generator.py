@@ -38,6 +38,7 @@ from .base import TASMModule, ModuleParameter
 logger = logging.getLogger("tasm")
 
 FIXED_COLS = {"subject", "anchor_id"}
+META_TAG = "_meta"
 
 
 # ─── Template Parsing (self-contained) ────────────────────────
@@ -72,7 +73,7 @@ def _parse_template(csv_path):
 
         for row in reader:
             cls = row.get("subject", "").strip()
-            if not cls:
+            if not cls or cls == META_TAG:
                 continue
             if cls not in classes:
                 classes.append(cls)

@@ -25,7 +25,7 @@ import numpy as np
 from collections import defaultdict
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import (_detect_level_cols,
+from .domain_surface import (_detect_level_cols, _parse_meta,
                               _load_probe_cache, _probe_cache_path,
                               _load_probes)
 
@@ -134,21 +134,32 @@ class CorrectionHeatmapModule(TASMModule):
         n_levels = len(level_cols)
         subj_idx = {s: i for i, s in enumerate(subjects)}
 
-        # ── Load probe caches at both depths ──
-        if progress:
-            progress("Loading probe embeddings at L50 and L75...")
+        # ── Resolve layer depths (template meta overrides global config) ──
+        meta = _parse_meta(csv_path)
 
         try:
             from engine import engine_config
-            subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
-            esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
             use_proj = engine_config.get("probe_projection_space")
         except Exception:
-            subj_frac = 0.50
-            esc_frac = 0.75
             use_proj = False
 
-        projected = use_proj  # match whatever projection mode is active
+        if "layer_low" in meta and "layer_high" in meta:
+            subj_frac = max(0, min(1, float(meta["layer_low"])))
+            esc_frac = max(0, min(1, float(meta["layer_high"])))
+            logger.info(f"[HEATMAP] Using template depths: "
+                        f"L{int(subj_frac*100)}, L{int(esc_frac*100)}")
+        else:
+            try:
+                subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
+                esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
+            except Exception:
+                subj_frac = 0.50
+                esc_frac = 0.75
+
+        if progress:
+            progress(f"Loading probe embeddings at L{int(subj_frac*100)} and L{int(esc_frac*100)}...")
+
+        projected = use_proj
 
         # Find probe caches
         cache_dir = os.path.join(self._project_root, "probe_cache")

@@ -45,7 +45,7 @@ from engine.dataset import DatasetSession
 from engine.reports import generate_single_report, generate_batch_report
 from engine.modules import ModuleRunner
 from engine.modules.domain_surface import (embed_and_cache_probes, _probe_cache_path,
-                                            _load_probes,
+                                            _load_probes, _parse_meta,
                                             _load_probe_cache, _detect_level_cols)
 from engine import engine_config
 
@@ -1727,8 +1727,19 @@ def _probe_apply_worker(filename, project_root, n_probes, n_subjects,
     try:
         state = mm.state
         model_id = state.instruct_model_id or state.pair_id
-        subj_frac, esc_frac = _get_layer_fracs()
         use_proj = engine_config.get("probe_projection_space")
+
+        # Check for template-specified layer depths
+        csv_path = os.path.join(project_root, filename)
+        meta = _parse_meta(csv_path)
+        if "layer_low" in meta and "layer_high" in meta:
+            subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
+            esc_frac = max(0.0, min(1.0, float(meta["layer_high"])))
+            logger.info(f"[PROBE_SET] Using template depths: "
+                        f"L{int(subj_frac*100)}, L{int(esc_frac*100)}")
+        else:
+            subj_frac, esc_frac = _get_layer_fracs()
+
         depths = sorted(set([subj_frac, esc_frac]))
         embedded = 0
 

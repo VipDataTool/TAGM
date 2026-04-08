@@ -28,10 +28,47 @@ from .base import TASMModule, ModuleParameter
 logger = logging.getLogger("tasm")
 
 FIXED_COLS = {"subject", "anchor_id"}  # Non-escalation columns in probe CSVs
+META_TAG = "_meta"  # Reserved first-column value for metadata rows
 
 # Legacy defaults — used only if CSV has no header or auto-detection fails.
 _DEFAULT_LEVEL_COLS = ["nouns", "phrase", "question", "instruction", "meta_instruction"]
 _DEFAULT_LEVEL_NAMES = ["nouns", "phrase", "question", "instruct", "meta"]
+
+
+# ─── Probe Metadata ──────────────────────────────────────────
+
+def _parse_meta(csv_path):
+    """Extract metadata from _meta rows in a probe CSV.
+
+    Meta rows have '_meta' as their first column value. The remaining
+    columns are key-value pairs read positionally from the header.
+
+    Returns a dict of metadata values. Returns empty dict if no meta rows.
+    Recognized keys: layer_low, layer_high, template_version, description.
+    """
+    meta = {}
+    try:
+        with open(csv_path) as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if not header:
+                return meta
+            for row in reader:
+                if not row or row[0].strip() != META_TAG:
+                    continue
+                for i, val in enumerate(row[1:], 1):
+                    if i < len(header):
+                        key = header[i].strip()
+                        val = val.strip()
+                        if val:
+                            # Try numeric conversion
+                            try:
+                                meta[key] = float(val)
+                            except ValueError:
+                                meta[key] = val
+    except Exception:
+        pass
+    return meta
 
 
 # ─── Probe Loading ────────────────────────────────────────────
@@ -48,6 +85,7 @@ def _detect_level_cols(csv_path):
 
     Returns (level_cols, level_names) where level_names are display-friendly versions.
     Returns ([], []) if the CSV is not a valid probe file (no 'subject' column).
+    Skips _meta rows.
     """
     with open(csv_path) as f:
         reader = csv.DictReader(f)
@@ -74,6 +112,7 @@ def _load_probes(csv_path):
 
     Returns list of dicts with subject, anchor_id, level, text.
     Returns empty list if the CSV is not a valid probe file.
+    Skips _meta rows.
     """
     level_cols, _ = _detect_level_cols(csv_path)
     if not level_cols:
@@ -84,6 +123,8 @@ def _load_probes(csv_path):
         reader = csv.DictReader(f)
         for row in reader:
             if "subject" not in row:
+                continue
+            if row["subject"].strip() == META_TAG:
                 continue
             for level, col in enumerate(level_cols):
                 text = row.get(col, "").strip()
