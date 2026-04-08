@@ -283,6 +283,7 @@ textarea{resize:vertical;min-height:44px}
     <div class="section-title">Session</div>
     <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
     <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+    <div class="checkbox-row" style="margin-top:8px"><input type="checkbox" id="chimeToggle" onchange="localStorage.setItem('tasm_chime',this.checked?'1':'0')"><label for="chimeToggle" style="font-size:11px;color:var(--text-2)">Notification chime</label></div>
   </div>
 
   <!-- Log -->
@@ -863,7 +864,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}playChime()}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -927,7 +928,7 @@ async function analyzeBatch(){
         for(let i=lastLen;i<p.log.length;i++){
           const e=p.log[i];
           log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':(e.stage==='warning'?'error':'')));
-          if(e.stage==='done'&&e.message.includes('Batch complete')){done=true}
+          if(e.stage==='done'&&e.message.includes('Batch complete')){done=true;playChime()}
         }
         lastLen=p.log.length;
         if(done){
@@ -1075,7 +1076,7 @@ async function exportSession(){
           if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
             log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
           }
-          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true;doneMessage=e.message}
+          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true;doneMessage=e.message;playChime()}
           if(e.stage==='error'&&e.message.includes('Export')){exportFailed=true}
         }
         lastLen=p.log.length;
@@ -2541,6 +2542,7 @@ async function applyProbeSet(){
               + ' — embedded at L' + res.layer_L50 + ' and L' + res.layer_L75;
             status.style.color = 'var(--text-1)';
             log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
+            playChime();
           }
         }
       } catch(e){}
@@ -2587,10 +2589,40 @@ async function clearProbeCaches(){
   }
 }
 
+// ─── Notification Chime ─────────────────────────────────────────
+function playChime() {
+  if (!$('chimeToggle') || !$('chimeToggle').checked) return;
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var now = ctx.currentTime;
+
+    function tone(freq, start, dur, gain) {
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + start);
+      g.gain.linearRampToValueAtTime(gain, now + start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur);
+    }
+
+    // Two-note major third: E5 → G5, soft and brief
+    tone(659, 0.0, 0.4, 0.12);
+    tone(784, 0.15, 0.5, 0.10);
+
+    setTimeout(function() { ctx.close(); }, 1000);
+  } catch(e) {}
+}
+
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
     loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();
+    if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tasm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
@@ -3141,6 +3173,7 @@ async function pollModule(name) {
       clearInterval(_modulePollers[name]);
       delete _modulePollers[name];
       updateModuleStatus(name, 'completed');
+      playChime();
       var btn = $('mod-run-' + name);
       if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
       if (prog) {
