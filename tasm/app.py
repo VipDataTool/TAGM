@@ -204,7 +204,7 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
                         compute_sfd=False,
                         full_capture=False,
                         ltp_k=8, ltp_layer_strategy="signal",
-                        ltp_svd_rank=0, ltp_tuned_lens=False,
+                        ltp_svd_rank=0,
                         skip_plots=True,
                         base_cache=None):
     # Serialize access to model activations, hooks, and session state.
@@ -223,7 +223,6 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
             ltp_k=ltp_k,
             ltp_layer_strategy=ltp_layer_strategy,
             ltp_svd_rank=ltp_svd_rank,
-            ltp_tuned_lens=ltp_tuned_lens,
             base_cache=base_cache)
 
         plots = {}
@@ -563,7 +562,7 @@ async def analyze_single(prompt: str = Form(...),
                          ltp_k: int = Form(8),
                          ltp_layer_strategy: str = Form("signal"),
                          ltp_svd_rank: int = Form(0),
-                         ltp_tuned_lens: bool = Form(False)):
+):
     # Validation
     err = _validate_prompt(prompt)
     if err:
@@ -574,7 +573,7 @@ async def analyze_single(prompt: str = Form(...),
     category = _validate_category(category)
 
     try:
-        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, SFD={compute_sfd}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        logger.info(f"Analyzing: [{category}] {prompt[:60]}... (LTP={compute_ltp}, SFD={compute_sfd}, k={ltp_k}, strategy={ltp_layer_strategy}, svd={ltp_svd_rank})")
 
         # ── Sequential pipeline: batch of one ──
         # Same path for single and batch — no concurrent model loading.
@@ -594,7 +593,7 @@ async def analyze_single(prompt: str = Form(...),
             full_capture=full_capture,
             compute_ltp=compute_ltp, compute_sfd=compute_sfd,
             ltp_k=ltp_k, ltp_layer_strategy=ltp_layer_strategy,
-            ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+            ltp_svd_rank=ltp_svd_rank,
             base_cache=base_cache)
 
         return sanitize_for_json({
@@ -620,8 +619,7 @@ async def analyze_batch(file: UploadFile = File(...),
                         compute_sfd: bool = Form(False),
                         ltp_k: int = Form(8),
                         ltp_layer_strategy: str = Form("signal"),
-                        ltp_svd_rank: int = Form(0),
-                        ltp_tuned_lens: bool = Form(False)):
+                        ltp_svd_rank: int = Form(0)):
     if not analyzer:
         return JSONResponse(status_code=400, content={"error": "No model loaded."})
 
@@ -660,7 +658,7 @@ async def analyze_batch(file: UploadFile = File(...),
               compute_kl, compute_trajectory, capture_responses,
               full_capture,
               compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
-              ltp_svd_rank, ltp_tuned_lens),
+              ltp_svd_rank),
         daemon=True).start()
 
     return {"ok": True, "started": True, "n_prompts": len(prompts),
@@ -671,7 +669,7 @@ def _run_batch_sync(content, filename,
                     compute_kl, compute_trajectory, capture_responses,
                     full_capture,
                     compute_ltp, compute_sfd, ltp_k, ltp_layer_strategy,
-                    ltp_svd_rank, ltp_tuned_lens):
+                    ltp_svd_rank):
     """Synchronous batch processing — runs in a background thread.
 
     Uses a two-phase sequential pipeline when the base model is needed:
@@ -693,7 +691,7 @@ def _run_batch_sync(content, filename,
             log_progress("error", "No valid prompts found in CSV.")
             return
 
-        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, SFD={compute_sfd}, full_capture={full_capture}, svd={ltp_svd_rank}, tl={ltp_tuned_lens})")
+        logger.info(f"Batch: {len(prompts)} prompts from {filename} (LTP={compute_ltp}, SFD={compute_sfd}, full_capture={full_capture}, svd={ltp_svd_rank})")
         log_progress("batch", f"Loaded {len(prompts)} prompts from CSV")
 
         # ── Determine if base model is needed ──
@@ -721,7 +719,7 @@ def _run_batch_sync(content, filename,
                     full_capture=full_capture,
                     ltp_k=ltp_k,
                     ltp_layer_strategy=ltp_layer_strategy,
-                    ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                    ltp_svd_rank=ltp_svd_rank,
                     skip_plots=True,
                     base_cache=base_cache)
             except Exception as prompt_err:
@@ -851,7 +849,6 @@ async def rerun_prompts(request: Request):
     ltp_k = opts.get("ltp_k", 8)
     ltp_layer_strategy = opts.get("ltp_layer_strategy", "signal")
     ltp_svd_rank = opts.get("ltp_svd_rank", 0)
-    ltp_tuned_lens = opts.get("ltp_tuned_lens", False)
 
     # Collect prompts to rerun before removing them
     to_rerun = []
@@ -893,7 +890,7 @@ async def rerun_prompts(request: Request):
                 compute_ltp=compute_ltp, compute_sfd=compute_sfd,
                 ltp_k=ltp_k,
                 ltp_layer_strategy=ltp_layer_strategy,
-                ltp_svd_rank=ltp_svd_rank, ltp_tuned_lens=ltp_tuned_lens,
+                ltp_svd_rank=ltp_svd_rank,
                 base_cache=base_cache)
             rerun_count += 1
         except Exception as e:

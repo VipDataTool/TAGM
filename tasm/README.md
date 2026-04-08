@@ -262,7 +262,7 @@ tasm/
 │   ├── analyzer.py           # Core ASM + LTP analysis pipeline
 │   ├── ltp.py                # Lateral Tension Profile computation
 │   ├── sfd.py                # Spectral Field Density computation
-│   ├── baselines.py          # Benign prompt bank for reference and batch analysis
+│   ├── baselines.py          # Prompt library and calibration prompts
 │   ├── statistics.py         # Bootstrap CIs, effect sizes, aggregation (ASM + LTP)
 │   ├── visualizations.py     # Matplotlib plot generation (ASM + LTP)
 │   ├── comparative.py        # Cross-prompt comparative plots (ASM + LTP)
@@ -277,6 +277,9 @@ tasm/
 │       ├── correction_manifold.py # PCA + K-means fingerprint clustering
 │       ├── domain_surface.py      # Probe embedding, domain surface mapping
 │       └── token_variance.py      # Context-dependent token coupling analysis
+├── templates/                # Default probe templates
+│   ├── grammar.csv           # Parts of speech (nouns/verbs/adj/adv)
+│   └── operational_frame.csv # Operational context (supervised/unsupervised/defensive/offensive)
 ├── static/
 │   ├── index.html            # Single-page web frontend
 │   ├── correction_manifold_viz.html  # Interactive manifold visualization
@@ -284,8 +287,8 @@ tasm/
 │   ├── chat.html             # Chat interface
 │   └── favicon.svg           # Browser icon
 ├── models.json               # Model pair registry
-├── prompts.csv               # Prompt library with baselines
-├── probe_config.json         # Active probe set configuration (auto-generated)
+├── prompts.csv               # Prompt library (also usable as batch input)
+├── probe_config.json         # Active probe set (auto-generated)
 ├── start.sh                  # One-line launcher
 └── requirements.txt
 ```

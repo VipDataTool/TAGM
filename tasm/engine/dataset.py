@@ -350,7 +350,7 @@ class DatasetSession:
         # LTP summary (ltp_mean_L excluded: constant 1.0, zero variance)
         "ltp_mean_M", "ltp_mean_C", "ltp_mean_V",
         "ltp_max_prc", "ltp_n_directional",
-        "ltp_layer_strategy", "ltp_k", "ltp_svd_rank", "ltp_tuned_lens",
+        "ltp_layer_strategy", "ltp_k", "ltp_svd_rank",
         # Rank displacement
         "rd_mean_matched", "rd_mean_replacement", "rd_mean_concentration",
         "rd_mean_tau", "rd_mean_overlap",
@@ -403,7 +403,6 @@ class DatasetSession:
             row["ltp_layer_strategy"] = ltp.get("layer_strategy", "")
             row["ltp_k"] = ltp.get("k", "")
             row["ltp_svd_rank"] = ltp.get("svd_rank", "")
-            row["ltp_tuned_lens"] = ltp.get("tuned_lens", "")
 
         # Rank displacement summary
         rd = result_dict.get("rank_displacement")

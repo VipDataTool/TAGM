@@ -46,74 +46,6 @@ def precompute_svd_cache(state, rank: int = 5) -> Dict[int, torch.Tensor]:
     return cache
 
 
-# ─── Precomputation: tuned-lens calibration ──────────────────────
-
-def precompute_tuned_lens_cache(model_manager, calibration_prompts: List[str],
-                                 layer_indices: List[int] = None
-                                 ) -> Dict[int, torch.Tensor]:
-    """Fit per-layer affine transforms mapping intermediate hidden states to
-    final hidden states. Returns dict mapping layer_idx -> A_l (d x d).
-    To correct unembedding direction d for layer l: d_corrected = A_l @ d."""
-    state = model_manager.state
-    model = state.model_instruct
-    device = state.device
-    dtype = state.dtype
-    if layer_indices is None:
-        layer_indices = list(state.signal_layers)
-
-    collected = {}
-    hooks = []
-
-    def make_hook(key):
-        def hook(module, inp, output):
-            if isinstance(output, tuple):
-                collected.setdefault(key, []).append(output[0].detach())
-            else:
-                collected.setdefault(key, []).append(output.detach())
-        return hook
-
-    for layer_idx in layer_indices:
-        layer = model.model.layers[layer_idx]
-        hooks.append(layer.input_layernorm.register_forward_hook(
-            make_hook(f"h_{layer_idx}")))
-    hooks.append(model.model.norm.register_forward_hook(make_hook("h_final")))
-
-    logger.info(f"[TunedLens] Calibrating with {len(calibration_prompts)} prompts "
-                f"across {len(layer_indices)} layers...")
-    with torch.no_grad():
-        for prompt in calibration_prompts:
-            inputs = state.tokenizer(prompt, return_tensors="pt").to(device)
-            model(**inputs)
-
-    for h in hooks:
-        h.remove()
-
-    H_final = torch.cat(collected.get("h_final", []), dim=1).squeeze(0).float()
-    cache = {}
-    for layer_idx in layer_indices:
-        key = f"h_{layer_idx}"
-        if key not in collected:
-            continue
-        H_l = torch.cat(collected[key], dim=1).squeeze(0).float()
-        if H_l.shape[0] != H_final.shape[0]:
-            logger.warning(f"[TunedLens] Shape mismatch at layer {layer_idx}, skipping")
-            continue
-        try:
-            result = torch.linalg.lstsq(H_l, H_final)
-            A_l = result.solution.to(dtype)
-            cache[layer_idx] = A_l
-            pred = H_l @ A_l.float()
-            residual = (pred - H_final).norm() / H_final.norm()
-            logger.info(f"[TunedLens] Layer {layer_idx}: residual = {residual:.4f}")
-        except Exception as e:
-            logger.warning(f"[TunedLens] Layer {layer_idx} fit failed: {e}")
-
-    del collected
-    import gc; gc.collect()
-    logger.info(f"[TunedLens] Cache built: {len(cache)} layers, "
-                f"{H_final.shape[0]} tokens")
-    return cache
-
 
 # ─── LTP Result ──────────────────────────────────────────────────
 
@@ -143,7 +75,6 @@ class LTPResult:
     monitored_layers: List[int] = field(default_factory=list)
     k: int = 8
     svd_rank: int = 0
-    tuned_lens: bool = False
 
 
 # ─── Core computation ────────────────────────────────────────────
@@ -152,13 +83,11 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
                 k: int = 8, layer_strategy: str = "signal",
                 svd_cache: Dict[int, torch.Tensor] = None,
                 svd_rank: int = 0,
-                tuned_lens_cache: Dict[int, torch.Tensor] = None,
                 base_logits=None,
                 precomputed_base_alts=None) -> LTPResult:
     """Compute the Lateral Tension Profile for a completed forward pass.
     svd_cache: precomputed truncated dW_V per layer (None = use raw delta).
     svd_rank: the truncation rank used (for recording in results).
-    tuned_lens_cache: precomputed per-layer affine transforms (None = raw probes).
     precomputed_base_alts: list of [(token_id, prob), ...] per position from a
         prior base-model pass. If provided, base_logits is not needed — enables
         sequential (non-concurrent) model loading."""
@@ -166,7 +95,6 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
     result = LTPResult(
         k=k, layer_strategy=layer_strategy,
         svd_rank=svd_rank,
-        tuned_lens=tuned_lens_cache is not None and len(tuned_lens_cache) > 0,
     )
     seq_len = len(tokens)
     device = state.device
@@ -282,9 +210,6 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         head_dim = state.head_dim
         heads_per_kv = n_heads // n_kv_heads
 
-        has_tl = (tuned_lens_cache is not None and layer_idx in tuned_lens_cache)
-        if has_tl:
-            A_l = tuned_lens_cache[layer_idx]
 
         def _project_alts(alts_list, chosen_id, tau, return_laterals=False):
             """Project a set of counterfactual alternatives through ΔW/2 → W_O → lateral.
@@ -295,8 +220,6 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
             laterals = [] if return_laterals else None
             for alt_id, alt_prob in alts_list:
                 d_ic = W_u[alt_id] - W_u[chosen_id]
-                if has_tl:
-                    d_ic = torch.matmul(A_l, d_ic)
                 delta_val = torch.matmul(dw_v_half, d_ic)
                 expanded = delta_val.view(n_kv_heads, head_dim) \
                     .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
@@ -527,7 +450,7 @@ def ltp_result_to_dict(r: LTPResult) -> dict:
         "prc_per_token": [_safe(p) for p in r.prc_per_token],
         "layer_strategy": r.layer_strategy,
         "monitored_layers": r.monitored_layers,
-        "k": r.k, "svd_rank": r.svd_rank, "tuned_lens": r.tuned_lens,
+        "k": r.k, "svd_rank": r.svd_rank,
         "semantic_trajectory_2d": r.semantic_trajectory.tolist() if r.semantic_trajectory is not None else [],
         "tension_trajectory_2d": r.tension_trajectory.tolist() if r.tension_trajectory is not None else [],
     }

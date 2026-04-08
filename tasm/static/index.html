@@ -886,7 +886,6 @@ function _buildAnalysisFormData(){
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',0);
-  fd.append('ltp_tuned_lens',false);
   return fd;
 }
 
@@ -1396,7 +1395,6 @@ async function dtRerunSelected(){
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
     ltp_svd_rank:0,
-    ltp_tuned_lens:false,
   };
   log(`Rerunning ${indices.length} prompt(s)...`,'analyzing');
   try{
