@@ -356,8 +356,6 @@ class DatasetSession:
         "rd_mean_tau", "rd_mean_overlap",
         # SFD summary
         "sfd_density_mean", "sfd_energy_mean", "sfd_entropy_mean",
-        # Classification
-        "predicted_class", "prediction_confidence",
         # Full capture
         "full_capture",
         "mean_coherence", "mean_spectral_rank", "mean_attn_frac",
@@ -419,12 +417,6 @@ class DatasetSession:
             row["sfd_density_mean"] = sfd.get("density_mean", "")
             row["sfd_energy_mean"] = sfd.get("energy_mean", "")
             row["sfd_entropy_mean"] = sfd.get("entropy_mean", "")
-
-        # Classification
-        cl = result_dict.get("classification")
-        if cl:
-            row["predicted_class"] = cl.get("predicted", "")
-            row["prediction_confidence"] = cl.get("confidence", "")
 
         # Full capture summary
         row["full_capture"] = result_dict.get("full_capture_enabled", False)

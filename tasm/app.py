@@ -68,7 +68,7 @@ analyzer = None
 session: Optional[DatasetSession] = None
 progress_log = []
 loading_state = {"active": False, "error": None}
-user_info = {"name": "", "organization": ""}
+user_info = {"name": "", "organization": "", "project": ""}
 module_runner = ModuleRunner()
 
 # Locks protecting shared mutable state from concurrent access.
@@ -396,9 +396,10 @@ async def get_status():
 
 
 @app.post("/api/user_info")
-async def set_user_info(name: str = Form(""), organization: str = Form("")):
+async def set_user_info(name: str = Form(""), organization: str = Form(""), project: str = Form("")):
     user_info["name"] = name.strip()
     user_info["organization"] = organization.strip()
+    user_info["project"] = project.strip()
     logger.info(f"User info updated: {user_info}")
     return {"ok": True, "user_info": user_info}
 

@@ -226,17 +226,24 @@ textarea{resize:vertical;min-height:44px}
 <div class="main">
 <div class="sidebar">
 
-  <!-- User Info -->
+  <!-- Analyst -->
   <div class="section">
     <div class="section-title">Analyst</div>
-    <input type="text" id="userName" placeholder="Your name" onchange="saveUserInfo()">
+    <input type="text" id="userName" placeholder="Name" onchange="saveUserInfo()">
     <input type="text" id="userOrg" placeholder="Organization" onchange="saveUserInfo()">
+    <input type="text" id="userProject" placeholder="Project" onchange="saveUserInfo()">
   </div>
 
   <!-- Model -->
   <div class="section">
-    <div class="section-title">Model Pair</div>
+    <div class="section-title">Model</div>
+    <label>Model Pair</label>
     <select id="modelSelect"><option value="">-- Select --</option></select>
+    <label>Inference Model</label>
+    <select id="inferenceModelSelect">
+      <option value="instruct" selected>Instruct</option>
+      <option value="base">Base</option>
+    </select>
     <div class="btn-row">
       <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
       <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
@@ -269,20 +276,23 @@ textarea{resize:vertical;min-height:44px}
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="sfd-badge">SFD</span></label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
-    <div style="margin-top:6px;display:flex;gap:4px;align-items:center">
+  </div>
+
+  <!-- Batch -->
+  <div class="section">
+    <div class="section-title">Batch</div>
+    <div style="display:flex;gap:4px;align-items:center">
       <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
       <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
     </div>
-    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
   </div>
 
-
-
-  <!-- Session Actions -->
+  <!-- Session -->
   <div class="section">
     <div class="section-title">Session</div>
     <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
     <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
     <div class="checkbox-row" style="margin-top:8px"><input type="checkbox" id="chimeToggle" onchange="localStorage.setItem('tasm_chime',this.checked?'1':'0')"><label for="chimeToggle" style="font-size:11px;color:var(--text-2)">Notification chime</label></div>
   </div>
 
@@ -819,7 +829,7 @@ function updateSessionBadge(){
 
 // ─── User Info ──────────────────────────────────────────────────
 async function saveUserInfo(){
-  const fd=new FormData();fd.append('name',$('userName').value);fd.append('organization',$('userOrg').value);
+  const fd=new FormData();fd.append('name',$('userName').value);fd.append('organization',$('userOrg').value);fd.append('project',$('userProject').value);
   try{await fetch('/api/user_info',{method:'POST',body:fd})}catch(e){}
 }
 
@@ -864,7 +874,7 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}playChime()}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}playChime()}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
@@ -2624,7 +2634,7 @@ function playChime() {
     loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();
     if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tasm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
-    if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||''}
+    if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
     else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
       let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
