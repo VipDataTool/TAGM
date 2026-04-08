@@ -113,10 +113,15 @@ def _tokenize_response(text, tokenizer):
 # ─── Prompt Construction ──────────────────────────────────────
 
 DEFAULT_PROMPT_TEMPLATE = (
-    "Provide a comprehensive {word_count}-word description of "
-    "{subclass} within context of and/or related to {class}. "
-    "Examples include: {seeds}. "
-    "Provide only the response and nothing more."
+    "List {word_count} unique {subclass} related to {class}. "
+    "Examples: {seeds}. "
+    "Single words only, one per line."
+)
+
+TERMINOLOGY_PROMPT_TEMPLATE = (
+    "Define {word_count} {subclass} terms related to {class}. "
+    "Examples: {seeds}. "
+    "One term per line with a brief definition."
 )
 
 
