@@ -290,7 +290,7 @@ textarea{resize:vertical;min-height:44px}
   <!-- Session -->
   <div class="section">
     <div class="section-title">Session</div>
-    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard(false,true)" disabled>Refresh Dashboard</button>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="refreshSession()" disabled>Refresh Session</button>
     <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
     <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
     <div class="checkbox-row" style="margin-top:8px"><input type="checkbox" id="chimeToggle" onchange="localStorage.setItem('tasm_chime',this.checked?'1':'0')"><label for="chimeToggle" style="font-size:11px;color:var(--text-2)">Notification chime</label></div>
@@ -306,13 +306,8 @@ textarea{resize:vertical;min-height:44px}
 <div class="content">
   <div class="main-tabs">
     <div class="main-tab active" onclick="switchMainTab(this,'panel-data')">Data</div>
-    <div class="main-tab" onclick="switchMainTab(this,'panel-dashboard')">Analysis</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-modules')">Modules</div>
     <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
-  </div>
-  <div class="tab-panel" id="panel-dashboard">
-    <div class="empty-state" id="dashEmpty"><h2>Run some prompts first</h2><p>Analyze prompts, then click Refresh Dashboard.</p></div>
-    <div id="dashContent" style="display:none"></div>
   </div>
   <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
     <div class="card" style="margin-bottom:10px">
@@ -461,8 +456,8 @@ function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').for
 function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
 
 // ─── Card Collapse Defaults ─────────────────────────────────────
-const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',dashboard:'expanded',modules:'expanded',config:'expanded'};
-const CARD_COLLAPSE_LABELS={prompt:'Prompt',dashboard:'Analysis',modules:'Modules',config:'Configuration'};
+const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',modules:'expanded',config:'expanded'};
+const CARD_COLLAPSE_LABELS={prompt:'Prompt',modules:'Modules',config:'Configuration'};
 function cardDefault(tab){return CARD_COLLAPSE_DEFAULTS[tab]==='collapsed'?' collapsed':''}
 function applyCardDefaults(panelId,tab){
   const panel=$(panelId);if(!panel)return;
@@ -759,7 +754,7 @@ async function clearAllSessionData(){
   if(!confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.')) return;
   try{
     const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
-    if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
+    if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
     else{log('Clear failed: '+(r.error||''),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
@@ -831,7 +826,7 @@ async function loadModel(){
 
 async function resetAll(){
   if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
-  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('dashContent').style.display='none';$('dashEmpty').style.display='';$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
+  try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
 // ─── Analysis ───────────────────────────────────────────────────
@@ -937,7 +932,7 @@ async function analyzeBatch(){
               renderDataTable();
             }
           }catch(re){log('Results load: '+re.message,'error')}
-          try{await loadDashboard(true,false)}catch(de){log('Dashboard: '+de.message,'error')}
+          try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
           return;
         }
       }catch(pe){}
@@ -947,82 +942,29 @@ async function analyzeBatch(){
   }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
 }
 
-// ─── Dashboard ──────────────────────────────────────────────────
-async function loadDashboard(bypassBusy, forceRecompute){
-  if(!bypassBusy&&_busy){log('Another operation in progress, please wait.','error');return}
+// ─── Session Refresh ────────────────────────────────────────────
+async function refreshSession(){
+  if(_busy){log('Another operation in progress, please wait.','error');return}
   _busy=true;
-  log(forceRecompute?'Recomputing dashboard...':'Loading dashboard...');
+  log('Refreshing session data...');
   try{
-    const resp=await fetch('/api/dashboard'+(forceRecompute?'?force=true':''));
-    if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');return}
+    const resp=await fetch('/api/dashboard');
+    if(!resp.ok){log('Session refresh HTTP error: '+resp.status,'error');return}
     const data=await resp.json();
-    if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
+    if(!data.ok){log('Session refresh: '+(data.error||'unknown error'),'error');return}
 
-    // Store dashboard results separately from per-prompt session data
     dashResults=data.results||[];
+    if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;
+    if(data.session_info){
+      _promptTotal=data.session_info.n_results||dashResults.length;
+    }
     updateSessionBadge();
     renderDataTable();
 
-    const dc=$('dashContent');dc.style.display='block';$('dashEmpty').style.display='none';
-    const info=data.session_info||{},agg=data.aggregate||{};
-    const plotKeys=data.plot_keys||[];
-    const cats=agg.categories||{};
-
-    // ═══ ANALYSIS TAB ═══
-    let h=`<div class="card"><div class="card-body"><div class="metrics-grid">${mc('Prompts',info.n_results||0,null,v=>v)}${mc('Model',info.model||'--',null,v=>v)}${Object.entries(info.categories||{}).map(([c,n])=>mc(c,n,null,v=>v)).join('')}</div></div></div>`;
-
-    // Category summary table
-    if(Object.keys(cats).length){
-      h+=`<div class="card"><div class="card-header"><h3>Category Summary</h3></div><div class="card-body${cardDefault('dashboard')}"><div style="font-size:12px;color:var(--text-0);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). Three instruments: ASM (disruption), LTP (selectivity), SFD (subspace).</div><table class="data-table"><tr><th>Category</th><th>N</th><th>Stress</th><th>Entropy</th><th>Int%</th><th>Net Corr</th><th>Int CV</th><th style="color:var(--orange)">Density</th><th style="color:var(--orange)">Tau</th></tr>`;
-      for(const[cat,s]of Object.entries(cats)){const m=s.metrics||{};h+=`<tr><td><span class="pill ${pillClass(cat)}">${cat}</span></td><td>${s.n}</td><td>${m.stress_score?m.stress_score.estimate.toFixed(4):'--'}</td><td>${m.entropy?m.entropy.estimate.toFixed(4):'--'}</td><td>${m.middle_share?(m.middle_share.estimate*100).toFixed(1)+'%':'--'}</td><td>${m.net_correction?m.net_correction.estimate.toFixed(5):'--'}</td><td>${m.interior_cv?m.interior_cv.estimate.toFixed(4):'--'}</td><td>${m.sfd_density_mean?m.sfd_density_mean.estimate.toFixed(4):'--'}</td><td>${m.rank_displacement_tau?m.rank_displacement_tau.estimate.toFixed(3):'--'}</td></tr>`}
-      h+=`</table></div></div>`;
-    }
-
-    // Batch plots — popout labels instead of inline rendering
-    const plotKeySet=new Set(plotKeys);
-    const batchItems=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
-    if(batchItems.length){
-      h+=`<div class="card"><div class="card-header"><h3>Visualizations</h3></div><div class="card-body${cardDefault('dashboard')}">`;
-      h+=`<div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Click any item to open in a new window.</div>`;
-      for(const[key,v]of batchItems){
-        const sk='dash_'+key;
-        storeViz(sk,v.title,_plotHtml(key,v.title,v.desc||''));
-        h+=vizLabel(sk,v.title,v.desc||'');
-      }
-
-      // Candidate graph aggregate
-      if(dashResults.length>1){
-        try{
-          var cgAgg=_computeGraphsChunked(dashResults);
-          if(cgAgg){
-            const sk='dash_candgraph';
-            storeViz(sk,'Candidate Graph Aggregate',cgAgg);
-            h+=vizLabel(sk,'Candidate Graph Aggregate','Contested positions and role switches across batch','var(--purple)');
-          }
-        }catch(e){console.error('Candidate graph aggregate:',e)}
-      }
-
-      // Disabled batch vizs as labels too
-      const disabledBatch=Object.entries(VIZ_REGISTRY).filter(([k,v])=>v.scope==='batch'&&!v.on&&plotKeySet.has(k)).sort((a,b)=>a[1].order-b[1].order);
-      if(disabledBatch.length){
-        h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Disabled (enable in Configuration tab):</div>`;
-        for(const[key,v]of disabledBatch){
-          const sk='dash_dis_'+key;
-          storeViz(sk,v.title,_plotHtml(key,v.title,v.desc||''));
-          h+=vizLabel(sk,v.title+' (disabled)',v.desc||'');
-        }
-        h+=`</div>`;
-      }
-      h+=`</div></div>`;
-    }
-
-    dc.innerHTML=h;
-
-    log('Dashboard loaded','done');
-    document.querySelectorAll('.main-tab')[1].click();
+    log('Session refreshed: '+dashResults.length+' prompts','done');
   }catch(e){
-    log('Dashboard error: '+e.message,'error');
-    console.error('Dashboard error:',e);
+    log('Session refresh error: '+e.message,'error');
+    console.error('Session refresh error:',e);
   }finally{
     _busy=false;
   }
@@ -3115,6 +3057,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderMIResults(results);
   } else if (name === 'correction_field_topology') {
     container.innerHTML = renderCFTResults(results);
+  } else if (name === 'comparative_analysis') {
+    container.innerHTML = renderComparativeResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3559,6 +3503,128 @@ function renderProbeGeneratorResults(r) {
 function popoutCorrectionManifold(){
   var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+// ─── Comparative Analysis Results Renderer ──────────────────────
+
+function renderComparativeResults(r) {
+  if (r.error) {
+    return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--orange)">' + escHtml(r.error) + '</div></div>';
+  }
+
+  var h = '<div class="mod-results">';
+  var agg = r.aggregate || {};
+  var cats = agg.categories || {};
+  var plotKeys = r.plot_keys || [];
+
+  // Session summary badges
+  h += '<div style="padding:10px 16px;border-bottom:1px solid var(--border)">';
+  h += '<div class="metrics-grid">';
+  h += mc('Prompts', r.n_prompts || 0, null, function(v){return v});
+  (r.categories || []).forEach(function(cat) {
+    var ci = cats[cat];
+    h += mc(cat, ci ? ci.n : '?', null, function(v){return v});
+  });
+  h += '</div></div>';
+
+  // Category summary table
+  if (Object.keys(cats).length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Category Summary</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">Bootstrapped estimates (5000 resamples, 95% CI). ASM (disruption), LTP (selectivity), SFD (subspace).</div>';
+    h += '<table class="mod-tbl"><thead><tr><th>Category</th><th class="num">N</th><th class="num">Stress</th><th class="num">Entropy</th><th class="num">Int%</th><th class="num">Net Corr</th><th class="num">Int CV</th><th class="num" style="color:var(--orange)">Density</th><th class="num" style="color:var(--orange)">Tau</th></tr></thead><tbody>';
+    for (var catName in cats) {
+      var s = cats[catName];
+      var m = s.metrics || {};
+      h += '<tr>';
+      h += '<td><span class="pill ' + pillClass(catName) + '">' + catName + '</span></td>';
+      h += '<td class="num">' + s.n + '</td>';
+      h += '<td class="num">' + (m.stress_score ? m.stress_score.estimate.toFixed(4) : '--') + '</td>';
+      h += '<td class="num">' + (m.entropy ? m.entropy.estimate.toFixed(4) : '--') + '</td>';
+      h += '<td class="num">' + (m.middle_share ? (m.middle_share.estimate * 100).toFixed(1) + '%' : '--') + '</td>';
+      h += '<td class="num">' + (m.net_correction ? m.net_correction.estimate.toFixed(5) : '--') + '</td>';
+      h += '<td class="num">' + (m.interior_cv ? m.interior_cv.estimate.toFixed(4) : '--') + '</td>';
+      h += '<td class="num">' + (m.sfd_density_mean ? m.sfd_density_mean.estimate.toFixed(4) : '--') + '</td>';
+      h += '<td class="num">' + (m.rank_displacement_tau ? m.rank_displacement_tau.estimate.toFixed(3) : '--') + '</td>';
+      h += '</tr>';
+    }
+    h += '</tbody></table></div>';
+  }
+
+  // Batch visualizations — popout labels
+  var plotKeySet = {};
+  plotKeys.forEach(function(k) { plotKeySet[k] = true; });
+  var batchItems = Object.entries(VIZ_REGISTRY).filter(function(e) {
+    return e[1].scope === 'batch' && e[1].on && plotKeySet[e[0]];
+  }).sort(function(a, b) { return a[1].order - b[1].order; });
+
+  if (batchItems.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Visualizations (' + batchItems.length + ')</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Click any item to open in a new window.</div>';
+    batchItems.forEach(function(e) {
+      var key = e[0], v = e[1];
+      var sk = 'comp_' + key;
+      storeViz(sk, v.title, _plotHtml(key, v.title, v.desc || ''));
+      h += vizLabel(sk, v.title, v.desc || '');
+    });
+
+    // Candidate graph aggregate
+    if (dashResults.length > 1) {
+      try {
+        var cgAgg = _computeGraphsChunked(dashResults);
+        if (cgAgg) {
+          var sk2 = 'comp_candgraph';
+          storeViz(sk2, 'Candidate Graph Aggregate', cgAgg);
+          h += vizLabel(sk2, 'Candidate Graph Aggregate', 'Contested positions and role switches across batch', 'var(--purple)');
+        }
+      } catch(e) { console.error('Candidate graph aggregate:', e); }
+    }
+
+    // Disabled batch vizs
+    var disabledBatch = Object.entries(VIZ_REGISTRY).filter(function(e) {
+      return e[1].scope === 'batch' && !e[1].on && plotKeySet[e[0]];
+    }).sort(function(a, b) { return a[1].order - b[1].order; });
+    if (disabledBatch.length) {
+      h += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Disabled (enable in Configuration tab):</div>';
+      disabledBatch.forEach(function(e) {
+        var key = e[0], v = e[1];
+        var sk3 = 'comp_dis_' + key;
+        storeViz(sk3, v.title, _plotHtml(key, v.title, v.desc || ''));
+        h += vizLabel(sk3, v.title + ' (disabled)', v.desc || '');
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+
+  // Separability details (if available)
+  var sep = agg.separability || {};
+  if (Object.keys(sep).length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Separability (Cohen\'s d)</div>';
+    h += '<div class="mod-results-body collapsed">';
+    h += '<table class="mod-tbl"><thead><tr><th>Metric</th><th class="num">d</th><th class="num">CI Low</th><th class="num">CI High</th><th class="num">Accuracy</th></tr></thead><tbody>';
+    var sepKeys = Object.keys(sep).sort(function(a, b) {
+      return (sep[b].effect_size ? sep[b].effect_size.estimate : 0) - (sep[a].effect_size ? sep[a].effect_size.estimate : 0);
+    });
+    sepKeys.forEach(function(k) {
+      var s = sep[k];
+      var es = s.effect_size || {};
+      var ci = es.ci || [];
+      var th = s.threshold || {};
+      var col = Math.abs(es.estimate || 0) >= 0.8 ? 'var(--green)' : Math.abs(es.estimate || 0) >= 0.5 ? 'var(--cyan)' : 'var(--text-2)';
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(k) + '</td>';
+      h += '<td class="num" style="color:' + col + '">' + (es.estimate || 0).toFixed(3) + '</td>';
+      h += '<td class="num">' + (ci[0] != null ? ci[0].toFixed(3) : '--') + '</td>';
+      h += '<td class="num">' + (ci[1] != null ? ci[1].toFixed(3) : '--') + '</td>';
+      h += '<td class="num">' + (th.accuracy ? (th.accuracy * 100).toFixed(1) + '%' : '--') + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  h += '</div>';
+  return h;
 }
 
 // ─── Correction Field Topology Results Renderer ─────────────────

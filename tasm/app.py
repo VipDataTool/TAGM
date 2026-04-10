@@ -919,54 +919,13 @@ async def get_dashboard(force: bool = False):
 
 
 def _run_dashboard_sync(force: bool = False):
-    """Synchronous dashboard generation — runs in a thread.
+    """Synchronous session data refresh — runs in a thread.
 
-    Design: returns a lightweight response with aggregate stats and
-    scalar results. Plots are NOT generated here — they are generated
-    lazily on first request via /api/plots/{key}.
-
-    If cached aggregate_statistics.json exists and matches the current
-    session size, it is reused unless force=True.
+    Returns lightweight slim results for the data table and session info.
+    Aggregate statistics are now computed by the Comparative Analysis module.
     """
-    logger.info(f"Dashboard request: {session.n_results} prompts, force={force}")
+    logger.info(f"Session refresh: {session.n_results} prompts")
     results = session.results
-
-    # ── Check for cached aggregate stats ──
-    agg = None
-    agg_path = session.session_dir / "aggregate_statistics.json"
-    if not force and agg_path.exists():
-        try:
-            with open(agg_path) as f:
-                cached = json.load(f)
-            cached_n = cached.get("n_total", 0)
-            if cached_n == session.n_results:
-                agg = cached
-                logger.info(f"Dashboard: using cached aggregate ({cached_n} prompts)")
-            else:
-                logger.info(f"Dashboard: cache stale ({cached_n} != {session.n_results}), recomputing")
-        except Exception as e:
-            logger.warning(f"Dashboard: cache read failed ({e}), recomputing")
-
-    # ── Recompute if needed ──
-    if agg is None:
-        from engine.analyzer import PromptResult
-        pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
-        agg = aggregate_batch(pr_list)
-        session.save_aggregate_json(agg)
-        session.save_results_json()
-
-    # Declare all possible plot keys (not yet generated)
-    available_plots = [
-        "batch_summary", "separability",
-        "key_scatters", "discriminative_sublayers", "proof1_summary",
-        "exp_trajectory_overlay", "exp_difference_from_benign",
-        "exp_metric_scatters", "exp_behavioral_comparison",
-        "exp_ltp_category_comparison", "exp_ltp_m_vs_stress",
-        "exp_ltp_profile_shapes", "exp_sfd_category_comparison",
-        "exp_sfd_vs_asm", "exp_rank_displacement",
-    ]
-
-    logger.info(f"Dashboard stats generated: {session.n_results} prompts")
 
     # ── Build lightweight result list (scalars only) ──
     slim_results = []
@@ -1008,8 +967,6 @@ def _run_dashboard_sync(force: bool = False):
 
     return sanitize_for_json({
         "ok": True,
-        "aggregate": agg,
-        "plot_keys": available_plots,   # list of names, not image data
         "results": slim_results,
         "session_info": {
             "n_results": session.n_results,
@@ -1017,6 +974,7 @@ def _run_dashboard_sync(force: bool = False):
             "model": session.model_name,
             "timestamp": session.timestamp,
         },
+        "cache_size_bytes": session.get_cache_size(),
     })
 
 
