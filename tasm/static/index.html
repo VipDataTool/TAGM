@@ -3471,36 +3471,6 @@ function renderCorrectionHeatmapResults(r) {
   });
   h += '</table></div>';
 
-  // Per-prompt heatmaps (collapsed, scrollable)
-  var pms = r.prompt_heatmaps || [];
-  if (pms.length > 0) {
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per-Prompt Heatmaps (' + pms.length + ')</div>';
-    h += '<div class="mod-results-body collapsed" style="max-height:500px">';
-    pms.forEach(function(pm, pi) {
-      var catColor = {b:'#58a6ff',m:'#f0c050',h:'#ff6b6b',j:'#da70d6',d:'#4ade80',a:'#882255'};
-      var cat = (pm.category || '?')[0];
-      h += '<div style="padding:8px 12px;border-bottom:1px solid var(--border)">';
-      h += '<div style="margin-bottom:4px"><span style="color:' + (catColor[cat]||'var(--text-2)') + ';font-weight:600">' + escHtml(pm.category) + '</span> ';
-      h += '<span style="color:var(--text-1)">' + escHtml(pm.prompt) + '</span></div>';
-
-      // Mini heatmap for this prompt
-      h += '<div style="display:flex;gap:2px;flex-wrap:wrap">';
-      var pmh = pm.heatmap || [];
-      for (var si = 0; si < subjects.length; si++) {
-        for (var li = 0; li < levels.length; li++) {
-          var v = (pmh[si] && pmh[si][li]) ? pmh[si][li] : 0;
-          var pct = Math.min(1, v / maxVal);
-          var r2 = Math.round(pct * 255);
-          var bg2 = 'rgb(' + r2 + ',' + Math.round((1-pct)*40) + ',' + Math.round((1-pct)*60+pct*40) + ')';
-          h += '<span style="width:12px;height:12px;display:inline-block;background:' + bg2 + '" title="' + escHtml(subjects[si] + '×' + levels[li] + ': ' + v.toFixed(3)) + '"></span>';
-        }
-        h += '<span style="width:4px;display:inline-block"></span>';
-      }
-      h += '</div></div>';
-    });
-    h += '</div>';
-  }
-
   h += '</div>';
   return h;
 }

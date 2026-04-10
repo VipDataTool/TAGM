@@ -54,8 +54,9 @@ class CorrectionHeatmapModule(TASMModule):
     display_name = "Correction Heatmap"
     description = (
         "Projects prompt tokens through probe refinement deltas "
-        "(L75 - L50) to produce a per-prompt heatmap of correction "
-        "field interaction across subject × subclass cells."
+        "(L75 - L50) to produce an aggregate heatmap of correction "
+        "field interaction across subject × subclass cells. "
+        "Reveals training-data coverage structure, not per-prompt categories."
     )
     version = "0.1.0"
 
@@ -292,18 +293,6 @@ class CorrectionHeatmapModule(TASMModule):
 
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
 
-        # Per-prompt heatmap list with prompt metadata
-        prompt_maps = []
-        for pi, r in enumerate(session_results):
-            hm = per_prompt_heatmaps[pi]
-            if hm is None:
-                continue
-            prompt_maps.append({
-                "prompt": (r.get("prompt", "") or "")[:60],
-                "category": (r.get("category", "?") or "?"),
-                "heatmap": hm,
-            })
-
         output = {
             "version": self.version,
             "probe_file": probe_file,
@@ -318,9 +307,6 @@ class CorrectionHeatmapModule(TASMModule):
 
             # Per-cell variance (turbulence)
             "variance": variance_grid.tolist(),
-
-            # Per-prompt heatmaps
-            "prompt_heatmaps": prompt_maps,
 
             # Summary stats per subject
             "per_subject": {
