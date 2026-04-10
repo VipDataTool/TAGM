@@ -3,7 +3,7 @@ Token Variance Module for TASM
 
 Cross-context measurement of per-token coupling stability to the
 correction manifold. Measures how each token's spectral density,
-stress, energy, entropy, and attribution vary across prompt contexts.
+stress, and attribution vary across prompt contexts.
 
 High CV = context-dependent coupling (function words, pronouns).
 Low CV = stable coupling regardless of context (content verbs, nouns).
@@ -18,11 +18,10 @@ from itertools import combinations
 from .base import TASMModule, ModuleParameter
 
 
-CHANNELS = ["density", "stress", "energy", "entropy", "attr"]
+CHANNELS = ["density", "stress", "attr"]
 
 CH_ABBREV = {
-    "density": "den", "stress": "str", "energy": "nrg",
-    "entropy": "ent", "attr": "att",
+    "density": "den", "stress": "str", "attr": "att",
 }
 
 CAT_ORDER = ["benign", "mild", "dual-use", "harmful", "adversarial", "jailbreak"]
@@ -193,10 +192,8 @@ def _extract_token_contexts(data, min_seq_len=3, merge_subwords=False):
             continue
 
         ptd = sfd.get("per_token_density")
-        pte = sfd.get("per_token_energy")
-        ptent = sfd.get("per_token_entropy")
 
-        if not ptd or not pte or not ptent:
+        if not ptd:
             skipped += 1
             continue
 
@@ -209,8 +206,7 @@ def _extract_token_contexts(data, min_seq_len=3, merge_subwords=False):
 
         if merge_subwords:
             channel_lists = {
-                "density": ptd, "stress": pts, "energy": pte,
-                "entropy": ptent, "attr": sa,
+                "density": ptd, "stress": pts, "attr": sa,
             }
             m_tokens, m_channels, m_positions = _merge_subword_tokens(
                 tokens, channel_lists)
@@ -220,8 +216,6 @@ def _extract_token_contexts(data, min_seq_len=3, merge_subwords=False):
                 token_contexts[tok].append({
                     "stress": m_channels["stress"][j],
                     "density": m_channels["density"][j],
-                    "energy": m_channels["energy"][j],
-                    "entropy": m_channels["entropy"][j],
                     "attr": m_channels["attr"][j],
                     "pos_frac": orig_pos / max(seq_len - 1, 1),
                     "is_first": (orig_pos == 0),
@@ -231,13 +225,11 @@ def _extract_token_contexts(data, min_seq_len=3, merge_subwords=False):
                 })
         else:
             for i, tok in enumerate(tokens):
-                if i >= len(pts) or i >= len(ptd) or i >= len(pte) or i >= len(ptent):
+                if i >= len(pts) or i >= len(ptd):
                     continue
                 token_contexts[tok.strip()].append({
                     "stress": pts[i],
                     "density": ptd[i],
-                    "energy": pte[i],
-                    "entropy": ptent[i],
                     "attr": sa[i] if i < len(sa) else 0,
                     "pos_frac": i / max(seq_len - 1, 1),
                     "is_first": (i == 0),

@@ -175,7 +175,6 @@ ALL_METRICS_REGISTRY = [
     # ASM
     ("stress_score",   lambda r: getattr(r, 'stress_score', None)),
     ("entropy",        lambda r: getattr(r, 'entropy', None)),
-    ("gini",           lambda r: getattr(r, 'gini', None)),
     ("top2_share",     lambda r: getattr(r, 'top2_share', None)),
     ("middle_share",   lambda r: getattr(r, 'middle_share', None)),
     ("interior_cv",    lambda r: getattr(r, 'interior_cv', None)),
@@ -184,13 +183,10 @@ ALL_METRICS_REGISTRY = [
     ("kl_divergence",  lambda r: getattr(r, 'kl_divergence', None)),
     # LTP (ltp_mean_L excluded: constant 1.0, zero variance)
     ("ltp_mean_M",     lambda r: _get_ltp_val_generic(r, 'mean_M')),
-    ("ltp_mean_C",     lambda r: _get_ltp_val_generic(r, 'mean_C')),
     ("ltp_mean_V",     lambda r: _get_ltp_val_generic(r, 'mean_V')),
     ("ltp_n_dir",      lambda r: _get_ltp_val_generic(r, 'n_directional')),
     # SFD
     ("sfd_density_mean",  lambda r: _get_sfd_val_generic(r, 'density_mean')),
-    ("sfd_entropy_mean",  lambda r: _get_sfd_val_generic(r, 'entropy_mean')),
-    ("sfd_energy_mean",   lambda r: _get_sfd_val_generic(r, 'energy_mean')),
     # Rank displacement
     ("rank_displacement_tau",     lambda r: _get_rd_val(r, 'mean_tau')),
     ("rank_displacement_overlap", lambda r: _get_rd_val(r, 'mean_overlap')),

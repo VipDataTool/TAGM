@@ -59,11 +59,9 @@ class LTPResult:
     profile_shapes: List[str] = field(default_factory=list)
     counterfactual_tokens: List[List[Tuple[str, float]]] = field(default_factory=list)
     offset_magnitude: Dict[int, float] = field(default_factory=dict)
-    offset_consistency: Dict[int, float] = field(default_factory=dict)
     offset_variance: Dict[int, float] = field(default_factory=dict)
     lateral_coverage: Dict[int, float] = field(default_factory=dict)
     mean_M: float = 0.0
-    mean_C: float = 0.0
     mean_V: float = 0.0
     mean_L: float = 0.0
     max_prc: float = 0.0          # Peak Rank Concentration of hottest token
@@ -312,20 +310,16 @@ def compute_ltp(model_manager, logits, tokens, input_ids,
         result.lateral_coverage[layer_idx] = len(non_zero) / seq_len if seq_len > 0 else 0.0
         if not non_zero:
             result.offset_magnitude[layer_idx] = 0.0
-            result.offset_consistency[layer_idx] = 0.0
             result.offset_variance[layer_idx] = 0.0
             continue
         active_points = torch.stack([points[i] for i in non_zero])
         mean_offset = active_points.mean(dim=0)
         M = mean_offset.norm().item()
         result.offset_magnitude[layer_idx] = M
-        mean_mag = np.mean([magnitudes[i] for i in non_zero])
-        result.offset_consistency[layer_idx] = M / mean_mag if mean_mag > 0 else 0.0
         result.offset_variance[layer_idx] = float(np.var([magnitudes[i] for i in non_zero]))
 
     if monitored:
         result.mean_M = np.mean([result.offset_magnitude.get(l, 0.0) for l in monitored])
-        result.mean_C = np.mean([result.offset_consistency.get(l, 0.0) for l in monitored])
         result.mean_V = np.mean([result.offset_variance.get(l, 0.0) for l in monitored])
         result.mean_L = np.mean([result.lateral_coverage.get(l, 0.0) for l in monitored])
 
@@ -441,10 +435,9 @@ def ltp_result_to_dict(r: LTPResult) -> dict:
         "profile_shapes": r.profile_shapes,
         "counterfactual_tokens": r.counterfactual_tokens,
         "offset_magnitude": {str(k): _safe(v) for k, v in r.offset_magnitude.items()},
-        "offset_consistency": {str(k): _safe(v) for k, v in r.offset_consistency.items()},
         "offset_variance": {str(k): _safe(v) for k, v in r.offset_variance.items()},
         "lateral_coverage": {str(k): _safe(v) for k, v in r.lateral_coverage.items()},
-        "mean_M": _safe(r.mean_M), "mean_C": _safe(r.mean_C),
+        "mean_M": _safe(r.mean_M),
         "mean_V": _safe(r.mean_V), "mean_L": _safe(r.mean_L),
         "max_prc": _safe(r.max_prc), "n_directional": r.n_directional,
         "prc_per_token": [_safe(p) for p in r.prc_per_token],

@@ -47,7 +47,6 @@ class PromptResult:
 
     # Stage 3b: Distribution metrics
     entropy: float = 0.0
-    gini: float = 0.0
     top2_share: float = 0.0
     middle_share: float = 0.0
     interior_cv: float = 0.0
@@ -107,7 +106,7 @@ class PromptResult:
     #            and trajectories needed to regenerate visualizations.
 
     _SCALAR_FIELDS = [
-        "stress_score", "net_correction", "entropy", "gini",
+        "stress_score", "net_correction", "entropy",
         "top2_share", "middle_share", "interior_cv",
         "kl_divergence", "category", "seq_len",
         "has_negative_tokens", "n_negative_tokens",
@@ -163,7 +162,6 @@ class PromptResult:
         if ltp_data:
             ltp_r = LTPResult()
             ltp_r.mean_M = ltp_data.get("mean_M", 0.0) or 0.0
-            ltp_r.mean_C = ltp_data.get("mean_C", 0.0) or 0.0
             ltp_r.mean_V = ltp_data.get("mean_V", 0.0) or 0.0
             ltp_r.mean_L = ltp_data.get("mean_L", 0.0) or 0.0
             ltp_r.n_directional = ltp_data.get("n_directional", 0)
@@ -177,9 +175,6 @@ class PromptResult:
                 ltp_r.k = ltp_data.get("k", 8)
                 ltp_r.offset_magnitude = {
                     int(k): v for k, v in ltp_data.get("offset_magnitude", {}).items()
-                }
-                ltp_r.offset_consistency = {
-                    int(k): v for k, v in ltp_data.get("offset_consistency", {}).items()
                 }
                 sem = ltp_data.get("semantic_trajectory_2d", [])
                 ten = ltp_data.get("tension_trajectory_2d", [])
@@ -345,9 +340,7 @@ class Analyzer:
 
                 if layer_acts:
                     result.sfd = compute_sfd_sequence(layer_acts, sfd_cache)
-                    logger.info(f"[SFD] density_mean={result.sfd.density_mean:.4f}, "
-                                f"energy_mean={result.sfd.energy_mean:.6f}, "
-                                f"entropy_mean={result.sfd.entropy_mean:.4f}")
+                    logger.info(f"[SFD] density_mean={result.sfd.density_mean:.4f}")
             except Exception as e:
                 logger.warning(f"[SFD] Computation failed: {e}")
 
@@ -699,23 +692,9 @@ class Analyzer:
         max_ent = np.log(seq_len) if seq_len > 1 else 1.0
         result.entropy = float(ent / max_ent)
 
-        # Gini: Lorenz curve resampled onto a fixed 100-point grid.
-        # The curve must start at (0, 0) — at 0% of the population,
-        # 0% of the attribution is accumulated.
-        sorted_d = np.sort(attr_dist)
-        n = len(sorted_d)
-        cum = np.cumsum(sorted_d)
-        if cum[-1] > 0:
-            lorenz_x = np.concatenate([[0], np.arange(1, n + 1) / n])
-            lorenz_y = np.concatenate([[0], cum / cum[-1]])
-            frac = np.linspace(0, 1, 101)
-            lorenz = np.interp(frac, lorenz_x, lorenz_y)
-            result.gini = float(1 - 2 * np.trapezoid(lorenz, frac))
-        else:
-            result.gini = 0.0
-
         # Bookend / interior split: proportional boundary (configurable,
         # minimum 1 token) instead of fixed first/last token.
+        n = len(attr_dist)
         boundary = max(1, round(engine_config.get("boundary_fraction") * n))
         if n >= 2:
             result.top2_share = float(attr_dist[:boundary].sum() + attr_dist[-boundary:].sum())
@@ -978,7 +957,6 @@ def result_to_dict(r: PromptResult) -> dict:
         "n_negative_tokens": _native(r.n_negative_tokens),
         "has_negative_tokens": r.has_negative_tokens,
         "entropy": _native(r.entropy),
-        "gini": _native(r.gini),
         "top2_share": _native(r.top2_share),
         "middle_share": _native(r.middle_share),
         "interior_cv": _native(r.interior_cv),

@@ -272,7 +272,7 @@ class DatasetSession:
         LTP_ARRAY_FIELDS = {
             "profiles", "base_profiles", "tension_magnitudes",
             "counterfactual_tokens", "semantic_trajectory_2d",
-            "tension_trajectory_2d", "offset_magnitude", "offset_consistency",
+            "tension_trajectory_2d", "offset_magnitude",
             "offset_variance", "prc_per_token",
         }
         RD_ARRAY_FIELDS = {
@@ -280,7 +280,7 @@ class DatasetSession:
             "instruct_disp_profiles", "base_disp_profiles",
         }
         SFD_ARRAY_FIELDS = {
-            "per_token_energy", "per_token_entropy", "per_token_density",
+            "per_token_density",
         }
 
         exclude = EXCLUDE_ALWAYS | (ARRAY_FIELDS if not include_arrays else set())
@@ -342,23 +342,23 @@ class DatasetSession:
     CSV_FIELDS = [
         "index", "prompt", "category", "seq_len",
         "stress_score", "net_correction",
-        "entropy", "gini", "top2_share", "middle_share", "interior_cv",
+        "entropy", "top2_share", "middle_share", "interior_cv",
         "n_negative_tokens", "has_negative_tokens",
         "kl_divergence",
         "instruct_top1", "instruct_top1_prob",
         "base_top1", "base_top1_prob",
-        # LTP summary (ltp_mean_L excluded: constant 1.0, zero variance)
-        "ltp_mean_M", "ltp_mean_C", "ltp_mean_V",
+        # LTP summary
+        "ltp_mean_M", "ltp_mean_V",
         "ltp_max_prc", "ltp_n_directional",
         "ltp_layer_strategy", "ltp_k", "ltp_svd_rank",
         # Rank displacement
         "rd_mean_matched", "rd_mean_replacement", "rd_mean_concentration",
         "rd_mean_tau", "rd_mean_overlap",
-        # SFD summary
-        "sfd_density_mean", "sfd_energy_mean", "sfd_entropy_mean",
+        # SFD summary (entropy and energy excluded: redundant with density and stress)
+        "sfd_density_mean",
         # Full capture
         "full_capture",
-        "mean_coherence", "mean_spectral_rank", "mean_attn_frac",
+        "mean_coherence", "mean_spectral_rank",
     ]
 
     def _write_csv_row(self, result_dict: dict):
@@ -371,7 +371,6 @@ class DatasetSession:
             "stress_score": result_dict.get("stress_score", ""),
             "net_correction": result_dict.get("net_correction", ""),
             "entropy": result_dict.get("entropy", ""),
-            "gini": result_dict.get("gini", ""),
             "top2_share": result_dict.get("top2_share", ""),
             "middle_share": result_dict.get("middle_share", ""),
             "interior_cv": result_dict.get("interior_cv", ""),
@@ -394,7 +393,6 @@ class DatasetSession:
         ltp = result_dict.get("ltp")
         if ltp:
             row["ltp_mean_M"] = ltp.get("mean_M", "")
-            row["ltp_mean_C"] = ltp.get("mean_C", "")
             row["ltp_mean_V"] = ltp.get("mean_V", "")
             row["ltp_max_prc"] = ltp.get("max_prc", "")
             row["ltp_n_directional"] = ltp.get("n_directional", "")
@@ -415,8 +413,6 @@ class DatasetSession:
         sfd = result_dict.get("sfd")
         if sfd:
             row["sfd_density_mean"] = sfd.get("density_mean", "")
-            row["sfd_energy_mean"] = sfd.get("energy_mean", "")
-            row["sfd_entropy_mean"] = sfd.get("entropy_mean", "")
 
         # Full capture summary
         row["full_capture"] = result_dict.get("full_capture_enabled", False)
@@ -426,9 +422,6 @@ class DatasetSession:
         spectral = result_dict.get("per_token_spectral_rank", [])
         if spectral:
             row["mean_spectral_rank"] = sum(spectral) / len(spectral)
-        attn = result_dict.get("attn_frac", [])
-        if attn:
-            row["mean_attn_frac"] = sum(attn) / len(attn)
 
         mode = "a" if self._csv_initialized else "w"
         with open(self.csv_path, mode, newline="") as f:

@@ -37,7 +37,7 @@ from engine.visualizations import (
     plot_ltp_dual_trajectory, plot_ltp_summary_stats,
     plot_ltp_profile_heatmap,
     # SFD visualizations
-    plot_sfd_density, plot_sfd_energy, plot_sfd_entropy,
+    plot_sfd_density,
     plot_rank_displacement,
 )
 from engine.comparative import generate_all_comparative
@@ -247,8 +247,6 @@ def _analyze_and_record(prompt, category, compute_kl, compute_trajectory,
             # SFD plots
             if compute_sfd and result.sfd is not None:
                 plots["sfd_density"] = plot_sfd_density(result)
-                plots["sfd_energy"] = plot_sfd_energy(result)
-                plots["sfd_entropy"] = plot_sfd_entropy(result)
             if result.rank_displacement is not None:
                 plots["rank_displacement"] = plot_rank_displacement(result)
 
@@ -282,7 +280,7 @@ def _plot_keys_for_result(r):
                       "ltp_dual_trajectory", "ltp_summary_stats",
                       "ltp_profile_heatmap"])
     if r.get("sfd"):
-        keys.extend(["sfd_density", "sfd_energy", "sfd_entropy"])
+        keys.extend(["sfd_density"])
     if r.get("rank_displacement"):
         keys.append("rank_displacement")
     return keys
@@ -328,8 +326,6 @@ def _generate_deferred_plots(sess):
             # SFD plots
             if pr.sfd is not None:
                 plots["sfd_density"] = plot_sfd_density(pr)
-                plots["sfd_energy"] = plot_sfd_energy(pr)
-                plots["sfd_entropy"] = plot_sfd_entropy(pr)
             if pr.rank_displacement is not None:
                 plots["rank_displacement"] = plot_rank_displacement(pr)
 
@@ -977,7 +973,7 @@ def _run_dashboard_sync(force: bool = False):
     for i, r in enumerate(results):
         slim = {"_index": i}
         for k in ["prompt", "category", "role", "seq_len", "stress_score",
-                   "net_correction", "entropy", "gini", "top2_share",
+                   "net_correction", "entropy", "top2_share",
                    "middle_share", "interior_cv", "kl_divergence",
                    "n_negative_tokens", "has_negative_tokens"]:
             slim[k] = r.get(k)
@@ -986,12 +982,12 @@ def _run_dashboard_sync(force: bool = False):
         ltp = r.get("ltp")
         if ltp:
             slim["ltp"] = {k: ltp.get(k) for k in [
-                "mean_M", "mean_C", "mean_V",
+                "mean_M", "mean_V",
                 "max_prc", "n_directional"]}
         sfd = r.get("sfd")
         if sfd:
             slim["sfd"] = {k: sfd.get(k) for k in [
-                "density_mean", "entropy_mean", "energy_mean"]}
+                "density_mean"]}
         rd = r.get("rank_displacement")
         if rd:
             slim["rank_displacement"] = {k: rd.get(k) for k in [
@@ -1230,10 +1226,6 @@ def _generate_individual_plot_sync(index: int, plot_key: str) -> Optional[bytes]
         # SFD plots
         elif plot_key == "sfd_density" and pr.sfd:
             b64 = plot_sfd_density(pr)
-        elif plot_key == "sfd_energy" and pr.sfd:
-            b64 = plot_sfd_energy(pr)
-        elif plot_key == "sfd_entropy" and pr.sfd:
-            b64 = plot_sfd_entropy(pr)
         elif plot_key == "rank_displacement" and pr.rank_displacement:
             b64 = plot_rank_displacement(pr)
 

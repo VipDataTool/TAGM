@@ -178,7 +178,6 @@ def plot_metric_scatters(results: list) -> str:
         ("entropy", "net_correction", "Entropy", "Net Correction"),
         ("top2_share", "middle_share", "Boundary Share", "Interior Share"),
         ("stress_score", "net_correction", "Stress Score", "Net Correction"),
-        ("gini", "net_correction", "Gini", "Net Correction"),
         ("entropy", "stress_score", "Entropy", "Stress Score"),
     ]
 
@@ -199,6 +198,10 @@ def plot_metric_scatters(results: list) -> str:
 
         ax.set_xlabel(x_label, fontsize=13)
         ax.set_ylabel(y_label, fontsize=13)
+
+    # Hide unused axes
+    for ax in axes.flat[len(scatter_defs):]:
+        ax.set_visible(False)
 
     _cat_legend(axes[0, 0], results)
 
@@ -287,7 +290,7 @@ def plot_ltp_category_comparison(results: list) -> str:
     if not available:
         return ""
 
-    ltp_keys = [("mean_M", "Offset\nMagnitude"), ("mean_C", "Offset\nConsistency"),
+    ltp_keys = [("mean_M", "Offset\nMagnitude"),
                 ("mean_V", "Offset\nVariance")]
 
     fig, axes = plt.subplots(1, len(ltp_keys), figsize=(4.5 * len(ltp_keys), 5))
@@ -453,7 +456,7 @@ def plot_key_scatters(results: list) -> str:
 
 
 def plot_sfd_category_comparison(results: list) -> str:
-    """Box plots of SFD density, entropy, and energy by category."""
+    """Box plot of SFD density by category."""
     cats_order = ["benign", "mild", "harmful", "jailbreak"]
     has_sfd = [r for r in results if r.get("sfd")]
     if not has_sfd:
@@ -463,38 +466,34 @@ def plot_sfd_category_comparison(results: list) -> str:
     if not available:
         return ""
 
-    sfd_keys = [("density_mean", "QK Density"), ("entropy_mean", "Spectral\nEntropy"),
-                ("energy_mean", "QK Energy")]
-
-    fig, axes = plt.subplots(1, len(sfd_keys), figsize=(4.5 * len(sfd_keys), 5))
+    fig, ax = plt.subplots(figsize=(6, 5))
     fig.patch.set_facecolor("#121212")
+    _style_ax(ax, "QK Density by Category")
 
-    for ax, (key, title) in zip(axes, sfd_keys):
-        _style_ax(ax, title)
-        box_data = []
-        box_labels = []
-        box_colors = []
+    box_data = []
+    box_labels = []
+    box_colors = []
 
-        for cat in available:
-            vals = [r["sfd"][key] for r in has_sfd
-                    if r.get("category") == cat and r.get("sfd") and r["sfd"].get(key) is not None]
-            if vals:
-                box_data.append(vals)
-                box_labels.append(cat.title())
-                box_colors.append(CAT_COLORS.get(cat, "#888"))
+    for cat in available:
+        vals = [r["sfd"]["density_mean"] for r in has_sfd
+                if r.get("category") == cat and r.get("sfd") and r["sfd"].get("density_mean") is not None]
+        if vals:
+            box_data.append(vals)
+            box_labels.append(cat.title())
+            box_colors.append(CAT_COLORS.get(cat, "#888"))
 
-        if box_data:
-            bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
-            for patch, color in zip(bp["boxes"], box_colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.75)
-                patch.set_edgecolor("#9CA3AF")
-            for element in ["whiskers", "caps", "medians"]:
-                for item in bp[element]:
-                    item.set_color("#9CA3AF")
-            for item in bp["fliers"]:
-                item.set_markeredgecolor("#9CA3AF")
-            ax.tick_params(axis="x", labelsize=13, colors="#9CA3AF")
+    if box_data:
+        bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
+        for patch, color in zip(bp["boxes"], box_colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.75)
+            patch.set_edgecolor("#9CA3AF")
+        for element in ["whiskers", "caps", "medians"]:
+            for item in bp[element]:
+                item.set_color("#9CA3AF")
+        for item in bp["fliers"]:
+            item.set_markeredgecolor("#9CA3AF")
+        ax.tick_params(axis="x", labelsize=13, colors="#9CA3AF")
 
     plt.tight_layout()
     return _fig_to_base64(fig)

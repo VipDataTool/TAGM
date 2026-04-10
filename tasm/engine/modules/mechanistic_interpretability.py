@@ -24,11 +24,11 @@ logger = logging.getLogger("tasm")
 
 # The 15 core TAGM metrics in canonical order
 METRIC_KEYS = [
-    "stress_score", "net_correction", "entropy", "gini",
+    "stress_score", "net_correction", "entropy",
     "top2_share", "middle_share", "interior_cv", "kl_divergence",
 ]
-LTP_KEYS = ["ltp_mean_M", "ltp_mean_C", "ltp_n_directional"]
-SFD_KEYS = ["sfd_density_mean", "sfd_entropy_mean", "sfd_energy_mean"]
+LTP_KEYS = ["ltp_mean_M", "ltp_n_directional"]
+SFD_KEYS = ["sfd_density_mean"]
 RD_KEYS = ["rank_displacement_mean_tau"]
 
 # Human-readable names for the independent measurement axes

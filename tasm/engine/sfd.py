@@ -69,21 +69,9 @@ class SFDTokenResult:
 class SFDResult:
     """Prompt-level SFD result."""
     # Per-token arrays
-    per_token_energy: Optional[np.ndarray] = None
-    per_token_entropy: Optional[np.ndarray] = None
     per_token_density: Optional[np.ndarray] = None
 
-    # Prompt-level aggregates (12 scalars)
-    energy_mean: float = 0.0
-    energy_max: float = 0.0
-    energy_var: float = 0.0
-    energy_p90: float = 0.0
-
-    entropy_mean: float = 0.0
-    entropy_max: float = 0.0
-    entropy_var: float = 0.0
-    entropy_p90: float = 0.0
-
+    # Prompt-level aggregates
     density_mean: float = 0.0
     density_max: float = 0.0
     density_var: float = 0.0
@@ -98,17 +86,7 @@ class SFDResult:
         """Serialize for JSON transport."""
         p = engine_config.get("serialization_precision")
         return {
-            'per_token_energy': self.per_token_energy.tolist() if self.per_token_energy is not None else None,
-            'per_token_entropy': self.per_token_entropy.tolist() if self.per_token_entropy is not None else None,
             'per_token_density': self.per_token_density.tolist() if self.per_token_density is not None else None,
-            'energy_mean': round(self.energy_mean, p),
-            'energy_max': round(self.energy_max, p),
-            'energy_var': round(self.energy_var, p),
-            'energy_p90': round(self.energy_p90, p),
-            'entropy_mean': round(self.entropy_mean, p),
-            'entropy_max': round(self.entropy_max, p),
-            'entropy_var': round(self.entropy_var, p),
-            'entropy_p90': round(self.entropy_p90, p),
             'density_mean': round(self.density_mean, p),
             'density_max': round(self.density_max, p),
             'density_var': round(self.density_var, p),
@@ -124,15 +102,12 @@ class SFDResult:
         if d is None:
             return None
         r = cls()
-        for key in ['energy_mean', 'energy_max', 'energy_var', 'energy_p90',
-                     'entropy_mean', 'entropy_max', 'entropy_var', 'entropy_p90',
-                     'density_mean', 'density_max', 'density_var', 'density_p90',
+        for key in ['density_mean', 'density_max', 'density_var', 'density_p90',
                      'global_erank', 'n_layers_monitored', 'k']:
             if key in d:
                 setattr(r, key, d[key])
-        for arr_key in ['per_token_energy', 'per_token_entropy', 'per_token_density']:
-            if d.get(arr_key) is not None:
-                setattr(r, arr_key, np.array(d[arr_key], dtype=float))
+        if d.get('per_token_density') is not None:
+            r.per_token_density = np.array(d['per_token_density'], dtype=float)
         return r
 
 
@@ -350,8 +325,6 @@ def compute_sfd_sequence(activations: np.ndarray, cache: SFDCache) -> SFDResult:
     per_density = accum_density / n_layers_used
 
     result = SFDResult(
-        per_token_energy=per_energy,
-        per_token_entropy=per_entropy,
         per_token_density=per_density,
         global_erank=cache.mean_erank,
         n_layers_monitored=n_layers_used,
@@ -360,16 +333,6 @@ def compute_sfd_sequence(activations: np.ndarray, cache: SFDCache) -> SFDResult:
 
     # Prompt-level aggregates
     if n_tokens > 0:
-        result.energy_mean = float(np.mean(per_energy))
-        result.energy_max = float(np.max(per_energy))
-        result.energy_var = float(np.var(per_energy))
-        result.energy_p90 = float(np.percentile(per_energy, 90))
-
-        result.entropy_mean = float(np.mean(per_entropy))
-        result.entropy_max = float(np.max(per_entropy))
-        result.entropy_var = float(np.var(per_entropy))
-        result.entropy_p90 = float(np.percentile(per_entropy, 90))
-
         result.density_mean = float(np.mean(per_density))
         result.density_max = float(np.max(per_density))
         result.density_var = float(np.var(per_density))

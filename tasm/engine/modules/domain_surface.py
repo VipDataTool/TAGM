@@ -342,7 +342,6 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         per_pos = rd.get("per_position", []) if rd else []
         stress = sr.get("per_token_stress", [])
         sfd = sr.get("sfd", {})
-        sfd_e = sfd.get("per_token_energy", []) if sfd else []
         sfd_d = sfd.get("per_token_density", []) if sfd else []
 
         # Per-token embeddings at both depths (if available)
@@ -366,7 +365,6 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                 "disp": float(pd.get("total_disp", 0)),
                 "repl": float(pd.get("replacement_ratio", 0)),
                 "asm": float(stress[pos]) if pos < len(stress) else 0,
-                "sfd_e": float(sfd_e[pos]) if pos < len(sfd_e) else 0,
                 "sfd_d": float(sfd_d[pos]) if pos < len(sfd_d) else 0,
                 "pi": pi, "pos": pos,
                 "_emb": ptde[adj] if ptde and pos >= ptde_offset and adj < len(ptde) else None,
@@ -484,7 +482,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             o["tok"], o["cat"],
             round(o["dy"], 4), round(o["disp"], 3), round(o["repl"], 2),
             round(o["dx"], 4),
-            round(o["asm"], 2), round(o["sfd_e"], 3), round(o["sfd_d"], 3),
+            round(o["asm"], 2), round(o["sfd_d"], 3),
             o["pi"], o["pos"],
             round(best_dist, 4), level, near_subj,
             round(near_angle, 4),  # index 14: kNN-weighted continuous angle
@@ -788,7 +786,7 @@ class DomainSurfaceModule(TASMModule):
             "prompts": prompts,
             "fields": [
                 "tok", "cat", "dy", "disp", "repl", "dx",
-                "asm", "sfd_e", "sfd_d", "pi", "pos",
+                "asm", "sfd_d", "pi", "pos",
                 "near_dist", "near_level", "near_subj_idx",
                 "near_angle",
             ],

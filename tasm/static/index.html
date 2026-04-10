@@ -332,7 +332,6 @@ textarea{resize:vertical;min-height:44px}
             <div><strong style="color:var(--text-0)">Int%</strong> — Interior share. Fraction of correction attributed to interior (non-boundary) tokens. Higher values indicate the model is responding to semantic framing</div>
             <div><strong style="color:var(--text-0)">IntCV</strong> — Interior coefficient of variation. How unevenly correction is distributed among interior tokens. High = a few interior tokens dominate</div>
             <div><strong style="color:var(--text-0)">Bnd%</strong> — Boundary share. Fraction of correction at first and last tokens. Complement of Int%</div>
-            <div><strong style="color:var(--text-0)">Gini</strong> — Gini coefficient of correction distribution (0 = perfectly equal, 1 = all on one token)</div>
             <div><strong style="color:var(--text-0)">KL</strong> — KL divergence between instruct and base model next-token distributions. Higher = alignment training changed the output more at this prompt</div>
             <div><strong style="color:var(--text-0)">Neg</strong> — Count of tokens with negative attribution (pushing against the alignment correction)</div>
           </div>
@@ -344,13 +343,10 @@ textarea{resize:vertical;min-height:44px}
             <div><strong style="color:var(--text-0)">BaseP</strong> — Probability the base model assigns to its top prediction</div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Lateral Tension Profile (LTP)</div>
             <div><strong style="color:var(--text-0)">M</strong> — Mean lateral tension magnitude across all tokens. How much the alignment correction displaces probability mass toward alternative tokens</div>
-            <div><strong style="color:var(--text-0)">C</strong> — Consistency (0–1). Directional coherence of tension vectors. High = all tokens pulled in the same direction</div>
             <div><strong style="color:var(--text-0)">MaxPRC</strong> — Maximum probability reallocation at any single token (in percentage points)</div>
             <div><strong style="color:var(--text-0)">N_dir</strong> — Number of tokens with directional (non-flat) tension profiles</div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Spectral Field Density (SFD)</div>
             <div><strong style="color:var(--text-0)">Dens</strong> — QK routing density. How many dimensions of the attention routing subspace each token engages on average</div>
-            <div><strong style="color:var(--text-0)">SpEnt</strong> — Spectral entropy. How evenly activation is spread across SVD directions of the routing correction</div>
-            <div><strong style="color:var(--text-0)">QKE</strong> — QK energy. Total projection magnitude into the routing correction subspace</div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Rank Displacement</div>
             <div><strong style="color:var(--text-0)">Tau</strong> — Kendall tau correlation between base and instruct alternative token orderings. 1.0 = identical ranking, lower = RLHF reordered the priority structure</div>
             <div><strong style="color:var(--text-0)">Ovlp</strong> — Overlap. Fraction of top-k alternative tokens shared between base and instruct models</div>
@@ -500,7 +496,7 @@ const VIZ_REGISTRY = {
   amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', order:10, type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
-  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', order:50, type:'plot', desc:'Entropy, Gini, boundary/interior bars'},
+  distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', order:50, type:'plot', desc:'Entropy, boundary/interior bars'},
   token_table:         {cat:'ASM Detail', title:'Attribution Table',          on:true,  scope:'prompt', order:60, type:'js',   desc:'Raw per-token values with inline bars'},
   model_predictions:   {cat:'ASM Detail', title:'Model Predictions',          on:true,  scope:'prompt', order:70, type:'js',   desc:'Instruct vs base top-k tokens'},
 
@@ -513,8 +509,6 @@ const VIZ_REGISTRY = {
 
   // ── Per-Prompt: SFD ──
   sfd_density:         {cat:'SFD',        title:'Per-Token QK Density',        on:true,  scope:'prompt', order:130, type:'plot',  needs:'sfd', desc:'How many dimensions of the QK routing subspace each token engages'},
-  sfd_energy:          {cat:'SFD',        title:'Per-Token QK Energy',         on:true,  scope:'prompt', order:140, type:'plot',  needs:'sfd', desc:'Total projection magnitude into the QK routing subspace'},
-  sfd_entropy:         {cat:'SFD',        title:'Per-Token Spectral Entropy',  on:true,  scope:'prompt', order:150, type:'plot',  needs:'sfd', desc:'How evenly the token activates across SVD directions'},
   rank_displacement:   {cat:'SFD',        title:'Rank Displacement',           on:true,  scope:'prompt', order:160, type:'plot',  needs:'sfd', desc:'Kendall tau between base and instruct alternative orderings per position'},
 
   // ── Batch: Analysis tab ──
@@ -534,7 +528,7 @@ const VIZ_REGISTRY = {
   exp_ltp_profile_shapes:{cat:'Batch Analysis',title:'Profile Shapes',    on:true, scope:'batch', order:130,type:'plot',desc:'Shape distribution across categories'},
 
   // ── Batch: SFD ──
-  exp_sfd_category_comparison:{cat:'Batch Analysis',title:'SFD by Category',on:true,scope:'batch', order:140,type:'plot',desc:'SFD density, entropy, energy box plots across categories'},
+  exp_sfd_category_comparison:{cat:'Batch Analysis',title:'SFD by Category',on:true,scope:'batch', order:140,type:'plot',desc:'SFD density box plot across categories'},
   exp_sfd_vs_asm:      {cat:'Batch Analysis',title:'SFD vs ASM',           on:true, scope:'batch', order:150,type:'plot',desc:'Scatter: QK density vs ASM middle share'},
   exp_rank_displacement:{cat:'Batch Analysis',title:'Rank Displacement',   on:true, scope:'batch', order:160,type:'plot',desc:'Kendall tau by category — base vs instruct reordering'},
 };
@@ -1189,7 +1183,6 @@ function _renderDataTablePage(){
     ['middle_share','Int%','pct',280,52],
     ['interior_cv','IntCV','f4',null,54],
     ['top2_share','Bnd%','pct',null,52],
-    ['gini','Gini','f4',null,52],
     ['kl_divergence','KL','f4',null,52],
     ['n_negative_tokens','Neg','i',null,34],
     ['_inst_top1','InstTop1','s',null,70],
@@ -1199,10 +1192,7 @@ function _renderDataTablePage(){
     ['_ltp_max_prc','MaxPRC','pct_pp',null,56],
     ['_ltp_n_dir','N_dir','i',null,40],
     ['_ltp_M','M','f6',null,68],
-    ['_ltp_C','C','f4',null,52],
     ['_sfd_density','Dens','f4',120,56],
-    ['_sfd_entropy','SpEnt','f4',null,56],
-    ['_sfd_energy','QKE','f4',null,56],
     ['_rank_tau','Tau','f3',60,48],
     ['_rank_overlap','Ovlp','pct',null,48],
   ];
@@ -1244,12 +1234,9 @@ function _renderDataTablePage(){
     if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
     if(key==='_base_prob') return r.base_topk&&r.base_topk[0]?r.base_topk[0][1]:null;
     if(key==='_ltp_M') return r.ltp?r.ltp.mean_M:null;
-    if(key==='_ltp_C') return r.ltp?r.ltp.mean_C:null;
     if(key==='_ltp_max_prc') return r.ltp?r.ltp.max_prc:null;
     if(key==='_ltp_n_dir') return r.ltp?r.ltp.n_directional:null;
     if(key==='_sfd_density') return r.sfd?r.sfd.density_mean:null;
-    if(key==='_sfd_entropy') return r.sfd?r.sfd.entropy_mean:null;
-    if(key==='_sfd_energy') return r.sfd?r.sfd.energy_mean:null;
     if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
     if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
     return r[key];
@@ -1460,15 +1447,15 @@ function _buildRecordCardHtml(r,plotKeys,idx){
 
   // Metrics grid
   h+=`<div class="metrics-grid">${mc('Stress',r.stress_score,null)}${mc('Net Corr',r.net_correction,null)}${mc('Entropy',r.entropy,null)}${mc('Int%',r.middle_share,null,v=>(v*100).toFixed(1)+'%')}${mc('Bnd%',r.top2_share,null,v=>(v*100).toFixed(1)+'%')}${mc('IntCV',r.interior_cv,null)}${r.kl_divergence!=null?mc('KL',r.kl_divergence,null):''}`;
-  if(r.ltp){h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric');h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric');h+=mc('C',r.ltp.mean_C,null,null,'ltp-metric')}
-  if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric');h+=mc('SpEnt',r.sfd.entropy_mean,null,null,'sfd-metric');h+=mc('QKE',r.sfd.energy_mean,null,null,'sfd-metric')}
+  if(r.ltp){h+=mc('MaxPRC',r.ltp.max_prc,null,v=>(v*100).toFixed(1)+'pp','ltp-metric');h+=mc('N_dir',r.ltp.n_directional,null,null,'ltp-metric');h+=mc('M',r.ltp.mean_M,null,null,'ltp-metric')}
+  if(r.sfd){h+=mc('Density',r.sfd.density_mean,null,null,'sfd-metric')}
   if(r.rank_displacement&&r.rank_displacement.mean_tau!=null){h+=mc('Tau',r.rank_displacement.mean_tau,null,v=>v.toFixed(3),'sfd-metric');h+=mc('Overlap',r.rank_displacement.mean_overlap,null,v=>(v*100).toFixed(1)+'%','sfd-metric')}
   if(r.candidate_graph){h+=mc('Contest',r.candidate_graph.contested_frac,null,v=>(v*100).toFixed(0)+'%','ltp-metric');h+=mc('Sw/tok',r.candidate_graph.switch_rate,null,v=>v.toFixed(2),'ltp-metric')}
   h+=`</div>`;
   if(r.has_negative_tokens)h+=`<div style="margin-bottom:8px;font-size:11px;color:var(--purple)">⚠ ${r.n_negative_tokens} of ${r.seq_len} tokens push against the alignment correction</div>`;
 
   // Inline plots (these render in the popout since images load from server)
-  const featureMeta={signed_attribution:'Signed Attribution',stress_per_token:'Per-Token Stress',distribution_metrics:'Correction Distribution',amplitude_trajectory:'Layer Trajectory',heatmap:'Token × Layer Heatmap',sfd_density:'QK Density',sfd_energy:'QK Energy',sfd_entropy:'Spectral Entropy',rank_displacement:'Rank Displacement'};
+  const featureMeta={signed_attribution:'Signed Attribution',stress_per_token:'Per-Token Stress',distribution_metrics:'Correction Distribution',amplitude_trajectory:'Layer Trajectory',heatmap:'Token × Layer Heatmap',sfd_density:'QK Density',rank_displacement:'Rank Displacement'};
   const ltpPlotMeta={ltp_profiles:'Tension Profiles',ltp_tension_magnitudes:'Tension Magnitudes',ltp_summary_stats:'LTP Summary',ltp_profile_heatmap:'Token × Rank Heatmap'};
 
   for(const k of plotKeys){
@@ -3194,7 +3181,7 @@ function tvTokenTable(title, tokens) {
   h += '<div class="mod-results-body" style="max-height:350px">';
   h += '<table class="mod-tbl"><thead><tr>';
   h += '<th>Token</th><th class="num">n</th><th class="num">cats</th>';
-  h += '<th class="num">den_cv</th><th class="num">str_cv</th><th class="num">nrg_cv</th>';
+  h += '<th class="num">den_cv</th><th class="num">str_cv</th>';
   h += '<th class="num">den_mean</th><th class="num">str_mean</th>';
   h += '<th class="num">η²_den</th>';
   h += '</tr></thead><tbody>';
@@ -3207,7 +3194,6 @@ function tvTokenTable(title, tokens) {
     h += '<td class="num">' + t.n_cats + '</td>';
     h += '<td class="num" style="color:' + cvCol + '">' + (t.density_cv || 0).toFixed(4) + '</td>';
     h += '<td class="num">' + (t.stress_cv || 0).toFixed(4) + '</td>';
-    h += '<td class="num">' + (t.energy_cv || 0).toFixed(4) + '</td>';
     h += '<td class="num">' + (t.density_mean || 0).toFixed(4) + '</td>';
     h += '<td class="num">' + (t.stress_mean || 0).toFixed(3) + '</td>';
     h += '<td class="num">' + (t.eta_sq_density || 0).toFixed(4) + '</td>';
