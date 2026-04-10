@@ -290,7 +290,7 @@ textarea{resize:vertical;min-height:44px}
   <!-- Session -->
   <div class="section">
     <div class="section-title">Session</div>
-    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard()" disabled>Refresh Dashboard</button>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="loadDashboard(false,true)" disabled>Refresh Dashboard</button>
     <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
     <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
     <div class="checkbox-row" style="margin-top:8px"><input type="checkbox" id="chimeToggle" onchange="localStorage.setItem('tasm_chime',this.checked?'1':'0')"><label for="chimeToggle" style="font-size:11px;color:var(--text-2)">Notification chime</label></div>
@@ -910,8 +910,41 @@ async function analyzePrompt(){
   const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
   const fd=_buildAnalysisFormData();
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
+  const prevN=_promptTotal;
   try{
-    const resp=await fetch('/api/analyze',{method:'POST',body:fd});const data=await resp.json();
+    let resp,data;
+    try{
+      resp=await fetch('/api/analyze',{method:'POST',body:fd});
+      data=await resp.json();
+    }catch(fetchErr){
+      // Browser timeout (Safari "Load failed") — poll for backend completion
+      log('Connection interrupted, waiting for backend...','');
+      let recovered=false;
+      for(let attempt=0;attempt<15;attempt++){
+        await new Promise(r=>setTimeout(r,4000));
+        try{
+          const chk=await(await fetch('/api/status')).json();
+          const sn=chk.session?chk.session.n_results:0;
+          if(sn>prevN){
+            const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
+            const allData=await allResp.json();
+            if(allData.ok&&allData.results){
+              sessionResults=allData.results;
+              _promptTotal=allData.total;
+              if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
+              updateSessionBadge();renderDataTable();
+              dtGoPage(Math.ceil(allData.total/_dtPageSize)||1);
+              log('Done (recovered after timeout)','done');
+              playChime();
+              recovered=true;break;
+            }
+          }
+          log('Still waiting... ('+((attempt+1)*4)+'s)','');
+        }catch(chkErr){}
+      }
+      if(recovered){setLoading(btn,false);return}
+      throw fetchErr;
+    }
     if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
@@ -955,7 +988,7 @@ async function analyzeBatch(){
               renderDataTable();
             }
           }catch(re){log('Results load: '+re.message,'error')}
-          try{await loadDashboard(true)}catch(de){log('Dashboard: '+de.message,'error')}
+          try{await loadDashboard(true,false)}catch(de){log('Dashboard: '+de.message,'error')}
           return;
         }
       }catch(pe){}
@@ -966,12 +999,12 @@ async function analyzeBatch(){
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────
-async function loadDashboard(force){
-  if(!force&&_busy){log('Another operation in progress, please wait.','error');return}
+async function loadDashboard(bypassBusy, forceRecompute){
+  if(!bypassBusy&&_busy){log('Another operation in progress, please wait.','error');return}
   _busy=true;
-  log('Loading dashboard...');
+  log(forceRecompute?'Recomputing dashboard...':'Loading dashboard...');
   try{
-    const resp=await fetch('/api/dashboard');
+    const resp=await fetch('/api/dashboard'+(forceRecompute?'?force=true':''));
     if(!resp.ok){log('Dashboard HTTP error: '+resp.status,'error');return}
     const data=await resp.json();
     if(!data.ok){log('Dashboard: '+(data.error||'unknown error'),'error');return}
@@ -2336,6 +2369,13 @@ var ENGINE_PARAM_META = {
   persist_probe_caches:    {group:'Modules',         label:'Persist probe caches',        desc:'Keep probe embeddings across sessions. When off, caches clear on startup.', type:'bool'},
   domain_embedding_layer_frac:{group:'Modules',     label:'Angular probe depth',         desc:'Embedding depth for subject/topic identity (angular axis). Lower = better noun separation. 0.50=default.', type:'float', step:0.05, min:0.05, max:0.95},
   domain_escalation_layer_frac:{group:'Modules',    label:'Radial probe depth',          desc:'Embedding depth for escalation level (radial axis). Higher = better discourse framing. 0.75=default.', type:'float', step:0.05, min:0.05, max:0.95},
+  include_first_token:     {group:'Token Processing', label:'Include first token',        desc:'Include position-0 token in per-token analysis. Usually excluded due to BOS/positional artifacts. Enable if tokenizer has no BOS prefix.', type:'bool'},
+  probe_projection_space:  {group:'Modules',         label:'Delta-projected probes',      desc:'Project embeddings through the o_proj weight delta before probe matching. Matches in the correction field coordinate system instead of raw hidden-state space.', type:'bool'},
+  attention_weighted_pool:  {group:'Modules',        label:'Attention-weighted pooling',   desc:'Weight each token by model attention at the domain layer instead of uniform mean-pool. De-emphasizes function words without external filtering.', type:'bool'},
+  export_domain_embeddings: {group:'Serialization',  label:'Export domain embeddings',     desc:'Include per-token domain embeddings in session JSON export. Large but enables offline re-analysis with different probe sets.', type:'bool'},
+  chat_temperature:        {group:'Chat Generation', label:'Temperature',                 desc:'Sampling temperature for chat responses. Lower = more deterministic.', type:'float', step:0.05, min:0.0, max:2.0},
+  chat_top_p:              {group:'Chat Generation', label:'Top-p (nucleus)',              desc:'Nucleus sampling threshold. Lower = fewer candidate tokens.', type:'float', step:0.05, min:0.1, max:1.0},
+  chat_max_tokens:         {group:'Chat Generation', label:'Max tokens',                  desc:'Maximum tokens generated per chat response.', type:'int', min:32, max:2048, step:32},
 };
 
 function _advToggleLock(unlocked){
@@ -3006,7 +3046,7 @@ function renderModuleCard(m) {
   // Actions
   h += '<div class="mod-actions">';
   h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="event.stopPropagation();runModule(\'' + m.name + '\')">Run</button>';
-  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();resetModule(\'' + m.name + '\')">Reset</button>';
+  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" title="Clear results and restore all parameters to defaults" onclick="event.stopPropagation();resetModule(\'' + m.name + '\')">Reset Defaults</button>';
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
@@ -3071,8 +3111,8 @@ function getModuleParams(modName) {
     if (!el) { params[p.name] = p.default; return; }
     if (p.type === 'bool') params[p.name] = el.checked;
     else if (p.type === 'file') params[p.name] = '';  // resolved by upload in runModule
-    else if (p.type === 'int') params[p.name] = parseInt(el.value) || p.default;
-    else if (p.type === 'float') params[p.name] = parseFloat(el.value) || p.default;
+    else if (p.type === 'int') { var v = parseInt(el.value); params[p.name] = isNaN(v) ? p.default : v; }
+    else if (p.type === 'float') { var v = parseFloat(el.value); params[p.name] = isNaN(v) ? p.default : v; }
     else params[p.name] = el.value;
   });
   return params;
@@ -3234,6 +3274,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderProbeGeneratorResults(results);
   } else if (name === 'correction_heatmap') {
     container.innerHTML = renderCorrectionHeatmapResults(results);
+  } else if (name === 'mechanistic_interpretability') {
+    container.innerHTML = renderMIResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3709,6 +3751,173 @@ function renderProbeGeneratorResults(r) {
 function popoutCorrectionManifold(){
   var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+// ─── MI Readiness Results Renderer ──────────────────────────────
+
+function renderMIResults(r) {
+  if (r.error) {
+    return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--orange)">' + escHtml(r.error) + '</div></div>';
+  }
+
+  var h = '<div class="mod-results">';
+
+  // ── Readiness Banner ──
+  var readyCol = r.overall_readiness === 'ready' ? 'var(--green)' : r.overall_readiness === 'gaps' ? 'var(--red)' : 'var(--orange)';
+  var readyLabel = r.overall_readiness === 'ready' ? 'MI READY' : r.overall_readiness === 'gaps' ? 'GAPS IDENTIFIED' : 'NEAR READY';
+  h += '<div style="padding:12px 16px;background:color-mix(in srgb,' + readyCol + ' 12%,transparent);border-left:3px solid ' + readyCol + ';margin:8px 0;font-family:var(--mono);font-size:12px">';
+  h += '<span style="color:' + readyCol + ';font-weight:700">' + readyLabel + '</span>';
+  h += '<span style="color:var(--text-1);margin-left:8px">' + escHtml(r.readiness_summary) + '</span>';
+  h += '</div>';
+
+  // ── Scorecard ──
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">MI Scorecard</div>';
+  h += '<div class="mod-results-body"><div class="mod-summary">';
+  if (r.scorecard) {
+    r.scorecard.forEach(function(s) {
+      var col = s.status === 'strong' ? 'var(--green)' : s.status === 'weak' ? 'var(--red)' : 'var(--orange)';
+      var icon = s.status === 'strong' ? '●' : s.status === 'weak' ? '○' : '◐';
+      h += '<div class="mod-stat"><div class="stat-label"><span style="color:' + col + '">' + icon + '</span> ' + escHtml(s.item) + '</div>';
+      h += '<div class="stat-value" style="color:' + col + '">' + s.status + '</div>';
+      h += '<div class="stat-detail">' + escHtml(s.detail) + '</div></div>';
+    });
+  }
+  h += '</div></div>';
+
+  // ── AUROC Comparison ──
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Discrimination Power (AUROC)</div>';
+  h += '<div class="mod-results-body">';
+  h += '<table class="mod-tbl"><thead><tr>';
+  h += '<th>Method</th><th class="num">AUC</th><th class="num">± std</th><th>Notes</th>';
+  h += '</tr></thead><tbody>';
+
+  if (r.auroc_length_only) {
+    h += '<tr><td>Sequence length only</td><td class="num">' + r.auroc_length_only.auc.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + r.auroc_length_only.std.toFixed(4) + '</td>';
+    h += '<td style="color:var(--text-2);font-size:10px">Safe mean ' + r.mean_seq_len_safe + ' tok, risk mean ' + r.mean_seq_len_risk + ' tok</td></tr>';
+  }
+  if (r.auroc_full) {
+    var aucCol = r.auroc_full.auc >= 0.95 ? 'var(--green)' : r.auroc_full.auc >= 0.80 ? 'var(--cyan)' : 'var(--orange)';
+    h += '<tr><td style="font-weight:600">TAGM features (' + r.n_features + ' metrics)</td>';
+    h += '<td class="num" style="color:' + aucCol + ';font-weight:700">' + r.auroc_full.auc.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + r.auroc_full.std.toFixed(4) + '</td>';
+    h += '<td style="color:var(--text-2);font-size:10px">' + r.auroc_full.n_folds + '-fold CV</td></tr>';
+  }
+  if (r.auroc_residualized) {
+    h += '<tr><td>TAGM features, length-residualized</td>';
+    h += '<td class="num" style="font-weight:600">' + r.auroc_residualized.auc.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + r.auroc_residualized.std.toFixed(4) + '</td>';
+    h += '<td style="color:var(--text-2);font-size:10px">Signal after removing length</td></tr>';
+  }
+  if (r.random_baseline) {
+    h += '<tr><td>Random projection baseline</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + r.random_baseline.mean_auc.toFixed(4) + '</td>';
+    h += '<td class="num" style="color:var(--text-3)">' + r.random_baseline.std_auc.toFixed(4) + '</td>';
+    h += '<td style="color:var(--text-2);font-size:10px">' + r.random_baseline.n_trials + ' trials, Δ = +' + r.random_baseline.delta_above_random.toFixed(4) + '</td></tr>';
+  }
+  h += '</tbody></table></div>';
+
+  // ── Per-Metric AUROC ──
+  if (r.per_metric_auroc && r.per_metric_auroc.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per-Metric AUROC</div>';
+    h += '<div class="mod-results-body collapsed" style="max-height:350px">';
+    h += '<table class="mod-tbl"><thead><tr><th>Metric</th><th class="num">AUROC</th><th>Direction</th></tr></thead><tbody>';
+    r.per_metric_auroc.forEach(function(m) {
+      var col = m.auroc >= 0.80 ? 'var(--green)' : m.auroc >= 0.65 ? 'var(--cyan)' : 'var(--text-2)';
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(m.metric) + '</td>';
+      h += '<td class="num" style="color:' + col + '">' + m.auroc.toFixed(4) + '</td>';
+      h += '<td style="color:var(--text-3);font-size:10px">' + m.direction + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // ── PCA ──
+  if (r.pca && r.pca.components) {
+    var pcaTarget = (r.config && r.config.pca_variance_target) ? Math.round(r.config.pca_variance_target * 100) : 95;
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">PCA: Effective Dimensionality (' + pcaTarget + '% target)</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="padding:8px 0;font-size:11px;color:var(--text-1)">';
+    h += '<span style="color:var(--cyan);font-weight:600">' + r.pca.effective_dimensionality + '</span> components explain ' + (r.pca.variance_target ? Math.round(r.pca.variance_target * 100) : 95) + '% variance ';
+    h += '(from ' + r.pca.n_features_original + ' features)</div>';
+    h += '<table class="mod-tbl"><thead><tr><th>Component</th><th>Axis Name</th><th class="num">Var %</th><th class="num">Cumul %</th><th>Top Loadings</th></tr></thead><tbody>';
+    r.pca.components.forEach(function(c) {
+      var bar = '<span style="display:inline-block;width:' + Math.round(c.variance_explained) + 'px;height:8px;background:var(--cyan);border-radius:2px;vertical-align:middle;margin-right:4px"></span>';
+      var loads = (c.top_loadings || []).slice(0, 3).map(function(l) {
+        return '<span style="color:var(--text-2)">' + l.metric + '</span> <span style="color:var(--text-3)">(' + l.loading.toFixed(2) + ')</span>';
+      }).join(', ');
+      h += '<tr><td>PC' + c.index + '</td><td style="color:var(--text-1)">' + escHtml(c.name) + '</td>';
+      h += '<td class="num">' + bar + c.variance_explained + '%</td>';
+      h += '<td class="num">' + c.cumulative + '%</td>';
+      h += '<td style="font-size:10px">' + loads + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // ── Length Confounds ──
+  if (r.length_confounds && r.length_confounds.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Length Confound Analysis</div>';
+    h += '<div class="mod-results-body collapsed" style="max-height:350px">';
+    h += '<table class="mod-tbl"><thead><tr><th>Metric</th><th class="num">r</th><th class="num">r²</th><th>Severity</th></tr></thead><tbody>';
+    r.length_confounds.forEach(function(c) {
+      var sCol = c.severity === 'heavily confounded' ? 'var(--red)' : c.severity === 'moderately confounded' ? 'var(--orange)' : c.severity === 'mildly confounded' ? 'var(--yellow, var(--orange))' : 'var(--green)';
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(c.metric) + '</td>';
+      h += '<td class="num">' + c.r.toFixed(4) + '</td>';
+      h += '<td class="num">' + c.r_squared.toFixed(4) + '</td>';
+      h += '<td style="color:' + sCol + '">' + c.severity + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // ── Redundancy ──
+  if (r.redundancy && r.redundancy.pairs && r.redundancy.pairs.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Metric Redundancy (|r| ≥ ' + r.redundancy.threshold + ')</div>';
+    h += '<div class="mod-results-body collapsed">';
+    h += '<table class="mod-tbl"><thead><tr><th>Metric A</th><th>Metric B</th><th class="num">r</th><th>Assessment</th></tr></thead><tbody>';
+    r.redundancy.pairs.forEach(function(p) {
+      var iCol = p.implication === 'functionally identical' ? 'var(--red)' : 'var(--orange)';
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(p.metric_a) + '</td>';
+      h += '<td style="color:var(--cyan)">' + escHtml(p.metric_b) + '</td>';
+      h += '<td class="num">' + p.r.toFixed(4) + '</td>';
+      h += '<td style="color:' + iCol + '">' + p.implication + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // ── Category Stress ──
+  if (r.category_stress) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Category Stress Distribution</div>';
+    h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
+    var sep = r.category_stress._separation;
+    if (sep) {
+      h += tvStat('Safe Mean Stress', sep.safe_mean.toFixed(4), sep.n_safe + ' prompts');
+      h += tvStat('Risk Mean Stress', sep.risk_mean.toFixed(4), sep.n_risk + ' prompts');
+      h += tvStat("Cohen's d", sep.cohens_d.toFixed(3), 'supplementary metric');
+    }
+    Object.keys(r.category_stress).forEach(function(cat) {
+      if (cat === '_separation') return;
+      var cs = r.category_stress[cat];
+      h += tvStat(cat, cs.mean_stress.toFixed(4) + ' ± ' + cs.std_stress.toFixed(4), 'n=' + cs.n);
+    });
+    h += '</div></div>';
+  }
+
+  // ── Data summary footer ──
+  h += '<div style="padding:8px 16px;font-size:10px;color:var(--text-3);border-top:1px solid var(--border);margin-top:8px">';
+  h += r.n_prompts + ' prompts (' + r.n_safe + ' safe, ' + r.n_risk + ' risk) · ';
+  h += r.n_features + ' features · ';
+  h += 'Categories: ' + (r.categories || []).join(', ');
+  if (r.safe_categories) {
+    h += ' · Safe=' + r.safe_categories.join(',');
+  }
+  if (r.config) {
+    h += '<br>seed=' + r.config.random_seed + ' · ' + r.config.n_folds + '-fold CV · ';
+    h += 'LR(lr=' + r.config.lr_learning_rate + ', iter=' + r.config.lr_iterations + ', λ=' + r.config.lr_regularization + ') · ';
+    h += 'PCA@' + Math.round(r.config.pca_variance_target * 100) + '%';
+  }
+  h += '</div>';
+
+  h += '</div>';
+  return h;
 }
 
 (function() {

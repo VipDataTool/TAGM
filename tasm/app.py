@@ -909,35 +909,55 @@ async def rerun_prompts(request: Request):
 
 
 @app.get("/api/dashboard")
-async def get_dashboard():
+async def get_dashboard(force: bool = False):
     if not session or session.n_results == 0:
         return {"ok": False, "error": "No data in session."}
 
     import asyncio
     try:
-        return await asyncio.to_thread(_run_dashboard_sync)
+        return await asyncio.to_thread(_run_dashboard_sync, force)
     except Exception as e:
         logger.error(f"Dashboard failed: {traceback.format_exc()}")
         return JSONResponse(status_code=500,
                             content={"ok": False, "error": str(e)})
 
 
-def _run_dashboard_sync():
+def _run_dashboard_sync(force: bool = False):
     """Synchronous dashboard generation — runs in a thread.
 
     Design: returns a lightweight response with aggregate stats and
     scalar results. Plots are NOT generated here — they are generated
     lazily on first request via /api/plots/{key}.
+
+    If cached aggregate_statistics.json exists and matches the current
+    session size, it is reused unless force=True.
     """
-    logger.info(f"Dashboard request: {session.n_results} prompts in session")
+    logger.info(f"Dashboard request: {session.n_results} prompts, force={force}")
     results = session.results
-    from engine.analyzer import PromptResult
-    pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
 
-    agg = aggregate_batch(pr_list)
+    # ── Check for cached aggregate stats ──
+    agg = None
+    agg_path = session.session_dir / "aggregate_statistics.json"
+    if not force and agg_path.exists():
+        try:
+            with open(agg_path) as f:
+                cached = json.load(f)
+            cached_n = cached.get("n_total", 0)
+            if cached_n == session.n_results:
+                agg = cached
+                logger.info(f"Dashboard: using cached aggregate ({cached_n} prompts)")
+            else:
+                logger.info(f"Dashboard: cache stale ({cached_n} != {session.n_results}), recomputing")
+        except Exception as e:
+            logger.warning(f"Dashboard: cache read failed ({e}), recomputing")
 
-    session.save_aggregate_json(agg)
-    session.save_results_json()
+    # ── Recompute if needed ──
+    if agg is None:
+        from engine.analyzer import PromptResult
+        pr_list = [PromptResult.from_dict(r, mode="scalar") for r in results]
+        agg = aggregate_batch(pr_list)
+        session.save_aggregate_json(agg)
+        session.save_results_json()
 
     # Declare all possible plot keys (not yet generated)
     available_plots = [
@@ -1858,7 +1878,7 @@ async def chat(request: Request):
     try:
         body = await request.json()
         messages = body.get("messages", [])
-        max_tokens = min(body.get("max_tokens", 256), 512)
+        max_tokens = min(body.get("max_tokens", 256), engine_config.get("chat_max_tokens"))
         do_analyze = body.get("analyze", False)
         do_analyze_response = body.get("analyze_response", False)
         category = body.get("category", "")
@@ -1886,8 +1906,8 @@ async def chat(request: Request):
                     **inputs,
                     max_new_tokens=max_tokens,
                     do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
+                    temperature=engine_config.get("chat_temperature"),
+                    top_p=engine_config.get("chat_top_p"),
                     pad_token_id=tokenizer.pad_token_id,
                 )
 

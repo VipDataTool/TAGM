@@ -117,6 +117,13 @@ DEFAULTS = {
     # When disabled, probe caches are cleared on startup — you must
     # re-apply a probe set each session.
     "persist_probe_caches": True,
+
+    # ── Chat Generation ──
+    # Sampling parameters for the /api/chat endpoint.  These control
+    # the randomness and length of generated responses in the chat view.
+    "chat_temperature": 0.7,
+    "chat_top_p": 0.9,
+    "chat_max_tokens": 512,
 }
 
 # Current runtime values — initialized from defaults.
