@@ -501,9 +501,9 @@ def _stratification(obs, subjects):
 
     for o in obs:
         cat = o[1]
-        by_level[int(round(o[12]))][cat] += 1
-        if o[13] < len(subjects):
-            by_subject[subjects[o[13]]][cat] += 1
+        by_level[int(round(o[11]))][cat] += 1
+        if o[12] < len(subjects):
+            by_subject[subjects[o[12]]][cat] += 1
 
     return {
         "by_level": {str(k): dict(v) for k, v in sorted(by_level.items())},

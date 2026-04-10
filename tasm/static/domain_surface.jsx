@@ -50,9 +50,8 @@ export default function App(){
     if(sizeMode==="disp")r=Math.max(2,Math.min(9,o[3]*5));
     else if(sizeMode==="repl")r=Math.max(2,Math.min(9,o[4]*11));
     else if(sizeMode==="asm")r=Math.max(2,Math.min(9,(o[6]-1.6)/2.5*9));
-    else if(sizeMode==="sfd_e")r=Math.max(2,Math.min(9,(o[7]-0.2)/1.5*9));
-    else if(sizeMode==="sfd_d")r=Math.max(2,Math.min(9,(o[8]-0.3)/0.2*9));
-    else r=Math.max(2,Math.min(9,(1-Math.min(o[11]/0.15,1))*9));
+    else if(sizeMode==="sfd_d")r=Math.max(2,Math.min(9,(o[7]-0.3)/0.2*9));
+    else r=Math.max(2,Math.min(9,(1-Math.min(o[10]/0.15,1))*9));
     return{o,sx:toX(ti),sy:toY(o[2]),r};
   }).filter(Boolean),[filtered,sizeMode]);
 
@@ -126,7 +125,7 @@ export default function App(){
       ctx.beginPath();ctx.arc(p.sx,p.sy,p.r,0,Math.PI*2);
       ctx.fillStyle=col+"55";ctx.fill();
       if(sizeMode==="anch"){
-        const sc=SCOL[p.o[13]]||"#666";
+        const sc=SCOL[p.o[12]]||"#666";
         ctx.strokeStyle=sc;ctx.lineWidth=1.2;
       }else{
         ctx.strokeStyle=col+"AA";ctx.lineWidth=0.6;
@@ -155,7 +154,7 @@ export default function App(){
     <div style={{maxWidth:860,margin:"0 auto"}}>
       <div style={{fontSize:14,fontWeight:700,marginBottom:2}}>Token x Domain x Correction -- Alignment Probes</div>
       <div style={{fontSize:9,color:"#6B7280",marginBottom:8}}>
-        10 subjects, 200 anchors, 602 obs. Size = {({"disp":"RD displacement","repl":"RD replacement","asm":"ASM stress","sfd_e":"SFD energy","sfd_d":"SFD density","anch":"subject proximity (larger = closer)"})[sizeMode]}.
+        10 subjects, 200 anchors, 602 obs. Size = {({"disp":"RD displacement","repl":"RD replacement","asm":"ASM stress","sfd_d":"SFD density","anch":"subject proximity (larger = closer)"})[sizeMode]}.
       </div>
 
       <div style={{display:"flex",gap:4,marginBottom:6,flexWrap:"wrap",alignItems:"center"}}>
@@ -164,7 +163,7 @@ export default function App(){
         {Object.entries(CNAME).map(([k,v])=><button key={k} onClick={()=>setSelCat(k)} style={{fontSize:8,padding:"1px 6px",borderRadius:3,border:"1px solid "+(selCat===k?CCOL[k]:"#444"),background:selCat===k?CCOL[k]+"22":"transparent",color:selCat===k?CCOL[k]:"#6B7280",cursor:"pointer",fontFamily:"inherit"}}>{v}</button>)}
         <span style={{width:1,height:12,background:"#444",margin:"0 4px"}}/>
         <span style={{fontSize:9,color:"#6B7280"}}>Size:</span>
-        {[["disp","RD disp","#56B4E9"],["repl","RD repl","#CC79A7"],["asm","ASM","#E69F00"],["sfd_e","SFD eng","#009E73"],["sfd_d","SFD den","#F0E442"],["anch","subj prox","#888"]].map(([k,lab,col])=><button key={k} onClick={()=>setSizeMode(k)} style={{fontSize:8,padding:"1px 5px",borderRadius:3,border:"1px solid "+(sizeMode===k?col:"#444"),background:sizeMode===k?col+"22":"transparent",color:sizeMode===k?col:"#6B7280",cursor:"pointer",fontFamily:"inherit"}}>{lab}</button>)}
+        {[["disp","RD disp","#56B4E9"],["repl","RD repl","#CC79A7"],["asm","ASM","#E69F00"],["sfd_d","SFD den","#F0E442"],["anch","subj prox","#888"]].map(([k,lab,col])=><button key={k} onClick={()=>setSizeMode(k)} style={{fontSize:8,padding:"1px 5px",borderRadius:3,border:"1px solid "+(sizeMode===k?col:"#444"),background:sizeMode===k?col+"22":"transparent",color:sizeMode===k?col:"#6B7280",cursor:"pointer",fontFamily:"inherit"}}>{lab}</button>)}
       </div>
 
       <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap",fontSize:8}}>
@@ -178,15 +177,15 @@ export default function App(){
         <div style={{position:"relative",background:"#1C2128",border:"1px solid #444C56",borderRadius:6}}>
           <canvas ref={ref} style={{width:W,height:H,display:"block",cursor:"crosshair"}}
             onMouseMove={onM} onMouseLeave={()=>{setHover(null);setAncHover(null)}}/>
-          {hover&&(()=>{const o=hover.o;const pt=PROMPTS[o[9]]||"";const ns=SUBJ[o[13]];const ncol=SCOL[o[13]]||"#888";return <div style={{position:"absolute",left:hover.sx>W*0.5?hover.sx-310:hover.sx+14,top:Math.max(4,hover.sy-100),background:"#2D333B",border:"1px solid "+CCOL[o[1]],borderRadius:6,padding:"6px 8px",pointerEvents:"none",minWidth:220,maxWidth:300,zIndex:10,boxShadow:"0 4px 12px rgba(0,0,0,.5)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:CCOL[o[1]]}}>{CNAME[o[1]]}: "{o[0]}" <span style={{fontSize:8,color:"#6B7280",fontWeight:400}}>pos {o[10]}</span></div>
+          {hover&&(()=>{const o=hover.o;const pt=PROMPTS[o[8]]||"";const ns=SUBJ[o[12]];const ncol=SCOL[o[12]]||"#888";return <div style={{position:"absolute",left:hover.sx>W*0.5?hover.sx-310:hover.sx+14,top:Math.max(4,hover.sy-100),background:"#2D333B",border:"1px solid "+CCOL[o[1]],borderRadius:6,padding:"6px 8px",pointerEvents:"none",minWidth:220,maxWidth:300,zIndex:10,boxShadow:"0 4px 12px rgba(0,0,0,.5)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:CCOL[o[1]]}}>{CNAME[o[1]]}: "{o[0]}" <span style={{fontSize:8,color:"#6B7280",fontWeight:400}}>pos {o[9]}</span></div>
             <div style={{fontSize:9,color:"#B8BFC6",lineHeight:1.6,marginTop:2}}>
               <span style={{color:"#56B4E9"}}>RD</span> disp {o[3].toFixed(3)} repl {o[4].toFixed(2)}<br/>
-              <span style={{color:"#E69F00"}}>ASM</span> {o[6].toFixed(2)} <span style={{color:"#009E73"}}>SFD</span> e={o[7].toFixed(3)} d={o[8].toFixed(3)}<br/>
+              <span style={{color:"#E69F00"}}>ASM</span> {o[6].toFixed(2)} <span style={{color:"#009E73"}}>SFD</span> d={o[7].toFixed(3)}<br/>
               <span style={{color:"#6B7280"}}>PC2</span> {o[2].toFixed(3)} <span style={{color:"#6B7280"}}>cv</span> {(TCV[o[0]]||0).toFixed(2)}
             </div>
             <div style={{fontSize:8,color:"#B8BFC6",marginTop:3,borderTop:"1px solid #444",paddingTop:3}}>
-              <span style={{color:"#6B7280"}}>nearest:</span> <span style={{color:ncol}}>{(ns||"").replace("_"," ")}</span> <span style={{color:"#999"}}>{LNAME[o[12]]}</span> <span style={{color:"#6B7280"}}>d={o[11].toFixed(3)}</span>
+              <span style={{color:"#6B7280"}}>nearest:</span> <span style={{color:ncol}}>{(ns||"").replace("_"," ")}</span> <span style={{color:"#999"}}>{LNAME[o[11]]}</span> <span style={{color:"#6B7280"}}>d={o[10].toFixed(3)}</span>
             </div>
             <div style={{fontSize:8,color:"#888",marginTop:3,lineHeight:1.4,wordBreak:"break-word"}}>{pt}</div>
           </div>})()}
