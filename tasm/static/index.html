@@ -519,7 +519,6 @@ const VIZ_REGISTRY = {
 
   // ── Batch: Analysis tab ──
   separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
-  terrain_viewer:      {cat:'Batch Analysis',title:'Alignment Terrain',        on:true,  scope:'batch', order:15, type:'js',   needs:'ltp', desc:'3D dual-bank terrain map — probability displacement between base and instruct models. Surface height = per-candidate displacement magnitude. Instruct bank (right, warm) shows promoted candidates and reweighting. Base bank (left, cool) shows demoted candidates. Asymmetry reveals where alignment training reshaped the vocabulary distribution.'},
   batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
   key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
   discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
@@ -609,50 +608,6 @@ function vizRenderConfig(){
     <div style="display:flex;gap:8px;max-width:540px">
       <button class="btn btn-sm btn-secondary" onclick="clearPlotCache()">Clear Plot Cache</button>
       <button class="btn btn-sm btn-danger" onclick="clearAllSessionData()">Clear All Session Data</button>
-    </div>
-  </div>`;
-  // Display settings
-  h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
-    <div style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Display</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px">
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Terrain char limit</label>
-        <input type="number" id="cfgTerrainCharLimit" value="${DISPLAY_DEFAULTS.terrainCharLimit}" min="20" max="200" step="5" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainCharLimit=parseInt(this.value)||50;saveConfig()">
-        <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:1px">Prompt labels in dropdown</div>
-      </div>
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Record limit</label>
-        <input type="number" id="cfgTerrainRecordLimit" value="${DISPLAY_DEFAULTS.terrainRecordLimit}" min="1" max="2000" step="10" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainRecordLimit=parseInt(this.value)||100;saveConfig()">
-        <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:1px">Max prompts to load</div>
-      </div>
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Token limit</label>
-        <input type="number" id="cfgTerrainTokenLimit" value="${DISPLAY_DEFAULTS.terrainTokenLimit}" min="4" max="100" step="1" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainTokenLimit=parseInt(this.value)||20;saveConfig()">
-        <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:1px">Max tokens per render</div>
-      </div>
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Category</label>
-        <select id="cfgTerrainCategory" style="width:100px" onchange="DISPLAY_DEFAULTS.terrainCategory=this.value;saveConfig()">
-          <option value="all"${DISPLAY_DEFAULTS.terrainCategory==='all'?' selected':''}>All</option>
-          <option value="benign"${DISPLAY_DEFAULTS.terrainCategory==='benign'?' selected':''}>Benign</option>
-          <option value="mild"${DISPLAY_DEFAULTS.terrainCategory==='mild'?' selected':''}>Mild</option>
-          <option value="dual-use"${DISPLAY_DEFAULTS.terrainCategory==='dual-use'?' selected':''}>Dual-use</option>
-          <option value="harmful"${DISPLAY_DEFAULTS.terrainCategory==='harmful'?' selected':''}>Harmful</option>
-          <option value="adversarial"${DISPLAY_DEFAULTS.terrainCategory==='adversarial'?' selected':''}>Adversarial</option>
-          <option value="jailbreak"${DISPLAY_DEFAULTS.terrainCategory==='jailbreak'?' selected':''}>Jailbreak</option>
-        </select>
-        <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:1px">Default category filter</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:540px;margin-top:8px">
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Auto-rotate default</label>
-        <div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="cfgTerrainAutoRotate" ${DISPLAY_DEFAULTS.terrainAutoRotate?'checked':''} onchange="DISPLAY_DEFAULTS.terrainAutoRotate=this.checked;saveConfig()"><label for="cfgTerrainAutoRotate">Enable</label></div>
-      </div>
-      <div>
-        <label style="font-size:var(--font-desc);color:var(--text-1)">Rotate speed (RPM)</label>
-        <input type="number" id="cfgTerrainRotateSpeed" value="${DISPLAY_DEFAULTS.terrainRotateSpeed}" min="0.1" max="2.0" step="0.1" style="width:80px" onchange="DISPLAY_DEFAULTS.terrainRotateSpeed=parseFloat(this.value)||0.3;saveConfig()">
-      </div>
     </div>
   </div>`;
   // Viz toggles by category
@@ -1039,15 +994,6 @@ async function loadDashboard(bypassBusy, forceRecompute){
         const sk='dash_'+key;
         storeViz(sk,v.title,_plotHtml(key,v.title,v.desc||''));
         h+=vizLabel(sk,v.title,v.desc||'');
-      }
-
-      // Terrain viewer
-      if(vizIsEnabled('terrain_viewer')&&dashResults.length>0){
-        h+=`<div class="viz-label" style="border-left:3px solid var(--cyan)">
-          <span class="vl-title" style="color:var(--cyan)">Alignment Terrain</span>
-          <span class="vl-desc">3D dual-bank terrain map</span>
-          <button class="btn btn-secondary" onclick="_showTerrainLaunchMenu(${info.n_results||0})" style="font-size:var(--font-legend);padding:3px 10px;width:auto">↗ Configure &amp; Launch</button>
-        </div>`;
       }
 
       // Candidate graph aggregate
@@ -2136,50 +2082,6 @@ function _terrainRendererCore(container, D, opts){
 }
 
 
-async function _lazyLoadTerrain(totalCount){
-  var msg=document.getElementById('terrainLoadMsg');
-  var allResults=[];
-  var CHUNK=25;
-  try{
-    for(var start=0;start<totalCount;start+=CHUNK){
-      if(msg)msg.textContent='Loading terrain data... '+(start)+'/'+totalCount;
-      var resp=await fetch('/api/results/detail?start='+start+'&count='+CHUNK);
-      var data=await resp.json();
-      if(!data.ok)break;
-      allResults=allResults.concat(data.results);
-    }
-    if(msg)msg.textContent='Initializing terrain...';
-    // Check if we have terrain-compatible data
-    var hasData=allResults.some(function(r){
-      return(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||
-            (r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0);
-    });
-    if(hasData){
-      initTerrainViewer(allResults);
-    }else{
-      if(msg)msg.textContent='No terrain profile data available for this session.';
-    }
-  }catch(e){
-    console.error('Terrain lazy load error:',e);
-    if(msg)msg.textContent='Terrain load failed: '+e.message;
-  }
-}
-
-function initTerrainViewer(results){
-  var container=document.getElementById('terrainContainer');
-  if(!container) return;
-  var D=_terrainTransformData(results);
-  if(!Object.keys(D).length) return;
-
-  // Run the shared renderer in the embedded container
-  _terrainRendererCore(container, D, {charLimit:typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50});
-
-  // Popout: opens a new window with the same renderer and data
-  window._terrainPopout=function(){
-    _openTerrainWindow(D, typeof DISPLAY_DEFAULTS!=='undefined'?DISPLAY_DEFAULTS.terrainCharLimit:50, autoRotate, rotateSpeed);
-  };
-}
-
 function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
     charLimit = charLimit || 50;
     autoRotate = !!autoRotate;
@@ -2190,7 +2092,7 @@ function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
     var w=window.open('','_blank','width='+pw+',height='+ph+',left='+left+',top='+top);
     if(!w)return;
     var dataJSON=JSON.stringify(D);
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Alignment Terrain</title>');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Correction Field Topology</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
     w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
     w.document.write('.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}.terrain-wrap canvas:active{cursor:grabbing}');
@@ -2209,58 +2111,6 @@ function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
     w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+charLimit+',autoRotate:'+autoRotate+',rotateSpeed:'+rotateSpeed+'})});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
-}
-
-function _showTerrainLaunchMenu(totalCount){
-  var cats = Object.keys((dashResults||[]).reduce(function(a,r){if(r.category)a[r.category]=1;return a},{})).sort();
-  var d = DISPLAY_DEFAULTS;
-  var overlay = document.createElement('div');
-  overlay.className = 'terrain-menu-overlay';
-  overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
-
-  var h = '<div class="terrain-menu">';
-  h += '<h3>Terrain Viewer</h3>';
-  h += '<div class="tm-grid">';
-
-  h += '<div><label>Category</label><select id="tmCat">';
-  h += '<option value="all"'+(d.terrainCategory==='all'?' selected':'')+'>All categories</option>';
-  cats.forEach(function(c){
-    h += '<option value="'+c+'"'+(d.terrainCategory===c?' selected':'')+'>'+c+'</option>';
-  });
-  h += '</select><div class="tm-desc">Filter prompts by category</div></div>';
-
-  h += '<div><label>Record limit</label><input type="number" id="tmRecordLimit" value="'+d.terrainRecordLimit+'" min="1" max="'+totalCount+'" step="10" style="width:80px"><div class="tm-desc">Max prompts to load (of '+totalCount+')</div></div>';
-
-  h += '<div><label>Token limit</label><input type="number" id="tmTokenLimit" value="'+d.terrainTokenLimit+'" min="4" max="100" step="1" style="width:80px"><div class="tm-desc">Max tokens per terrain render</div></div>';
-
-  h += '<div><label>Prompt char limit</label><input type="number" id="tmCharLimit" value="'+d.terrainCharLimit+'" min="20" max="200" step="5" style="width:80px"><div class="tm-desc">Dropdown label length</div></div>';
-
-  h += '</div>';
-  h += '<div class="tm-grid" style="margin-bottom:14px">';
-  h += '<div><label>Auto-rotate</label><div class="checkbox-row" style="margin-top:3px"><input type="checkbox" id="tmAutoRotate"'+(d.terrainAutoRotate?' checked':'')+'><label for="tmAutoRotate">Enable</label></div><div class="tm-desc">Spin terrain around vertical axis</div></div>';
-  h += '<div><label>Rotate speed (RPM)</label><input type="number" id="tmRotateSpeed" value="'+d.terrainRotateSpeed+'" min="0.1" max="2.0" step="0.1" style="width:80px"><div class="tm-desc">Revolutions per minute</div></div>';
-
-  h += '</div>';
-  h += '<div style="font-size:var(--font-legend);color:var(--text-2);margin-bottom:10px;line-height:1.5">Defaults can be changed in Configuration → Display. Large datasets may be slow to load.</div>';
-  h += '<div class="tm-actions">';
-  h += '<button class="btn btn-sm btn-secondary" onclick="this.closest(\'.terrain-menu-overlay\').remove()">Cancel</button>';
-  h += '<button class="btn btn-sm btn-primary" id="tmLaunchBtn" onclick="_terrainLaunch('+totalCount+')">Launch</button>';
-  h += '</div></div>';
-
-  overlay.innerHTML = h;
-  document.body.appendChild(overlay);
-}
-
-function _terrainLaunch(totalCount){
-  var cat = document.getElementById('tmCat').value;
-  var recordLimit = parseInt(document.getElementById('tmRecordLimit').value)||100;
-  var tokenLimit = parseInt(document.getElementById('tmTokenLimit').value)||20;
-  var charLimit = parseInt(document.getElementById('tmCharLimit').value)||50;
-  var autoRotate = document.getElementById('tmAutoRotate').checked;
-  var rotateSpeed = parseFloat(document.getElementById('tmRotateSpeed').value)||0.3;
-  var overlay = document.querySelector('.terrain-menu-overlay');
-  if(overlay) overlay.remove();
-  _lazyLoadTerrainPopout(totalCount, {category:cat, recordLimit:recordLimit, tokenLimit:tokenLimit, charLimit:charLimit, autoRotate:autoRotate, rotateSpeed:rotateSpeed});
 }
 
 async function _lazyLoadTerrainPopout(totalCount, params){
@@ -3276,6 +3126,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderCorrectionHeatmapResults(results);
   } else if (name === 'mechanistic_interpretability') {
     container.innerHTML = renderMIResults(results);
+  } else if (name === 'correction_field_topology') {
+    container.innerHTML = renderCFTResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3751,6 +3603,128 @@ function renderProbeGeneratorResults(r) {
 function popoutCorrectionManifold(){
   var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+// ─── Correction Field Topology Results Renderer ─────────────────
+
+function renderCFTResults(r) {
+  if (r.error) {
+    return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--orange)">' + escHtml(r.error) + '</div></div>';
+  }
+
+  var h = '<div class="mod-results">';
+
+  // Launch button
+  var nUsable = (r.n_with_displacement || 0) + (r.n_with_ltp_fallback || 0);
+  var lp = r.launch_params || {};
+  h += '<div style="padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)">';
+  h += '<button class="btn btn-primary btn-sm" onclick="_cftLaunchFromModule()" style="white-space:nowrap">↗ Launch Visualization</button>';
+  h += '<span style="font-size:11px;color:var(--text-2)">' + nUsable + ' prompts ready';
+  if (r.n_with_displacement > 0) h += ' · ' + r.n_with_displacement + ' displacement';
+  if (r.n_with_ltp_fallback > 0) h += ' · ' + r.n_with_ltp_fallback + ' LTP fallback';
+  h += '</span></div>';
+
+  // Summary stats
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Topology Summary</div>';
+  h += '<div class="mod-results-body"><div class="mod-summary">';
+  h += tvStat('Usable Prompts', nUsable, r.n_skipped + ' skipped (no profiles)');
+  h += tvStat('Base Candidates', r.n_with_base_candidates || 0, 'prompts with dual-bank data');
+  var ts = r.token_stats || {};
+  h += tvStat('Total Tokens', ts.total_tokens || 0, 'mean ' + (ts.mean_tokens_per_prompt || 0) + '/prompt, max ' + (ts.max_tokens || 0));
+  h += '</div></div>';
+
+  // Category breakdown
+  if (r.by_category && Object.keys(r.by_category).length > 1) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Category Breakdown</div>';
+    h += '<div class="mod-results-body collapsed">';
+    h += '<table class="mod-tbl"><thead><tr><th>Category</th><th class="num">Prompts</th><th class="num">Mean Tokens</th></tr></thead><tbody>';
+    Object.keys(r.by_category).sort().forEach(function(cat) {
+      var ci = r.by_category[cat];
+      h += '<tr><td style="color:var(--cyan)">' + escHtml(cat) + '</td>';
+      h += '<td class="num">' + ci.count + '</td>';
+      h += '<td class="num">' + ci.mean_tokens + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
+  // Displacement stats
+  if (r.displacement_stats) {
+    var ds = r.displacement_stats;
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Displacement Magnitude</div>';
+    h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
+    var ov = ds.overall || {};
+    h += tvStat('Overall Mean', (ov.mean || 0).toFixed(6), 'std ' + (ov.std || 0).toFixed(6) + ', median ' + (ov.median || 0).toFixed(6));
+    if (ds.by_category) {
+      Object.keys(ds.by_category).sort().forEach(function(cat) {
+        var cs = ds.by_category[cat];
+        h += tvStat(cat, cs.mean.toFixed(6), 'std ' + cs.std.toFixed(6) + ', max ' + cs.max.toFixed(6));
+      });
+    }
+    h += '</div></div>';
+  }
+
+  // Asymmetry stats
+  if (r.asymmetry_stats) {
+    var as = r.asymmetry_stats;
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Bank Asymmetry</div>';
+    h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
+    var ao = as.overall || {};
+    var biasLabel = ao.mean > 0.05 ? 'instruct-dominant' : ao.mean < -0.05 ? 'base-dominant' : 'balanced';
+    h += tvStat('Overall Bias', biasLabel, 'mean asymmetry ' + (ao.mean || 0).toFixed(4) + ', ' + Math.round((ao.instruct_dominant_frac || 0) * 100) + '% instruct-dominant positions');
+    if (as.by_category) {
+      Object.keys(as.by_category).sort().forEach(function(cat) {
+        var cs = as.by_category[cat];
+        var catBias = cs.mean > 0.05 ? '↑ instruct' : cs.mean < -0.05 ? '↓ base' : '≈ balanced';
+        h += tvStat(cat, catBias, 'mean ' + cs.mean.toFixed(4) + ', ' + Math.round(cs.instruct_dominant_frac * 100) + '% instruct-dominant');
+      });
+    }
+    h += '</div></div>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
+// Store latest CFT launch params from module results
+var _cftLaunchParams = null;
+
+// Override fetchModuleResults to capture CFT params
+var _origFetchModuleResults = fetchModuleResults;
+fetchModuleResults = async function(name) {
+  await _origFetchModuleResults(name);
+  if (name === 'correction_field_topology') {
+    try {
+      var r = await fetch('/api/modules/correction_field_topology/results');
+      var d = await r.json();
+      if (d.ok && d.results && d.results.launch_params) {
+        _cftLaunchParams = d.results.launch_params;
+      }
+    } catch(e) { /* silent */ }
+  }
+};
+
+function _cftLaunchFromModule() {
+  var p = _cftLaunchParams || {};
+  // Fall back to module card param controls if no cached results
+  if (!_cftLaunchParams) {
+    var m = _moduleData['correction_field_topology'];
+    if (m) p = getModuleParams('correction_field_topology');
+  }
+  var totalCount = sessionResults ? sessionResults.length : (dashResults ? dashResults.length : 0);
+  if (!totalCount) {
+    // Try from session info
+    try { totalCount = parseInt(document.querySelector('#sessCount')?.textContent) || 0; } catch(e) {}
+  }
+  // Use dashboard info if available
+  if (_promptTotal > 0) totalCount = _promptTotal;
+  _lazyLoadTerrainPopout(totalCount, {
+    category: p.category || 'all',
+    recordLimit: p.record_limit || 100,
+    tokenLimit: p.token_limit || 20,
+    charLimit: p.char_limit || 50,
+    autoRotate: !!p.auto_rotate,
+    rotateSpeed: p.rotate_speed || 0.3,
+  });
 }
 
 // ─── MI Readiness Results Renderer ──────────────────────────────
