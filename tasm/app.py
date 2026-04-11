@@ -453,6 +453,23 @@ async def load_model(pair_id: str = Form(None),
     return {"ok": True, "message": "Loading started."}
 
 
+@app.post("/api/set_inference_model")
+async def set_inference_model(model_class: str = Form(...)):
+    if model_class not in ("instruct", "base"):
+        return JSONResponse(status_code=400,
+                            content={"error": "Must be 'instruct' or 'base'"})
+    if not mm.state or not mm.state.loaded:
+        return {"ok": False, "message": "No model loaded."}
+    if model_class == "base" and mm.state.model_base is None:
+        try:
+            mm.load_base_for_kl(callback=log_progress)
+        except Exception as e:
+            logger.error(f"Failed to load base model: {e}")
+            return {"ok": False, "message": f"Failed to load base model: {e}"}
+    mm.state.inference_class = model_class
+    return {"ok": True, "active": model_class}
+
+
 @app.post("/api/reset")
 async def reset_all():
     global analyzer, session
@@ -1821,8 +1838,8 @@ async def clear_probe_caches():
 
 @app.post("/api/chat")
 async def chat(request: Request):
-    """Generate text from the loaded instruct model, optionally analyzing prompts/responses."""
-    if analyzer is None or analyzer.mm.state is None or analyzer.mm.state.model_instruct is None:
+    """Generate text from the active inference model, optionally analyzing prompts/responses."""
+    if analyzer is None or analyzer.mm.state is None or analyzer.mm.active_model is None:
         return JSONResponse(content={"ok": False, "error": "No model loaded"})
 
     try:
@@ -1843,12 +1860,17 @@ async def chat(request: Request):
         # Generate response
         with _analysis_lock:
             state = analyzer.mm.state
-            model = state.model_instruct
+            model = analyzer.mm.active_model
             tokenizer = state.tokenizer
             device = state.device
+            using_class = state.inference_class
 
-            text = tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True)
+            # Base models lack chat templates — fall back to raw prompt
+            if using_class == "base":
+                text = prompt_text
+            else:
+                text = tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True)
             inputs = tokenizer(text, return_tensors="pt").to(device)
 
             with torch.no_grad():
@@ -1864,7 +1886,7 @@ async def chat(request: Request):
             generated = outputs[0][inputs['input_ids'].shape[1]:]
             response = tokenizer.decode(generated, skip_special_tokens=True).strip()
 
-        result = {"ok": True, "response": response}
+        result = {"ok": True, "response": response, "model_class": using_class}
 
         # Analyze user prompt — goes into session as a regular result
         if do_analyze and prompt_text:

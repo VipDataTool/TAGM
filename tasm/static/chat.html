@@ -31,6 +31,9 @@ header a:hover{color:var(--text-0)}
 .msg.error{align-self:center;color:var(--red);font-size:12px}
 .msg.system{align-self:center;color:var(--text-2);font-size:12px;font-style:italic}
 .msg .analyzed{font-size:10px;color:var(--text-3);margin-top:4px}
+.model-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;margin-bottom:4px;font-family:var(--mono);font-weight:500}
+.model-badge.instruct{background:var(--cyan);color:#000}
+.model-badge.base{background:var(--orange);color:#000}
 .input-row{padding:12px 16px;background:var(--bg-1);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
 .input-row textarea{flex:1;background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--sans);font-size:14px;resize:none;min-height:44px;max-height:120px;outline:none}
 .input-row textarea:focus{border-color:var(--cyan)}
@@ -49,6 +52,10 @@ header a:hover{color:var(--text-0)}
     <label><input type="checkbox" id="chkResponses"> Analyze responses</label>
     <label><input type="checkbox" id="chkLTP" checked> LTP</label>
     <label><input type="checkbox" id="chkSFD" checked> SFD</label>
+    <select id="chatModelClass" onchange="setChatModelClass(this.value)" style="background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--sans)">
+      <option value="instruct" selected>Instruct</option>
+      <option value="base">Base</option>
+    </select>
     <button class="hdr-btn" onclick="resetChat()">Reset</button>
   </div>
 </header>
@@ -115,6 +122,12 @@ async function send(){
     if(data.ok){
       chatMessages.push({role:'assistant',content:data.response});
       const msgEl=addMsg('assistant',data.response);
+      if(data.model_class){
+        const badge=document.createElement('div');
+        badge.className='model-badge '+data.model_class;
+        badge.textContent=data.model_class;
+        msgEl.insertBefore(badge,msgEl.firstChild);
+      }
 
       let statusParts=[];
       if(data.prompt_analyzed) statusParts.push('prompt analyzed');
@@ -145,6 +158,17 @@ function resetChat(){
   turnCount=0;
   $('messages').innerHTML='';
   setStatus('Chat reset. Session data preserved in Analyzer.');
+}
+
+async function setChatModelClass(cls){
+  const sel=$('chatModelClass');sel.disabled=true;
+  try{
+    const fd=new FormData();fd.append('model_class',cls);
+    const r=await(await fetch('/api/set_inference_model',{method:'POST',body:fd})).json();
+    if(!r.ok){addMsg('error',r.message||'Failed to switch');sel.value=(cls==='base'?'instruct':'base')}
+    else{addMsg('system','Switched to '+cls+' model')}
+  }catch(e){addMsg('error','Switch error: '+e.message);sel.value=(cls==='base'?'instruct':'base')}
+  sel.disabled=false;
 }
 
 $('input').addEventListener('input',function(){

@@ -92,6 +92,7 @@ class ModelState:
     dtype: object = torch.bfloat16  # bfloat16: same 2-byte footprint as fp16, but fp32 exponent range prevents NaN overflow on CPU
     loaded: bool = False
     full_deltas_available: bool = False  # True if deltas for ALL layers are loaded
+    inference_class: str = "instruct"  # "instruct" or "base"
 
     # Delta spectral structure (computed once at load time)
     delta_spectral: dict = field(default_factory=dict)  # {key: {eff_rank, top1_share, top5_share}}
@@ -283,6 +284,14 @@ class ModelManager:
         self.activations = {}
         self.attn_weights = {}
 
+    @property
+    def active_model(self):
+        """Return the model selected by inference_class (base or instruct)."""
+        if (self.state and self.state.inference_class == "base"
+                and self.state.model_base is not None):
+            return self.state.model_base
+        return self.state.model_instruct
+
     def get_available_pairs(self):
         return {k: v[2] for k, v in KNOWN_PAIRS.items()}
 
@@ -433,7 +442,7 @@ class ModelManager:
         self.activations.clear()
         self.attn_weights.clear()
 
-        model = self.state.model_instruct
+        model = self.active_model
 
         def make_output_hook(name):
             def hook(module, inp, output):
@@ -509,7 +518,7 @@ class ModelManager:
         inputs = self.state.tokenizer(prompt, return_tensors="pt").to(self.state.device)
         tokens = self.state.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         with torch.no_grad():
-            out = self.state.model_instruct(**inputs, output_attentions=output_attentions)
+            out = self.active_model(**inputs, output_attentions=output_attentions)
         return tokens, inputs, out
 
     def clear_activations(self):

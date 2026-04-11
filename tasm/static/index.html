@@ -240,7 +240,7 @@ textarea{resize:vertical;min-height:44px}
     <label>Model Pair</label>
     <select id="modelSelect"><option value="">-- Select --</option></select>
     <label>Inference Model</label>
-    <select id="inferenceModelSelect">
+    <select id="inferenceModelSelect" onchange="setInferenceModel(this.value)">
       <option value="instruct" selected>Instruct</option>
       <option value="base">Base</option>
     </select>
@@ -818,10 +818,22 @@ async function loadModel(){
       for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
       lastLen=prog.log.length;
       const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}playChime()}
+      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}playChime();setInferenceModel($('inferenceModelSelect').value)}
       else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
     }catch(e){}
   },2000);
+}
+
+async function setInferenceModel(cls){
+  if(!modelLoaded)return;
+  const sel=$('inferenceModelSelect');sel.disabled=true;
+  log('Switching inference model to '+cls+'…','');
+  const fd=new FormData();fd.append('model_class',cls);
+  try{const r=await(await fetch('/api/set_inference_model',{method:'POST',body:fd})).json();
+    if(!r.ok){showError('promptError',r.message||'Failed to switch inference model');sel.value=(cls==='base'?'instruct':'base')}
+    else{log('Inference model: '+cls,'done')}
+  }catch(e){log('Error switching model: '+e.message,'error');sel.value=(cls==='base'?'instruct':'base')}
+  sel.disabled=false;
 }
 
 async function resetAll(){
