@@ -324,19 +324,20 @@ class CorrectionHeatmapModule(TASMModule):
 
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
 
-        # ── Compute per-cell context-sensitive tokens ──
+        # ── Compute per-cell token specificity ──
         if progress:
-            progress("Computing per-cell context-sensitive tokens...")
+            progress("Computing cell-specific token rankings...")
 
         TOP_N = 10
         cat_names = {"b": "benign", "m": "mild", "h": "harmful", "j": "jailbreak",
                      "a": "adversarial", "d": "dual-use", "u": "unknown"}
         all_cats_seen = set()
-        cell_details = {}
 
+        # Pass 1: compute each token's mean activation in each cell
+        # cell_means[tok][(si,li)] = mean activation
+        token_cell_means = defaultdict(dict)
+        token_cell_cats = defaultdict(dict)  # per-cat breakdowns
         for (si, li), tok_dict in cell_token_data.items():
-            cell_key = f"{si}_{li}"
-            token_rows = []
             for tok, cat_dict in tok_dict.items():
                 all_vals = []
                 per_cat = {}
@@ -345,22 +346,58 @@ class CorrectionHeatmapModule(TASMModule):
                     m = float(np.mean(vals))
                     per_cat[cat_short] = {"mean": round(m, 6), "n": len(vals)}
                     all_vals.extend(vals)
-                overall_mean = float(np.mean(all_vals)) if all_vals else 0
-                # Context variance: how much does this token's activation
-                # vary across all the different prompts it appears in?
-                # High CV = the correction field treats this token differently
-                # depending on surrounding context. Label-free.
-                ctx_var = float(np.var(all_vals)) if len(all_vals) > 1 else 0
+                token_cell_means[tok][(si, li)] = float(np.mean(all_vals))
+                token_cell_cats[tok][(si, li)] = per_cat
+
+        # Pass 2: compute each token's global mean and std across all cells
+        token_global = {}
+        for tok, cell_dict in token_cell_means.items():
+            means = list(cell_dict.values())
+            token_global[tok] = {
+                "global_mean": float(np.mean(means)),
+                "global_std": float(np.std(means)) if len(means) > 1 else 0.0,
+                "n_cells": len(means),
+            }
+
+        # Pass 3: for each cell, rank tokens by cell-specificity z-score
+        # z = |cell_mean - global_mean| / global_std
+        # Tokens that activate THIS cell differently from their average
+        # across all cells score highest. "the" scores low because it
+        # activates every cell roughly the same.
+        cell_details = {}
+        for (si, li), tok_dict in cell_token_data.items():
+            cell_key = f"{si}_{li}"
+            token_rows = []
+            for tok in tok_dict:
+                cell_mean = token_cell_means[tok].get((si, li), 0)
+                g = token_global[tok]
+                g_mean = g["global_mean"]
+                g_std = g["global_std"]
+                n_cells = g["n_cells"]
+
+                # Cell-specificity: how far this cell's activation deviates
+                # from the token's average activation across all cells
+                deviation = cell_mean - g_mean
+                z_score = abs(deviation) / g_std if g_std > 1e-10 else 0.0
+
+                # Total observations of this token in this cell
+                all_vals = []
+                for vals in tok_dict[tok].values():
+                    all_vals.extend(vals)
+
                 token_rows.append({
                     "token": tok,
-                    "mean": round(overall_mean, 6),
+                    "cell_mean": round(cell_mean, 6),
+                    "global_mean": round(g_mean, 6),
+                    "deviation": round(deviation, 6),
+                    "z": round(z_score, 3),
                     "n": len(all_vals),
-                    "ctx_var": round(ctx_var, 8),
-                    "cats": per_cat,
+                    "n_cells": n_cells,
+                    "cats": token_cell_cats[tok].get((si, li), {}),
                 })
 
-            # Sort by context variance — most context-sensitive tokens first
-            token_rows.sort(key=lambda x: x["ctx_var"], reverse=True)
+            # Sort by z-score — most cell-specific tokens first
+            token_rows.sort(key=lambda x: x["z"], reverse=True)
             top = token_rows[:TOP_N]
 
             cell_details[cell_key] = {

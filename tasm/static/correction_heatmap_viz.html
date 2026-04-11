@@ -41,7 +41,7 @@ table.tok tr:hover{background:#ffffff08}
 <div class="ctrl" id="ctrls"></div>
 <div class="legend" id="legend"></div>
 <div class="grid-wrap" id="gridWrap"></div>
-<div class="detail" id="detail"><div class="empty">Click any cell in the heatmap to see context-sensitive tokens</div></div>
+<div class="detail" id="detail"><div class="empty">Click any cell in the heatmap to see cell-specific tokens</div></div>
 <div id="err"></div>
 <script>
 (function(){
@@ -134,7 +134,7 @@ function renderGrid(){
 
 function renderDetail(){
   var det=document.getElementById("detail");
-  if(!selCell){det.innerHTML='<div class="empty">Click any cell in the heatmap to see context-sensitive tokens</div>';return}
+  if(!selCell){det.innerHTML='<div class="empty">Click any cell in the heatmap to see cell-specific tokens</div>';return}
 
   var si=selCell.si,li=selCell.li;
   var key=si+'_'+li;
@@ -177,17 +177,17 @@ function renderDetail(){
     }
   }
 
-  // Find max mean for bar scaling
+  // Find max activation for bar scaling
   var barMax=0;
   tokens.forEach(function(t){
     catKeys.forEach(function(ck){if(t.cats[ck])barMax=Math.max(barMax,Math.abs(t.cats[ck].mean))});
-    barMax=Math.max(barMax,Math.abs(t.mean));
+    barMax=Math.max(barMax,Math.abs(t.cell_mean));
   });
   if(barMax<1e-10)barMax=1;
 
   h+='<div style="overflow-x:auto;max-height:400px;overflow-y:auto">';
   h+='<table class="tok"><thead><tr>';
-  h+='<th>Token</th><th>Overall</th><th>n</th><th title="Context variance: how much this token\'s activation varies across prompts">σ²</th>';
+  h+='<th>Token</th><th title="Mean activation in this cell">Cell</th><th title="Mean activation across all cells">Global</th><th title="Cell − Global: how much this cell differs from average">Δ</th><th title="Z-score: |Δ| / std across cells. Higher = more specific to this cell">z</th><th>n</th>';
   catKeys.forEach(function(ck){
     h+='<th style="color:'+(CCOL[ck]||'#888')+'">'+(CATS[ck]||ck)+'</th>';
   });
@@ -195,13 +195,17 @@ function renderDetail(){
   h+='</tr></thead><tbody>';
 
   tokens.forEach(function(t){
-    var mCol=t.mean>0?'var(--red)':'var(--blue)';
-    var mSign=t.mean>0?'+':'';
+    var dCol=t.deviation>0?'var(--red)':'var(--blue)';
+    var dSign=t.deviation>0?'+':'';
+    var cSign=t.cell_mean>0?'+':'';
+    var zCol=t.z>=2?'#E69F00':t.z>=1?'var(--cyan)':'var(--text2)';
     h+='<tr>';
     h+='<td style="color:var(--cyan);font-weight:600;white-space:nowrap">'+esc(t.token)+'</td>';
-    h+='<td style="color:'+mCol+';font-variant-numeric:tabular-nums">'+mSign+t.mean.toFixed(4)+'</td>';
+    h+='<td style="color:'+(t.cell_mean>0?'var(--red)':'var(--blue)')+';font-variant-numeric:tabular-nums">'+cSign+t.cell_mean.toFixed(4)+'</td>';
+    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+(t.global_mean>0?'+':'')+t.global_mean.toFixed(4)+'</td>';
+    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+t.deviation.toFixed(4)+'</td>';
+    h+='<td style="color:'+zCol+';font-weight:600">'+t.z.toFixed(1)+'</td>';
     h+='<td style="color:var(--text2)">'+t.n+'</td>';
-    h+='<td style="color:'+(t.ctx_var>0.0001?'#E69F00':'var(--text2)')+'">'+t.ctx_var.toFixed(6)+'</td>';
 
     // Per-category means
     catKeys.forEach(function(ck){
