@@ -228,6 +228,16 @@ class CorrectionHeatmapModule(TASMModule):
         aggregate_heatmap = np.zeros((n_subj, n_levels))
         aggregate_count = 0
 
+        # Per-cell token tracking: {(si,li): {token: {cat: [values]}}}
+        cell_token_data = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+
+        # Probe texts per cell
+        cell_probes = defaultdict(list)
+        for p in raw_probes:
+            si = subj_idx.get(p["subject"], 0)
+            li = p["level"]
+            cell_probes[(si, li)].append(p.get("text", p.get("anchor_id", "")))
+
         for pi, r in enumerate(session_results):
             final_emb = r.get("per_token_final_emb")
             if final_emb is None or len(final_emb) == 0:
@@ -238,6 +248,8 @@ class CorrectionHeatmapModule(TASMModule):
                 progress(f"Processing prompt {pi+1}/{n_prompts}...")
 
             tok_mat = np.array(final_emb, dtype=np.float32)  # [n_tokens, hidden_dim]
+            tokens = r.get("tokens", [])
+            cat = (r.get("category", "") or "unknown")[:1]  # b/m/h/j shorthand
 
             # Dot product: each token against each probe delta
             # [n_tokens, hidden_dim] @ [hidden_dim, n_probes] = [n_tokens, n_probes]
@@ -248,19 +260,38 @@ class CorrectionHeatmapModule(TASMModule):
             cell_grid = np.zeros((n_subj, n_levels))
             cell_counts = np.zeros((n_subj, n_levels))
 
+            # Per-token, per-cell activation for discriminative tracking
+            n_tok = min(len(tokens), tok_mat.shape[0])
+            cell_tok_vals = defaultdict(lambda: np.zeros(n_tok))
+            cell_tok_counts = defaultdict(int)
+
             for probe_idx, (si, li) in enumerate(probe_cells):
-                p = projections[:, probe_idx]
+                p = projections[:n_tok, probe_idx]
                 if proj_method == "squared":
                     cell_grid[si, li] += (p ** 2).mean()
+                    cell_tok_vals[(si, li)] += p[:n_tok] ** 2
                 elif proj_method == "signed":
                     cell_grid[si, li] += p.mean()
+                    cell_tok_vals[(si, li)] += p[:n_tok]
                 else:
                     cell_grid[si, li] += np.abs(p).mean()
+                    cell_tok_vals[(si, li)] += np.abs(p[:n_tok])
                 cell_counts[si, li] += 1
+                cell_tok_counts[(si, li)] += 1
 
             # Normalize by number of probes per cell
             mask = cell_counts > 0
             cell_grid[mask] /= cell_counts[mask]
+
+            # Normalize per-token values and record
+            for (si, li), vals in cell_tok_vals.items():
+                cnt = cell_tok_counts[(si, li)]
+                if cnt > 0:
+                    vals = vals / cnt
+                for ti in range(min(n_tok, len(tokens))):
+                    tok = tokens[ti].strip()
+                    if tok:
+                        cell_token_data[(si, li)][tok][cat].append(float(vals[ti]))
 
             per_prompt_heatmaps.append(cell_grid.tolist())
             aggregate_heatmap += cell_grid
@@ -293,6 +324,49 @@ class CorrectionHeatmapModule(TASMModule):
 
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
 
+        # ── Compute per-cell discriminative tokens ──
+        if progress:
+            progress("Computing per-cell discriminative tokens...")
+
+        TOP_N = 10
+        cat_names = {"b": "benign", "m": "mild", "h": "harmful", "j": "jailbreak",
+                     "a": "adversarial", "d": "dual-use", "u": "unknown"}
+        all_cats_seen = set()
+        cell_details = {}
+
+        for (si, li), tok_dict in cell_token_data.items():
+            cell_key = f"{si}_{li}"
+            token_rows = []
+            for tok, cat_dict in tok_dict.items():
+                all_vals = []
+                per_cat = {}
+                for cat_short, vals in cat_dict.items():
+                    all_cats_seen.add(cat_short)
+                    m = float(np.mean(vals))
+                    per_cat[cat_short] = {"mean": round(m, 6), "n": len(vals)}
+                    all_vals.extend(vals)
+                overall_mean = float(np.mean(all_vals)) if all_vals else 0
+                # Discriminative score: variance across category means
+                cat_means = [v["mean"] for v in per_cat.values()]
+                disc_score = float(np.var(cat_means)) if len(cat_means) > 1 else 0
+                token_rows.append({
+                    "token": tok,
+                    "mean": round(overall_mean, 6),
+                    "n": len(all_vals),
+                    "disc": round(disc_score, 8),
+                    "cats": per_cat,
+                })
+
+            # Sort by discriminative score, take top N
+            token_rows.sort(key=lambda x: x["disc"], reverse=True)
+            top = token_rows[:TOP_N]
+
+            cell_details[cell_key] = {
+                "tokens": top,
+                "probes": cell_probes.get((si, li), []),
+                "n_unique_tokens": len(token_rows),
+            }
+
         output = {
             "version": self.version,
             "probe_file": probe_file,
@@ -307,6 +381,12 @@ class CorrectionHeatmapModule(TASMModule):
 
             # Per-cell variance (turbulence)
             "variance": variance_grid.tolist(),
+
+            # Per-cell discriminative token details
+            "cell_details": cell_details,
+
+            # Categories observed
+            "categories": {k: cat_names.get(k, k) for k in sorted(all_cats_seen)},
 
             # Summary stats per subject
             "per_subject": {

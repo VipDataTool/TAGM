@@ -1934,6 +1934,15 @@ async def correction_manifold_viz():
     return HTMLResponse(content="<p>correction_manifold_viz.html not found</p>", status_code=404)
 
 
+@app.get("/correction_heatmap_viz", response_class=HTMLResponse)
+async def correction_heatmap_viz():
+    """Serve the correction heatmap interactive visualization."""
+    viz_html = Path(__file__).parent / "static" / "correction_heatmap_viz.html"
+    if viz_html.exists():
+        return HTMLResponse(content=viz_html.read_text())
+    return HTMLResponse(content="<p>correction_heatmap_viz.html not found</p>", status_code=404)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -3392,7 +3392,10 @@ function renderCorrectionHeatmapResults(r) {
   }
 
   // Summary stats
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Aggregate Heatmap</div>';
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+  h += 'Aggregate Heatmap';
+  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionHeatmap()">↗ Interactive Explorer</button>';
+  h += '</div>';
   h += '<div class="mod-results-body">';
   h += '<div style="padding:10px;overflow-x:auto">';
 
@@ -3541,6 +3544,11 @@ function renderProbeGeneratorResults(r) {
 function popoutCorrectionManifold(){
   var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+function popoutCorrectionHeatmap(){
+  var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  window.open('/correction_heatmap_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
 
 // ─── Comparative Analysis Results Renderer ──────────────────────
