@@ -3356,17 +3356,58 @@ function renderCorrectionHeatmapResults(r) {
   var agg = r.aggregate || [];
   var variance = r.variance || [];
 
-  // Find global max for color scaling
-  var maxVal = 0;
+  // Find symmetric range for diverging color scale (centered on zero)
+  var absMax = 0;
   for (var si = 0; si < agg.length; si++)
-    for (var li = 0; li < (agg[si]||[]).length; li++)
-      if (agg[si][li] > maxVal) maxVal = agg[si][li];
-  if (maxVal < 1e-6) maxVal = 1;
+    for (var li = 0; li < (agg[si]||[]).length; li++) {
+      var av = Math.abs(agg[si][li] || 0);
+      if (av > absMax) absMax = av;
+    }
+  if (absMax < 1e-8) absMax = 1;
+
+  // Diverging color: blue (negative) → neutral (zero) → red (positive)
+  function heatColor(val) {
+    var t = Math.max(-1, Math.min(1, val / absMax)); // -1 to +1
+    var r, g, b;
+    if (t >= 0) {
+      // zero → red: rgb(42,42,52) → rgb(220,50,47)
+      r = Math.round(42 + t * (220 - 42));
+      g = Math.round(42 - t * (42 - 50) * (t > 0.5 ? 0 : 1));
+      b = Math.round(52 - t * (52 - 47));
+      // desaturate near zero, saturate at extremes
+      r = Math.round(42 + t * 178);
+      g = Math.round(42 - t * 12);
+      b = Math.round(52 - t * 15);
+    } else {
+      var s = -t; // 0 to 1
+      // zero → blue: rgb(42,42,52) → rgb(38,139,210)
+      r = Math.round(42 - s * 4);
+      g = Math.round(42 + s * 97);
+      b = Math.round(52 + s * 158);
+    }
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+  function heatTextColor(val) {
+    return Math.abs(val / absMax) > 0.35 ? '#fff' : 'var(--text-2)';
+  }
 
   // Summary stats
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Aggregate Heatmap</div>';
   h += '<div class="mod-results-body">';
   h += '<div style="padding:10px;overflow-x:auto">';
+
+  // Color legend
+  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
+  h += '<span>−' + absMax.toFixed(3) + '</span>';
+  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
+  for (var ci = 0; ci < 20; ci++) {
+    var cv = -absMax + (ci / 19) * 2 * absMax;
+    h += '<div style="flex:1;background:' + heatColor(cv) + '"></div>';
+  }
+  h += '</div>';
+  h += '<span>+' + absMax.toFixed(3) + '</span>';
+  h += '<span style="margin-left:8px;color:var(--text-3)">blue = suppressed · red = activated</span>';
+  h += '</div>';
 
   // Heatmap table
   h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
@@ -3380,17 +3421,14 @@ function renderCorrectionHeatmapResults(r) {
     h += '<tr>';
     h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
     for (var li = 0; li < levels.length; li++) {
-      var val = (agg[si] && agg[si][li]) ? agg[si][li] : 0;
+      var val = (agg[si] && agg[si][li] != null) ? agg[si][li] : 0;
       var vari = (variance[si] && variance[si][li]) ? variance[si][li] : 0;
-      var intensity = val / maxVal;
-      var red = Math.round(intensity * 255);
-      var green = Math.round((1 - intensity) * 40);
-      var blue = Math.round((1 - intensity) * 60 + intensity * 40);
-      var bg = 'rgb(' + red + ',' + green + ',' + blue + ')';
-      var textCol = intensity > 0.5 ? '#fff' : 'var(--text-2)';
-      var title = subjects[si] + ' × ' + levels[li] + ': activation=' + val.toFixed(4) + ' variance=' + vari.toFixed(4);
+      var bg = heatColor(val);
+      var textCol = heatTextColor(val);
+      var sign = val > 0 ? '+' : '';
+      var title = subjects[si] + ' \u00d7 ' + levels[li] + ': activation=' + sign + val.toFixed(4) + ' variance=' + vari.toFixed(4);
       h += '<td style="padding:4px 6px;text-align:center;background:' + bg + ';color:' + textCol + '" title="' + escHtml(title) + '">';
-      h += val.toFixed(3);
+      h += sign + val.toFixed(3);
       h += '</td>';
     }
     h += '</tr>';
