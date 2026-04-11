@@ -152,7 +152,7 @@ function render(){
   ctx.fillText("PC2 (domain + discourse)",pd.l+plotW/2,pd.t+plotH+fL+8);
 
   // Level bands (vertical) — sort by mean x-position, stagger labels if close
-  var lvKeys=[];for(var l=0;l<nLevels;l++){if(lvM[l])lvKeys.push(l)}
+  var lvKeys=[];for(var l=0;l<LNAME.length;l++){if(lvM[l])lvKeys.push(l)}
   lvKeys.sort(function(a,b){return lvM[a].mean-lvM[b].mean});
   var prevLabelX=-Infinity;
   for(var li=0;li<lvKeys.length;li++){var l=lvKeys[li];var lv=lvM[l];var x1=toX(lv.mn-.02),x2=toX(lv.mx+.02);ctx.fillStyle="rgba(255,255,255,0.025)";ctx.fillRect(x1,pd.t,x2-x1,plotH);var lx=toX(lv.mean);var stagger=(Math.abs(lx-prevLabelX)<60)?fL+4:0;ctx.fillStyle="#8B92A0";ctx.font="bold "+fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(LNAME[l]||l,lx,pd.t-2-stagger);prevLabelX=lx}
