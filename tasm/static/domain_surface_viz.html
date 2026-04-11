@@ -62,7 +62,7 @@ function init(){
   xMin=Math.min.apply(null,allX);xMax=Math.max.apply(null,allX);
   var xPd=(xMax-xMin)*0.08;xMin-=xPd;xMax+=xPd;
 
-  lvM={};for(var l=0;l<5;l++){var xs=ANC.filter(function(a){return a.l===l}).map(function(a){return a.y});if(xs.length)lvM[l]={mean:xs.reduce(function(s,v){return s+v},0)/xs.length,mn:Math.min.apply(null,xs),mx:Math.max.apply(null,xs)}}
+  lvM={};var nLevels=LNAME.length;for(var l=0;l<nLevels;l++){var xs=ANC.filter(function(a){return a.l===l}).map(function(a){return a.y});if(xs.length)lvM[l]={mean:xs.reduce(function(s,v){return s+v},0)/xs.length,mn:Math.min.apply(null,xs),mx:Math.max.apply(null,xs)}}
 
   cnv=document.getElementById("dsCanvas");
   var dp=window.devicePixelRatio||1;
@@ -80,7 +80,7 @@ function init(){
   // Fixed layout values
   rowH=Math.max(20,fT*2);
   var labelW=Math.ceil(maxTokW+cvW+fT*2+12);
-  pd={t:fL*2+6,r:20,b:fL*3+10,l:labelW};
+  pd={t:fL*3+12,r:20,b:fL*3+10,l:labelW};
   H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
 
   function resize(){
@@ -151,8 +151,11 @@ function render(){
   for(var i=0;i<=8;i++){var v=xMin+(i/8)*(xMax-xMin);ctx.fillText(v.toFixed(2),pd.l+(i/8)*plotW,pd.t+plotH+4)}
   ctx.fillText("PC2 (domain + discourse)",pd.l+plotW/2,pd.t+plotH+fL+8);
 
-  // Level bands (vertical)
-  for(var l=0;l<5;l++){var lv=lvM[l];if(!lv)continue;var x1=toX(lv.mn-.02),x2=toX(lv.mx+.02);ctx.fillStyle="rgba(255,255,255,0.025)";ctx.fillRect(x1,pd.t,x2-x1,plotH);ctx.fillStyle="#8B92A0";ctx.font="bold "+fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(LNAME[l]||l,toX(lv.mean),pd.t-2)}
+  // Level bands (vertical) — sort by mean x-position, stagger labels if close
+  var lvKeys=[];for(var l=0;l<nLevels;l++){if(lvM[l])lvKeys.push(l)}
+  lvKeys.sort(function(a,b){return lvM[a].mean-lvM[b].mean});
+  var prevLabelX=-Infinity;
+  for(var li=0;li<lvKeys.length;li++){var l=lvKeys[li];var lv=lvM[l];var x1=toX(lv.mn-.02),x2=toX(lv.mx+.02);ctx.fillStyle="rgba(255,255,255,0.025)";ctx.fillRect(x1,pd.t,x2-x1,plotH);var lx=toX(lv.mean);var stagger=(Math.abs(lx-prevLabelX)<60)?fL+4:0;ctx.fillStyle="#8B92A0";ctx.font="bold "+fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(LNAME[l]||l,lx,pd.t-2-stagger);prevLabelX=lx}
 
   // Token labels (Y axis, left)
   var cvW=window._dsCvW||40;

@@ -37,7 +37,7 @@ export default function App(){
 
   const lvMeans=useMemo(()=>{
     const m={};
-    for(let l=0;l<5;l++){
+    for(let l=0;l<LNAME.length;l++){
       const ys=ANC.filter(a=>a.l===l).map(a=>a.y);
       if(ys.length)m[l]={mean:ys.reduce((s,v)=>s+v,0)/ys.length,min:Math.min(...ys),max:Math.max(...ys)};
     }
@@ -69,7 +69,7 @@ export default function App(){
     for(let i=0;i<=8;i++){const v=yMin+(1-i/8)*(yMax-yMin);ctx.fillText(v.toFixed(2),pd.l-14,pd.t+(i/8)*plotH)}
 
     // Level bands + right-side labels
-    for(let l=0;l<5;l++){
+    for(let l=0;l<LNAME.length;l++){
       const lv=lvMeans[l];if(!lv)continue;
       const y1=toY(lv.max+0.02),y2=toY(lv.min-0.02);
       ctx.fillStyle="#ffffff06";
