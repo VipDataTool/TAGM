@@ -175,8 +175,8 @@ def _load_model_worker(pair_id, base_id, instruct_id):
 
         # Give probe generator access to the loaded model
         pg = module_runner.get_module("probe_generator")
-        if pg and hasattr(pg, 'set_model'):
-            pg.set_model(mm.state.model_instruct, mm.state.tokenizer)
+        if pg and hasattr(pg, 'set_model_manager'):
+            pg.set_model_manager(mm)
 
         loading_state["active"] = False
         loading_state["error"] = None

@@ -173,15 +173,32 @@ class ProbeGeneratorModule(TASMModule):
         super().__init__()
         self._model = None
         self._tokenizer = None
+        self._model_manager = None
         self._project_root = None
 
     def set_project_root(self, root):
         self._project_root = root
 
     def set_model(self, model, tokenizer):
-        """Provide access to the loaded instruct model."""
+        """Provide access to the loaded instruct model (legacy)."""
         self._model = model
         self._tokenizer = tokenizer
+
+    def set_model_manager(self, mm):
+        """Provide access to the ModelManager for dynamic model selection."""
+        self._model_manager = mm
+
+    @property
+    def _active_model(self):
+        if self._model_manager is not None:
+            return self._model_manager.active_model
+        return self._model
+
+    @property
+    def _active_tokenizer(self):
+        if self._model_manager is not None:
+            return self._model_manager.state.tokenizer
+        return self._tokenizer
 
     @property
     def parameters(self):
@@ -262,7 +279,7 @@ class ProbeGeneratorModule(TASMModule):
         ]
 
     def validate(self, session_results, params):
-        if self._model is None or self._tokenizer is None:
+        if self._active_model is None or self._active_tokenizer is None:
             return False, "Model not loaded. Load a model first."
 
         template = params.get("template_file", "")
@@ -320,7 +337,7 @@ class ProbeGeneratorModule(TASMModule):
 
         # ── Sample model output distribution per cell ──
         import torch
-        device = next(self._model.parameters()).device
+        device = next(self._active_model.parameters()).device
 
         cell_vocab = {}  # (class, subclass_col) -> Counter
         catalog = []     # [{class, subclass, query, prompt, response, tokens}]
@@ -341,14 +358,14 @@ class ProbeGeneratorModule(TASMModule):
                                  f"query {qi+1}/{n_queries}")
 
                     prompt_text = _build_cell_prompt(
-                        cls, col, seeds, self._tokenizer,
+                        cls, col, seeds, self._active_tokenizer,
                         word_count=max_tokens,
                         template=prompt_template)
-                    inputs = self._tokenizer(prompt_text, return_tensors="pt")
+                    inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
                     inputs = {k: v.to(device) for k, v in inputs.items()}
 
                     with torch.no_grad():
-                        out = self._model.generate(
+                        out = self._active_model.generate(
                             **inputs,
                             max_new_tokens=max_tokens,
                             do_sample=True,
@@ -358,10 +375,10 @@ class ProbeGeneratorModule(TASMModule):
                         )
 
                     gen_ids = out[0][inputs["input_ids"].shape[1]:]
-                    response = self._tokenizer.decode(
+                    response = self._active_tokenizer.decode(
                         gen_ids, skip_special_tokens=True)
                     word_counts = _tokenize_response(
-                        response, self._tokenizer)
+                        response, self._active_tokenizer)
                     vocab.update(word_counts)
 
                     catalog.append({
