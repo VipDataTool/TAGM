@@ -232,7 +232,7 @@ class ProbeGeneratorModule(TASMModule):
                 display_name="Minimum Frequency",
                 description=(
                     "Minimum times a token must appear across all queries "
-                    "for a cell to be kept. Filters sampling noise."
+                    "for a token to be kept. Filters sampling noise."
                 ),
                 type="int",
                 default=3,

@@ -3059,6 +3059,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderCFTResults(results);
   } else if (name === 'comparative_analysis') {
     container.innerHTML = renderComparativeResults(results);
+  } else if (name === 'mi_instrumentation') {
+    container.innerHTML = renderMIInstrumentationResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3793,6 +3795,190 @@ function _cftLaunchFromModule() {
     autoRotate: !!p.auto_rotate,
     rotateSpeed: p.rotate_speed || 0.3,
   });
+}
+
+// ─── MI Instrumentation Results Renderer ────────────────────────
+
+function renderMIInstrumentationResults(r) {
+  if (r.error) {
+    return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--orange)">' + escHtml(r.error) + '</div></div>';
+  }
+
+  var h = '<div class="mod-results">';
+  var sm = r.summary || {};
+
+  // ── Summary banner ──
+  var rCol = sm.refusal_separates ? 'var(--green)' : 'var(--orange)';
+  var sCol = sm.stress_separates ? 'var(--green)' : 'var(--orange)';
+  h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">';
+  h += '<div class="metrics-grid">';
+  h += mc('Prompts', r.n_prompts, null, function(v){return v});
+  h += mc('Safe', r.n_safe, null, function(v){return v});
+  h += mc('Risk', r.n_risk, null, function(v){return v});
+  h += mc('Hidden Dim', r.hidden_dim, null, function(v){return v});
+  h += '</div></div>';
+
+  // ═══ 1. REFUSAL DIRECTION ═══
+  var rd = r.refusal_direction || {};
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Refusal Direction</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+  h += 'Empirical refusal direction extracted from mean hidden states (risk − safe). ';
+  h += 'Cosine similarity of each prompt against this direction produces a continuous alignment score.</div>';
+  h += '<div class="metrics-grid">';
+  h += mc('Refusal AUROC', rd.auroc, null, function(v){return '<span style="color:'+rCol+'">'+v.toFixed(4)+'</span>'});
+  h += mc('Stress AUROC', rd.stress_auroc, null, function(v){return '<span style="color:'+sCol+'">'+v.toFixed(4)+'</span>'});
+  h += mc('Separation', rd.separation, null, function(v){var c=v>0?'var(--green)':'var(--orange)';return '<span style="color:'+c+'">'+v.toFixed(4)+'</span>'});
+  h += mc('‖dir‖', rd.refusal_norm, null, function(v){return v.toFixed(4)});
+  h += '</div>';
+
+  // Cosine stats
+  h += '<table class="mod-tbl" style="margin-top:8px"><thead><tr><th>Group</th><th class="num">Mean cos</th><th class="num">Std</th></tr></thead><tbody>';
+  h += '<tr><td style="color:var(--green)">Safe</td><td class="num">' + (rd.mean_cosine_safe||0).toFixed(4) + '</td><td class="num">' + (rd.std_cosine_safe||0).toFixed(4) + '</td></tr>';
+  h += '<tr><td style="color:var(--red)">Risk</td><td class="num">' + (rd.mean_cosine_risk||0).toFixed(4) + '</td><td class="num">' + (rd.std_cosine_risk||0).toFixed(4) + '</td></tr>';
+  h += '</tbody></table>';
+
+  // Per-category breakdown
+  var pcats = rd.per_category || {};
+  if (Object.keys(pcats).length > 2) {
+    h += '<table class="mod-tbl" style="margin-top:8px"><thead><tr><th>Category</th><th class="num">Mean cos</th><th class="num">Std</th><th class="num">n</th></tr></thead><tbody>';
+    for (var cat in pcats) {
+      var pc = pcats[cat];
+      h += '<tr><td><span class="pill ' + pillClass(cat) + '">' + cat + '</span></td>';
+      h += '<td class="num">' + pc.mean.toFixed(4) + '</td>';
+      h += '<td class="num">' + pc.std.toFixed(4) + '</td>';
+      h += '<td class="num">' + pc.n + '</td></tr>';
+    }
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+
+  // ═══ 2. PER-LAYER AUROC ═══
+  var pla = r.per_layer_auroc || {};
+  var layers = pla.layers || [];
+  if (layers.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per-Layer AUROC (' + layers.length + ' layers)</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+    h += 'Discrimination power of the weight-delta projection at each model layer. ';
+    h += 'Shows where in the network the correction signal concentrates.</div>';
+
+    // Visual bar chart
+    h += '<div style="margin-bottom:8px">';
+    layers.forEach(function(la) {
+      var w = Math.max(2, (la.auroc - 0.4) / 0.6 * 100);
+      var col = la.auroc > 0.8 ? 'var(--green)' : la.auroc > 0.65 ? 'var(--cyan)' : la.auroc > 0.55 ? 'var(--orange)' : 'var(--text-3)';
+      h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
+      h += '<span style="width:32px;text-align:right;font-size:10px;color:var(--text-2)">L' + la.layer + '</span>';
+      h += '<div style="flex:1;height:12px;background:var(--bg-3);border-radius:2px;overflow:hidden">';
+      h += '<div style="width:' + w + '%;height:100%;background:' + col + ';border-radius:2px"></div></div>';
+      h += '<span style="width:40px;font-size:10px;color:' + col + '">' + la.auroc.toFixed(3) + '</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+
+    // Table
+    h += '<table class="mod-tbl"><thead><tr><th>Layer</th><th class="num">AUROC</th><th class="num">Safe μ</th><th class="num">Risk μ</th><th class="num">Ratio</th></tr></thead><tbody>';
+    layers.forEach(function(la) {
+      var col = la.auroc > 0.8 ? 'var(--green)' : la.auroc > 0.65 ? 'var(--cyan)' : 'var(--text-2)';
+      h += '<tr><td>L' + la.layer + '</td>';
+      h += '<td class="num" style="color:' + col + '">' + la.auroc.toFixed(4) + '</td>';
+      h += '<td class="num">' + la.mean_safe.toFixed(6) + '</td>';
+      h += '<td class="num">' + la.mean_risk.toFixed(6) + '</td>';
+      h += '<td class="num">' + la.ratio.toFixed(2) + 'x</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '</div>';
+  }
+
+  // ═══ 3. PATCHING PRIORITY MAP ═══
+  var pp = r.patching_priority || {};
+  var topPts = pp.top_points || [];
+  if (topPts.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Activation Patching Priority</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+    h += 'Highest-value intervention points for activation patching experiments. ';
+    h += 'Intensity = attribution × stress, aggregated across all prompts.</div>';
+
+    // Layer marginal summary
+    var lm = pp.layer_marginal || [];
+    if (lm.length) {
+      h += '<div style="margin-bottom:8px">';
+      var maxInt = Math.max.apply(null, lm.map(function(x){return x.max_intensity})) || 1;
+      lm.forEach(function(la) {
+        var w = Math.max(2, la.max_intensity / maxInt * 100);
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
+        h += '<span style="width:32px;text-align:right;font-size:10px;color:var(--text-2)">L' + la.layer + '</span>';
+        h += '<div style="flex:1;height:10px;background:var(--bg-3);border-radius:2px;overflow:hidden">';
+        h += '<div style="width:' + w + '%;height:100%;background:var(--orange);border-radius:2px"></div></div>';
+        h += '<span style="width:52px;font-size:10px;color:var(--orange)">' + la.max_intensity.toFixed(5) + '</span>';
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+
+    // Top points table
+    h += '<table class="mod-tbl"><thead><tr><th>Rank</th><th>Layer</th><th>Position</th><th class="num">Intensity</th><th class="num">Obs</th></tr></thead><tbody>';
+    topPts.slice(0, 15).forEach(function(pt, i) {
+      h += '<tr><td>' + (i+1) + '</td><td>L' + pt.layer + '</td><td>P' + pt.position + '</td>';
+      h += '<td class="num" style="color:var(--orange)">' + pt.intensity.toFixed(6) + '</td>';
+      h += '<td class="num">' + pt.n_observations + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '</div>';
+  }
+
+  // ═══ 4. RANDOM PROJECTION CONTROL ═══
+  var rp = r.random_projection || {};
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Random Projection Control</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+  h += 'Validates that the refusal direction and TAGM stress outperform random projections of the same hidden states. ';
+  h += rp.n_trials + ' random unit vectors tested. p-value = fraction of random trials that match or exceed the real AUROC.</div>';
+
+  h += '<div class="metrics-grid">';
+  h += mc('Random μ', rp.random_mean_auroc, null, function(v){return v.toFixed(4)});
+  h += mc('Random σ', rp.random_std_auroc, null, function(v){return v.toFixed(4)});
+  h += mc('Random max', rp.random_max_auroc, null, function(v){return v.toFixed(4)});
+  h += mc('Random p95', rp.random_p95_auroc, null, function(v){return v.toFixed(4)});
+  h += '</div>';
+
+  // Comparison table
+  var rpRef = rp.refusal_direction || {};
+  var rpStr = rp.tagm_stress || {};
+  h += '<table class="mod-tbl" style="margin-top:8px"><thead><tr><th>Method</th><th class="num">AUROC</th><th class="num">Δ over random</th><th class="num">p-value</th><th>Significant</th></tr></thead><tbody>';
+
+  var refSig = rpRef.empirical_p < 0.05;
+  var strSig = rpStr.empirical_p < 0.05;
+  h += '<tr><td style="color:var(--cyan)">Refusal Direction</td>';
+  h += '<td class="num">' + (rpRef.auroc||0).toFixed(4) + '</td>';
+  h += '<td class="num" style="color:var(--green)">+' + (rpRef.delta_over_random||0).toFixed(4) + '</td>';
+  h += '<td class="num">' + (rpRef.empirical_p||1).toFixed(3) + '</td>';
+  h += '<td style="color:' + (refSig?'var(--green)':'var(--orange)') + '">' + (refSig?'✓ yes':'✗ no') + '</td></tr>';
+
+  h += '<tr><td style="color:var(--orange)">TAGM Stress</td>';
+  h += '<td class="num">' + (rpStr.auroc||0).toFixed(4) + '</td>';
+  h += '<td class="num" style="color:var(--green)">+' + (rpStr.delta_over_random||0).toFixed(4) + '</td>';
+  h += '<td class="num">' + (rpStr.empirical_p||1).toFixed(3) + '</td>';
+  h += '<td style="color:' + (strSig?'var(--green)':'var(--orange)') + '">' + (strSig?'✓ yes':'✗ no') + '</td></tr>';
+
+  h += '</tbody></table>';
+
+  // Histogram text summary
+  var hist = rp.histogram || [];
+  if (hist.length) {
+    var below60 = hist.filter(function(v){return v<0.6}).length;
+    var above70 = hist.filter(function(v){return v>0.7}).length;
+    h += '<div style="font-size:10px;color:var(--text-3);margin-top:6px">';
+    h += 'Distribution: ' + below60 + '/' + hist.length + ' trials below 0.6, ';
+    h += above70 + '/' + hist.length + ' above 0.7';
+    h += '</div>';
+  }
+  h += '</div>';
+
+  h += '</div>';
+  return h;
 }
 
 // ─── MI Readiness Results Renderer ──────────────────────────────
