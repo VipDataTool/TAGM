@@ -41,7 +41,7 @@ table.tok tr:hover{background:#ffffff08}
 <div class="ctrl" id="ctrls"></div>
 <div class="legend" id="legend"></div>
 <div class="grid-wrap" id="gridWrap"></div>
-<div class="detail" id="detail"><div class="empty">Click any cell in the heatmap to see discriminative tokens</div></div>
+<div class="detail" id="detail"><div class="empty">Click any cell in the heatmap to see context-sensitive tokens</div></div>
 <div id="err"></div>
 <script>
 (function(){
@@ -134,7 +134,7 @@ function renderGrid(){
 
 function renderDetail(){
   var det=document.getElementById("detail");
-  if(!selCell){det.innerHTML='<div class="empty">Click any cell in the heatmap to see discriminative tokens</div>';return}
+  if(!selCell){det.innerHTML='<div class="empty">Click any cell in the heatmap to see context-sensitive tokens</div>';return}
 
   var si=selCell.si,li=selCell.li;
   var key=si+'_'+li;
@@ -187,7 +187,7 @@ function renderDetail(){
 
   h+='<div style="overflow-x:auto;max-height:400px;overflow-y:auto">';
   h+='<table class="tok"><thead><tr>';
-  h+='<th>Token</th><th>Overall</th><th>n</th><th>Disc</th>';
+  h+='<th>Token</th><th>Overall</th><th>n</th><th title="Context variance: how much this token\'s activation varies across prompts">σ²</th>';
   catKeys.forEach(function(ck){
     h+='<th style="color:'+(CCOL[ck]||'#888')+'">'+(CATS[ck]||ck)+'</th>';
   });
@@ -201,7 +201,7 @@ function renderDetail(){
     h+='<td style="color:var(--cyan);font-weight:600;white-space:nowrap">'+esc(t.token)+'</td>';
     h+='<td style="color:'+mCol+';font-variant-numeric:tabular-nums">'+mSign+t.mean.toFixed(4)+'</td>';
     h+='<td style="color:var(--text2)">'+t.n+'</td>';
-    h+='<td style="color:'+(t.disc>0.0001?'#E69F00':'var(--text2)')+'">'+t.disc.toFixed(6)+'</td>';
+    h+='<td style="color:'+(t.ctx_var>0.0001?'#E69F00':'var(--text2)')+'">'+t.ctx_var.toFixed(6)+'</td>';
 
     // Per-category means
     catKeys.forEach(function(ck){

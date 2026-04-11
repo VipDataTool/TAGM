@@ -260,7 +260,7 @@ class CorrectionHeatmapModule(TASMModule):
             cell_grid = np.zeros((n_subj, n_levels))
             cell_counts = np.zeros((n_subj, n_levels))
 
-            # Per-token, per-cell activation for discriminative tracking
+            # Per-token, per-cell activation for context-variance tracking
             n_tok = min(len(tokens), tok_mat.shape[0])
             cell_tok_vals = defaultdict(lambda: np.zeros(n_tok))
             cell_tok_counts = defaultdict(int)
@@ -324,9 +324,9 @@ class CorrectionHeatmapModule(TASMModule):
 
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
 
-        # ── Compute per-cell discriminative tokens ──
+        # ── Compute per-cell context-sensitive tokens ──
         if progress:
-            progress("Computing per-cell discriminative tokens...")
+            progress("Computing per-cell context-sensitive tokens...")
 
         TOP_N = 10
         cat_names = {"b": "benign", "m": "mild", "h": "harmful", "j": "jailbreak",
@@ -346,19 +346,21 @@ class CorrectionHeatmapModule(TASMModule):
                     per_cat[cat_short] = {"mean": round(m, 6), "n": len(vals)}
                     all_vals.extend(vals)
                 overall_mean = float(np.mean(all_vals)) if all_vals else 0
-                # Discriminative score: variance across category means
-                cat_means = [v["mean"] for v in per_cat.values()]
-                disc_score = float(np.var(cat_means)) if len(cat_means) > 1 else 0
+                # Context variance: how much does this token's activation
+                # vary across all the different prompts it appears in?
+                # High CV = the correction field treats this token differently
+                # depending on surrounding context. Label-free.
+                ctx_var = float(np.var(all_vals)) if len(all_vals) > 1 else 0
                 token_rows.append({
                     "token": tok,
                     "mean": round(overall_mean, 6),
                     "n": len(all_vals),
-                    "disc": round(disc_score, 8),
+                    "ctx_var": round(ctx_var, 8),
                     "cats": per_cat,
                 })
 
-            # Sort by discriminative score, take top N
-            token_rows.sort(key=lambda x: x["disc"], reverse=True)
+            # Sort by context variance — most context-sensitive tokens first
+            token_rows.sort(key=lambda x: x["ctx_var"], reverse=True)
             top = token_rows[:TOP_N]
 
             cell_details[cell_key] = {
@@ -382,7 +384,7 @@ class CorrectionHeatmapModule(TASMModule):
             # Per-cell variance (turbulence)
             "variance": variance_grid.tolist(),
 
-            # Per-cell discriminative token details
+            # Per-cell token context variance
             "cell_details": cell_details,
 
             # Categories observed
