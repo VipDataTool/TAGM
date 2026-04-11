@@ -43,8 +43,15 @@ def _parse_meta(csv_path):
     Meta rows have '_meta' as their first column value. The remaining
     columns are key-value pairs read positionally from the header.
 
+    Template convention for layer depths:
+      - Position 1 (anchor_id column): subject/angular probe depth (layer_low)
+      - Position 2 (first subclass column): escalation/radial probe depth (layer_high)
+      - Position 3+: version, description, etc.
+
+    After parsing by column name, normalizes into canonical keys
+    'layer_low' and 'layer_high' if not already present.
+
     Returns a dict of metadata values. Returns empty dict if no meta rows.
-    Recognized keys: layer_low, layer_high, template_version, description.
     """
     meta = {}
     try:
@@ -68,6 +75,25 @@ def _parse_meta(csv_path):
                                 meta[key] = val
     except Exception:
         pass
+
+    # ── Normalize positional depth values into canonical keys ──
+    # Template convention: anchor_id column holds layer_low,
+    # first subclass column holds layer_high.
+    if "layer_low" not in meta and "anchor_id" in meta:
+        v = meta["anchor_id"]
+        if isinstance(v, (int, float)) and 0.0 <= v <= 1.0:
+            meta["layer_low"] = v
+
+    if "layer_high" not in meta:
+        # First numeric value in [0,1] from a non-anchor_id column
+        # that isn't already claimed as layer_low
+        for key, val in meta.items():
+            if key in ("anchor_id", "layer_low"):
+                continue
+            if isinstance(val, (int, float)) and 0.0 <= val <= 1.0:
+                meta["layer_high"] = val
+                break
+
     return meta
 
 
