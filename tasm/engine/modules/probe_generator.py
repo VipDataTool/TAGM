@@ -144,60 +144,14 @@ TERMINOLOGY_PROMPT_TEMPLATE = (
     "One term per line with a brief definition."
 )
 
-# Rotating templates to elicit diverse vocabulary from the same cell.
-# Each framing pushes the model into a different vocabulary subspace.
-_ROTATING_TEMPLATES = [
-    DEFAULT_PROMPT_TEMPLATE,
-    (
-        "What are the most important {subclass} concepts in {class}? "
-        "Think of terms like: {seeds}. "
-        "List {word_count} single-word terms, one per line."
-    ),
-    (
-        "A {class} expert needs {subclass}-level vocabulary. "
-        "Starting from: {seeds}. "
-        "Generate {word_count} domain-specific single words, one per line."
-    ),
-    (
-        "Name {word_count} {subclass} phenomena, materials, or processes in {class}. "
-        "Similar to: {seeds}. "
-        "One word per line, no explanations."
-    ),
-    (
-        "Complete this {class} glossary at the {subclass} level. "
-        "Seed terms: {seeds}. "
-        "Add {word_count} more single-word entries, one per line."
-    ),
-]
-
-
 def _build_cell_prompt(cls, subclass, seeds, tokenizer,
-                       word_count=200, template=None, query_index=0):
-    """Build a prompt steered toward a specific class × subclass cell.
-
-    When no custom template is provided, rotates through framing variants
-    based on query_index to maximize vocabulary diversity across queries.
-    Seed words are also shuffled per query to vary the model's priming.
-    """
-    import random
-
+                       word_count=200, template=None):
+    """Build a prompt steered toward a specific class × subclass cell."""
     cls_label = cls.replace("_", " ")
     sub_label = subclass.replace("_", " ")
+    seed_str = ", ".join(seeds[:15]) if seeds else cls_label
 
-    # Rotate seed subset per query to vary priming
-    if seeds and len(seeds) > 3:
-        rng = random.Random(query_index * 31 + hash(cls) & 0xFFFF)
-        shuffled = list(seeds)
-        rng.shuffle(shuffled)
-        seed_str = ", ".join(shuffled[:8])
-    else:
-        seed_str = ", ".join(seeds[:15]) if seeds else cls_label
-
-    if template:
-        tmpl = template
-    else:
-        tmpl = _ROTATING_TEMPLATES[query_index % len(_ROTATING_TEMPLATES)]
-
+    tmpl = template or DEFAULT_PROMPT_TEMPLATE
     prompt = tmpl.format(**{
         "class": cls_label,
         "subclass": sub_label,
@@ -466,8 +420,7 @@ class ProbeGeneratorModule(TASMModule):
                     prompt_text = _build_cell_prompt(
                         cls, col, seeds, self._active_tokenizer,
                         word_count=max_tokens,
-                        template=prompt_template,
-                        query_index=qi)
+                        template=prompt_template)
                     inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
                     inputs = {k: v.to(device) for k, v in inputs.items()}
 

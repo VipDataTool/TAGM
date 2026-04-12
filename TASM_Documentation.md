@@ -58,7 +58,7 @@ The application is a single-server Python system built on FastAPI, serving a sin
 
 ## Architecture
 
-TASM is structured as a monolithic FastAPI application (`app.py`, ~1,500 lines) backed by a modular engine layer:
+TASM is structured as a monolithic FastAPI application (`app.py`, ~1,970 lines) backed by a modular engine layer:
 
 | Module | Responsibility |
 |--------|---------------|
@@ -67,7 +67,7 @@ TASM is structured as a monolithic FastAPI application (`app.py`, ~1,500 lines) 
 | `ltp.py` | Lateral Tension Profile computation: counterfactual probing, PCA trajectories, M/C/V/L statistics |
 | `sfd.py` | Spectral Field Density: QK-subspace engagement measurement via SVD projection; rank displacement computation |
 | `engine_config.py` | Central registry of all measurement-affecting parameters with typed defaults |
-| `baselines.py` | Benign prompt bank management for reference and batch analysis |
+| `baselines.py` | Prompt library management: loading, listing, and appending to prompts.csv |
 | `statistics.py` | Bootstrap confidence intervals, Cohen's d effect sizes, cross-category aggregation |
 | `visualizations.py` | Matplotlib plot generation for all three signal families (returned as base64 PNGs) |
 | `comparative.py` | Cross-prompt comparative visualizations and batch dashboard plots |
@@ -75,8 +75,16 @@ TASM is structured as a monolithic FastAPI application (`app.py`, ~1,500 lines) 
 | `reports.py` | PDF report generation via ReportLab |
 | `modules/base.py` | Module framework: TASMModule base class, auto-discovery, parameter metadata, thread-isolated runner |
 | `modules/token_variance.py` | Token variance module: cross-context coupling stability analysis |
+| `modules/probe_generator.py` | Auto-probe generation from model vocabulary per template cell |
+| `modules/correction_heatmap.py` | Domain lattice interaction measurement via inter-layer probe deltas |
+| `modules/correction_manifold.py` | PCA + K-means fingerprint clustering of per-prompt probe projections |
+| `modules/domain_surface.py` | Probe embedding, domain surface mapping, nearest-probe proximity |
+| `modules/comparative_analysis.py` | Cross-prompt aggregate statistics, separability, batch plot coordination |
+| `modules/displacement_field.py` | 3D correction field topology data validation and statistics (Three.js viewer) |
+| `modules/mechanistic_interpretability.py` | MI readiness evaluation: AUROC, length confounds, PCA consolidation, random baselines |
+| `modules/mi_instrumentation.py` | MI outputs: refusal direction, activation patching map, per-layer AUROC |
 
-The frontend consists of a single-page HTML application (`static/index.html`, ~3,100 lines) and a separate chat interface (`static/chat.html`). All rendering and interaction logic is client-side JavaScript; the server provides a JSON API and serves plot images on demand.
+The frontend consists of a single-page HTML application (`static/index.html`, ~4,180 lines) and a separate chat interface (`static/chat.html`). All rendering and interaction logic is client-side JavaScript; the server provides a JSON API and serves plot images on demand.
 
 ---
 
@@ -86,11 +94,11 @@ The fundamental operation is **weight delta projection**. At model load time, TA
 
 At analysis time, a single forward pass through the instruct model with registered hooks captures hidden states and attention weights at monitored layers. All three signal families are extracted from these cached activations without additional forward passes:
 
-**ASM (Alignment Stress Map)** computes per-token signed attribution by projecting hidden states through `ΔW_V`, weighting by attention patterns, and aggregating across signal layers (the middle third of the network). This yields a scalar stress score, per-token attribution vectors, distribution metrics (entropy, Gini, top-2 share, interior CV), and — when full trajectory mode is enabled — a layer-by-layer amplitude trace and a token×layer heatmap.
+**ASM (Alignment Stress Map)** computes per-token signed attribution by projecting hidden states through `ΔW_V`, weighting by attention patterns, and aggregating across signal layers (the middle third of the network). This yields a scalar stress score, per-token attribution vectors, distribution metrics (entropy, top-2 share, interior CV), and — when full trajectory mode is enabled — a layer-by-layer amplitude trace and a token×layer heatmap.
 
-**LTP (Lateral Tension Profile)** probes the alignment field perpendicular to the generation path. For each token position, it identifies the top-k counterfactual tokens the model considered but did not select, computes unembedding directions for each, and measures the lateral tension (the component of the alignment correction toward each alternative) via `ΔW_V` projection. This produces per-token ranked tension profiles, profile shape classifications (steep/flat/inverted), PCA-projected dual trajectories (semantic vs. tension), and four summary statistics: M (offset magnitude), C (offset consistency), V (offset variance), and L (lateral coverage).
+**LTP (Lateral Tension Profile)** probes the alignment field perpendicular to the generation path. For each token position, it identifies the top-k counterfactual tokens the model considered but did not select, computes unembedding directions for each, and measures the lateral tension (the component of the alignment correction toward each alternative) via `ΔW_V` projection. This produces per-token ranked tension profiles, profile shape classifications (steep/flat/inverted), PCA-projected dual trajectories (semantic vs. tension), and three summary statistics: M (offset magnitude), V (offset variance), and L (lateral coverage). A fourth statistic, C (offset consistency), was removed after testing showed near-perfect correlation with M.
 
-**SFD (Spectral Field Density)** measures how many dimensions of the QK routing subspace each token's activation engages. At load time, it SVD-decomposes the concatenated `[ΔW_Q; ΔW_K]` per layer and caches the right singular vectors. At inference, it projects each token's hidden state through this basis, yielding per-token energy, spectral entropy, and density ratio. Prompt-level aggregates (mean, max, variance, p90) summarize the dimensionality axis.
+**SFD (Spectral Field Density)** measures how many dimensions of the QK routing subspace each token's activation engages. At load time, it SVD-decomposes the concatenated `[ΔW_Q; ΔW_K]` per layer and caches the right singular vectors. At inference, it projects each token's hidden state through this basis. Energy, spectral entropy, and effective rank are computed internally per token, but only the density ratio (per-token effective rank divided by the layer's global effective rank) is persisted. Prompt-level aggregates (mean, max, variance, p90) of density summarize the dimensionality axis.
 
 **Behavioral comparison** optionally loads the base model for a separate forward pass to compute KL(instruct ‖ base) divergence at the output distribution and capture top-k next-token predictions from both models. A rank displacement metric compares counterfactual token orderings between base and instruct models.
 
@@ -102,7 +110,7 @@ At analysis time, a single forward pass through the instruct model with register
 
 **Single prompt analysis** accepts:
 - `prompt` (string, ≤5,000 characters) — the text to analyze
-- `category` (string) — one of `benign`, `mild`, `harmful`, `jailbreak`, `adversarial`, `dual-use`, or arbitrary
+- `category` (string) — one of `benign`, `mild`, `harmful`, `jailbreak`, `adversarial`, `dual-use`; unrecognized values are mapped to `unknown`
 - Boolean flags: `compute_kl`, `compute_trajectory`, `capture_responses`, `full_capture`, `compute_ltp`, `compute_sfd`
 - LTP parameters: `ltp_k` (counterfactual depth: 4, 6, or 8), `ltp_layer_strategy` (`signal` or `late`)
 
@@ -116,9 +124,7 @@ The model registry (`models.json`) ships with four Qwen 2.5 pairs (0.5B, 1.5B, 3
 
 ### Auxiliary Inputs
 
-- `prompts.csv` — a library of categorized prompts for the sidebar prompt picker
-- `baselines.csv` — benign prompt bank used for reference comparisons and tuned-lens calibration
-- `punctuation_probes.csv` — specialized probes for punctuation-sensitivity testing
+- `prompts.csv` — a library of categorized prompts for the sidebar prompt picker and batch analysis
 
 ---
 
@@ -130,35 +136,33 @@ Each analysis produces a `PromptResult` serialized to a JSON dictionary with the
 
 **Identity and tokenization:** `prompt`, `category`, `tokens` (list of decoded token strings), `seq_len`
 
-**ASM scalars:** `stress_score` (float), `net_correction` (float), `entropy`, `gini`, `top2_share`, `middle_share`, `interior_cv` (all floats, distribution metrics), `n_negative_tokens` (int), `has_negative_tokens` (bool)
+**ASM scalars:** `stress_score` (float), `net_correction` (float), `entropy`, `top2_share`, `middle_share`, `interior_cv` (all floats, distribution metrics), `n_negative_tokens` (int), `has_negative_tokens` (bool)
 
 **ASM arrays:** `per_token_stress` (float array, length = seq_len), `signed_attr` (float array, length = seq_len), `amplitude_trajectory` (float array, length = 2 × n_layers for attn+MLP sublayers), `amplitude_normalized` (same shape), `heatmap` (2D array: sublayers × seq_len)
 
 **Behavioral divergence:** `kl_divergence` (float or null), `per_token_kl` (float array or null), `instruct_topk` and `base_topk` (lists of `[token_string, probability]` pairs, up to 10 each), `base_counterfactual_tokens` (per-position top-k from base model)
 
-**LTP sub-object** (`ltp`): `profiles` (list of numpy arrays per token), `tension_magnitudes` (float list), `profile_shapes` (string list: "steep"/"flat"/"inverted"), `counterfactual_tokens` (per-position ranked alternatives with probabilities), `offset_magnitude`/`offset_consistency`/`offset_variance`/`lateral_coverage` (per-layer dictionaries), `mean_M`/`mean_C`/`mean_V`/`mean_L` (summary scalars), `max_prc` (peak rank concentration), `n_directional` (count of tokens with PRC above threshold), `semantic_trajectory_2d`/`tension_trajectory_2d` (PCA projections), `k`, `layer_strategy` (configuration echo)
+**LTP sub-object** (`ltp`): `profiles` (list of numpy arrays per token), `tension_magnitudes` (float list), `profile_shapes` (string list: "steep"/"flat"/"inverted"), `counterfactual_tokens` (per-position ranked alternatives with probabilities), `offset_magnitude`/`offset_variance`/`lateral_coverage` (per-layer dictionaries), `mean_M`/`mean_V`/`mean_L` (summary scalars), `max_prc` (peak rank concentration), `n_directional` (count of tokens with PRC above threshold), `semantic_trajectory_2d`/`tension_trajectory_2d` (PCA projections), `k`, `layer_strategy` (configuration echo)
 
-**SFD sub-object** (`sfd`): `per_token_energy`/`per_token_entropy`/`per_token_density` (float arrays), 12 prompt-level aggregates (`energy_mean`/`max`/`var`/`p90`, `entropy_mean`/`max`/`var`/`p90`, `density_mean`/`max`/`var`/`p90`), `global_erank`, `n_layers_monitored`, `k`
+**SFD sub-object** (`sfd`): `per_token_density` (float array), 4 prompt-level density aggregates (`density_mean`/`max`/`var`/`p90`), `global_erank`, `n_layers_monitored`, `k`. Note: per-token energy and entropy are computed internally during the SFD pipeline but only density (the ratio of per-token effective rank to global effective rank) is persisted in the result object.
 
 **Rank displacement** (`rank_displacement`): `mean_matched`, `mean_replacement`, `mean_concentration`, `mean_tau` (Kendall's tau), `mean_overlap`, per-position detail arrays
 
 **Full capture extras** (when enabled): `per_token_coherence` (cross-layer direction agreement), `per_token_spectral_rank`, `attn_frac` (attention vs. MLP contribution ratio), `token_similarity` (token×token cosine similarity matrix)
 
-**Classification:** `classifiers` (dictionary of classifier outputs), `classification` (predicted category and confidence)
-
 ### Visualizations
 
-Each analysis generates up to 14 plot types as base64-encoded PNGs:
+Each analysis generates up to 12 plot types as base64-encoded PNGs:
 
 ASM plots: signed attribution bar chart, focused stress bar chart, distribution metrics panel, amplitude trajectory line plot, token×layer heatmap.
 
 LTP plots: lateral tension profiles (stacked magnitude), tension magnitude bar chart, dual trajectory (PCA), summary statistics panel, profile heatmap (token × rank).
 
-SFD plots: density bar chart, energy bar chart, entropy bar chart, rank displacement chart.
+SFD plots: density bar chart, rank displacement chart.
 
 ### Session and Batch Outputs
 
-**Summary CSV** (`summary.csv`): one row per analyzed prompt, ~40 columns of scalar metrics including all ASM, LTP, SFD, and rank displacement aggregates, plus classification results.
+**Summary CSV** (`summary.csv`): one row per analyzed prompt, 33 columns of scalar metrics including all ASM, LTP, SFD, and rank displacement aggregates, plus model prediction summaries and configuration echo fields.
 
 **Full results JSON** (`results.json`): complete per-prompt result objects with all per-token arrays, profiles, and trajectories. For 271 prompts with full capture enabled, this file is approximately 17 MB.
 
@@ -376,14 +380,6 @@ entropy = H / log(seq_len)
 
 Values near 1 mean the correction is spread uniformly across tokens; values near 0 mean it's concentrated on a few tokens.
 
-**Gini coefficient:** Measures inequality of the attribution distribution. Computed via the Lorenz curve — sort the attribution shares, compute the cumulative sum, interpolate onto a uniform 100-point grid, and integrate:
-
-```
-Gini = 1 − 2 × ∫₀¹ Lorenz(x) dx
-```
-
-Values near 0 mean perfect equality; values near 1 mean one token dominates.
-
 **Boundary vs. interior split:** The prompt is divided into boundary tokens (the first and last portion of the sequence, configurable via `boundary_fraction`, default 10%, minimum 1 token each) and interior tokens (everything in between). `top2_share` is the fraction of total absolute attribution at boundary positions. `middle_share` is the fraction at interior positions. `interior_cv` is the coefficient of variation (standard deviation ÷ mean) of the interior attribution values.
 
 The hypothesis: benign prompts concentrate correction at the boundaries (system prompt, instruction tokens), while adversarial prompts distribute correction into the interior.
@@ -521,9 +517,9 @@ tension_point = (Σ_c  prob_c × lateral_vector_c) / Σ_c prob_c
 
 This is a single vector in hidden-state space representing the net lateral pull, weighted by how likely each alternative was. This is averaged across monitored layers.
 
-### 3g: Summary Statistics (M, C, V, L)
+### 3g: Summary Statistics (M, V, L)
 
-From the per-layer tension points, TASM computes four summary statistics at each monitored layer, then averages across layers:
+From the per-layer tension points, TASM computes three summary statistics at each monitored layer, then averages across layers:
 
 **M — Offset Magnitude:** The norm of the mean tension point across active positions (tokens where tension is non-zero). This measures how large the net lateral displacement is.
 
@@ -532,17 +528,13 @@ mean_offset = mean of tension_points across active positions
 M = ‖mean_offset‖
 ```
 
-**C — Offset Consistency:** The ratio of the mean offset's magnitude to the average individual magnitude. If every token is pulled in the same lateral direction, C ≈ 1. If tokens are pulled in random directions that cancel out, C ≈ 0.
-
-```
-C = M / mean(‖tension_point_i‖)
-```
-
 **V — Offset Variance:** The variance of individual tension magnitudes across positions. High V means the lateral pull is concentrated at specific tokens rather than evenly distributed.
 
 **L — Lateral Coverage:** The fraction of tokens that have any non-zero lateral tension at all.
 
-The diagnostic hypothesis: High M + High C = "boundary-threading signature" — the prompt is consistently pulled in one lateral direction at every position, suggesting it runs along a systematic alignment boundary.
+**C — Offset Consistency (removed):** An earlier revision computed C as the ratio of the mean offset's magnitude to the average individual magnitude (C = M / mean(‖tension_point_i‖)). This was removed because it proved nearly perfectly correlated with M (r=0.989), providing no additional information.
+
+The diagnostic hypothesis: High M = "boundary-threading signature" — the prompt is consistently pulled in one lateral direction at every position, suggesting it runs along a systematic alignment boundary.
 
 ### 3h: Removed Enhancements
 
@@ -646,7 +638,7 @@ density = erank_t / erank_global
 
 ### 4c: Prompt-Level Aggregation
 
-Per-token measures are averaged across monitored layers, then summarized at the prompt level with four statistics each for energy, entropy, and density: mean, max, variance, and 90th percentile.
+Per-token energy, entropy, and density measures are averaged across monitored layers internally. However, only the density ratio is persisted in the result object. The prompt-level output includes four density statistics: mean, max, variance, and 90th percentile.
 
 ---
 
@@ -710,7 +702,7 @@ When multiple prompts have been analyzed, TASM computes aggregate statistics acr
 
 ### 8a: Per-Category Summary
 
-Results are grouped by category (benign, harmful, jailbreak, etc.). For each category and each metric in the registry (19 metrics total spanning ASM, KL, LTP, SFD, and rank displacement), TASM computes a **bootstrap confidence interval** (configurable: `n_bootstrap` resamples, default 5,000; `ci_level`, default 0.95):
+Results are grouped by category (benign, harmful, jailbreak, etc.). For each category and each metric in the registry (15 metrics spanning ASM, KL, LTP, SFD, and rank displacement), TASM computes a **bootstrap confidence interval** (configurable: `n_bootstrap` resamples, default 5,000; `ci_level`, default 0.95):
 
 1. Draw a sample with replacement of the same size as the group.
 2. Compute the mean of the sample.
@@ -821,7 +813,7 @@ All Matplotlib plots follow the same lifecycle: create figure → render content
 
 ## Single-Prompt Visualizations
 
-These are generated per prompt analysis, organized into five categories in the frontend: ASM Core (3 plots), ASM Detail (2 JS-rendered components), LTP (3 plots), SFD (4 plots). Each has a scope of "prompt" and renders server-side unless marked as type "js."
+These are generated per prompt analysis, organized into four categories in the frontend: ASM Core (3 plots), ASM Detail (2 JS-rendered components), LTP (3 plots), SFD (2 plots). Each has a scope of "prompt" and renders server-side unless marked as type "js." Additional LTP JS components (counterfactual table) and LTP plots (dual trajectory, profile heatmap, summary stats) are also generated but may be displayed separately from the main visualization groups.
 
 ### ASM Core
 
@@ -877,7 +869,7 @@ Bars are colored by profile shape classification: amber for steep, sky blue for 
 
 **LTP Summary Statistics** (`ltp_summary_stats`)
 
-Three horizontal bar panels showing the prompt's M, C, and V statistics. The consistency panel (C) has a fixed x-axis from 0 to 1; the others use auto-scaling. Very small values (< 0.001) switch to scientific notation in the label. L (coverage) is excluded because it's consistently 1.0 — every token has non-zero lateral tension, so the metric conveys no information.
+Two horizontal bar panels showing the prompt's M and V statistics. Very small values (< 0.001) switch to scientific notation in the label. C (consistency) is excluded because it is nearly perfectly correlated with M (r=0.989). L (coverage) is excluded because it is consistently 1.0 — every token has non-zero lateral tension, so the metric conveys no information.
 
 **LTP Profile Heatmap** (`ltp_profile_heatmap`)
 
@@ -890,14 +882,6 @@ Look for: vertical bright columns (one alternative consistently dominates across
 **Per-Token QK Density** (`sfd_density`)
 
 Bar chart (amber, #E69F00) showing the density ratio at each token — how many dimensions of the QK routing subspace the token's activation engages relative to the global effective rank. Values above 1.0 mean the token engages more dimensions than average. An annotation shows mean, max, and global erank.
-
-**Per-Token QK Energy** (`sfd_energy`)
-
-Bar chart (vermillion, #D55E00) showing the projection energy — the squared norm of the activation's weighted projection into the QK routing subspace. This measures *how much* of the alignment-modified routing topology the token activates, in absolute terms.
-
-**Per-Token Spectral Entropy** (`sfd_entropy`)
-
-Bar chart (reddish purple, #CC79A7) showing spectral entropy — how evenly the activation engages across SVD directions. High entropy means the token spreads across many dimensions uniformly; low entropy means it concentrates on a few.
 
 **Rank Displacement** (`rank_displacement`)
 
@@ -959,7 +943,7 @@ A horizontal bar chart ranking the top-15 sublayers by their adversarial-minus-b
 
 **Full Scatter Grid** (`exp_metric_scatters`)
 
-A 2×3 grid of scatter plots showing six pairwise metric combinations (stress vs. KL, entropy vs. net correction, boundary vs. interior share, stress vs. net correction, Gini vs. net correction, entropy vs. stress). Points colored by category. This is the exhaustive view — it includes weak and redundant metric pairs that the proven scatter panel omits.
+A 2×3 grid of scatter plots showing five pairwise metric combinations (stress vs. KL, entropy vs. net correction, boundary vs. interior share, stress vs. net correction, entropy vs. stress). The sixth cell is empty. Points colored by category. This is the exhaustive view — it includes weak and redundant metric pairs that the proven scatter panel omits.
 
 **Behavioral Comparison** (`exp_behavioral_comparison`)
 
@@ -1045,17 +1029,17 @@ The terrain viewer receives pre-computed displacement profiles from the rank dis
 
 ## Data Table (JS-Rendered)
 
-The dashboard includes a paginated sortable data table rendered client-side. It displays 27 columns spanning all signal families:
+The dashboard includes a paginated sortable data table rendered client-side. It displays 24 columns (including a checkbox selector) spanning all signal families:
 
 **Identity:** Index, prompt text (truncated), category, role, token count.
 
-**ASM:** Stress score, net correction, entropy, interior share, interior CV, boundary share, Gini, negative token count. Stress, net correction, and entropy columns include heatmap-style background tinting (hue parameter in column definition) that colors cells proportional to their value.
+**ASM:** Stress score, net correction, entropy, interior share, interior CV, boundary share, KL divergence, negative token count. Stress, net correction, entropy, interior share, density, and Kendall τ columns include heatmap-style background tinting that colors cells proportional to their value.
 
-**Behavioral:** KL divergence, instruct top-1 token and probability, base top-1 token and probability.
+**Behavioral:** Instruct top-1 token and probability, base top-1 token and probability.
 
-**LTP:** Mean M, mean C, max PRC, directional token count.
+**LTP:** Max PRC, directional token count, mean M.
 
-**SFD:** Density, spectral entropy, QK energy.
+**SFD:** Density.
 
 **Rank displacement:** Kendall τ, overlap.
 
@@ -1079,7 +1063,7 @@ Contains: cover page, apparatus description (explaining what TASM measures), the
 
 ### Batch Report
 
-Contains: cover page, apparatus description, a category summary table (n, average length, stress, entropy, boundary/interior share, net correction, negative token rate, M, C — all with bootstrap point estimates), a separability analysis table (Cohen's d, 95% CI, best threshold accuracy for each metric), all comparative/dashboard plots with descriptions, and a per-prompt results table (prompt text truncated to 60 characters, category, token count, and key scalars for every prompt in the batch).
+Contains: cover page, apparatus description, a category summary table (n, average length, stress, entropy, boundary/interior share, net correction, negative token rate, M — all with bootstrap point estimates), a separability analysis table (Cohen's d, 95% CI, best threshold accuracy for each metric), all comparative/dashboard plots with descriptions, and a per-prompt results table (prompt text truncated to 60 characters, category, token count, and key scalars for every prompt in the batch).
 
 Tables use a consistent style: light gray header row, thin gray grid borders, 10pt Helvetica, 5pt cell padding, word-wrap enabled for prompt text columns.
 
@@ -1087,30 +1071,41 @@ Tables use a consistent style: light gray header row, thin gray grid borders, 10
 
 ## Visualization Registry
 
-The frontend maintains a central registry of all 20 visualizations with metadata:
+The frontend maintains a central registry of all 29 visualizations with metadata:
 
 | Key | Category | Type | Scope | Needs |
 |-----|----------|------|-------|-------|
 | signed_attribution | ASM Core | plot | prompt | — |
 | stress_per_token | ASM Core | plot | prompt | — |
 | heatmap | ASM Core | plot | prompt | — |
+| amplitude_trajectory | ASM Detail | plot | batch | — |
+| distribution_metrics | ASM Detail | plot | prompt | — |
 | token_table | ASM Detail | js | prompt | — |
 | model_predictions | ASM Detail | js | prompt | — |
+| ltp_tension_magnitudes | LTP | plot | prompt | ltp |
 | ltp_profiles | LTP | plot | prompt | ltp |
 | ltp_profile_heatmap | LTP | plot | prompt | ltp |
 | ltp_summary_stats | LTP | plot | prompt | ltp |
+| counterfactual_table | LTP | js | prompt | ltp |
 | sfd_density | SFD | plot | prompt | sfd |
-| sfd_energy | SFD | plot | prompt | sfd |
-| sfd_entropy | SFD | plot | prompt | sfd |
 | rank_displacement | SFD | plot | prompt | sfd |
-| terrain_viewer | Batch | js | batch | ltp |
-| separability | Batch | plot | batch | — |
-| batch_summary | Batch | plot | batch | — |
-| key_scatters | Batch | plot | batch | — |
-| proof1_summary | Batch | plot | batch | — |
-| exp_metric_scatters | Batch | plot | batch | — |
-| exp_ltp_m_vs_stress | Batch | plot | batch | — |
-| exp_sfd_vs_asm | Batch | plot | batch | — |
+| separability | Batch Analysis | plot | batch | — |
+| batch_summary | Batch Analysis | plot | batch | — |
+| key_scatters | Batch Analysis | plot | batch | — |
+| discriminative_sublayers | Batch Analysis | plot | batch | — |
+| proof1_summary | Batch Analysis | plot | batch | — |
+| exp_trajectory_overlay | Batch Analysis | plot | batch | — |
+| exp_difference_from_benign | Batch Analysis | plot | batch | — |
+| exp_metric_scatters | Batch Analysis | plot | batch | — |
+| exp_behavioral_comparison | Batch Analysis | plot | batch | — |
+| exp_ltp_category_comparison | Batch Analysis | plot | batch | — |
+| exp_ltp_m_vs_stress | Batch Analysis | plot | batch | — |
+| exp_ltp_profile_shapes | Batch Analysis | plot | batch | — |
+| exp_sfd_category_comparison | Batch Analysis | plot | batch | — |
+| exp_sfd_vs_asm | Batch Analysis | plot | batch | — |
+| exp_rank_displacement | Batch Analysis | plot | batch | — |
+
+Note: The `ltp_dual_trajectory` plot is generated server-side but is deliberately excluded from the registry and the frontend display. The Three.js terrain viewer is rendered as a standalone component outside the registry system.
 
 Each entry has an `on` flag (all default to true), an `order` for display sequencing, and a `needs` field that conditionally shows/hides the visualization based on whether LTP or SFD computation was enabled. Visualizations are togglable per-session from the frontend controls.
 
@@ -1212,6 +1207,8 @@ All measurement-affecting parameters are centralized in `engine/engine_config.py
 | `sfd_layer_start` | 9 | sfd | SFD layer range start (when not using signal layers) |
 | `sfd_layer_end` | 16 | sfd | SFD layer range end, exclusive |
 | `sfd_svd_k` | 16 | sfd | SVD components for per-token spectral projection |
+| `sfd_svd_seed` | 42 | sfd | Random seed for SVD (torch.svd_lowrank uses randomized algorithm) |
+| `serialization_precision` | 8 | global | Decimal places for JSON transport of measurement values |
 | `rd_min_shared` | 2 | sfd | Min shared candidates for Kendall tau |
 | `boundary_fraction` | 0.1 | analyzer | Interior/boundary token split |
 | `response_topk` | 10 | analyzer | Next-token predictions captured per model |
@@ -1225,6 +1222,16 @@ All measurement-affecting parameters are centralized in `engine/engine_config.py
 | `ltp_overfetch_first` | 1 | ltp | Extra candidates on first fetch pass |
 | `ltp_overfetch_second` | 5 | ltp | Wider fetch if first pass insufficient |
 | `disc_sublayers_top_n` | 15 | comparative | Sublayers in discriminative plot |
+| `domain_embedding_layer_frac` | 0.50 | modules | Hidden-state capture depth for domain embeddings (0.0–1.0) |
+| `domain_escalation_layer_frac` | 0.75 | modules | Separate depth for escalation-level probe matching |
+| `include_first_token` | false | modules | Include position-0 token in per-token domain embeddings |
+| `export_domain_embeddings` | false | modules | Include per-token domain embeddings in session JSON export |
+| `probe_projection_space` | false | modules | Project embeddings through o_proj delta before probe matching |
+| `attention_weighted_pool` | false | modules | Attention-weighted pooling instead of uniform mean-pool |
+| `persist_probe_caches` | true | modules | Probe caches and active probe selection survive server restarts |
+| `chat_temperature` | 0.7 | chat | Sampling temperature for chat generation |
+| `chat_top_p` | 0.9 | chat | Top-p (nucleus) sampling for chat generation |
+| `chat_max_tokens` | 512 | chat | Maximum tokens per chat response |
 
 ## Persistence
 

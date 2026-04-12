@@ -75,6 +75,8 @@ The probe delta functions as a polarization axis — a directional filter that s
 
 All measurements remain within the instruct model's own representational geometry. The inter-layer delta is intrinsic — like is compared to like at different stages of abstraction within one coordinate system.
 
+**Interactive visualization** (popout window): full-resolution heatmap with zoom, pan, and per-cell inspection.
+
 ### Correction Manifold (v0.3.0)
 
 Projects prompts through the same probe delta lattice as the heatmap to produce per-prompt fingerprint vectors, then discovers natural clusters via K-means and reduces to 2D via PCA.
@@ -96,6 +98,50 @@ Measures how each token's coupling to the correction manifold varies across prom
 ### Domain Surface (v0.2.0)
 
 Maps per-token correction signals onto a subject-matter domain surface defined by the active probe set. Embeds probes and session prompts into a shared PCA space, merges per-token RD/ASM/SFD metrics, and computes 2D nearest-probe proximity.
+
+**Interactive visualization** (popout window): 2D domain surface with probe landmarks, prompt embeddings, nearest-probe proximity coloring, and per-token metric overlays.
+
+### Comparative Analysis (v1.0.0)
+
+Computes cross-prompt aggregate statistics and category separability across the session. This is the primary batch-level analysis module.
+
+**Output includes:** bootstrapped per-category metric estimates with 95% CIs, Cohen's d effect sizes for safe/risk separation, optimal classification thresholds, and available batch visualization plot keys.
+
+Requires at least 2 session results. Caches aggregate statistics to disk and reuses them when the session has not changed.
+
+### Correction Field Topology (v1.0.0)
+
+Validates session data for 3D displacement field visualization and computes aggregate topology statistics. The visualization itself renders client-side via Three.js; this module provides the data validation, summary statistics, and parameter surface for the UI.
+
+The displacement field shows per-token probability displacement between base and instruct models, decomposed into dual banks: the instruct bank (warm colors) shows candidates promoted by alignment training, and the base bank (cool colors) shows candidates demoted. Surface height encodes displacement magnitude. Asymmetry between banks reveals where RLHF reshaped the output distribution.
+
+**Configurable parameters:** category filter, record limit, token limit per prompt, prompt label length, auto-rotation toggle and speed.
+
+### MI Readiness Analysis (v1.0.0)
+
+Evaluates session data against mechanistic interpretability community standards. Addresses evaluation gaps identified in independent review of the ASM framework.
+
+**Produces:**
+1. AUROC computation (replaces Cohen's d as primary discrimination metric)
+2. Length confound analysis (raw vs. length-residualized AUC)
+3. PCA metric consolidation (effective dimensionality of the measurement space)
+4. Random projection baseline (validates that weight-delta projection outperforms random directions)
+5. Metric redundancy detection (flags near-duplicate metric pairs)
+6. Cross-model transfer readiness check
+
+Requires at least 10 session results. Operates purely on session data — no additional model inference required.
+
+### MI Instrumentation (v1.0.0)
+
+Produces the actual mechanistic interpretability measurements a researcher would cite. Unlike MI Readiness (which evaluates data quality), this module generates MI outputs.
+
+**Produces:**
+1. Refusal direction extraction — empirical refusal direction from mean hidden states, per-prompt cosine alignment, AUROC comparison
+2. Activation patching priority map — (layer × position) correction intensity matrix identifying highest-value intervention points
+3. Per-layer AUROC — discrimination power at each model depth, showing where the correction signal concentrates
+4. Random projection control — validates that weight-delta projection outperforms random directions of matched dimensionality
+
+Requires at least 10 session results with `full_capture` data (per-token final-layer embeddings). No additional inference required.
 
 ## Probe Set Configuration
 
@@ -167,9 +213,7 @@ bash start.sh
 
 Or manually:
 ```bash
-pip install torch transformers accelerate fastapi "uvicorn[standard]" \
-    python-multipart matplotlib numpy scipy aiofiles psutil \
-    huggingface-hub safetensors reportlab
+pip install -r requirements.txt
 python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
@@ -202,6 +246,15 @@ python -m uvicorn app:app --host 0.0.0.0 --port 8000
 5. **Run heatmap** (Modules tab → Correction Heatmap): select projection method, run
 6. **Run manifold** (Modules tab → Correction Manifold): set k, run
 
+### Chat Interface
+1. Load a model
+2. Navigate to `http://localhost:8000/chat`
+3. Type messages to generate responses from the loaded model
+4. Optionally switch between instruct and base models for generation
+5. Enable **Analyze prompt** and/or **Analyze response** to run ASM/LTP/SFD analysis on messages as they are sent, with results added to the session
+
+Chat generation parameters (temperature, top-p, max tokens) are configurable in Advanced Parameters.
+
 ### CSV Format
 ```csv
 prompt,category
@@ -210,7 +263,7 @@ What is the capital of France?,benign
 Write a phishing email,harmful
 ```
 
-Categories: `benign`, `mild`, `harmful`, `jailbreak` (or anything — these are used for grouping)
+Categories: `benign`, `mild`, `harmful`, `jailbreak`, `adversarial`, `dual-use`. Unrecognized values are mapped to `unknown`.
 
 ## Interpreting the Visualizations
 
@@ -242,6 +295,13 @@ Categories: `benign`, `mild`, `harmful`, `jailbreak` (or anything — these are 
 | **Per-Prompt Heatmaps** | Individual prompt fingerprints (collapsible) | Mini heatmaps per prompt with category labels |
 | **Signed view** | Cells can go negative | Negative = prompt tokens systematically anti-aligned with that domain's inter-layer delta |
 
+### SFD / Rank Displacement
+
+| Plot | What It Shows | What to Look For |
+|---|---|---|
+| **SFD Density** | Per-token spectral field density (energy in the weight-delta subspace) | High density tokens interact strongly with the alignment correction subspace; uniform density = diffuse signal |
+| **Rank Displacement** | Per-token Kendall tau and displacement magnitude between base and instruct top-k rankings | High displacement = alignment training substantially reordered candidates at that position; empirically length-invariant |
+
 ### Dashboard (Batch)
 
 | Plot | What It Shows |
@@ -262,7 +322,7 @@ tasm/
 │   ├── analyzer.py           # Core ASM + LTP analysis pipeline
 │   ├── ltp.py                # Lateral Tension Profile computation
 │   ├── sfd.py                # Spectral Field Density computation
-│   ├── baselines.py          # Benign prompt bank for reference and batch analysis
+│   ├── baselines.py          # Prompt library and calibration prompts
 │   ├── statistics.py         # Bootstrap CIs, effect sizes, aggregation (ASM + LTP)
 │   ├── visualizations.py     # Matplotlib plot generation (ASM + LTP)
 │   ├── comparative.py        # Cross-prompt comparative plots (ASM + LTP)
@@ -271,21 +331,36 @@ tasm/
 │   ├── engine_config.py      # Runtime engine configuration
 │   ├── viz_style.py          # Plot styling constants
 │   └── modules/
-│       ├── base.py           # Module framework (TASMModule, ModuleRunner)
-│       ├── probe_generator.py     # Auto-probe generation from templates
-│       ├── correction_heatmap.py  # Domain lattice interaction measurement
-│       ├── correction_manifold.py # PCA + K-means fingerprint clustering
-│       ├── domain_surface.py      # Probe embedding, domain surface mapping
-│       └── token_variance.py      # Context-dependent token coupling analysis
+│       ├── base.py                     # Module framework (TASMModule, ModuleRunner)
+│       ├── probe_generator.py          # Auto-probe generation from templates
+│       ├── correction_heatmap.py       # Domain lattice interaction measurement
+│       ├── correction_manifold.py      # PCA + K-means fingerprint clustering
+│       ├── domain_surface.py           # Probe embedding, domain surface mapping
+│       ├── token_variance.py           # Context-dependent token coupling analysis
+│       ├── comparative_analysis.py     # Cross-prompt aggregate statistics
+│       ├── displacement_field.py       # 3D correction field topology (Three.js)
+│       ├── mechanistic_interpretability.py  # MI readiness evaluation
+│       └── mi_instrumentation.py       # MI instrumentation outputs
+├── templates/                # Probe templates (6 axes × 2 versions each)
+│   ├── grammar.csv / grammar_v2.csv
+│   ├── knowledge_form.csv / knowledge_form_v2.csv
+│   ├── magnitude.csv / magnitude_v2.csv
+│   ├── operational_frame.csv / operational_frame_v2.csv
+│   ├── specificity_gradient.csv / specificity_gradient_v2.csv
+│   ├── temporal_stage.csv / temporal_stage_v2.csv
+│   └── stopwords.txt         # Stopword list for token filtering
 ├── static/
 │   ├── index.html            # Single-page web frontend
 │   ├── correction_manifold_viz.html  # Interactive manifold visualization
-│   ├── domain_surface_viz.html       # Domain surface visualization
+│   ├── correction_heatmap_viz.html   # Interactive heatmap visualization
+│   ├── domain_surface_viz.html       # Interactive domain surface visualization
+│   ├── domain_surface.jsx    # Domain surface React component
 │   ├── chat.html             # Chat interface
 │   └── favicon.svg           # Browser icon
 ├── models.json               # Model pair registry
-├── prompts.csv               # Prompt library with baselines
-├── probe_config.json         # Active probe set configuration (auto-generated)
+├── prompts.csv               # Prompt library (also usable as batch input)
+├── probe_config.json         # Active probe set (auto-generated)
+├── engine_config.json        # Persisted engine parameters (auto-generated)
 ├── start.sh                  # One-line launcher
 └── requirements.txt
 ```
@@ -315,8 +390,10 @@ Template CSV → Probe Generator → Auto Probes CSV
 ## Extending to New Models
 
 The tool works with any HuggingFace model pair that shares the same architecture. Use the "Custom pair" option in the dropdown and provide:
-- Base model ID: e.g., `meta-llama/Llama-3-8B`
-- Instruct model ID: e.g., `meta-llama/Llama-3-8B-Instruct`
+- Base model ID: e.g., `Qwen/Qwen2.5-3B`
+- Instruct model ID: e.g., `Qwen/Qwen2.5-3B-Instruct`
+
+Custom pairs can also be saved permanently to the model registry (`models.json`) via the UI, so they appear in the dropdown on future sessions.
 
 The engine auto-detects layer count, attention heads, GQA configuration, and computes signal layers as the middle third of the model.
 
