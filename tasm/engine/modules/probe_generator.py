@@ -307,6 +307,17 @@ class ProbeGeneratorModule(TASMModule):
                 type="file",
                 default="templates/stopwords.txt",
             ),
+            ModuleParameter(
+                name="auto_apply",
+                display_name="Apply Probe Set After Generation",
+                description=(
+                    "Automatically embed and activate the generated probe set "
+                    "when generation completes. Equivalent to manually applying "
+                    "the output file in the Configuration tab. Requires a loaded model."
+                ),
+                type="bool",
+                default=False,
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -646,4 +657,108 @@ class ProbeGeneratorModule(TASMModule):
                      f"classes, {len(cross_subclass_shared)} shared across "
                      f"subclasses) across {total_cells} cells{sw_msg}")
 
+        # ── Auto-apply: embed and activate the generated probe set ──
+        auto_apply = bool(params.get("auto_apply", False))
+        if auto_apply and self._model_manager is not None:
+            output["auto_apply"] = self._auto_apply_probes(
+                output_name, out_path, progress)
+        else:
+            output["auto_apply"] = None
+
         return output
+
+    def _auto_apply_probes(self, filename, csv_path, progress=None):
+        """Embed the generated probe set and activate it.
+
+        Performs the same operation as the Configuration tab's Apply button:
+        embeds probes at both depths, caches them, and sets the file as the
+        active probe set.
+        """
+        from .domain_surface import (embed_and_cache_probes, _load_probes,
+                                      _detect_level_cols, _parse_meta)
+        import json as _json
+
+        state = self._model_manager.state
+        if state is None or state.model_instruct is None:
+            logger.warning("[PROBE_GEN] Auto-apply skipped: no model loaded")
+            return {"applied": False, "error": "No model loaded"}
+
+        model = state.model_instruct
+        tokenizer = state.tokenizer
+        model_id = state.instruct_model_id or state.pair_id
+
+        if progress:
+            progress("Auto-apply: embedding probe set...")
+
+        # Determine layer depths (template meta overrides global config)
+        meta = _parse_meta(csv_path)
+        try:
+            from engine import engine_config
+            use_proj = engine_config.get("probe_projection_space")
+        except Exception:
+            use_proj = False
+
+        if "layer_low" in meta and "layer_high" in meta:
+            subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
+            esc_frac = max(0.0, min(1.0, float(meta["layer_high"])))
+        else:
+            try:
+                subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
+                esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
+            except Exception:
+                subj_frac = 0.50
+                esc_frac = 0.75
+
+        depths = sorted(set([subj_frac, esc_frac]))
+        embedded = 0
+
+        for frac in depths:
+            if progress:
+                progress(f"Auto-apply: embedding at L{int(frac*100)}...")
+
+            delta = None
+            if use_proj:
+                target_layer = max(0, min(state.n_layers - 1, int(frac * state.n_layers)))
+                delta = state.o_delta(target_layer)
+
+            try:
+                embed_and_cache_probes(
+                    model, tokenizer,
+                    self._project_root, filename, model_id,
+                    layer_frac=frac,
+                    progress=lambda stage, msg: progress(f"Auto-apply L{int(frac*100)}: {msg}") if progress else None,
+                    delta_matrix=delta if use_proj else None)
+                embedded += 1
+            except Exception as e:
+                logger.warning(f"[PROBE_GEN] Auto-apply embed failed at L{int(frac*100)}: {e}")
+
+        if embedded == 0:
+            logger.error("[PROBE_GEN] Auto-apply failed: could not embed at any depth")
+            return {"applied": False, "error": "Failed to embed probes at any depth"}
+
+        # Activate the probe set by writing probe_config.json
+        config_path = os.path.join(self._project_root, "probe_config.json")
+        try:
+            _json.dump({"active": [filename]},
+                       open(config_path, "w"), indent=2)
+            logger.info(f"[PROBE_GEN] Auto-apply: activated {filename}")
+        except Exception as e:
+            logger.error(f"[PROBE_GEN] Auto-apply: failed to write probe config: {e}")
+            return {"applied": False, "error": f"Embedded but failed to activate: {e}"}
+
+        if progress:
+            progress(f"Auto-apply complete: {filename} embedded at {len(depths)} depth(s) and activated")
+
+        probes = _load_probes(csv_path)
+        level_cols, level_names = _detect_level_cols(csv_path)
+        subjects = sorted(set(p["subject"] for p in probes))
+
+        return {
+            "applied": True,
+            "filename": filename,
+            "n_probes": len(probes),
+            "n_subjects": len(subjects),
+            "n_levels": len(level_cols),
+            "levels": level_names,
+            "depths": [int(f * 100) for f in depths],
+        }

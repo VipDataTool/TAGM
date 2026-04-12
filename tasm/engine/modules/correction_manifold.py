@@ -288,6 +288,14 @@ class CorrectionManifoldModule(TASMModule):
         cache_dir = os.path.join(self._project_root, "probe_cache")
         stem = os.path.splitext(probe_file)[0]
 
+        # Determine session embedding dimension for cache validation
+        session_dim = None
+        for r in session_results:
+            fe = r.get("per_token_final_emb")
+            if fe and len(fe) > 0:
+                session_dim = len(fe[0])
+                break
+
         def _find_cache(frac):
             if os.path.isdir(cache_dir):
                 tag = f"__L{int(frac * 100)}"
@@ -295,8 +303,19 @@ class CorrectionManifoldModule(TASMModule):
                     if fn.startswith(stem) and tag in fn and fn.endswith(".json"):
                         data = _load_probe_cache(os.path.join(cache_dir, fn))
                         if data and data.get("embeddings"):
+                            embs = data["embeddings"]
+                            # Dimension validation: skip caches from a different model
+                            if session_dim is not None and len(embs) > 0:
+                                cache_dim = len(embs[0])
+                                if cache_dim != session_dim:
+                                    cache_model = data.get("model_id", "unknown")
+                                    logger.warning(
+                                        f"[MANIFOLD] Probe cache dimension mismatch: "
+                                        f"cache={cache_dim} (model={cache_model}), "
+                                        f"session={session_dim}. Skipping {fn}.")
+                                    continue
                             logger.info(f"[MANIFOLD] Using cache: {fn}")
-                            return data["embeddings"]
+                            return embs
             return None
 
         embs_L50 = _find_cache(subj_frac)
@@ -304,12 +323,14 @@ class CorrectionManifoldModule(TASMModule):
 
         if embs_L50 is None:
             raise RuntimeError(
-                f"Probe cache at L{int(subj_frac*100)} not found. "
-                "Regenerate caches.")
+                f"No probe cache at L{int(subj_frac*100)} matches the current model "
+                f"(hidden_dim={session_dim}). Apply the probe set with the current "
+                f"model loaded to regenerate caches.")
         if embs_L75 is None:
             raise RuntimeError(
-                f"Probe cache at L{int(esc_frac*100)} not found. "
-                "Regenerate caches.")
+                f"No probe cache at L{int(esc_frac*100)} matches the current model "
+                f"(hidden_dim={session_dim}). Apply the probe set with the current "
+                f"model loaded to regenerate caches.")
 
         if len(embs_L50) != len(raw_probes) or len(embs_L75) != len(raw_probes):
             raise RuntimeError("Probe count mismatch. Regenerate caches.")
