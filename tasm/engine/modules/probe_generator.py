@@ -41,6 +41,26 @@ FIXED_COLS = {"subject", "anchor_id"}
 META_TAG = "_meta"
 
 
+def _load_stopwords(path):
+    """Load stopword list from a text file.
+
+    Returns (frozenset of words, raw line count).
+    Logs every word loaded so filtering is fully transparent.
+    Raises FileNotFoundError — callers decide how to handle.
+    """
+    words = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            w = line.lower().split()[0]  # first token only, ignore inline comments
+            words.append(w)
+    result = frozenset(words)
+    logger.info(f"[STOPWORDS] Loaded {len(result)} words from {path}")
+    return result, len(result)
+
+
 # ─── Template Parsing (self-contained) ────────────────────────
 
 def _parse_template(csv_path):
@@ -97,12 +117,12 @@ def _parse_template(csv_path):
 
 # ─── Tokenization ─────────────────────────────────────────────
 
-def _tokenize_response(text, tokenizer):
+def _tokenize_response(text, tokenizer, stopwords=frozenset()):
     """Extract whole words from model output, keep only single-token words."""
     words = Counter()
     raw_words = re.findall(r'[a-zA-Z]+', text.lower())
     for w in raw_words:
-        if len(w) < 2:
+        if len(w) < 3 or w in stopwords:
             continue
         ids = tokenizer.encode(w, add_special_tokens=False)
         if len(ids) == 1:
@@ -124,15 +144,60 @@ TERMINOLOGY_PROMPT_TEMPLATE = (
     "One term per line with a brief definition."
 )
 
+# Rotating templates to elicit diverse vocabulary from the same cell.
+# Each framing pushes the model into a different vocabulary subspace.
+_ROTATING_TEMPLATES = [
+    DEFAULT_PROMPT_TEMPLATE,
+    (
+        "What are the most important {subclass} concepts in {class}? "
+        "Think of terms like: {seeds}. "
+        "List {word_count} single-word terms, one per line."
+    ),
+    (
+        "A {class} expert needs {subclass}-level vocabulary. "
+        "Starting from: {seeds}. "
+        "Generate {word_count} domain-specific single words, one per line."
+    ),
+    (
+        "Name {word_count} {subclass} phenomena, materials, or processes in {class}. "
+        "Similar to: {seeds}. "
+        "One word per line, no explanations."
+    ),
+    (
+        "Complete this {class} glossary at the {subclass} level. "
+        "Seed terms: {seeds}. "
+        "Add {word_count} more single-word entries, one per line."
+    ),
+]
+
 
 def _build_cell_prompt(cls, subclass, seeds, tokenizer,
-                       word_count=200, template=None):
-    """Build a prompt steered toward a specific class × subclass cell."""
+                       word_count=200, template=None, query_index=0):
+    """Build a prompt steered toward a specific class × subclass cell.
+
+    When no custom template is provided, rotates through framing variants
+    based on query_index to maximize vocabulary diversity across queries.
+    Seed words are also shuffled per query to vary the model's priming.
+    """
+    import random
+
     cls_label = cls.replace("_", " ")
     sub_label = subclass.replace("_", " ")
-    seed_str = ", ".join(seeds[:15]) if seeds else cls_label
 
-    tmpl = template or DEFAULT_PROMPT_TEMPLATE
+    # Rotate seed subset per query to vary priming
+    if seeds and len(seeds) > 3:
+        rng = random.Random(query_index * 31 + hash(cls) & 0xFFFF)
+        shuffled = list(seeds)
+        rng.shuffle(shuffled)
+        seed_str = ", ".join(shuffled[:8])
+    else:
+        seed_str = ", ".join(seeds[:15]) if seeds else cls_label
+
+    if template:
+        tmpl = template
+    else:
+        tmpl = _ROTATING_TEMPLATES[query_index % len(_ROTATING_TEMPLATES)]
+
     prompt = tmpl.format(**{
         "class": cls_label,
         "subclass": sub_label,
@@ -276,6 +341,18 @@ class ProbeGeneratorModule(TASMModule):
                 type="bool",
                 default=False,
             ),
+            ModuleParameter(
+                name="stopword_file",
+                display_name="Stopword File",
+                description=(
+                    "Text file of words to exclude before discriminative "
+                    "filtering. One word per line, '#' for comments. "
+                    "Leave empty to disable stopword filtering. "
+                    "Filtered tokens are logged in output metadata."
+                ),
+                type="file",
+                default="templates/stopwords.txt",
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -306,6 +383,15 @@ class ProbeGeneratorModule(TASMModule):
             if output == tmpl_name:
                 return False, f"Output name matches template file '{tmpl_name}'. Use a different name."
 
+        # Validate stopword file if specified
+        sw_file = params.get("stopword_file", "").strip()
+        if sw_file:
+            sw_path = sw_file
+            if not os.path.isabs(sw_path) and self._project_root:
+                sw_path = os.path.join(self._project_root, sw_path)
+            if not os.path.exists(sw_path):
+                return False, f"Stopword file not found: {sw_file}"
+
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
@@ -316,6 +402,26 @@ class ProbeGeneratorModule(TASMModule):
         min_freq = int(params.get("min_frequency", 3))
         prompt_template = params.get("prompt_template", "").strip() or None
         export_catalog = bool(params.get("export_catalog", False))
+
+        # ── Load stopwords ──
+        sw_file = params.get("stopword_file", "").strip()
+        stopwords = frozenset()
+        stopword_path = None
+        stopword_count = 0
+        if sw_file:
+            stopword_path = sw_file
+            if not os.path.isabs(stopword_path) and self._project_root:
+                stopword_path = os.path.join(self._project_root, stopword_path)
+            stopwords, stopword_count = _load_stopwords(stopword_path)
+            if progress:
+                progress(f"Loaded {stopword_count} stopwords from {sw_file}")
+        else:
+            if progress:
+                progress("No stopword file specified — stopword filtering disabled")
+            logger.warning("[STOPWORDS] No stopword file specified. Filtering disabled.")
+
+        # Track which tokens get filtered for auditability
+        stopword_hits = Counter()  # token -> times filtered
 
         # Resolve template path
         csv_path = template_file
@@ -360,7 +466,8 @@ class ProbeGeneratorModule(TASMModule):
                     prompt_text = _build_cell_prompt(
                         cls, col, seeds, self._active_tokenizer,
                         word_count=max_tokens,
-                        template=prompt_template)
+                        template=prompt_template,
+                        query_index=qi)
                     inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
                     inputs = {k: v.to(device) for k, v in inputs.items()}
 
@@ -378,8 +485,14 @@ class ProbeGeneratorModule(TASMModule):
                     response = self._active_tokenizer.decode(
                         gen_ids, skip_special_tokens=True)
                     word_counts = _tokenize_response(
-                        response, self._active_tokenizer)
+                        response, self._active_tokenizer, stopwords)
                     vocab.update(word_counts)
+
+                    # Track stopword hits for audit trail
+                    if stopwords:
+                        for w in re.findall(r'[a-zA-Z]+', response.lower()):
+                            if len(w) >= 3 and w in stopwords:
+                                stopword_hits[w] += 1
 
                     catalog.append({
                         "class": cls,
@@ -533,9 +646,15 @@ class ProbeGeneratorModule(TASMModule):
 
         subclass_names = [c.replace("_", " ") for c in subclass_cols]
 
+        # Determine which model class was used
+        inference_class = "unknown"
+        if self._model_manager is not None:
+            inference_class = self._model_manager.state.inference_class
+
         output = {
             "template_file": template_file,
             "output_file": output_name,
+            "inference_class": inference_class,
             "subjects": classes,
             "levels": subclass_names,
             "queries_per_cell": n_queries,
@@ -555,12 +674,23 @@ class ProbeGeneratorModule(TASMModule):
             "catalog_file": catalog_name,  # None if export disabled
             "catalog": cell_catalog,
             "total_queries": len(catalog),
+            # Stopword audit trail
+            "stopword_file": sw_file or None,
+            "stopword_count": stopword_count,
+            "stopwords_loaded": sorted(stopwords) if stopwords else [],
+            "stopword_hits": dict(stopword_hits.most_common()),
+            "stopword_total_filtered": sum(stopword_hits.values()),
         }
 
         if progress:
+            sw_msg = ""
+            if stopwords:
+                sw_msg = (f", {sum(stopword_hits.values())} stopword "
+                          f"occurrences filtered ({len(stopword_hits)} "
+                          f"unique from {sw_file})")
             progress(f"Exported {output_name}: {total_disc} discriminative "
                      f"tokens ({len(cross_class_shared)} shared across "
                      f"classes, {len(cross_subclass_shared)} shared across "
-                     f"subclasses) across {total_cells} cells")
+                     f"subclasses) across {total_cells} cells{sw_msg}")
 
         return output

@@ -1,0 +1,133 @@
+# ─── TASM Probe Generator Stopword List ───────────────────────
+# 
+# Tokens listed here are filtered BEFORE the discriminative
+# deduplication step. They will never appear in generated probes.
+#
+# Format: one word per line, lowercase. Blank lines and lines
+# starting with '#' are ignored.
+#
+# This file is loaded at probe generation time. The full list
+# of loaded stopwords, plus any tokens they filtered, is logged
+# in the probe output metadata for auditability.
+#
+# Edit freely. Changes take effect on the next probe run.
+# ───────────────────────────────────────────────────────────────
+
+# ─── Function words ───────────────────────────────────────────
+the
+and
+for
+are
+but
+not
+you
+all
+can
+has
+her
+was
+one
+our
+out
+its
+his
+how
+may
+who
+did
+get
+let
+say
+she
+too
+use
+per
+via
+any
+also
+been
+from
+have
+here
+into
+just
+like
+made
+many
+more
+most
+must
+only
+over
+such
+than
+that
+them
+then
+they
+this
+very
+what
+when
+will
+with
+some
+each
+does
+were
+used
+these
+those
+which
+their
+there
+other
+about
+after
+being
+below
+could
+every
+given
+often
+since
+still
+under
+where
+while
+would
+should
+
+# ─── Model meta-language ─────────────────────────────────────
+# Tokens from the model's own framing/preamble that leak into
+# extraction (e.g. "Here is a list of unique terms...")
+list
+unique
+terms
+related
+examples
+following
+include
+includes
+including
+above
+note
+notes
+words
+word
+answer
+response
+responses
+request
+requested
+formatted
+format
+provided
+type
+types
+category
+categories
+refer
+refers
+don
+based
