@@ -1,21 +1,25 @@
 """
 Correction Backscatter Module for TASM.
 
-Measures correction-field coupling between prompt tokens and probe
-vocabulary by projecting BOTH through the weight delta lens (ΔW_V).
+Measures correction-field intensity coupling between prompt tokens and
+probe vocabulary by projecting BOTH through the full ΔW_V weight delta
+lens and comparing the resulting energies (norms), not directions.
 
-Unlike the Correction Heatmap (which compares prompt token representations
-against probe inter-layer rotation directions), the Backscatter Heatmap
-projects both sides through the same ΔW_V lens at signal layers and
-measures similarity in correction-field space.  This reveals where
-alignment training applies similar correction strategies to prompt
-content and probe vocabulary — a measurement of the training's internal
-structure rather than the prompt's representational properties.
+This is the "wave" view: it asks "does the correction lens respond with
+similar intensity to both inputs?" rather than "does it push them in the
+same direction?"  Two inputs that both strongly engage the correction
+field produce a hot cell regardless of whether they're being pushed in
+the same direction — because the measurement is about how much the
+medium vibrates, not which way.
 
-Analogy: the prompt tokens are a signal source, ΔW_V is the medium,
-and the probes are a detector array.  What lights up tells you about
-the medium's structure — which domain regions the correction field
-couples to for this input.
+The probe lattice defines the coordinate system.  Each cell has a
+pre-computed correction energy from its vocabulary passing through the
+lens.  When a new prompt arrives, each token gets its own correction
+energy from the same lens.  The product of token energy and probe energy
+at each cell produces the heatmap.  Structure comes from the template.
+
+No SVD truncation.  No directional comparison in high-dimensional space.
+The full lens is used on both sides and the tail is preserved.
 
 Requires:
   - Model loaded (for ΔW_V access at signal layers)
@@ -41,13 +45,14 @@ class CorrectionBackscatterModule(TASMModule):
     name = "correction_backscatter"
     display_name = "Correction Backscatter"
     description = (
-        "Projects prompt tokens and probe vocabulary through the same "
-        "ΔW_V correction lens at signal layers. Measures coupling in "
-        "correction-field space — which probe regions the correction "
-        "field treats the same way as the input. Reveals training "
-        "structure rather than representational similarity."
+        "Projects prompt tokens and probe vocabulary through the full "
+        "ΔW_V correction lens and compares intensity (norm), not direction. "
+        "Measures how strongly the correction field responds to both — "
+        "hot cells mean both the prompt and the probe vocabulary strongly "
+        "engage the same correction lens. Reveals training structure "
+        "without truncating the spectral tail."
     )
-    version = "0.1.0"
+    version = "0.2.0"
 
     min_results = 1
     requires_sfd = False
@@ -70,18 +75,17 @@ class CorrectionBackscatterModule(TASMModule):
     def parameters(self):
         return [
             ModuleParameter(
-                name="projection_method",
-                display_name="Projection Method",
+                name="aggregation",
+                display_name="Aggregation",
                 description=(
-                    "How to aggregate the correction-space dot products. "
-                    "abs = magnitude (default, best for initial exploration). "
-                    "squared = energy (amplifies strong coupling). "
-                    "signed = directional (positive = co-corrected, "
-                    "negative = counter-corrected)."
+                    "How to combine per-token backscatter values within a prompt. "
+                    "mean = average across tokens (default). "
+                    "max = peak backscatter. "
+                    "sum = total backscatter energy."
                 ),
                 type="select",
-                default="abs",
-                options=["abs", "squared", "signed"],
+                default="mean",
+                options=["mean", "max", "sum"],
             ),
             ModuleParameter(
                 name="delta_projections",
@@ -89,7 +93,7 @@ class CorrectionBackscatterModule(TASMModule):
                 description=(
                     "Which weight delta projections to use as the lens. "
                     "v = V-projection only (ASM primary lens). "
-                    "qkv = average across Q, K, V (broader, matches stress). "
+                    "qkv = average across Q, K, V (broader, matches stress)."
                 ),
                 type="select",
                 default="v",
@@ -102,11 +106,10 @@ class CorrectionBackscatterModule(TASMModule):
         if not ok:
             return ok, msg
 
-        # Require loaded model for ΔW access
         if self._model_manager is None or self._model_manager.state is None:
             return False, (
                 "Model not loaded. The backscatter module requires "
-                "ΔW_V access from the loaded model."
+                "ΔW access from the loaded model."
             )
 
         state = self._model_manager.state
@@ -116,7 +119,6 @@ class CorrectionBackscatterModule(TASMModule):
                 "Load a model first."
             )
 
-        # Check for active probe set
         probe_file = _get_active_probe(self._project_root)
         if not probe_file:
             return False, (
@@ -124,7 +126,6 @@ class CorrectionBackscatterModule(TASMModule):
                 "Configuration tab first."
             )
 
-        # Check for per_token_final_emb in session
         has_final = any(r.get("per_token_final_emb") for r in session_results)
         if not has_final:
             return False, (
@@ -142,7 +143,7 @@ class CorrectionBackscatterModule(TASMModule):
 
         state = self._model_manager.state
         probe_file = _get_active_probe(self._project_root)
-        proj_method = params.get("projection_method", "abs")
+        aggregation = params.get("aggregation", "mean")
         delta_mode = params.get("delta_projections", "v")
 
         # ── Load probe structure ──
@@ -156,7 +157,6 @@ class CorrectionBackscatterModule(TASMModule):
         if not raw_probes:
             raise RuntimeError(f"No probes loaded from {probe_file}")
 
-        # Build subject/level maps
         subjects = []
         for p in raw_probes:
             if p["subject"] not in subjects:
@@ -168,18 +168,12 @@ class CorrectionBackscatterModule(TASMModule):
         # ── Load probe embeddings ──
         prog("Loading probe embeddings...")
 
-        # Resolve layer depths from template meta or global config
         meta = _parse_meta(csv_path)
-        try:
-            from engine import engine_config
-            use_proj = engine_config.get("probe_projection_space")
-        except Exception:
-            use_proj = False
-
-        if "layer_low" in meta and "layer_high" in meta:
+        if "layer_low" in meta:
             subj_frac = max(0, min(1, float(meta["layer_low"])))
         else:
             try:
+                from engine import engine_config
                 subj_frac = max(0, min(1,
                     engine_config.get("domain_embedding_layer_frac") or 0.50))
             except Exception:
@@ -188,47 +182,26 @@ class CorrectionBackscatterModule(TASMModule):
         cache_dir = os.path.join(self._project_root, "probe_cache")
         stem = os.path.splitext(probe_file)[0]
 
-        # Session embedding dimension for cache validation
-        session_dim = None
-        for r in session_results:
-            fe = r.get("per_token_final_emb")
-            if fe and len(fe) > 0:
-                session_dim = len(fe[0])
-                break
-
-        def _find_cache(frac):
-            """Find probe cache — prefer non-projected (raw representational)."""
-            if os.path.isdir(cache_dir):
-                tag = f"__L{int(frac * 100)}"
-                # Prefer non-projected caches for backscatter (we project
-                # through ΔW ourselves), but fall back to projected if needed
-                candidates = sorted(os.listdir(cache_dir))
-                non_proj = [fn for fn in candidates
-                            if fn.startswith(stem) and tag in fn
-                            and fn.endswith(".json") and "_proj.json" not in fn]
-                proj = [fn for fn in candidates
+        # Find probe cache — prefer non-projected (raw representational)
+        probe_embs_raw = None
+        if os.path.isdir(cache_dir):
+            tag = f"__L{int(subj_frac * 100)}"
+            candidates = sorted(os.listdir(cache_dir))
+            non_proj = [fn for fn in candidates
                         if fn.startswith(stem) and tag in fn
-                        and fn.endswith(".json") and "_proj.json" in fn]
+                        and fn.endswith(".json") and "_proj.json" not in fn]
+            proj = [fn for fn in candidates
+                    if fn.startswith(stem) and tag in fn
+                    and fn.endswith(".json") and "_proj.json" in fn]
 
-                for fn in non_proj + proj:
-                    data = _load_probe_cache(os.path.join(cache_dir, fn))
-                    if data and data.get("embeddings"):
-                        embs = data["embeddings"]
-                        if session_dim is not None and len(embs) > 0:
-                            cache_dim = len(embs[0])
-                            if cache_dim != session_dim:
-                                # Dimension mismatch OK here — probes and
-                                # prompt tokens go through ΔW separately.
-                                # We only need probe count to match CSV.
-                                pass
-                        if len(embs) == len(raw_probes):
-                            is_proj = "_proj.json" in fn
-                            logger.info(f"[BACKSCATTER] Using cache: {fn} "
-                                        f"(projected={is_proj})")
-                            return embs, is_proj
-            return None, False
-
-        probe_embs_raw, probes_pre_projected = _find_cache(subj_frac)
+            for fn in non_proj + proj:
+                data = _load_probe_cache(os.path.join(cache_dir, fn))
+                if data and data.get("embeddings"):
+                    embs = data["embeddings"]
+                    if len(embs) == len(raw_probes):
+                        logger.info(f"[BACKSCATTER] Using cache: {fn}")
+                        probe_embs_raw = embs
+                        break
 
         if probe_embs_raw is None:
             raise RuntimeError(
@@ -236,10 +209,8 @@ class CorrectionBackscatterModule(TASMModule):
                 f"{len(raw_probes)} probes. Apply the probe set first.")
 
         probe_mat = np.array(probe_embs_raw, dtype=np.float32)
-        probe_dim = probe_mat.shape[1]
         n_probes = probe_mat.shape[0]
-        prog(f"Loaded {n_probes} probe embeddings ({probe_dim}-dim, "
-             f"pre-projected={probes_pre_projected})")
+        probe_dim = probe_mat.shape[1]
 
         # Map probes to cells
         probe_cells = []
@@ -251,20 +222,61 @@ class CorrectionBackscatterModule(TASMModule):
             cell_probes[(si, li)].append(
                 p.get("text", p.get("anchor_id", "")))
 
-        # ── Collect ΔW projections at signal layers ──
+        # ── Determine which deltas to use ──
         signal_layers = state.signal_layers
-        prog(f"Collecting ΔW at {len(signal_layers)} signal layers "
-             f"(mode={delta_mode})...")
-
-        # Determine which delta keys to use
         if delta_mode == "qkv":
             proj_suffixes = ["q_proj.weight", "k_proj.weight", "v_proj.weight"]
         else:
             proj_suffixes = ["v_proj.weight"]
 
-        # Pre-project probe embeddings through each layer's ΔW
-        # and prompt tokens through same ΔW, then dot product.
-        # Accumulate across signal layers.
+        # ── Compute probe correction energies ──
+        # For each probe, project through ΔW at each signal layer, take norm.
+        # Average across layers and projections → one scalar per probe.
+        prog(f"Computing probe correction energies across "
+             f"{len(signal_layers)} signal layers...")
+
+        probe_energies = np.zeros(n_probes)
+        probe_contributions = 0
+
+        for layer_idx in signal_layers:
+            for suffix in proj_suffixes:
+                dname = f"model.layers.{layer_idx}.self_attn.{suffix}"
+                dw = state.deltas.get(dname)
+                fnorm = state.delta_frob_norms.get(dname, 0)
+
+                if dw is None or fnorm <= 0:
+                    continue
+
+                dw_np = dw.float().cpu().numpy()
+
+                if probe_mat.shape[1] != dw_np.shape[1]:
+                    continue
+
+                # ‖probe @ ΔW.T‖ / ‖ΔW‖_F → scalar energy per probe
+                projected = probe_mat @ dw_np.T
+                norms = np.linalg.norm(projected, axis=1) / fnorm
+                probe_energies += norms
+                probe_contributions += 1
+
+        if probe_contributions > 0:
+            probe_energies /= probe_contributions
+
+        # Aggregate probe energies per cell (mean of probes in each cell)
+        cell_probe_energy = np.zeros((n_subj, n_levels))
+        cell_probe_counts = np.zeros((n_subj, n_levels))
+        for pi, (si, li) in enumerate(probe_cells):
+            cell_probe_energy[si, li] += probe_energies[pi]
+            cell_probe_counts[si, li] += 1
+
+        mask = cell_probe_counts > 0
+        cell_probe_energy[mask] /= cell_probe_counts[mask]
+
+        prog(f"Probe energies computed: min={probe_energies.min():.6f}, "
+             f"max={probe_energies.max():.6f}, "
+             f"mean={probe_energies.mean():.6f}")
+
+        # ── Process prompts ──
+        prog("Computing per-prompt backscatter...")
 
         n_prompts = len(session_results)
         per_prompt_heatmaps = []
@@ -274,7 +286,6 @@ class CorrectionBackscatterModule(TASMModule):
         # Per-cell token tracking
         cell_token_data = defaultdict(
             lambda: defaultdict(lambda: defaultdict(list)))
-
         cat_names = {"b": "benign", "m": "mild", "h": "harmful",
                      "j": "jailbreak", "a": "adversarial",
                      "d": "dual-use", "u": "unknown"}
@@ -295,10 +306,10 @@ class CorrectionBackscatterModule(TASMModule):
             all_cats_seen.add(cat)
             n_tok = min(len(tokens), tok_mat.shape[0])
 
-            # Accumulate backscatter across signal layers and delta projections
-            cell_grid = np.zeros((n_subj, n_levels))
-            cell_counts = np.zeros((n_subj, n_levels))
-            n_contributions = 0
+            # Compute per-token correction energy
+            # ‖token @ ΔW.T‖ / ‖ΔW‖_F, averaged across signal layers
+            token_energies = np.zeros(n_tok)
+            tok_contributions = 0
 
             for layer_idx in signal_layers:
                 for suffix in proj_suffixes:
@@ -310,64 +321,42 @@ class CorrectionBackscatterModule(TASMModule):
                         continue
 
                     dw_np = dw.float().cpu().numpy()
-
-                    # Project prompt tokens through ΔW: [n_tok, hidden] @ [hidden, proj_dim] → [n_tok, proj_dim]
                     if tok_mat.shape[1] != dw_np.shape[1]:
-                        continue  # dimension mismatch (shouldn't happen with loaded model)
-                    tok_corrected = (tok_mat[:n_tok] @ dw_np.T) / fnorm
-
-                    # Project probes through same ΔW
-                    if probe_mat.shape[1] == dw_np.shape[1]:
-                        # Probes have same dim as model — direct projection
-                        probe_corrected = (probe_mat @ dw_np.T) / fnorm
-                    elif probes_pre_projected:
-                        # Probes were already projected through o_proj —
-                        # different subspace, skip ΔW projection for probes
-                        # and use them as-is in their projected space.
-                        # This is an approximation.
-                        probe_corrected = probe_mat
-                    else:
-                        # Dimension mismatch and not pre-projected — skip
-                        logger.warning(
-                            f"[BACKSCATTER] Probe dim {probe_mat.shape[1]} != "
-                            f"model dim {dw_np.shape[1]}, skipping layer {layer_idx}")
                         continue
 
-                    # Dot product in correction space:
-                    # [n_tok, proj_dim] @ [proj_dim, n_probes] → [n_tok, n_probes]
-                    backscatter = tok_corrected @ probe_corrected.T
+                    projected = tok_mat[:n_tok] @ dw_np.T
+                    norms = np.linalg.norm(projected, axis=1) / fnorm
+                    token_energies += norms
+                    tok_contributions += 1
 
-                    # Aggregate per cell
-                    for probe_idx, (si, li) in enumerate(probe_cells):
-                        col = backscatter[:n_tok, probe_idx]
-                        if proj_method == "squared":
-                            cell_grid[si, li] += (col ** 2).mean()
-                        elif proj_method == "signed":
-                            cell_grid[si, li] += col.mean()
-                        else:
-                            cell_grid[si, li] += np.abs(col).mean()
-                        cell_counts[si, li] += 1
+            if tok_contributions > 0:
+                token_energies /= tok_contributions
 
-                    # Per-token cell values for token tracking
-                    for probe_idx, (si, li) in enumerate(probe_cells):
-                        col = backscatter[:n_tok, probe_idx]
-                        if proj_method == "squared":
-                            vals = col ** 2
-                        elif proj_method == "signed":
-                            vals = col
-                        else:
-                            vals = np.abs(col)
-                        for ti in range(min(n_tok, len(tokens))):
-                            tok = tokens[ti].strip()
-                            if tok:
-                                cell_token_data[(si, li)][tok][cat].append(
-                                    float(vals[ti]))
+            # Backscatter: token_energy × probe_energy per cell
+            cell_grid = np.zeros((n_subj, n_levels))
 
-                    n_contributions += 1
+            for si in range(n_subj):
+                for li in range(n_levels):
+                    pe = cell_probe_energy[si, li]
+                    if pe <= 0:
+                        continue
 
-            # Normalize by number of contributions (layers × projections × probes)
-            mask = cell_counts > 0
-            cell_grid[mask] /= cell_counts[mask]
+                    # Per-token backscatter for this cell
+                    tok_backscatter = token_energies * pe
+
+                    if aggregation == "max":
+                        cell_grid[si, li] = float(np.max(tok_backscatter))
+                    elif aggregation == "sum":
+                        cell_grid[si, li] = float(np.sum(tok_backscatter))
+                    else:
+                        cell_grid[si, li] = float(np.mean(tok_backscatter))
+
+                    # Track per-token values for cell detail
+                    for ti in range(min(n_tok, len(tokens))):
+                        tok = tokens[ti].strip() if ti < len(tokens) else ""
+                        if tok:
+                            cell_token_data[(si, li)][tok][cat].append(
+                                float(tok_backscatter[ti]))
 
             per_prompt_heatmaps.append(cell_grid.tolist())
             aggregate_heatmap += cell_grid
@@ -425,17 +414,16 @@ class CorrectionBackscatterModule(TASMModule):
             for tok in tok_dict:
                 cell_mean = token_cell_means[tok].get((si, li), 0)
                 g = token_global[tok]
-                g_mean = g["global_mean"]
-                g_std = g["global_std"]
-                deviation = cell_mean - g_mean
-                z_score = abs(deviation) / g_std if g_std > 1e-10 else 0.0
+                deviation = cell_mean - g["global_mean"]
+                z_score = (abs(deviation) / g["global_std"]
+                           if g["global_std"] > 1e-10 else 0.0)
                 all_vals = []
                 for vals in tok_dict[tok].values():
                     all_vals.extend(vals)
                 token_rows.append({
                     "token": tok,
                     "cell_mean": round(cell_mean, 6),
-                    "global_mean": round(g_mean, 6),
+                    "global_mean": round(g["global_mean"], 6),
                     "deviation": round(deviation, 6),
                     "z": round(z_score, 3),
                     "n": len(all_vals),
@@ -446,10 +434,11 @@ class CorrectionBackscatterModule(TASMModule):
             cell_details[cell_key] = {
                 "tokens": token_rows[:TOP_N],
                 "probes": cell_probes.get((si, li), []),
+                "probe_energy": round(float(cell_probe_energy[si, li]), 6),
                 "n_unique_tokens": len(token_rows),
             }
 
-        # ── Build output (same format as correction_heatmap for viz compat) ──
+        # ── Build output ──
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
 
         output = {
@@ -463,7 +452,7 @@ class CorrectionBackscatterModule(TASMModule):
             "n_prompts_projected": aggregate_count,
             "n_probes": len(raw_probes),
 
-            # Correction-space heatmap
+            # Energy-product heatmap
             "aggregate": aggregate_heatmap.tolist(),
 
             # Per-cell variance
@@ -473,33 +462,37 @@ class CorrectionBackscatterModule(TASMModule):
             "cell_details": cell_details,
 
             # Categories observed
-            "categories": {k: cat_names.get(k, k) for k in sorted(all_cats_seen)},
+            "categories": {k: cat_names.get(k, k)
+                           for k in sorted(all_cats_seen)},
 
             # Per-subject summary
             "per_subject": {
                 subj: {
-                    "mean_activation": float(aggregate_heatmap[si].mean()),
-                    "max_activation": float(aggregate_heatmap[si].max()),
+                    "mean_backscatter": float(aggregate_heatmap[si].mean()),
+                    "max_backscatter": float(aggregate_heatmap[si].max()),
                     "mean_variance": float(variance_grid[si].mean()),
+                    "mean_probe_energy": float(cell_probe_energy[si].mean()),
                 }
                 for si, subj in enumerate(subjects)
             },
 
-            # Backscatter-specific metadata
+            # Probe energy map — the detector array's intrinsic sensitivity
+            "probe_energy_grid": cell_probe_energy.tolist(),
+
+            # Configuration
             "config": {
-                "projection_method": proj_method,
+                "aggregation": aggregation,
                 "delta_projections": delta_mode,
                 "n_signal_layers": len(signal_layers),
                 "signal_layers": signal_layers,
                 "probe_dim": probe_dim,
-                "session_dim": session_dim,
-                "probes_pre_projected": probes_pre_projected,
+                "model_dim": state.hidden_size,
             },
         }
 
-        prog(f"Complete: {n_subj} subjects × {n_levels} levels, "
-             f"{aggregate_count} prompts projected through "
-             f"{len(signal_layers)} signal layers "
-             f"({delta_mode} mode, {proj_method} aggregation)")
+        prog(f"Complete: {n_subj}x{n_levels} grid, "
+             f"{aggregate_count} prompts, "
+             f"aggregate range [{aggregate_heatmap.min():.6f}, "
+             f"{aggregate_heatmap.max():.6f}]")
 
         return output

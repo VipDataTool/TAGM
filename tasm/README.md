@@ -77,21 +77,21 @@ All measurements remain within the instruct model's own representational geometr
 
 **Interactive visualization** (popout window): full-resolution heatmap with zoom, pan, and per-cell inspection.
 
-### Correction Backscatter (v0.1.0)
+### Correction Backscatter (v0.2.0)
 
-Projects both prompt tokens and probe vocabulary through the same ΔW_V weight delta lens at signal layers to measure correction-field coupling. Where the Correction Heatmap compares prompt representations against probe inter-layer rotation directions, the Backscatter Heatmap projects both sides through the actual correction delta and measures similarity in correction-field space.
+Projects both prompt tokens and probe vocabulary through the full ΔW_V weight delta lens at signal layers and compares the resulting **energies** (norms), not directions. This is the "wave" view: it measures how strongly the correction field responds to each input, regardless of which direction it pushes them. No SVD truncation — the full spectral tail is preserved, which is critical because safety-relevant information is distributed across the entire singular value spectrum rather than concentrated in top-k components.
 
 **Process:**
-1. Loads probe embeddings from cache (representational, at the domain layer depth)
-2. For each signal layer, retrieves ΔW_V (the V-projection weight delta between instruct and base)
-3. Projects both prompt token embeddings and probe embeddings through ΔW_V, normalized by the delta's Frobenius norm
-4. Computes dot products in correction space between projected tokens and projected probes
-5. Aggregates per cell (subject × subclass) and averages across signal layers
+1. For each probe, projects its embedding through ΔW_V at each signal layer, takes the L2 norm, and normalizes by Frobenius norm → scalar correction energy per probe, aggregated per cell
+2. For each prompt token, projects through the same ΔW_V → scalar correction energy per token
+3. Backscatter = token_energy × probe_energy per cell
 
-Hot cells mean the correction field applies the same transformation to the prompt's tokens as it applies to that cell's vocabulary — a shared correction strategy. This is a measurement of the alignment training's internal structure rather than the prompt's semantic content.
+Hot cells mean both the prompt's tokens and the cell's probe vocabulary strongly engage the correction lens. The probe lattice defines the coordinate system; different templates sample different regions of knowledge space through the same correction field.
 
-**Projection modes:** `abs` (magnitude, default), `squared` (energy), `signed` (directional).
-**Delta modes:** `v` (V-projection only, matches ASM), `qkv` (average across Q, K, V, matches stress).
+**Aggregation modes:** `mean` (default), `max` (peak), `sum` (total energy).
+**Delta modes:** `v` (V-projection only, matches ASM), `qkv` (Q+K+V, matches stress).
+
+Output includes the **probe energy grid** — the detector array's intrinsic sensitivity map showing which cells the correction field responds to most strongly regardless of input.
 
 Requires a loaded model for ΔW access.
 

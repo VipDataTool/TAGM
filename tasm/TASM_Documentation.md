@@ -1355,52 +1355,51 @@ Returns: aggregate heatmap (session mean), per-cell variance grid, per-subject s
 | | |
 |---|---|
 | **Module name** | `correction_backscatter` |
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Min results** | 1 |
 | **Data requirements** | Loaded model (for ΔW access); active probe set with cached embeddings; `per_token_final_emb` in session results |
 
-The Correction Backscatter module is a companion to the Correction Heatmap that measures coupling in correction-field space rather than representation space. Where the Heatmap compares prompt token embeddings against probe inter-layer rotation directions, the Backscatter projects **both** prompt tokens and probe vocabulary through the same ΔW weight delta lens and measures their similarity on the output side. This reveals where alignment training applies similar correction strategies to prompt content and probe vocabulary — a measurement of the training's internal structure rather than the prompt's representational properties.
+The Correction Backscatter module measures correction-field intensity coupling between prompt tokens and probe vocabulary. Unlike the Correction Heatmap (which compares representations) or the v0.1.0 backscatter (which compared directions in correction space), this module compares **energy** — the magnitude of each input's response to the correction lens, regardless of direction. This is the "wave" view: it measures how strongly the correction field vibrates in response to each input, not which way it pushes.
 
-The metaphor is backscatter imaging: prompt tokens are the signal source, ΔW is the medium, and the probes are the detector array. What lights up on the detector tells you about the structure of the medium — which domain regions the correction field couples to for a given input.
+The probe lattice defines the coordinate system. Each cell has a pre-computed correction energy from its vocabulary passing through the ΔW lens. When a new prompt arrives, each token gets its own correction energy from the same lens. The product of token energy and probe energy at each cell produces the heatmap. No SVD truncation is performed — the full spectral structure of the delta is preserved, including the tail where safety-relevant information is distributed (per Ponkshe et al. ICLR 2026, Wei et al. ICML 2024).
 
 ### Process
 
-1. Loads probe embeddings from cache at the domain layer depth. Prefers non-projected (raw representational) caches so the module can apply its own ΔW projection, but will fall back to projected caches if those are all that's available.
-2. Loads prompt token embeddings (`per_token_final_emb`) from session results.
-3. For each signal layer, retrieves the ΔW weight delta (V-projection only in `v` mode, or Q+K+V averaged in `qkv` mode) and its Frobenius norm.
-4. Projects both prompt token embeddings and probe embeddings through ΔW.T, dividing by the Frobenius norm for cross-layer comparability. This transforms both into correction-field space — the coordinate system defined by what alignment training changed.
-5. Computes dot products between each projected token vector and each projected probe vector.
-6. Applies the selected projection method (abs/squared/signed) and aggregates per cell (subject × subclass).
-7. Averages across all signal layers and all delta projections to produce a single value per cell per prompt.
-8. Averages across prompts for the session-level aggregate heatmap.
+1. Loads probe embeddings from cache at the domain layer depth. Prefers non-projected (raw representational) caches so the module can apply its own ΔW projection.
+2. For each signal layer and each delta projection (V-only or Q+K+V), projects all probe embeddings through ΔW.T and takes the L2 norm of each projected vector, normalized by ΔW's Frobenius norm. This gives a scalar correction energy per probe, averaged across layers. These are aggregated per cell (mean of probes in each cell) to produce the **probe energy grid** — the detector array's intrinsic sensitivity.
+3. For each prompt, projects each token's final-layer embedding through the same ΔW.T at each signal layer, takes the norm, and normalizes by Frobenius norm. This gives a scalar correction energy per token, averaged across layers.
+4. Computes the energy product: `token_energy × cell_probe_energy` for each token and each cell.
+5. Aggregates per cell across tokens using the selected method (mean/max/sum).
+6. Averages across prompts for the session-level aggregate heatmap.
 
 ### Parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| Projection Method | select | abs | How to aggregate dot products. abs = magnitude, squared = energy, signed = directional |
-| Delta Projections | select | v | Which weight deltas to use. v = V-projection only (ASM primary lens). qkv = average across Q, K, V (broader, matches stress computation) |
+| Aggregation | select | mean | How to combine per-token backscatter within a prompt. mean = average, max = peak, sum = total energy |
+| Delta Projections | select | v | Which weight deltas to use. v = V-projection only (ASM primary lens). qkv = average across Q, K, V (broader, matches stress) |
 
 ### Interpretation
 
-Hot cells mean: "the correction field pushes this prompt's tokens in the same direction it pushes this cell's vocabulary." This is distinct from semantic similarity — two prompts about completely different topics can light up the same probe cells if the correction field applies a shared correction strategy to both. That shared strategy is a finding about the training data and RLHF annotation patterns, not about the prompts.
+Hot cells mean: "the correction field responds strongly to both the prompt's tokens and this cell's probe vocabulary." This is not semantic similarity and not directional alignment — it is intensity coupling through the correction lens. Two prompts about unrelated topics can light up the same cells if the correction field engages strongly for both, revealing shared correction strategies in the training.
 
-The `v` delta mode gives the most direct comparison with ASM (which projects through ΔW_V for signed attribution). The `qkv` mode gives a broader view that includes the attention routing topology (Q and K paths), closer to what the stress score measures.
+The **probe energy grid** (included in output as `probe_energy_grid`) shows the detector array's intrinsic sensitivity — which cells the correction field responds to most strongly regardless of prompt input. This is a static property of the probe set and the model's alignment delta.
 
 ### Comparison with Correction Heatmap
 
-| Aspect | Correction Heatmap | Correction Backscatter |
+| Aspect | Correction Heatmap | Correction Backscatter v0.2.0 |
 |---|---|---|
-| Probe side | Inter-layer rotation delta (L75 − L50) | ΔW_V projection of probe embedding |
-| Token side | Raw final-layer embedding | ΔW_V projection of final-layer embedding |
-| Comparison space | Representation space | Correction-field space |
-| What it measures | How token representations align with probe processing directions | How the correction lens treats tokens vs. probes |
-| Analogy | Measuring the image on the wall | Measuring the shape of the lens |
+| Probe side | Inter-layer rotation delta (L75 − L50) | ‖probe @ ΔW.T‖ / ‖ΔW‖_F (scalar energy) |
+| Token side | Raw final-layer embedding | ‖token @ ΔW.T‖ / ‖ΔW‖_F (scalar energy) |
+| Comparison | Dot product in representation space | Energy product (scalar × scalar) |
+| What it measures | How token representations align with probe rotation | How strongly the correction lens responds to both |
+| Analogy | Measuring the image on the wall | Measuring how brightly the lens glows |
+| Spectral handling | Not applicable (representational) | Full spectrum preserved, no truncation |
 | Model required | No (post-processor) | Yes (needs ΔW at runtime) |
 
 ### Output
 
-Returns: aggregate heatmap (session mean, same grid format as Correction Heatmap), per-cell variance grid, per-subject summary statistics, per-cell token specificity rankings (top 10 by z-score with per-category breakdowns), probe file metadata, category breakdown, and backscatter-specific configuration metadata (delta mode, signal layers used, probe/session dimensions).
+Returns: aggregate heatmap (energy-product, session mean), probe energy grid (detector sensitivity), per-cell variance grid, per-subject summary statistics (mean/max backscatter, mean variance, mean probe energy), per-cell token specificity rankings (top 10 by z-score with per-category breakdowns), and configuration metadata.
 
 ---
 
