@@ -285,6 +285,13 @@ class CorrectionManifoldModule(TASMModule):
         if progress:
             progress(f"Loading probe embeddings at L{int(subj_frac*100)} and L{int(esc_frac*100)}...")
 
+        try:
+            from engine import engine_config
+            use_proj = engine_config.get("probe_projection_space")
+        except Exception:
+            use_proj = False
+        projected = use_proj
+
         cache_dir = os.path.join(self._project_root, "probe_cache")
         stem = os.path.splitext(probe_file)[0]
 
@@ -301,6 +308,12 @@ class CorrectionManifoldModule(TASMModule):
                 tag = f"__L{int(frac * 100)}"
                 for fn in sorted(os.listdir(cache_dir)):
                     if fn.startswith(stem) and tag in fn and fn.endswith(".json"):
+                        # Projection mode filter: match cache to current setting
+                        is_proj_cache = "_proj.json" in fn
+                        if projected and not is_proj_cache:
+                            continue
+                        if not projected and is_proj_cache:
+                            continue
                         data = _load_probe_cache(os.path.join(cache_dir, fn))
                         if data and data.get("embeddings"):
                             embs = data["embeddings"]

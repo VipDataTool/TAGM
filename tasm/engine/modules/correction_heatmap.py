@@ -175,12 +175,18 @@ class CorrectionHeatmapModule(TASMModule):
                 break
 
         def _find_cache(frac):
-            """Find a matching probe cache file with dimension validation."""
+            """Find a matching probe cache file with dimension and projection validation."""
             if hasattr(session_results[0], 'get'):
                 if os.path.isdir(cache_dir):
                     tag = f"__L{int(frac * 100)}"
                     for fn in sorted(os.listdir(cache_dir)):
                         if fn.startswith(stem) and tag in fn and fn.endswith(".json"):
+                            # Projection mode filter: match cache to current setting
+                            is_proj_cache = "_proj.json" in fn
+                            if projected and not is_proj_cache:
+                                continue
+                            if not projected and is_proj_cache:
+                                continue
                             data = _load_probe_cache(os.path.join(cache_dir, fn))
                             if data and data.get("embeddings"):
                                 embs = data["embeddings"]
