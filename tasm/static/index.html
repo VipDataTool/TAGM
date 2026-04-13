@@ -3650,9 +3650,36 @@ function renderCorrectionBackscatterResults(r) {
   h += '</div></div>';
 
   // Probe energy grid
+  var peMin = Infinity, peMax = 0;
+  for (var si = 0; si < subjects.length; si++)
+    for (var li = 0; li < levels.length; li++) {
+      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
+      if (pe > 0 && pe < peMin) peMin = pe;
+      if (pe > peMax) peMax = pe;
+    }
+  if (peMax < 1e-10) peMax = 1;
+  if (peMin === Infinity) peMin = 0;
+
+  function peColor(val) {
+    if (val <= 0) return 'rgb(30,30,36)';
+    var t = Math.max(0, Math.min(1, (val - peMin) / (peMax - peMin)));
+    return 'rgb(' + Math.round(30 + t * 50) + ',' + Math.round(60 + t * 140) + ',' + Math.round(100 + t * 130) + ')';
+  }
+
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Probe Energy Grid (Detector Sensitivity)</div>';
   h += '<div class="mod-results-body">';
   h += '<div style="padding:10px;overflow-x:auto;font-size:10px;color:var(--text-2)">';
+  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
+  h += '<span>' + peMin.toFixed(4) + '</span>';
+  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
+  for (var ci = 0; ci < 20; ci++) {
+    var cv2 = peMin + (ci / 19) * (peMax - peMin);
+    h += '<div style="flex:1;background:' + peColor(cv2) + '"></div>';
+  }
+  h += '</div>';
+  h += '<span>' + peMax.toFixed(4) + '</span>';
+  h += '<span style="margin-left:8px;color:var(--text-3)">probe correction energy per cell</span>';
+  h += '</div>';
   h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
   h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
   for (var li = 0; li < levels.length; li++) {
@@ -3664,7 +3691,10 @@ function renderCorrectionBackscatterResults(r) {
     h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
     for (var li = 0; li < levels.length; li++) {
       var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
-      h += '<td style="padding:4px 6px;text-align:center;color:var(--cyan)">' + pe.toFixed(4) + '</td>';
+      var peBg = peColor(pe);
+      var peT = (peMax > peMin) ? (pe - peMin) / (peMax - peMin) : 0;
+      var peTextCol = peT > 0.4 ? '#fff' : 'var(--text-2)';
+      h += '<td style="padding:4px 6px;text-align:center;background:' + peBg + ';color:' + peTextCol + '" title="' + escHtml(subjects[si]) + ' × ' + escHtml(levels[li]) + ': ' + pe.toFixed(6) + '">' + pe.toFixed(4) + '</td>';
     }
     h += '</tr>';
   }
