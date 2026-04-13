@@ -3065,6 +3065,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderProbeGeneratorResults(results);
   } else if (name === 'correction_heatmap') {
     container.innerHTML = renderCorrectionHeatmapResults(results);
+  } else if (name === 'correction_backscatter') {
+    container.innerHTML = renderCorrectionBackscatterResults(results);
   } else if (name === 'mechanistic_interpretability') {
     container.innerHTML = renderMIResults(results);
   } else if (name === 'correction_field_topology') {
@@ -3563,6 +3565,143 @@ function popoutCorrectionManifold(){
 function popoutCorrectionHeatmap(){
   var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_heatmap_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+function popoutCorrectionBackscatter(){
+  var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  window.open('/correction_backscatter_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+function renderCorrectionBackscatterResults(r) {
+  var h = '<div class="mod-results">';
+  var subjects = r.subjects || [];
+  var levels = r.levels || [];
+  var agg = r.aggregate || [];
+  var variance = r.variance || [];
+  var probeEnergy = r.probe_energy_grid || [];
+  var cfg = r.config || {};
+
+  // Find min/max for warm color scale (energy values are ≥ 0)
+  var valMin = Infinity, valMax = 0;
+  for (var si = 0; si < agg.length; si++)
+    for (var li = 0; li < (agg[si]||[]).length; li++) {
+      var v = agg[si][li] || 0;
+      if (v > 0 && v < valMin) valMin = v;
+      if (v > valMax) valMax = v;
+    }
+  if (valMax < 1e-10) valMax = 1;
+  if (valMin === Infinity) valMin = 0;
+
+  function warmColor(val) {
+    if (val <= 0) return 'rgb(30,30,36)';
+    var t = Math.max(0, Math.min(1, (val - valMin) / (valMax - valMin)));
+    return 'rgb(' + Math.round(30 + t * 200) + ',' + Math.round(30 + t * 120) + ',' + Math.round(36 + t * 10) + ')';
+  }
+  function warmTextColor(val) {
+    var t = (valMax > valMin) ? (val - valMin) / (valMax - valMin) : 0;
+    return t > 0.4 ? '#fff' : 'var(--text-2)';
+  }
+
+  // Aggregate heatmap
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+  h += 'Energy-Product Heatmap';
+  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionBackscatter()">↗ Interactive Explorer</button>';
+  h += '</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="padding:10px;overflow-x:auto">';
+
+  // Legend
+  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
+  h += '<span>' + valMin.toFixed(4) + '</span>';
+  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
+  for (var ci = 0; ci < 20; ci++) {
+    var cv = valMin + (ci / 19) * (valMax - valMin);
+    h += '<div style="flex:1;background:' + warmColor(cv) + '"></div>';
+  }
+  h += '</div>';
+  h += '<span>' + valMax.toFixed(4) + '</span>';
+  h += '<span style="margin-left:8px;color:var(--text-3)">dark = low energy · bright = high energy</span>';
+  h += '</div>';
+
+  // Heatmap table
+  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
+  for (var li = 0; li < levels.length; li++) {
+    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
+  }
+  h += '</tr>';
+
+  for (var si = 0; si < subjects.length; si++) {
+    h += '<tr>';
+    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
+    for (var li = 0; li < levels.length; li++) {
+      var val = (agg[si] && agg[si][li] != null) ? agg[si][li] : 0;
+      var bg = warmColor(val);
+      var textCol = warmTextColor(val);
+      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
+      var title = subjects[si] + ' \u00d7 ' + levels[li] + ': energy=' + val.toFixed(6) + ' probe_e=' + pe.toFixed(6);
+      h += '<td style="padding:4px 6px;text-align:center;background:' + bg + ';color:' + textCol + '" title="' + escHtml(title) + '">';
+      h += val.toFixed(4);
+      h += '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  h += '</div></div>';
+
+  // Probe energy grid
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Probe Energy Grid (Detector Sensitivity)</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="padding:10px;overflow-x:auto;font-size:10px;color:var(--text-2)">';
+  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
+  for (var li = 0; li < levels.length; li++) {
+    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
+  }
+  h += '</tr>';
+  for (var si = 0; si < subjects.length; si++) {
+    h += '<tr>';
+    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
+    for (var li = 0; li < levels.length; li++) {
+      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
+      h += '<td style="padding:4px 6px;text-align:center;color:var(--cyan)">' + pe.toFixed(4) + '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</table>';
+  h += '</div></div>';
+
+  // Per-subject summary
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
+  h += '<div class="mod-results-body">';
+  h += '<table class="data-table" style="width:100%;font-size:11px">';
+  h += '<tr><th style="text-align:left">Subject</th><th>Mean</th><th>Max</th><th>Probe Energy</th><th>Variance</th></tr>';
+  var ps = r.per_subject || {};
+  subjects.forEach(function(subj) {
+    var s = ps[subj] || {};
+    h += '<tr>';
+    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">' + escHtml(subj.replace(/_/g,' ')) + '</td>';
+    h += '<td>' + (s.mean_backscatter || 0).toFixed(6) + '</td>';
+    h += '<td>' + (s.max_backscatter || 0).toFixed(6) + '</td>';
+    h += '<td style="color:var(--cyan)">' + (s.mean_probe_energy || 0).toFixed(6) + '</td>';
+    h += '<td>' + (s.mean_variance || 0).toFixed(8) + '</td>';
+    h += '</tr>';
+  });
+  h += '</table></div>';
+
+  // Config info
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Configuration</div>';
+  h += '<div class="mod-results-body collapsed">';
+  h += '<div style="padding:10px;font-size:10px;color:var(--text-2);line-height:1.8">';
+  h += 'Delta projections: <span style="color:var(--text-1)">' + escHtml(cfg.delta_projections || 'v') + '</span> · ';
+  h += 'Aggregation: <span style="color:var(--text-1)">' + escHtml(cfg.aggregation || 'mean') + '</span> · ';
+  h += 'Signal layers: <span style="color:var(--text-1)">' + (cfg.n_signal_layers || 0) + '</span> · ';
+  h += 'Probe dim: <span style="color:var(--text-1)">' + (cfg.probe_dim || '?') + '</span> · ';
+  h += 'Model dim: <span style="color:var(--text-1)">' + (cfg.model_dim || '?') + '</span>';
+  h += '</div></div>';
+
+  h += '</div>';
+  return h;
 }
 
 // ─── Comparative Analysis Results Renderer ──────────────────────

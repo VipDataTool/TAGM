@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Correction Backscatter — TASM</title>
+<style>
+:root{--bg:#1C2128;--bg2:#262C34;--text:#E8ECEF;--text2:#6B7280;--border:#444C56;--red:#DC3025;--blue:#268BD2;--cyan:#56B4E9;--orange:#E69F00;--mono:"IBM Plex Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;padding:16px}
+h2{font-size:14px;font-weight:600;margin-bottom:4px}
+.sub{font-size:11px;color:var(--text2);margin-bottom:12px}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ctrl label{color:var(--text2);font-size:11px}
+.ctrl select{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:11px}
+.grid-wrap{overflow-x:auto;margin-bottom:16px}
+table.hm{border-collapse:collapse;font-size:11px}
+table.hm th,table.hm td{padding:6px 10px;text-align:center;border:1px solid #2D333B;cursor:pointer;transition:outline .1s}
+table.hm th{color:var(--text2);font-weight:500;background:var(--bg2)}
+table.hm td.sel{outline:2px solid var(--cyan);outline-offset:-2px;z-index:1;position:relative}
+table.hm td:hover{outline:1px solid #888;outline-offset:-1px}
+.legend{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:10px;color:var(--text2)}
+.legend .bar{display:flex;height:10px;width:140px;border-radius:2px;overflow:hidden}
+.detail{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px;min-height:120px}
+.detail h3{font-size:13px;font-weight:600;color:var(--orange);margin-bottom:4px}
+.detail .cell-info{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6}
+.detail .probes{font-size:10px;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--bg);border-radius:4px}
+.detail .probes span{color:#888}
+table.tok{width:100%;border-collapse:collapse;font-size:11px}
+table.tok th{text-align:left;color:var(--text2);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2)}
+table.tok td{padding:4px 8px;border-bottom:1px solid #2D333B}
+table.tok tr:hover{background:#ffffff08}
+.cat-cell{display:inline-block;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.bar-cell{position:relative;width:80px;height:14px;background:#1a1a1a;border-radius:2px;display:inline-block;vertical-align:middle}
+.bar-fill{position:absolute;top:0;left:0;height:100%;border-radius:2px}
+.empty{color:var(--text2);font-style:italic;padding:20px;text-align:center}
+#err{color:#D55E00;padding:10px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h2>Correction Backscatter — Energy-Product Heatmap</h2>
+<div class="sub" id="subtitle">Loading...</div>
+<div class="ctrl" id="ctrls"></div>
+<div class="legend" id="legend"></div>
+<div class="grid-wrap" id="gridWrap"></div>
+<div class="detail" id="detail"><div class="empty">Click any cell to see token-level backscatter detail</div></div>
+<div id="err"></div>
+<script>
+(function(){
+var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY;
+var selCat="all",selCell=null,valMin=0,valMax=1;
+var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
+var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak",a:"adversarial",d:"dual-use",u:"unknown"};
+
+fetch("/api/modules/correction_backscatter/results").then(function(r){return r.json()}).then(function(resp){
+  if(!resp.ok||!resp.results)throw new Error(resp.error||"No results");
+  D=resp.results;init();
+}).catch(function(e){document.getElementById("err").textContent="Failed to load: "+e.message});
+
+function init(){
+  SUBJ=D.subjects||[];LEVELS=D.levels||[];AGG=D.aggregate||[];VAR=D.variance||[];
+  CELLS=D.cell_details||{};CATS=D.categories||{};SUBJ_SHORT=D.subj_short||SUBJ;
+  PROBE_ENERGY=D.probe_energy_grid||[];
+
+  // Find min/max for warm color scale (values are always ≥ 0)
+  valMin=Infinity;valMax=0;
+  for(var si=0;si<AGG.length;si++)for(var li=0;li<(AGG[si]||[]).length;li++){
+    var v=AGG[si][li]||0;
+    if(v>0&&v<valMin)valMin=v;
+    if(v>valMax)valMax=v;
+  }
+  if(valMax<1e-10)valMax=1;
+  if(valMin===Infinity)valMin=0;
+
+  var cfg=D.config||{};
+  document.getElementById("subtitle").textContent=
+    SUBJ.length+" subjects × "+LEVELS.length+" levels · "+
+    D.n_prompts_projected+" prompts · "+D.n_probes+" probes · "+
+    D.probe_file+" · "+cfg.delta_projections+" delta · "+cfg.aggregation+" agg";
+
+  buildCtrls();
+  buildLegend();
+  renderGrid();
+}
+
+function buildCtrls(){
+  var h='<label>Category filter:</label><select id="selCat" onchange="window._bsSetCat(this.value)">';
+  h+='<option value="all">All categories</option>';
+  Object.keys(CATS).sort().forEach(function(k){
+    h+='<option value="'+k+'">'+(CATS[k]||k)+'</option>';
+  });
+  h+='</select>';
+  document.getElementById("ctrls").innerHTML=h;
+  window._bsSetCat=function(v){selCat=v;renderDetail()};
+}
+
+function buildLegend(){
+  var h='<span>'+valMin.toFixed(4)+'</span><div class="bar">';
+  for(var i=0;i<20;i++){var v=valMin+(i/19)*(valMax-valMin);h+='<div style="flex:1;background:'+heatCol(v)+'"></div>'}
+  h+='</div><span>'+valMax.toFixed(4)+'</span>';
+  h+='<span style="margin-left:8px;color:#555">dark = low energy · bright = high energy</span>';
+  document.getElementById("legend").innerHTML=h;
+}
+
+function heatCol(val){
+  if(val<=0)return'rgb(30,30,36)';
+  var t=Math.max(0,Math.min(1,(val-valMin)/(valMax-valMin)));
+  // Warm ramp: dark → amber → bright orange
+  var r=Math.round(30+t*200);
+  var g=Math.round(30+t*120);
+  var b=Math.round(36+t*10);
+  return'rgb('+r+','+g+','+b+')';
+}
+
+function renderGrid(){
+  var h='<table class="hm"><tr><th></th>';
+  LEVELS.forEach(function(l){h+='<th>'+esc(l)+'</th>'});
+  h+='</tr>';
+  for(var si=0;si<SUBJ.length;si++){
+    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text)">'+esc(SUBJ_SHORT[si])+'</th>';
+    for(var li=0;li<LEVELS.length;li++){
+      var val=(AGG[si]&&AGG[si][li]!=null)?AGG[si][li]:0;
+      var vari=(VAR[si]&&VAR[si][li])?VAR[si][li]:0;
+      var pe=(PROBE_ENERGY[si]&&PROBE_ENERGY[si][li])?PROBE_ENERGY[si][li]:0;
+      var id='c_'+si+'_'+li;
+      var cls=(selCell&&selCell.si===si&&selCell.li===li)?' sel':'';
+      var t=(valMax>valMin)?Math.max(0,Math.min(1,(val-valMin)/(valMax-valMin))):0;
+      var textCol=t>0.4?'#fff':'var(--text2)';
+      h+='<td id="'+id+'" class="'+cls+'" style="background:'+heatCol(val)+';color:'+textCol+'" ';
+      h+='onclick="window._bsClick('+si+','+li+')" ';
+      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+': energy='+val.toFixed(6)+' probe_e='+pe.toFixed(6)+' var='+vari.toFixed(8)+'">';
+      h+=val.toFixed(4);
+      h+='</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  document.getElementById("gridWrap").innerHTML=h;
+
+  window._bsClick=function(si,li){
+    selCell={si:si,li:li};
+    document.querySelectorAll('table.hm td').forEach(function(td){td.classList.remove('sel')});
+    var el=document.getElementById('c_'+si+'_'+li);
+    if(el)el.classList.add('sel');
+    renderDetail();
+  };
+}
+
+function renderDetail(){
+  var det=document.getElementById("detail");
+  if(!selCell){det.innerHTML='<div class="empty">Click any cell to see token-level backscatter detail</div>';return}
+
+  var si=selCell.si,li=selCell.li;
+  var key=si+'_'+li;
+  var cd=CELLS[key];
+  var val=(AGG[si]&&AGG[si][li]!=null)?AGG[si][li]:0;
+  var vari=(VAR[si]&&VAR[si][li])?VAR[si][li]:0;
+  var pe=(cd&&cd.probe_energy)?cd.probe_energy:0;
+
+  var h='<h3>'+esc(SUBJ[si].replace(/_/g,' '))+' × '+esc(LEVELS[li])+'</h3>';
+  h+='<div class="cell-info">';
+  h+='Backscatter: <span style="color:var(--orange)">'+val.toFixed(6)+'</span>';
+  h+=' · Probe energy: <span style="color:var(--cyan)">'+pe.toFixed(6)+'</span>';
+  h+=' · Variance: '+vari.toFixed(8);
+  if(cd)h+=' · '+cd.n_unique_tokens+' unique tokens observed';
+  h+='</div>';
+
+  if(cd&&cd.probes&&cd.probes.length){
+    h+='<div class="probes"><span>Probes in this cell:</span> ';
+    cd.probes.forEach(function(p,i){
+      h+=(i>0?', ':'')+'"'+esc(p)+'"';
+    });
+    h+='</div>';
+  }
+
+  if(!cd||!cd.tokens||!cd.tokens.length){
+    h+='<div class="empty">No token data available for this cell</div>';
+    det.innerHTML=h;return;
+  }
+
+  var catKeys=Object.keys(CATS).sort();
+  var tokens=cd.tokens;
+
+  if(selCat!=="all"){
+    tokens=tokens.filter(function(t){return t.cats&&t.cats[selCat]});
+    if(!tokens.length){
+      h+='<div class="empty">No tokens from category "'+esc(CATS[selCat]||selCat)+'" in this cell</div>';
+      det.innerHTML=h;return;
+    }
+  }
+
+  var barMax=0;
+  tokens.forEach(function(t){
+    catKeys.forEach(function(ck){if(t.cats[ck])barMax=Math.max(barMax,t.cats[ck].mean)});
+    barMax=Math.max(barMax,t.cell_mean);
+  });
+  if(barMax<1e-10)barMax=1;
+
+  h+='<div style="overflow-x:auto;max-height:400px;overflow-y:auto">';
+  h+='<table class="tok"><thead><tr>';
+  h+='<th>Token</th><th title="Mean backscatter energy in this cell">Cell</th><th title="Mean backscatter across all cells">Global</th><th title="Cell − Global">Δ</th><th title="Z-score: |Δ| / std">z</th><th>n</th>';
+  catKeys.forEach(function(ck){
+    h+='<th style="color:'+(CCOL[ck]||'#888')+'">'+(CATS[ck]||ck)+'</th>';
+  });
+  h+='<th style="min-width:100px">Energy</th>';
+  h+='</tr></thead><tbody>';
+
+  tokens.forEach(function(t){
+    var dCol=t.deviation>0?'var(--orange)':'var(--blue)';
+    var dSign=t.deviation>0?'+':'';
+    var zCol=t.z>=2?'#E69F00':t.z>=1?'var(--cyan)':'var(--text2)';
+    h+='<tr>';
+    h+='<td style="color:var(--orange);font-weight:600;white-space:nowrap">'+esc(t.token)+'</td>';
+    h+='<td style="color:var(--text);font-variant-numeric:tabular-nums">'+t.cell_mean.toFixed(4)+'</td>';
+    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+t.global_mean.toFixed(4)+'</td>';
+    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+t.deviation.toFixed(4)+'</td>';
+    h+='<td style="color:'+zCol+';font-weight:600">'+t.z.toFixed(1)+'</td>';
+    h+='<td style="color:var(--text2)">'+t.n+'</td>';
+
+    catKeys.forEach(function(ck){
+      var cd2=t.cats[ck];
+      if(!cd2){h+='<td style="color:#333">—</td>';return}
+      h+='<td><span class="cat-cell" style="color:var(--text)">'+cd2.mean.toFixed(4)+'</span> <span style="color:#555;font-size:9px">n='+cd2.n+'</span></td>';
+    });
+
+    // Energy bar (all positive, left-aligned)
+    h+='<td>';
+    h+='<div class="bar-cell">';
+    catKeys.forEach(function(ck){
+      var cd2=t.cats[ck];if(!cd2)return;
+      var w=cd2.mean/barMax*100;
+      h+='<div class="bar-fill" style="left:0;width:'+w+'%;background:'+(CCOL[ck]||'#888')+';opacity:0.7"></div>';
+    });
+    h+='</div>';
+    h+='</td>';
+    h+='</tr>';
+  });
+
+  h+='</tbody></table></div>';
+  det.innerHTML=h;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+})();
+</script>
+</body>
+</html>

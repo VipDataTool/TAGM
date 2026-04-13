@@ -1970,6 +1970,15 @@ async def correction_heatmap_viz():
     return HTMLResponse(content="<p>correction_heatmap_viz.html not found</p>", status_code=404)
 
 
+@app.get("/correction_backscatter_viz", response_class=HTMLResponse)
+async def correction_backscatter_viz():
+    """Serve the correction backscatter interactive visualization."""
+    viz_html = Path(__file__).parent / "static" / "correction_backscatter_viz.html"
+    if viz_html.exists():
+        return HTMLResponse(content=viz_html.read_text())
+    return HTMLResponse(content="<p>correction_backscatter_viz.html not found</p>", status_code=404)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
