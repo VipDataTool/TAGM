@@ -77,6 +77,24 @@ All measurements remain within the instruct model's own representational geometr
 
 **Interactive visualization** (popout window): full-resolution heatmap with zoom, pan, and per-cell inspection.
 
+### Correction Backscatter (v0.1.0)
+
+Projects both prompt tokens and probe vocabulary through the same ΔW_V weight delta lens at signal layers to measure correction-field coupling. Where the Correction Heatmap compares prompt representations against probe inter-layer rotation directions, the Backscatter Heatmap projects both sides through the actual correction delta and measures similarity in correction-field space.
+
+**Process:**
+1. Loads probe embeddings from cache (representational, at the domain layer depth)
+2. For each signal layer, retrieves ΔW_V (the V-projection weight delta between instruct and base)
+3. Projects both prompt token embeddings and probe embeddings through ΔW_V, normalized by the delta's Frobenius norm
+4. Computes dot products in correction space between projected tokens and projected probes
+5. Aggregates per cell (subject × subclass) and averages across signal layers
+
+Hot cells mean the correction field applies the same transformation to the prompt's tokens as it applies to that cell's vocabulary — a shared correction strategy. This is a measurement of the alignment training's internal structure rather than the prompt's semantic content.
+
+**Projection modes:** `abs` (magnitude, default), `squared` (energy), `signed` (directional).
+**Delta modes:** `v` (V-projection only, matches ASM), `qkv` (average across Q, K, V, matches stress).
+
+Requires a loaded model for ΔW access.
+
 ### Correction Manifold (v0.3.0)
 
 Projects prompts through the same probe delta lattice as the heatmap to produce per-prompt fingerprint vectors, then discovers natural clusters via K-means and reduces to 2D via PCA.
@@ -334,6 +352,7 @@ tasm/
 │       ├── base.py                     # Module framework (TASMModule, ModuleRunner)
 │       ├── probe_generator.py          # Auto-probe generation from templates
 │       ├── correction_heatmap.py       # Domain lattice interaction measurement
+│       ├── correction_backscatter.py   # ΔW-projected correction-field coupling
 │       ├── correction_manifold.py      # PCA + K-means fingerprint clustering
 │       ├── domain_surface.py           # Probe embedding, domain surface mapping
 │       ├── token_variance.py           # Context-dependent token coupling analysis

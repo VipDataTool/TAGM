@@ -178,6 +178,11 @@ def _load_model_worker(pair_id, base_id, instruct_id):
         if pg and hasattr(pg, 'set_model_manager'):
             pg.set_model_manager(mm)
 
+        # Give backscatter module access for ΔW projection
+        bs = module_runner.get_module("correction_backscatter")
+        if bs and hasattr(bs, 'set_model_manager'):
+            bs.set_model_manager(mm)
+
         loading_state["active"] = False
         loading_state["error"] = None
         log_progress("ready", "Model loaded. Session started. Ready to analyze.")

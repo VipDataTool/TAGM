@@ -47,6 +47,7 @@
    - [Framework](#framework)
    - [Probe Generator](#probe-generator)
    - [Correction Heatmap](#correction-heatmap)
+   - [Correction Backscatter](#correction-backscatter)
    - [Correction Manifold](#correction-manifold)
    - [Domain Surface](#domain-surface)
    - [Token Variance](#token-variance)
@@ -88,6 +89,7 @@ TASM is structured as a monolithic FastAPI application (`app.py`, ~1,970 lines) 
 | `modules/token_variance.py` | Token variance module: cross-context coupling stability analysis |
 | `modules/probe_generator.py` | Auto-probe generation from model vocabulary per template cell |
 | `modules/correction_heatmap.py` | Domain lattice interaction measurement via inter-layer probe deltas |
+| `modules/correction_backscatter.py` | ΔW-projected correction-field coupling between prompt tokens and probes |
 | `modules/correction_manifold.py` | PCA + K-means fingerprint clustering of per-prompt probe projections |
 | `modules/domain_surface.py` | Probe embedding, domain surface mapping, nearest-probe proximity |
 | `modules/comparative_analysis.py` | Cross-prompt aggregate statistics, separability, batch plot coordination |
@@ -1270,7 +1272,7 @@ The framework is defined in `engine/modules/base.py` and consists of three compo
 
 Modules are auto-discovered. To add a new module, place a Python file in `engine/modules/` that defines a class inheriting from TASMModule and implement `run()`. No registration code or frontend changes are needed.
 
-There are currently ten modules spanning four functional categories: probe pipeline (Probe Generator, Correction Heatmap, Correction Manifold, Domain Surface), cross-context analysis (Token Variance), batch evaluation (Comparative Analysis), visualization support (Correction Field Topology), and MI evaluation (MI Readiness Analysis, MI Instrumentation).
+There are currently eleven modules spanning four functional categories: probe pipeline (Probe Generator, Correction Heatmap, Correction Backscatter, Correction Manifold, Domain Surface), cross-context analysis (Token Variance), batch evaluation (Comparative Analysis), visualization support (Correction Field Topology), and MI evaluation (MI Readiness Analysis, MI Instrumentation).
 
 ---
 
@@ -1283,7 +1285,7 @@ There are currently ten modules spanning four functional categories: probe pipel
 | **Min results** | 0 (does not read session data) |
 | **Data requirements** | Loaded model (uses the active instruct or base model for inference) |
 
-The Probe Generator creates discriminative vocabulary sets by sampling the loaded model's own output distribution. It is the entry point to the probe pipeline — its output CSV is consumed by the Correction Heatmap, Correction Manifold, and Domain Surface modules.
+The Probe Generator creates discriminative vocabulary sets by sampling the loaded model's own output distribution. It is the entry point to the probe pipeline — its output CSV is consumed by the Correction Heatmap, Correction Backscatter, Correction Manifold, and Domain Surface modules.
 
 ### Process
 
@@ -1345,6 +1347,60 @@ The Correction Heatmap measures how strongly each prompt's tokens interact with 
 ### Output
 
 Returns: aggregate heatmap (session mean), per-cell variance grid, per-subject summary statistics (mean/max activation, mean variance), per-cell token detail (top 10 most cell-specific tokens with z-scores and per-category breakdowns), probe file metadata, and category breakdown.
+
+---
+
+## Correction Backscatter
+
+| | |
+|---|---|
+| **Module name** | `correction_backscatter` |
+| **Version** | 0.1.0 |
+| **Min results** | 1 |
+| **Data requirements** | Loaded model (for ΔW access); active probe set with cached embeddings; `per_token_final_emb` in session results |
+
+The Correction Backscatter module is a companion to the Correction Heatmap that measures coupling in correction-field space rather than representation space. Where the Heatmap compares prompt token embeddings against probe inter-layer rotation directions, the Backscatter projects **both** prompt tokens and probe vocabulary through the same ΔW weight delta lens and measures their similarity on the output side. This reveals where alignment training applies similar correction strategies to prompt content and probe vocabulary — a measurement of the training's internal structure rather than the prompt's representational properties.
+
+The metaphor is backscatter imaging: prompt tokens are the signal source, ΔW is the medium, and the probes are the detector array. What lights up on the detector tells you about the structure of the medium — which domain regions the correction field couples to for a given input.
+
+### Process
+
+1. Loads probe embeddings from cache at the domain layer depth. Prefers non-projected (raw representational) caches so the module can apply its own ΔW projection, but will fall back to projected caches if those are all that's available.
+2. Loads prompt token embeddings (`per_token_final_emb`) from session results.
+3. For each signal layer, retrieves the ΔW weight delta (V-projection only in `v` mode, or Q+K+V averaged in `qkv` mode) and its Frobenius norm.
+4. Projects both prompt token embeddings and probe embeddings through ΔW.T, dividing by the Frobenius norm for cross-layer comparability. This transforms both into correction-field space — the coordinate system defined by what alignment training changed.
+5. Computes dot products between each projected token vector and each projected probe vector.
+6. Applies the selected projection method (abs/squared/signed) and aggregates per cell (subject × subclass).
+7. Averages across all signal layers and all delta projections to produce a single value per cell per prompt.
+8. Averages across prompts for the session-level aggregate heatmap.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| Projection Method | select | abs | How to aggregate dot products. abs = magnitude, squared = energy, signed = directional |
+| Delta Projections | select | v | Which weight deltas to use. v = V-projection only (ASM primary lens). qkv = average across Q, K, V (broader, matches stress computation) |
+
+### Interpretation
+
+Hot cells mean: "the correction field pushes this prompt's tokens in the same direction it pushes this cell's vocabulary." This is distinct from semantic similarity — two prompts about completely different topics can light up the same probe cells if the correction field applies a shared correction strategy to both. That shared strategy is a finding about the training data and RLHF annotation patterns, not about the prompts.
+
+The `v` delta mode gives the most direct comparison with ASM (which projects through ΔW_V for signed attribution). The `qkv` mode gives a broader view that includes the attention routing topology (Q and K paths), closer to what the stress score measures.
+
+### Comparison with Correction Heatmap
+
+| Aspect | Correction Heatmap | Correction Backscatter |
+|---|---|---|
+| Probe side | Inter-layer rotation delta (L75 − L50) | ΔW_V projection of probe embedding |
+| Token side | Raw final-layer embedding | ΔW_V projection of final-layer embedding |
+| Comparison space | Representation space | Correction-field space |
+| What it measures | How token representations align with probe processing directions | How the correction lens treats tokens vs. probes |
+| Analogy | Measuring the image on the wall | Measuring the shape of the lens |
+| Model required | No (post-processor) | Yes (needs ΔW at runtime) |
+
+### Output
+
+Returns: aggregate heatmap (session mean, same grid format as Correction Heatmap), per-cell variance grid, per-subject summary statistics, per-cell token specificity rankings (top 10 by z-score with per-category breakdowns), probe file metadata, category breakdown, and backscatter-specific configuration metadata (delta mode, signal layers used, probe/session dimensions).
 
 ---
 
