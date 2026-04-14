@@ -52,14 +52,6 @@
       "on": true,
       "order": 130
     },
-    "sfd_energy": {
-      "on": true,
-      "order": 140
-    },
-    "sfd_entropy": {
-      "on": true,
-      "order": 150
-    },
     "rank_displacement": {
       "on": true,
       "order": 160
@@ -67,10 +59,6 @@
     "separability": {
       "on": true,
       "order": 20
-    },
-    "terrain_viewer": {
-      "on": true,
-      "order": 15
     },
     "batch_summary": {
       "on": true,
@@ -146,7 +134,6 @@
   },
   "cardCollapse": {
     "prompt": "collapsed",
-    "dashboard": "expanded",
     "modules": "collapsed",
     "config": "expanded"
   },
@@ -165,5 +152,26 @@
     "terrainCategory": "all",
     "terrainAutoRotate": false,
     "terrainRotateSpeed": 1
+  },
+  "moduleParams": {
+    "correction_backscatter": {
+      "aggregation": "mean",
+      "primary_projection": "qkv"
+    },
+    "probe_generator": {
+      "template_file": "",
+      "output_name": "cyber_5x5_auto_probes.csv",
+      "queries_per_cell": 20,
+      "max_new_tokens": 256,
+      "temperature": 0.75,
+      "top_p": 0.95,
+      "repetition_penalty": 1.1,
+      "min_frequency": 2,
+      "prompt_template": "List {word_count} unique {subclass} terms, phrases, and jargon related to {class}. Examples: {seeds}. Single terms/words only, one per line. No enumeration necessary.",
+      "export_catalog": true,
+      "stopword_file": "",
+      "min_probes_per_cell": 10,
+      "auto_apply": true
+    }
   }
 }
