@@ -353,14 +353,40 @@ class ProbeGeneratorModule(TASMModule):
                 description=(
                     "Minimum discriminative tokens required per cell after "
                     "deduplication. Thin cells are automatically re-queried "
-                    "(up to 3 rounds of 5 queries each) to reach this threshold. "
-                    "Set to 0 to disable. Higher values ensure uniform "
-                    "detector resolution across the lattice."
+                    "to reach this threshold using the batch size and max "
+                    "rounds settings below. Set to 0 to disable."
                 ),
                 type="int",
                 default=5,
                 min_val=0,
                 max_val=50,
+            ),
+            ModuleParameter(
+                name="auto_populate_batch",
+                display_name="Auto-Populate Batch Size",
+                description=(
+                    "Number of additional queries per thin cell per round "
+                    "when auto-populating to meet the minimum probe count. "
+                    "Applies only when Min Probes Per Cell > 0."
+                ),
+                type="int",
+                default=5,
+                min_val=1,
+                max_val=50,
+            ),
+            ModuleParameter(
+                name="auto_populate_max_rounds",
+                display_name="Auto-Populate Max Rounds",
+                description=(
+                    "Maximum re-query rounds for thin cells. Each round "
+                    "adds batch-size queries per thin cell, then re-runs "
+                    "deduplication. Total extra queries per cell is at most "
+                    "batch \u00d7 rounds. Set higher for stubborn cells."
+                ),
+                type="int",
+                default=3,
+                min_val=1,
+                max_val=10,
             ),
             ModuleParameter(
                 name="auto_apply",
@@ -426,6 +452,8 @@ class ProbeGeneratorModule(TASMModule):
         prompt_template = params.get("prompt_template", "").strip() or None
         export_catalog = bool(params.get("export_catalog", False))
         min_probes = int(params.get("min_probes_per_cell", 0))
+        ap_batch = int(params.get("auto_populate_batch", 5))
+        ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
 
         # ── Load stopwords ──
         sw_file = params.get("stopword_file", "").strip()
@@ -591,38 +619,40 @@ class ProbeGeneratorModule(TASMModule):
         all_shared = cross_class_shared | cross_subclass_shared
 
         # ── Auto-populate thin cells ──
-        AUTO_POPULATE_BATCH = 5   # queries per round per thin cell
-        AUTO_POPULATE_MAX_ROUNDS = 3
         auto_populate_rounds = 0
         auto_populate_queries = 0
+        auto_populate_log = []  # per-round summary
 
         if min_probes > 0:
-            for round_num in range(AUTO_POPULATE_MAX_ROUNDS):
+            for round_num in range(ap_max_rounds):
                 cell_cnts = _count_cells(discriminative)
                 thin = [(cls, col) for cls in classes for col in subclass_cols
                         if 0 < cell_cnts[(cls, col)] < min_probes
                         or (cell_cnts[(cls, col)] == 0
                             and len(cell_vocab.get((cls, col), {})) > 0)]
-                # Also include empty cells that had SOME raw vocab
-                # (truly empty cells with zero raw vocab can't be helped)
 
                 if not thin:
                     break
 
                 auto_populate_rounds += 1
+                round_queries = 0
+
                 if progress:
-                    progress(f"Auto-populate round {round_num+1}: "
+                    progress(f"Auto-populate round {round_num+1}/{ap_max_rounds}: "
                              f"{len(thin)} cells below {min_probes}, "
-                             f"querying {AUTO_POPULATE_BATCH} more each...")
+                             f"querying {ap_batch} more each...")
+
+                round_cell_detail = {}
 
                 for cls, col in thin:
                     sub_label = col.replace("_", " ")
                     seeds = cell_seeds.get((cls, col), [cls.replace("_", " ")])
+                    before_count = cell_cnts[(cls, col)]
 
-                    for qi in range(AUTO_POPULATE_BATCH):
+                    for qi in range(ap_batch):
                         if progress:
                             progress(f"Auto-populate: {cls} × {sub_label} "
-                                     f"(+{qi+1}/{AUTO_POPULATE_BATCH})")
+                                     f"(+{qi+1}/{ap_batch})")
 
                         prompt_text = _build_cell_prompt(
                             cls, col, seeds, self._active_tokenizer,
@@ -657,16 +687,45 @@ class ProbeGeneratorModule(TASMModule):
                         catalog.append({
                             "class": cls,
                             "subclass": col,
-                            "query": n_queries + (round_num * AUTO_POPULATE_BATCH) + qi + 1,
+                            "query": n_queries + auto_populate_queries + qi + 1,
                             "response": response.strip(),
                             "tokens_extracted": sorted(word_counts.keys()),
                         })
-                        auto_populate_queries += 1
+                        round_queries += 1
+
+                    round_cell_detail[f"{cls} × {sub_label}"] = {
+                        "before": before_count,
+                    }
+
+                auto_populate_queries += round_queries
 
                 # Re-run full dedup after adding new vocabulary
                 discriminative, cross_class_shared, cross_subclass_shared = \
                     _run_dedup(cell_vocab, min_freq)
                 all_shared = cross_class_shared | cross_subclass_shared
+
+                # Record after-counts for this round
+                after_cnts = _count_cells(discriminative)
+                for cls, col in thin:
+                    sub_label = col.replace("_", " ")
+                    cell_key = f"{cls} × {sub_label}"
+                    if cell_key in round_cell_detail:
+                        round_cell_detail[cell_key]["after"] = after_cnts[(cls, col)]
+
+                auto_populate_log.append({
+                    "round": round_num + 1,
+                    "thin_cells": len(thin),
+                    "queries_added": round_queries,
+                    "cells": round_cell_detail,
+                })
+
+                if progress:
+                    improved = sum(
+                        1 for d in round_cell_detail.values()
+                        if d.get("after", 0) > d.get("before", 0))
+                    progress(f"Round {round_num+1} complete: "
+                             f"{round_queries} queries, "
+                             f"{improved}/{len(thin)} cells improved")
 
             if progress and auto_populate_rounds > 0:
                 final_cnts = _count_cells(discriminative)
@@ -709,6 +768,8 @@ class ProbeGeneratorModule(TASMModule):
             "empty_cells": len(empty_cells),
             "empty_cell_names": empty_cells,
             "min_probes_setting": min_probes,
+            "auto_populate_batch": ap_batch,
+            "auto_populate_max_rounds": ap_max_rounds,
             "cells_below_minimum": len(thin_cells),
             "thin_cell_names": thin_cells,
             "min_count": min(counts_list) if counts_list else 0,
@@ -716,6 +777,7 @@ class ProbeGeneratorModule(TASMModule):
             "mean_count": round(sum(counts_list) / len(counts_list), 1) if counts_list else 0,
             "auto_populate_rounds": auto_populate_rounds,
             "auto_populate_queries": auto_populate_queries,
+            "auto_populate_log": auto_populate_log,
             "per_cell": {f"{cls} × {col.replace('_',' ')}": cell_counts.get((cls, col.replace('_',' ')), 0)
                          for cls in classes for col in subclass_cols},
         }
