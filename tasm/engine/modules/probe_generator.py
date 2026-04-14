@@ -264,6 +264,46 @@ class ProbeGeneratorModule(TASMModule):
                 max_val=512,
             ),
             ModuleParameter(
+                name="temperature",
+                display_name="Temperature",
+                description=(
+                    "Sampling temperature. Lower values (0.5-0.7) produce "
+                    "tighter, more predictable domain vocabulary. Higher "
+                    "values (0.9-1.2) produce more diverse but noisier output. "
+                    "Affects vocabulary richness per cell."
+                ),
+                type="float",
+                default=0.9,
+                min_val=0.1,
+                max_val=2.0,
+            ),
+            ModuleParameter(
+                name="top_p",
+                display_name="Top-P (Nucleus Sampling)",
+                description=(
+                    "Nucleus sampling threshold. Limits token selection to "
+                    "the smallest set whose cumulative probability exceeds "
+                    "this value. Lower = more focused, higher = more diverse."
+                ),
+                type="float",
+                default=0.95,
+                min_val=0.1,
+                max_val=1.0,
+            ),
+            ModuleParameter(
+                name="repetition_penalty",
+                display_name="Repetition Penalty",
+                description=(
+                    "Penalty for repeating tokens in generated text. "
+                    "1.0 = no penalty. Higher values discourage repetition, "
+                    "encouraging more diverse vocabulary per response."
+                ),
+                type="float",
+                default=1.1,
+                min_val=1.0,
+                max_val=2.0,
+            ),
+            ModuleParameter(
                 name="min_frequency",
                 display_name="Minimum Frequency",
                 description=(
@@ -306,6 +346,21 @@ class ProbeGeneratorModule(TASMModule):
                 ),
                 type="file",
                 default="templates/stopwords.txt",
+            ),
+            ModuleParameter(
+                name="min_probes_per_cell",
+                display_name="Min Probes Per Cell",
+                description=(
+                    "Minimum discriminative tokens required per cell after "
+                    "deduplication. Thin cells are automatically re-queried "
+                    "(up to 3 rounds of 5 queries each) to reach this threshold. "
+                    "Set to 0 to disable. Higher values ensure uniform "
+                    "detector resolution across the lattice."
+                ),
+                type="int",
+                default=5,
+                min_val=0,
+                max_val=50,
             ),
             ModuleParameter(
                 name="auto_apply",
@@ -365,8 +420,12 @@ class ProbeGeneratorModule(TASMModule):
         n_queries = int(params.get("queries_per_cell", 50))
         max_tokens = int(params.get("max_new_tokens", 256))
         min_freq = int(params.get("min_frequency", 3))
+        temperature = float(params.get("temperature", 0.9))
+        top_p = float(params.get("top_p", 0.95))
+        rep_penalty = float(params.get("repetition_penalty", 1.1))
         prompt_template = params.get("prompt_template", "").strip() or None
         export_catalog = bool(params.get("export_catalog", False))
+        min_probes = int(params.get("min_probes_per_cell", 0))
 
         # ── Load stopwords ──
         sw_file = params.get("stopword_file", "").strip()
@@ -440,9 +499,9 @@ class ProbeGeneratorModule(TASMModule):
                             **inputs,
                             max_new_tokens=max_tokens,
                             do_sample=True,
-                            temperature=0.9,
-                            top_p=0.95,
-                            repetition_penalty=1.1,
+                            temperature=temperature,
+                            top_p=top_p,
+                            repetition_penalty=rep_penalty,
                         )
 
                     gen_ids = out[0][inputs["input_ids"].shape[1]:]
@@ -475,46 +534,191 @@ class ProbeGeneratorModule(TASMModule):
 
         elapsed_sampling = time.time() - t0
 
-        # ── Frequency filter ──
-        for key in cell_vocab:
-            cell_vocab[key] = Counter({
-                tok: cnt for tok, cnt in cell_vocab[key].items()
-                if cnt >= min_freq
-            })
+        # ── Dedup pipeline (reusable for auto-populate rounds) ──
+        def _run_dedup(cell_vocab_snapshot, min_freq_val):
+            """Apply frequency filter + cross-axis dedup. Returns
+            (discriminative, cross_class_shared, cross_subclass_shared)."""
+            # Frequency filter (on a copy to avoid mutating raw vocab)
+            filtered = {}
+            for key in cell_vocab_snapshot:
+                filtered[key] = Counter({
+                    tok: cnt for tok, cnt in cell_vocab_snapshot[key].items()
+                    if cnt >= min_freq_val
+                })
 
-        # ── Cross-class dedup ──
-        cross_class_shared = set()
-        for col in subclass_cols:
-            token_classes = Counter()
-            for cls in classes:
-                for tok in cell_vocab.get((cls, col), {}):
-                    token_classes[tok] += 1
-            for tok, cnt in token_classes.items():
-                if cnt > 1:
-                    cross_class_shared.add(tok)
-
-        # ── Cross-subclass dedup ──
-        cross_subclass_shared = set()
-        for cls in classes:
-            token_subclasses = Counter()
+            xclass = set()
             for col in subclass_cols:
-                for tok in cell_vocab.get((cls, col), {}):
-                    token_subclasses[tok] += 1
-            for tok, cnt in token_subclasses.items():
-                if cnt > 1:
-                    cross_subclass_shared.add(tok)
+                tc = Counter()
+                for cls in classes:
+                    for tok in filtered.get((cls, col), {}):
+                        tc[tok] += 1
+                for tok, cnt in tc.items():
+                    if cnt > 1:
+                        xclass.add(tok)
 
+            xsub = set()
+            for cls in classes:
+                ts = Counter()
+                for col in subclass_cols:
+                    for tok in filtered.get((cls, col), {}):
+                        ts[tok] += 1
+                for tok, cnt in ts.items():
+                    if cnt > 1:
+                        xsub.add(tok)
+
+            shared = xclass | xsub
+            disc = {}
+            for cls in classes:
+                for col in subclass_cols:
+                    key = (cls, col)
+                    disc[key] = Counter({
+                        tok: cnt for tok, cnt in filtered.get(key, {}).items()
+                        if tok not in shared
+                    })
+            return disc, xclass, xsub
+
+        def _count_cells(disc):
+            """Count discriminative tokens per cell."""
+            counts = {}
+            for cls in classes:
+                for col in subclass_cols:
+                    counts[(cls, col)] = len(disc[(cls, col)])
+            return counts
+
+        # Initial dedup pass
+        discriminative, cross_class_shared, cross_subclass_shared = \
+            _run_dedup(cell_vocab, min_freq)
         all_shared = cross_class_shared | cross_subclass_shared
 
-        # ── Apply filters ──
-        discriminative = {}
+        # ── Auto-populate thin cells ──
+        AUTO_POPULATE_BATCH = 5   # queries per round per thin cell
+        AUTO_POPULATE_MAX_ROUNDS = 3
+        auto_populate_rounds = 0
+        auto_populate_queries = 0
+
+        if min_probes > 0:
+            for round_num in range(AUTO_POPULATE_MAX_ROUNDS):
+                cell_cnts = _count_cells(discriminative)
+                thin = [(cls, col) for cls in classes for col in subclass_cols
+                        if 0 < cell_cnts[(cls, col)] < min_probes
+                        or (cell_cnts[(cls, col)] == 0
+                            and len(cell_vocab.get((cls, col), {})) > 0)]
+                # Also include empty cells that had SOME raw vocab
+                # (truly empty cells with zero raw vocab can't be helped)
+
+                if not thin:
+                    break
+
+                auto_populate_rounds += 1
+                if progress:
+                    progress(f"Auto-populate round {round_num+1}: "
+                             f"{len(thin)} cells below {min_probes}, "
+                             f"querying {AUTO_POPULATE_BATCH} more each...")
+
+                for cls, col in thin:
+                    sub_label = col.replace("_", " ")
+                    seeds = cell_seeds.get((cls, col), [cls.replace("_", " ")])
+
+                    for qi in range(AUTO_POPULATE_BATCH):
+                        if progress:
+                            progress(f"Auto-populate: {cls} × {sub_label} "
+                                     f"(+{qi+1}/{AUTO_POPULATE_BATCH})")
+
+                        prompt_text = _build_cell_prompt(
+                            cls, col, seeds, self._active_tokenizer,
+                            word_count=max_tokens,
+                            template=prompt_template)
+                        inputs = self._active_tokenizer(
+                            prompt_text, return_tensors="pt")
+                        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+                        with torch.no_grad():
+                            out = self._active_model.generate(
+                                **inputs,
+                                max_new_tokens=max_tokens,
+                                do_sample=True,
+                                temperature=temperature,
+                                top_p=top_p,
+                                repetition_penalty=rep_penalty,
+                            )
+
+                        gen_ids = out[0][inputs["input_ids"].shape[1]:]
+                        response = self._active_tokenizer.decode(
+                            gen_ids, skip_special_tokens=True)
+                        word_counts = _tokenize_response(
+                            response, self._active_tokenizer, stopwords)
+                        cell_vocab[(cls, col)].update(word_counts)
+
+                        if stopwords:
+                            for w in re.findall(r'[a-zA-Z]+', response.lower()):
+                                if len(w) >= 3 and w in stopwords:
+                                    stopword_hits[w] += 1
+
+                        catalog.append({
+                            "class": cls,
+                            "subclass": col,
+                            "query": n_queries + (round_num * AUTO_POPULATE_BATCH) + qi + 1,
+                            "response": response.strip(),
+                            "tokens_extracted": sorted(word_counts.keys()),
+                        })
+                        auto_populate_queries += 1
+
+                # Re-run full dedup after adding new vocabulary
+                discriminative, cross_class_shared, cross_subclass_shared = \
+                    _run_dedup(cell_vocab, min_freq)
+                all_shared = cross_class_shared | cross_subclass_shared
+
+            if progress and auto_populate_rounds > 0:
+                final_cnts = _count_cells(discriminative)
+                still_thin = sum(1 for k, v in final_cnts.items()
+                                 if 0 < v < min_probes)
+                progress(f"Auto-populate complete: {auto_populate_rounds} rounds, "
+                         f"{auto_populate_queries} extra queries, "
+                         f"{still_thin} cells still below {min_probes}")
+
+        # ── Cell resolution analysis ──
+        cell_counts = {}
+        thin_cells = []
+        empty_cells = []
         for cls in classes:
             for col in subclass_cols:
                 key = (cls, col)
-                discriminative[key] = Counter({
-                    tok: cnt for tok, cnt in cell_vocab.get(key, {}).items()
-                    if tok not in all_shared
-                })
+                n = len(discriminative[key])
+                sub_label = col.replace("_", " ")
+                cell_counts[(cls, sub_label)] = n
+                if n == 0:
+                    empty_cells.append(f"{cls} × {sub_label}")
+                elif min_probes > 0 and n < min_probes:
+                    thin_cells.append(f"{cls} × {sub_label} ({n}/{min_probes})")
+
+        if progress and (empty_cells or thin_cells):
+            if empty_cells:
+                progress(f"Warning: {len(empty_cells)} empty cells: "
+                         f"{', '.join(empty_cells[:5])}"
+                         f"{'...' if len(empty_cells) > 5 else ''}")
+            if thin_cells:
+                progress(f"Warning: {len(thin_cells)} cells below minimum "
+                         f"({min_probes}): {', '.join(thin_cells[:5])}"
+                         f"{'...' if len(thin_cells) > 5 else ''}")
+
+        # Cell resolution stats for output
+        counts_list = [cell_counts[k] for k in cell_counts if cell_counts[k] > 0]
+        cell_resolution = {
+            "total_cells": total_cells,
+            "populated_cells": len(counts_list),
+            "empty_cells": len(empty_cells),
+            "empty_cell_names": empty_cells,
+            "min_probes_setting": min_probes,
+            "cells_below_minimum": len(thin_cells),
+            "thin_cell_names": thin_cells,
+            "min_count": min(counts_list) if counts_list else 0,
+            "max_count": max(counts_list) if counts_list else 0,
+            "mean_count": round(sum(counts_list) / len(counts_list), 1) if counts_list else 0,
+            "auto_populate_rounds": auto_populate_rounds,
+            "auto_populate_queries": auto_populate_queries,
+            "per_cell": {f"{cls} × {col.replace('_',' ')}": cell_counts.get((cls, col.replace('_',' ')), 0)
+                         for cls in classes for col in subclass_cols},
+        }
 
         # ── Export CSV ──
         out_path = output_name
@@ -625,6 +829,9 @@ class ProbeGeneratorModule(TASMModule):
             "queries_per_subject": n_queries,  # backward compat
             "max_new_tokens": max_tokens,
             "min_frequency": min_freq,
+            "temperature": temperature,
+            "top_p": top_p,
+            "repetition_penalty": rep_penalty,
             "elapsed_seconds": round(time.time() - t0, 1),
             "sampling_seconds": round(elapsed_sampling, 1),
             "total_cells": total_cells,
@@ -644,6 +851,8 @@ class ProbeGeneratorModule(TASMModule):
             "stopwords_loaded": sorted(stopwords) if stopwords else [],
             "stopword_hits": dict(stopword_hits.most_common()),
             "stopword_total_filtered": sum(stopword_hits.values()),
+            # Cell resolution analysis
+            "cell_resolution": cell_resolution,
         }
 
         if progress:

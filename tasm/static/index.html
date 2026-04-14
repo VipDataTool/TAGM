@@ -656,7 +656,8 @@ async function saveConfig(){
       },
       cardCollapse:{...CARD_COLLAPSE_DEFAULTS},
       exportOpts:{...EXPORT_DEFAULTS},
-      display:{...DISPLAY_DEFAULTS}
+      display:{...DISPLAY_DEFAULTS},
+      moduleParams: _savedModuleParams
     };
     await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
   }catch(e){}
@@ -713,6 +714,10 @@ async function loadConfig(){
       if(c.display.terrainCategory)DISPLAY_DEFAULTS.terrainCategory=c.display.terrainCategory;
       if(c.display.terrainAutoRotate!=null)DISPLAY_DEFAULTS.terrainAutoRotate=!!c.display.terrainAutoRotate;
       if(c.display.terrainRotateSpeed)DISPLAY_DEFAULTS.terrainRotateSpeed=parseFloat(c.display.terrainRotateSpeed)||0.3;
+    }
+    // Module parameters
+    if(c.moduleParams){
+      _savedModuleParams = c.moduleParams;
     }
     vizRenderConfig();
     // Apply config tab card defaults to the 3 static config cards
@@ -2758,6 +2763,7 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
 
 var _moduleData = {};  // cached module metadata
 var _modulePollers = {};  // active polling intervals
+var _savedModuleParams = {};  // persisted module param overrides
 
 async function loadModules() {
   try {
@@ -2782,6 +2788,9 @@ function renderModules(modules) {
     h += renderModuleCard(m);
   });
   $('modulesContainer').innerHTML = h;
+
+  // Restore persisted module parameters
+  restoreModuleParams();
 
   // Resume polling for any running modules
   modules.forEach(function(m) {
@@ -2909,6 +2918,23 @@ function getModuleParams(modName) {
   return params;
 }
 
+function restoreModuleParams() {
+  // Apply persisted module parameters to UI controls
+  for (var modName in _savedModuleParams) {
+    var saved = _savedModuleParams[modName];
+    var m = _moduleData[modName];
+    if (!m || !m.parameters || !saved) continue;
+    m.parameters.forEach(function(p) {
+      if (saved[p.name] === undefined) return;
+      var el = $('modp-' + modName + '-' + p.name);
+      if (!el) return;
+      if (p.type === 'bool') el.checked = !!saved[p.name];
+      else if (p.type === 'file') return;  // don't restore file inputs
+      else el.value = saved[p.name];
+    });
+  }
+}
+
 async function resetModule(name) {
   try {
     var r = await fetch('/api/modules/' + name + '/reset', {method: 'POST'});
@@ -2934,6 +2960,9 @@ async function resetModule(name) {
           else el.value = p.default != null ? p.default : '';
         });
       }
+      // Clear persisted params
+      delete _savedModuleParams[name];
+      saveConfig();
     }
   } catch(e) {
     console.error('Reset failed:', e);
@@ -2948,6 +2977,10 @@ async function runModule(name) {
   prog.textContent = 'Starting...';
 
   var params = getModuleParams(name);
+
+  // Persist module params to config
+  _savedModuleParams[name] = Object.assign({}, params);
+  saveConfig();
 
   // Upload any file params first
   try {
