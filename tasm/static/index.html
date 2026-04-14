@@ -3580,128 +3580,116 @@ function renderCorrectionBackscatterResults(r) {
   var variance = r.variance || [];
   var probeEnergy = r.probe_energy_grid || [];
   var cfg = r.config || {};
+  var decomp = r.decomposition || {};
+  var projOrder = r.projection_order || [];
+  var projLabels = r.projection_labels || {};
 
-  // Find min/max for warm color scale (energy values are ≥ 0)
-  var valMin = Infinity, valMax = 0;
-  for (var si = 0; si < agg.length; si++)
-    for (var li = 0; li < (agg[si]||[]).length; li++) {
-      var v = agg[si][li] || 0;
-      if (v > 0 && v < valMin) valMin = v;
-      if (v > valMax) valMax = v;
-    }
-  if (valMax < 1e-10) valMax = 1;
-  if (valMin === Infinity) valMin = 0;
-
-  function warmColor(val) {
+  // Warm color scale helper (positive energies)
+  function warmScale(grid) {
+    var mn = Infinity, mx = 0;
+    for (var si = 0; si < grid.length; si++)
+      for (var li = 0; li < (grid[si]||[]).length; li++) {
+        var v = grid[si][li] || 0;
+        if (v > 0 && v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+    if (mx < 1e-10) mx = 1;
+    if (mn === Infinity) mn = 0;
+    return {min: mn, max: mx};
+  }
+  function warmColor(val, sc) {
     if (val <= 0) return 'rgb(30,30,36)';
-    var t = Math.max(0, Math.min(1, (val - valMin) / (valMax - valMin)));
+    var t = Math.max(0, Math.min(1, (val - sc.min) / (sc.max - sc.min)));
     return 'rgb(' + Math.round(30 + t * 200) + ',' + Math.round(30 + t * 120) + ',' + Math.round(36 + t * 10) + ')';
   }
-  function warmTextColor(val) {
-    var t = (valMax > valMin) ? (val - valMin) / (valMax - valMin) : 0;
+  function warmText(val, sc) {
+    var t = (sc.max > sc.min) ? (val - sc.min) / (sc.max - sc.min) : 0;
     return t > 0.4 ? '#fff' : 'var(--text-2)';
   }
+  function peColor(val, sc) {
+    if (val <= 0) return 'rgb(30,30,36)';
+    var t = Math.max(0, Math.min(1, (val - sc.min) / (sc.max - sc.min)));
+    return 'rgb(' + Math.round(30 + t * 50) + ',' + Math.round(60 + t * 140) + ',' + Math.round(100 + t * 130) + ')';
+  }
 
-  // Aggregate heatmap
+  function renderHeatmapTable(grid, colorFn, sc, digits) {
+    var th = '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+    th += '<tr><th style="padding:3px 6px;text-align:left;color:var(--text-2)"></th>';
+    for (var li = 0; li < levels.length; li++)
+      th += '<th style="padding:3px 5px;color:var(--text-2);font-weight:500;text-align:center;font-size:9px">' + escHtml(levels[li]) + '</th>';
+    th += '</tr>';
+    for (var si = 0; si < subjects.length; si++) {
+      th += '<tr>';
+      th += '<td style="padding:3px 6px;color:var(--text-1);font-weight:600;text-align:left;font-size:9px;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
+      for (var li = 0; li < levels.length; li++) {
+        var val = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
+        var bg = colorFn(val, sc);
+        var tc = warmText(val, sc);
+        th += '<td style="padding:3px 5px;text-align:center;background:' + bg + ';color:' + tc + ';font-size:9px">' + val.toFixed(digits) + '</td>';
+      }
+      th += '</tr>';
+    }
+    th += '</table>';
+    return th;
+  }
+
+  // ── Primary aggregate heatmap ──
+  var aggSc = warmScale(agg);
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-  h += 'Energy-Product Heatmap';
+  h += 'Primary Heatmap (' + escHtml((cfg.primary_projection || 'qkv').toUpperCase()) + ')';
   h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionBackscatter()">↗ Interactive Explorer</button>';
   h += '</div>';
   h += '<div class="mod-results-body">';
   h += '<div style="padding:10px;overflow-x:auto">';
-
-  // Legend
-  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
-  h += '<span>' + valMin.toFixed(4) + '</span>';
-  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
-  for (var ci = 0; ci < 20; ci++) {
-    var cv = valMin + (ci / 19) * (valMax - valMin);
-    h += '<div style="flex:1;background:' + warmColor(cv) + '"></div>';
-  }
-  h += '</div>';
-  h += '<span>' + valMax.toFixed(4) + '</span>';
-  h += '<span style="margin-left:8px;color:var(--text-3)">dark = low energy · bright = high energy</span>';
-  h += '</div>';
-
-  // Heatmap table
-  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
-  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
-  for (var li = 0; li < levels.length; li++) {
-    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
-  }
-  h += '</tr>';
-
-  for (var si = 0; si < subjects.length; si++) {
-    h += '<tr>';
-    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
-    for (var li = 0; li < levels.length; li++) {
-      var val = (agg[si] && agg[si][li] != null) ? agg[si][li] : 0;
-      var bg = warmColor(val);
-      var textCol = warmTextColor(val);
-      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
-      var title = subjects[si] + ' \u00d7 ' + levels[li] + ': energy=' + val.toFixed(6) + ' probe_e=' + pe.toFixed(6);
-      h += '<td style="padding:4px 6px;text-align:center;background:' + bg + ';color:' + textCol + '" title="' + escHtml(title) + '">';
-      h += val.toFixed(4);
-      h += '</td>';
-    }
-    h += '</tr>';
-  }
-  h += '</table>';
+  h += renderHeatmapTable(agg, warmColor, aggSc, 4);
   h += '</div></div>';
 
-  // Probe energy grid
-  var peMin = Infinity, peMax = 0;
-  for (var si = 0; si < subjects.length; si++)
-    for (var li = 0; li < levels.length; li++) {
-      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
-      if (pe > 0 && pe < peMin) peMin = pe;
-      if (pe > peMax) peMax = pe;
-    }
-  if (peMax < 1e-10) peMax = 1;
-  if (peMin === Infinity) peMin = 0;
+  // ── Delta Decomposition: all projections side by side ──
+  if (projOrder.length > 1) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Delta Decomposition (' + projOrder.length + ' projections)</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
+    projOrder.forEach(function(pk) {
+      var d = decomp[pk];
+      if (!d) return;
+      var dAgg = d.aggregate || [];
+      var dPe = d.probe_energy || [];
+      var sc = warmScale(dAgg);
+      var label = projLabels[pk] || pk.toUpperCase();
+      h += '<div style="min-width:200px">';
+      h += '<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:4px">' + escHtml(label) + '</div>';
+      h += renderHeatmapTable(dAgg, warmColor, sc, 4);
+      h += '</div>';
+    });
+    h += '</div></div>';
 
-  function peColor(val) {
-    if (val <= 0) return 'rgb(30,30,36)';
-    var t = Math.max(0, Math.min(1, (val - peMin) / (peMax - peMin)));
-    return 'rgb(' + Math.round(30 + t * 50) + ',' + Math.round(60 + t * 140) + ',' + Math.round(100 + t * 130) + ')';
+    // Probe energy decomposition
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Probe Energy Decomposition</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
+    projOrder.forEach(function(pk) {
+      var d = decomp[pk];
+      if (!d) return;
+      var dPe = d.probe_energy || [];
+      var sc = warmScale(dPe);
+      var label = projLabels[pk] || pk.toUpperCase();
+      h += '<div style="min-width:200px">';
+      h += '<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:4px">' + escHtml(label) + '</div>';
+      h += renderHeatmapTable(dPe, peColor, sc, 4);
+      h += '</div>';
+    });
+    h += '</div></div>';
   }
 
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Probe Energy Grid (Detector Sensitivity)</div>';
+  // ── Primary probe energy grid ──
+  var peSc = warmScale(probeEnergy);
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Primary Probe Energy (' + escHtml((cfg.primary_projection || 'qkv').toUpperCase()) + ')</div>';
   h += '<div class="mod-results-body">';
-  h += '<div style="padding:10px;overflow-x:auto;font-size:10px;color:var(--text-2)">';
-  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
-  h += '<span>' + peMin.toFixed(4) + '</span>';
-  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
-  for (var ci = 0; ci < 20; ci++) {
-    var cv2 = peMin + (ci / 19) * (peMax - peMin);
-    h += '<div style="flex:1;background:' + peColor(cv2) + '"></div>';
-  }
-  h += '</div>';
-  h += '<span>' + peMax.toFixed(4) + '</span>';
-  h += '<span style="margin-left:8px;color:var(--text-3)">probe correction energy per cell</span>';
-  h += '</div>';
-  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
-  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
-  for (var li = 0; li < levels.length; li++) {
-    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
-  }
-  h += '</tr>';
-  for (var si = 0; si < subjects.length; si++) {
-    h += '<tr>';
-    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
-    for (var li = 0; li < levels.length; li++) {
-      var pe = (probeEnergy[si] && probeEnergy[si][li]) ? probeEnergy[si][li] : 0;
-      var peBg = peColor(pe);
-      var peT = (peMax > peMin) ? (pe - peMin) / (peMax - peMin) : 0;
-      var peTextCol = peT > 0.4 ? '#fff' : 'var(--text-2)';
-      h += '<td style="padding:4px 6px;text-align:center;background:' + peBg + ';color:' + peTextCol + '" title="' + escHtml(subjects[si]) + ' × ' + escHtml(levels[li]) + ': ' + pe.toFixed(6) + '">' + pe.toFixed(4) + '</td>';
-    }
-    h += '</tr>';
-  }
-  h += '</table>';
+  h += '<div style="padding:10px;overflow-x:auto">';
+  h += renderHeatmapTable(probeEnergy, peColor, peSc, 4);
   h += '</div></div>';
 
-  // Per-subject summary
+  // ── Per-subject summary ──
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
   h += '<div class="mod-results-body">';
   h += '<table class="data-table" style="width:100%;font-size:11px">';
@@ -3719,15 +3707,14 @@ function renderCorrectionBackscatterResults(r) {
   });
   h += '</table></div>';
 
-  // Config info
+  // ── Config ──
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Configuration</div>';
   h += '<div class="mod-results-body collapsed">';
   h += '<div style="padding:10px;font-size:10px;color:var(--text-2);line-height:1.8">';
-  h += 'Delta projections: <span style="color:var(--text-1)">' + escHtml(cfg.delta_projections || 'v') + '</span> · ';
+  h += 'Primary: <span style="color:var(--text-1)">' + escHtml(cfg.primary_projection || 'qkv') + '</span> · ';
   h += 'Aggregation: <span style="color:var(--text-1)">' + escHtml(cfg.aggregation || 'mean') + '</span> · ';
   h += 'Signal layers: <span style="color:var(--text-1)">' + (cfg.n_signal_layers || 0) + '</span> · ';
-  h += 'Probe dim: <span style="color:var(--text-1)">' + (cfg.probe_dim || '?') + '</span> · ';
-  h += 'Model dim: <span style="color:var(--text-1)">' + (cfg.model_dim || '?') + '</span>';
+  h += 'Projections: <span style="color:var(--text-1)">' + (cfg.projections_computed || []).join(', ') + '</span>';
   h += '</div></div>';
 
   h += '</div>';

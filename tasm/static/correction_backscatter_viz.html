@@ -41,6 +41,7 @@ table.tok tr:hover{background:#ffffff08}
 <div class="ctrl" id="ctrls"></div>
 <div class="legend" id="legend"></div>
 <div class="grid-wrap" id="gridWrap"></div>
+<div id="decompWrap" style="margin-bottom:16px"></div>
 <div style="margin-bottom:16px">
   <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text2)">Probe Energy Grid (Detector Sensitivity)</div>
   <div class="legend" id="peLegend"></div>
@@ -50,7 +51,7 @@ table.tok tr:hover{background:#ffffff08}
 <div id="err"></div>
 <script>
 (function(){
-var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY;
+var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY,DECOMP,PROJ_ORDER,PROJ_LABELS;
 var selCat="all",selCell=null,valMin=0,valMax=1;
 var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
 var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak",a:"adversarial",d:"dual-use",u:"unknown"};
@@ -64,6 +65,7 @@ function init(){
   SUBJ=D.subjects||[];LEVELS=D.levels||[];AGG=D.aggregate||[];VAR=D.variance||[];
   CELLS=D.cell_details||{};CATS=D.categories||{};SUBJ_SHORT=D.subj_short||SUBJ;
   PROBE_ENERGY=D.probe_energy_grid||[];
+  DECOMP=D.decomposition||{};PROJ_ORDER=D.projection_order||[];PROJ_LABELS=D.projection_labels||{};
 
   // Find min/max for warm color scale (values are always ≥ 0)
   valMin=Infinity;valMax=0;
@@ -79,12 +81,58 @@ function init(){
   document.getElementById("subtitle").textContent=
     SUBJ.length+" subjects × "+LEVELS.length+" levels · "+
     D.n_prompts_projected+" prompts · "+D.n_probes+" probes · "+
-    D.probe_file+" · "+cfg.delta_projections+" delta · "+cfg.aggregation+" agg";
+    D.probe_file+" · primary: "+(cfg.primary_projection||'qkv').toUpperCase()+
+    " · "+cfg.aggregation+" agg · "+(cfg.projections_computed||[]).length+" projections";
 
   buildCtrls();
   buildLegend();
   renderGrid();
+  renderDecomp();
   renderProbeEnergyGrid();
+}
+
+function renderDecomp(){
+  if(!PROJ_ORDER||PROJ_ORDER.length<2){document.getElementById("decompWrap").innerHTML='';return}
+  var h='<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">Delta Decomposition</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">';
+  PROJ_ORDER.forEach(function(pk){
+    var d=DECOMP[pk];if(!d)return;
+    var dAgg=d.aggregate||[];
+    var sc=gridScale(dAgg);
+    var label=PROJ_LABELS[pk]||pk.toUpperCase();
+    h+='<div style="min-width:180px">';
+    h+='<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">'+esc(label)+'</div>';
+    h+=miniGrid(dAgg,sc);
+    h+='</div>';
+  });
+  h+='</div>';
+  document.getElementById("decompWrap").innerHTML=h;
+}
+
+function gridScale(grid){
+  var mn=Infinity,mx=0;
+  for(var si=0;si<grid.length;si++)for(var li=0;li<(grid[si]||[]).length;li++){
+    var v=grid[si][li]||0;if(v>0&&v<mn)mn=v;if(v>mx)mx=v;
+  }
+  if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
+  return{min:mn,max:mx};
+}
+
+function miniGrid(grid,sc){
+  var h='<table class="hm" style="font-size:9px"><tr><th style="padding:2px 4px"></th>';
+  LEVELS.forEach(function(l){h+='<th style="padding:2px 3px;font-size:8px">'+esc(l)+'</th>'});h+='</tr>';
+  for(var si=0;si<SUBJ.length;si++){
+    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text);padding:2px 4px;font-size:8px">'+esc(SUBJ_SHORT[si])+'</th>';
+    for(var li=0;li<LEVELS.length;li++){
+      var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
+      var t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
+      var bg='rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';
+      var tc=t>0.4?'#fff':'var(--text2)';
+      h+='<td style="padding:2px 3px;background:'+bg+';color:'+tc+'">'+v.toFixed(4)+'</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</table>';return h;
 }
 
 function peCol(val){
