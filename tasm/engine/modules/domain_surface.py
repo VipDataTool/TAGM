@@ -30,6 +30,13 @@ logger = logging.getLogger("tasm")
 FIXED_COLS = {"subject", "anchor_id"}  # Non-escalation columns in probe CSVs
 META_TAG = "_meta"  # Reserved first-column value for metadata rows
 
+# Numerical stability threshold for norm checks
+NORM_EPS = 1e-12
+
+# Display truncation limits for frontend output
+PROBE_TEXT_DISPLAY_LEN = 50
+PROMPT_TEXT_DISPLAY_LEN = 80
+
 # Legacy defaults — used only if CSV has no header or auto-detection fails.
 _DEFAULT_LEVEL_COLS = ["nouns", "phrase", "question", "instruction", "meta_instruction"]
 _DEFAULT_LEVEL_NAMES = ["nouns", "phrase", "question", "instruct", "meta"]
@@ -106,8 +113,34 @@ def _discover_probe_files(root_dir):
     return [os.path.basename(f) for f in files]
 
 
+def _is_flat_probe_csv(csv_path):
+    """Check whether a probe CSV uses the flat (subject, subclass, text) format."""
+    with open(csv_path) as f:
+        reader = csv.DictReader(f)
+        headers = {h.strip().lower() for h in (reader.fieldnames or [])}
+    return "subject" in headers and "subclass" in headers and "text" in headers
+
+
+def _flat_subclass_order(csv_path):
+    """Return the unique subclass values from a flat probe CSV, in first-seen order."""
+    order = []
+    seen = set()
+    with open(csv_path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sub = row.get("subclass", "").strip()
+            if sub and sub != META_TAG and sub not in seen:
+                order.append(sub)
+                seen.add(sub)
+    return order
+
+
 def _detect_level_cols(csv_path):
     """Read the CSV header and return escalation columns (everything after subject/anchor_id).
+
+    Supports both formats:
+      - Flat:  subject, subclass, text  →  level_cols are unique subclass values from data
+      - Wide:  subject, anchor_id, col1, col2, ...  →  level_cols are header columns
 
     Returns (level_cols, level_names) where level_names are display-friendly versions.
     Returns ([], []) if the CSV is not a valid probe file (no 'subject' column).
@@ -122,6 +155,15 @@ def _detect_level_cols(csv_path):
     if "subject" not in header_lower:
         return [], []
 
+    # ── Flat format (subject, subclass, text) ──
+    if _is_flat_probe_csv(csv_path):
+        level_cols = _flat_subclass_order(csv_path)
+        if not level_cols:
+            return _DEFAULT_LEVEL_COLS[:], _DEFAULT_LEVEL_NAMES[:]
+        level_names = [col.replace("_", " ").strip() for col in level_cols]
+        return level_cols, level_names
+
+    # ── Wide format (subject, anchor_id, col1, col2, ...) ──
     level_cols = [h for h in headers if h.strip().lower() not in {c.lower() for c in FIXED_COLS}]
 
     if not level_cols:
@@ -134,12 +176,39 @@ def _detect_level_cols(csv_path):
 
 
 def _load_probes(csv_path):
-    """Load probes from CSV. Auto-detects escalation columns from header.
+    """Load probes from CSV. Auto-detects format.
+
+    Supports both formats:
+      - Flat:  subject, subclass, text  →  one probe per row
+      - Wide:  subject, anchor_id, col1, col2, ...  →  one probe per non-empty cell
 
     Returns list of dicts with subject, anchor_id, level, text.
     Returns empty list if the CSV is not a valid probe file.
     Skips _meta rows.
     """
+    # ── Flat format ──
+    if _is_flat_probe_csv(csv_path):
+        subclass_order = _flat_subclass_order(csv_path)
+        sub_to_level = {s: i for i, s in enumerate(subclass_order)}
+        probes = []
+        with open(csv_path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                subj = row.get("subject", "").strip()
+                if not subj or subj == META_TAG:
+                    continue
+                sub = row.get("subclass", "").strip()
+                text = row.get("text", "").strip()
+                if sub and text:
+                    probes.append({
+                        "subject": subj,
+                        "anchor_id": row.get("anchor_id", "").strip(),
+                        "level": sub_to_level.get(sub, 0),
+                        "text": text,
+                    })
+        return probes
+
+    # ── Wide format (legacy) ──
     level_cols, _ = _detect_level_cols(csv_path)
     if not level_cols:
         return []
@@ -191,9 +260,9 @@ def _load_probe_cache(cache_path):
     try:
         with open(cache_path) as f:
             data = json.load(f)
-        # Validate: check for NaN in embeddings
+        # Validate: check all embeddings for NaN
         embeddings = data.get("embeddings", [])
-        for emb in embeddings[:3]:  # spot-check first few
+        for emb in embeddings:
             if any(v is None or (isinstance(v, float) and (v != v)) for v in emb):
                 logger.warning(f"[DOMAIN] Probe cache contains NaN — invalidating stale cache: {cache_path}")
                 os.remove(cache_path)
@@ -270,10 +339,10 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
                 emb = torch.matmul(emb.cpu(), delta_matrix.float().cpu().T)
             emb = emb.cpu().numpy()
             norm = float(np.linalg.norm(emb))
-            if norm > 1e-12:
+            if norm > NORM_EPS:
                 emb = emb / norm
             embeddings.append(emb.tolist())
-            if progress and (i + 1) % 50 == 0:
+            if progress and (i + 1) % 10 == 0:
                 progress("probes", f"Embedding probes: {i+1}/{len(probes)}")
     finally:
         handle.remove()
@@ -337,7 +406,10 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                         subjects, top_n=20, min_appearances=2, progress=None,
                         probe_embs=None, probes=None,
                         esc_probe_embs=None,
-                        tv_eta_weights=None):
+                        tv_eta_weights=None,
+                        probe_neighbors=5,
+                        knn_sharpness=10.0,
+                        eta_floor=0.01):
     """Build per-token observations with all metrics and proximity.
 
     Split-depth probe matching: each token gets TWO independent probe lookups.
@@ -404,10 +476,9 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     # dependent tokens (high eta_sq = content words) rank above category-
     # independent tokens (low eta_sq = function words).
     # score = freq × (eta² + floor)
-    ETA_FLOOR = 0.01
     if tv_eta_weights:
         top = sorted(qualified.keys(),
-                     key=lambda t: -(qualified[t] * (tv_eta_weights.get(t, ETA_FLOOR) + ETA_FLOOR)))[:top_n]
+                     key=lambda t: -(qualified[t] * (tv_eta_weights.get(t, eta_floor) + eta_floor)))[:top_n]
     else:
         top = sorted(qualified.keys(), key=lambda t: -qualified[t])[:top_n]
     token_cv = {}
@@ -415,7 +486,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         disps = [o["disp"] for o in raw_obs if o["tok"] == tok]
         if len(disps) >= 2:
             m = np.mean(disps)
-            token_cv[tok] = round(float(np.std(disps) / max(abs(m), 1e-12)), 3)
+            token_cv[tok] = round(float(np.std(disps) / max(abs(m), NORM_EPS)), 3)
         else:
             token_cv[tok] = 0
     ordered = sorted(top, key=lambda t: token_cv.get(t, 0))
@@ -433,7 +504,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     n_subj = len(subjects)
     _subj_angles = np.linspace(0, 2 * np.pi, n_subj, endpoint=False) - np.pi / 2
 
-    token_knn = 5  # k nearest probes per token
+    token_knn = probe_neighbors
 
     for o in raw_obs:
         if o["tok"] not in top_set:
@@ -447,7 +518,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         if subj_emb is not None and subj_probe_mat is not None and probes is not None:
             tok_vec = np.array(subj_emb, dtype=np.float32)
             tok_norm = np.linalg.norm(tok_vec)
-            if tok_norm > 1e-12:
+            if tok_norm > NORM_EPS:
                 tok_vec = tok_vec / tok_norm
             sims = subj_probe_mat @ tok_vec
 
@@ -458,7 +529,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             best_dist = float(1.0 - top_sims[0])
 
             # Similarity-weighted position
-            weights = np.exp(top_sims * 10)
+            weights = np.exp(top_sims * knn_sharpness)
             weights /= weights.sum()
 
             sin_sum = 0
@@ -483,13 +554,13 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         if esc_emb is not None and esc_probe_mat is not None and probes is not None:
             esc_vec = np.array(esc_emb, dtype=np.float32)
             esc_norm = np.linalg.norm(esc_vec)
-            if esc_norm > 1e-12:
+            if esc_norm > NORM_EPS:
                 esc_vec = esc_vec / esc_norm
             esc_sims = esc_probe_mat @ esc_vec
 
             k = min(token_knn, len(esc_sims))
             esc_top_k = np.argsort(esc_sims)[-k:][::-1]
-            esc_weights = np.exp(esc_sims[esc_top_k] * 10)
+            esc_weights = np.exp(esc_sims[esc_top_k] * knn_sharpness)
             esc_weights /= esc_weights.sum()
             level = float(sum(probes[idx]["level"] * w
                               for idx, w in zip(esc_top_k, esc_weights)
@@ -590,6 +661,65 @@ class DomainSurfaceModule(TASMModule):
                 min_val=1,
                 max_val=20,
             ),
+            ModuleParameter(
+                name="probe_neighbors",
+                display_name="Probe Neighbors (k)",
+                description=(
+                    "Number of nearest probes to consider when assigning "
+                    "each token to a cell in the lattice. Higher values "
+                    "produce smoother assignments but dilute sharp boundaries. "
+                    "Lower values give crisper cell assignments but are more "
+                    "sensitive to probe placement."
+                ),
+                type="int",
+                default=5,
+                min_val=1,
+                max_val=20,
+            ),
+            ModuleParameter(
+                name="knn_sharpness",
+                display_name="kNN Sharpness",
+                description=(
+                    "Temperature multiplier for similarity-weighted probe "
+                    "matching. Controls how aggressively the nearest probe "
+                    "dominates the weighted assignment. Higher values make "
+                    "the best-matching probe almost fully determine cell "
+                    "assignment (hard kNN). Lower values spread weight more "
+                    "evenly across the k neighbors (soft kNN)."
+                ),
+                type="float",
+                default=10.0,
+                min_val=1.0,
+                max_val=50.0,
+            ),
+            ModuleParameter(
+                name="eta_floor",
+                display_name="Eta² Floor",
+                description=(
+                    "Minimum eta-squared weight for token selection when "
+                    "Token Variance data is available. Prevents zero-eta "
+                    "tokens from being completely suppressed. Higher values "
+                    "reduce the influence of category-dependence weighting, "
+                    "making selection closer to pure frequency."
+                ),
+                type="float",
+                default=0.01,
+                min_val=0.001,
+                max_val=0.5,
+            ),
+            ModuleParameter(
+                name="token_variance_file",
+                display_name="Token Variance File",
+                description=(
+                    "Path to Token Variance module output JSON. Used to "
+                    "weight content words above function words when "
+                    "selecting top tokens. Leave empty to use frequency-only "
+                    "selection. Typically generated by running the Token "
+                    "Variance module first."
+                ),
+                type="file",
+                default="module_token_variance.json",
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -627,6 +757,10 @@ class DomainSurfaceModule(TASMModule):
         top_tokens = params.get("top_tokens", 30)
         min_appearances = params.get("min_appearances", 2)
         pca_components = params.get("pca_components", 2)
+        probe_neighbors = int(params.get("probe_neighbors", 5))
+        knn_sharpness = float(params.get("knn_sharpness", 10.0))
+        eta_floor = float(params.get("eta_floor", 0.01))
+        tv_file_param = params.get("token_variance_file", "").strip()
 
         # Resolve probe path
         if self._project_root:
@@ -724,7 +858,7 @@ class DomainSurfaceModule(TASMModule):
                 "subject": p["subject"],
                 "anchor_id": p.get("anchor_id", ""),
                 "level": p["level"],
-                "text": p["text"][:50],
+                "text": p["text"][:PROBE_TEXT_DISPLAY_LEN],
                 "x": float(probe_coords[i, 0]),
                 "y": float(probe_coords[i, 1]),
             })
@@ -739,10 +873,18 @@ class DomainSurfaceModule(TASMModule):
         # signals vary WITH category (content words) rank above tokens whose
         # signals vary independently of category (function words).
         tv_weights = None
-        tv_paths = [
-            "datasets/current/module_token_variance.json",
-            "module_token_variance.json",
-        ]
+        tv_paths = []
+        if tv_file_param:
+            # User-specified file — resolve relative to project root
+            if os.path.isabs(tv_file_param):
+                tv_paths.append(tv_file_param)
+            elif self._project_root:
+                tv_paths.append(os.path.join(self._project_root, tv_file_param))
+                # Also check session subdirectory
+                tv_paths.append(os.path.join(
+                    self._project_root, "datasets", "current", tv_file_param))
+            tv_paths.append(tv_file_param)
+
         for tv_path in tv_paths:
             if os.path.exists(tv_path):
                 try:
@@ -753,7 +895,7 @@ class DomainSurfaceModule(TASMModule):
                         tv_weights = {t["token"]: t.get("eta_sq_density", 0)
                                       for t in all_tv}
                         logger.info(f"[DOMAIN] Loaded token variance eta² for "
-                                    f"{len(tv_weights)} tokens")
+                                    f"{len(tv_weights)} tokens from {tv_path}")
                     break
                 except Exception as e:
                     logger.warning(f"[DOMAIN] Failed to load token variance: {e}")
@@ -767,7 +909,10 @@ class DomainSurfaceModule(TASMModule):
             subjects, top_tokens, min_appearances, progress,
             probe_embs=probe_embs, probes=probes,
             esc_probe_embs=esc_probe_embs,
-            tv_eta_weights=tv_weights)
+            tv_eta_weights=tv_weights,
+            probe_neighbors=probe_neighbors,
+            knn_sharpness=knn_sharpness,
+            eta_floor=eta_floor)
 
         # Stratification
         strat = _stratification(obs, subjects)
@@ -794,7 +939,7 @@ class DomainSurfaceModule(TASMModule):
         } for a in anchor_pts]
 
         # Prompt texts (truncated)
-        prompts = [r["prompt"][:80] for r in session_subset]
+        prompts = [r["prompt"][:PROMPT_TEXT_DISPLAY_LEN] for r in session_subset]
 
         # Build output
         output = {

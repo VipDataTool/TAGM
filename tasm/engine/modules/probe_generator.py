@@ -6,18 +6,20 @@ loaded model's output distribution per class × subclass cell.
 
 Process:
   1. Read a template CSV — any CSV with a 'subject' column and one
-     or more subclass columns (everything after subject/anchor_id)
+     or more subclass columns (everything after subject/anchor_id).
+     Cell values are preserved as seed phrases for prompt steering.
   2. For each (class, subclass) cell, query the model N times
      using a prompt steered toward that specific cell
-  3. Tokenize all responses, count per-cell token frequencies
-  4. Frequency filter: discard tokens below minimum threshold
-  5. Cross-class dedup: for each subclass, remove tokens that
+  3. Extract terms from all responses, count per-cell frequencies
+  4. Frequency filter: discard terms below minimum threshold
+  5. Cross-class dedup: for each subclass, remove terms that
      appear in more than one class
-  6. Cross-subclass dedup: for each class, remove tokens that
+  6. Cross-subclass dedup: for each class, remove terms that
      appear in more than one subclass
-  7. Export to the specified output path
+  7. Export flat CSV with columns: subject, subclass, text
+     One record per probe.
 
-The two-axis deduplication is the discriminative filter.  A token
+The two-axis deduplication is the discriminative filter.  A term
 must be unique to its cell — unique to its class along the subclass
 axis, and unique to its subclass along the class axis.  What survives
 is the model-specific vocabulary fingerprint for each cell in the
@@ -69,7 +71,7 @@ def _parse_template(csv_path):
     Returns:
         classes:      list of class names (ordered by first appearance)
         subclass_cols: list of subclass column names
-        cell_seeds:   dict of (class, subclass_col) -> [seed words]
+        cell_seeds:   dict of (class, subclass_col) -> seed phrase string
     """
     classes = []
     subclass_cols = []
@@ -101,55 +103,47 @@ def _parse_template(csv_path):
             for col in subclass_cols:
                 text = row.get(col, "").strip()
                 if text:
-                    key = (cls, col)
-                    cell_seeds.setdefault(key, [])
-                    for w in text.split():
-                        wl = w.strip().lower()
-                        if wl.isalpha() and len(wl) > 1:
-                            cell_seeds[key].append(wl)
-
-    # Deduplicate seed lists preserving order
-    for key in cell_seeds:
-        cell_seeds[key] = list(dict.fromkeys(cell_seeds[key]))
+                    cell_seeds[(cls, col)] = text
 
     return classes, subclass_cols, cell_seeds
 
 
 # ─── Tokenization ─────────────────────────────────────────────
 
-def _tokenize_response(text, tokenizer, stopwords=frozenset()):
-    """Extract whole words from model output, keep only single-token words."""
+def _tokenize_response(text, stopwords=frozenset()):
+    """Extract terms from model output.
+
+    Captures alphabetic words including hyphenated compounds
+    (e.g. 'self-assembling', 'Bose-Einstein').  No BPE sub-token
+    restriction — any viable string that clears the stopword and
+    minimum-length filters is kept.
+    """
     words = Counter()
-    raw_words = re.findall(r'[a-zA-Z]+', text.lower())
+    raw_words = re.findall(r"[a-zA-Z]+(?:[-'][a-zA-Z]+)*", text.lower())
     for w in raw_words:
         if len(w) < 3 or w in stopwords:
             continue
-        ids = tokenizer.encode(w, add_special_tokens=False)
-        if len(ids) == 1:
-            words[w] += 1
+        words[w] += 1
     return words
 
 
 # ─── Prompt Construction ──────────────────────────────────────
 
 DEFAULT_PROMPT_TEMPLATE = (
-    "List {word_count} unique {subclass} related to {class}. "
-    "Examples: {seeds}. "
-    "Single words only, one per line."
+    "List {word_count} domain-specific terms, jargon, and technical "
+    "vocabulary related to {class} in the context of {subclass}. "
+    "Include specialized terminology, contextual phrases, and "
+    "insider language. Seed context: {seeds}. "
+    "One term per line."
 )
 
-TERMINOLOGY_PROMPT_TEMPLATE = (
-    "Define {word_count} {subclass} terms related to {class}. "
-    "Examples: {seeds}. "
-    "One term per line with a brief definition."
-)
 
 def _build_cell_prompt(cls, subclass, seeds, tokenizer,
                        word_count=200, template=None):
     """Build a prompt steered toward a specific class × subclass cell."""
     cls_label = cls.replace("_", " ")
     sub_label = subclass.replace("_", " ")
-    seed_str = ", ".join(seeds[:15]) if seeds else cls_label
+    seed_str = seeds if seeds else cls_label
 
     tmpl = template or DEFAULT_PROMPT_TEMPLATE
     prompt = tmpl.format(**{
@@ -541,7 +535,7 @@ class ProbeGeneratorModule(TASMModule):
             for col in subclass_cols:
                 cell_idx += 1
                 sub_label = col.replace("_", " ")
-                seeds = cell_seeds.get((cls, col), [cls.replace("_", " ")])
+                seeds = cell_seeds.get((cls, col), cls.replace("_", " "))
                 vocab = Counter()
 
                 for qi in range(n_queries):
@@ -576,13 +570,12 @@ class ProbeGeneratorModule(TASMModule):
                     finally:
                         if _inf_lock:
                             _inf_lock.release()
-                    word_counts = _tokenize_response(
-                        response, self._active_tokenizer, stopwords)
+                    word_counts = _tokenize_response(response, stopwords)
                     vocab.update(word_counts)
 
                     # Track stopword hits for audit trail
                     if stopwords:
-                        for w in re.findall(r'[a-zA-Z]+', response.lower()):
+                        for w in re.findall(r"[a-zA-Z]+(?:[-'][a-zA-Z]+)*", response.lower()):
                             if len(w) >= 3 and w in stopwords:
                                 stopword_hits[w] += 1
 
@@ -668,7 +661,7 @@ class ProbeGeneratorModule(TASMModule):
 
                 for cls, col in thin:
                     sub_label = col.replace("_", " ")
-                    seeds = cell_seeds.get((cls, col), [cls.replace("_", " ")])
+                    seeds = cell_seeds.get((cls, col), cls.replace("_", " "))
 
                     for qi in range(ap_batch):
                         if progress:
@@ -701,12 +694,11 @@ class ProbeGeneratorModule(TASMModule):
                         finally:
                             if _inf_lock:
                                 _inf_lock.release()
-                        word_counts = _tokenize_response(
-                            response, self._active_tokenizer, stopwords)
+                        word_counts = _tokenize_response(response, stopwords)
                         cell_vocab[(cls, col)].update(word_counts)
 
                         if stopwords:
-                            for w in re.findall(r'[a-zA-Z]+', response.lower()):
+                            for w in re.findall(r"[a-zA-Z]+(?:[-'][a-zA-Z]+)*", response.lower()):
                                 if len(w) >= 3 and w in stopwords:
                                     stopword_hits[w] += 1
 
@@ -803,35 +795,19 @@ class ProbeGeneratorModule(TASMModule):
 
         with open(out_path, "w", newline="") as f:
             writer = csv.writer(f)
-            header = ["subject", "anchor_id"] + subclass_cols
-            writer.writerow(header)
+            writer.writerow(["subject", "subclass", "text"])
 
             for cls in classes:
-                col_words = {}
                 for col in subclass_cols:
-                    col_words[col] = [
+                    tokens = [
                         tok for tok, _ in
                         discriminative[(cls, col)].most_common()
                     ]
-
-                max_rows = max(1, max(
-                    (len(col_words[col]) + words_per_probe - 1) // words_per_probe
-                    for col in subclass_cols
-                ))
-
-                aid_base = cls[:4]
-                for ri in range(max_rows):
-                    cells = []
-                    for col in subclass_cols:
-                        start = ri * words_per_probe
-                        end = start + words_per_probe
-                        chunk = col_words[col][start:end]
-                        cells.append(" ".join(chunk))
-                    # Skip rows where all level columns are empty
-                    if not any(cells):
-                        continue
-                    row = [cls, f"{aid_base}_{ri+1:03d}"] + cells
-                    writer.writerow(row)
+                    # Pack tokens according to words_per_probe
+                    for i in range(0, max(1, len(tokens)), max(1, words_per_probe)):
+                        chunk = tokens[i:i + words_per_probe]
+                        if chunk:
+                            writer.writerow([cls, col, " ".join(chunk)])
 
         # ── Export catalog CSV (optional) ──
         catalog_name = None
