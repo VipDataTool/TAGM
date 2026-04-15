@@ -397,21 +397,6 @@ class ProbeGeneratorModule(TASMModule):
                 max_val=10,
             ),
             ModuleParameter(
-                name="words_per_probe",
-                display_name="Words Per Probe",
-                description=(
-                    "Number of discriminative words to pack into each "
-                    "probe embedding. Each probe is run through the model "
-                    "as a single input and mean-pooled to one embedding. "
-                    "Default 1 = one word per probe (cleanest signal). "
-                    "Higher values produce fewer, broader probes."
-                ),
-                type="int",
-                default=1,
-                min_val=1,
-                max_val=10,
-            ),
-            ModuleParameter(
                 name="auto_apply",
                 display_name="Apply Probe Set After Generation",
                 description=(
@@ -478,7 +463,6 @@ class ProbeGeneratorModule(TASMModule):
         max_probes = int(params.get("max_probes_per_cell", 0))
         ap_batch = int(params.get("auto_populate_batch", 5))
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
-        words_per_probe = int(params.get("words_per_probe", 1))
 
         # Inference lock — prevents concurrent model access with analyzer
         _inf_lock = (self._model_manager.inference_lock
@@ -803,11 +787,8 @@ class ProbeGeneratorModule(TASMModule):
                         tok for tok, _ in
                         discriminative[(cls, col)].most_common()
                     ]
-                    # Pack tokens according to words_per_probe
-                    for i in range(0, max(1, len(tokens)), max(1, words_per_probe)):
-                        chunk = tokens[i:i + words_per_probe]
-                        if chunk:
-                            writer.writerow([cls, col, " ".join(chunk)])
+                    for tok in tokens:
+                        writer.writerow([cls, col, tok])
 
         # ── Export catalog CSV (optional) ──
         catalog_name = None
@@ -886,7 +867,6 @@ class ProbeGeneratorModule(TASMModule):
             "temperature": temperature,
             "top_p": top_p,
             "repetition_penalty": rep_penalty,
-            "words_per_probe": words_per_probe,
             "elapsed_seconds": round(time.time() - t0, 1),
             "sampling_seconds": round(elapsed_sampling, 1),
             "total_cells": total_cells,
