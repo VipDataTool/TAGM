@@ -1,0 +1,4645 @@
+{
+ "version": "0.1.0",
+ "probe_file": "cyber_5x5_auto_probes.csv",
+ "subjects": [
+  "network_security",
+  "application_security",
+  "identity_access",
+  "cryptography",
+  "social_engineering"
+ ],
+ "subj_short": [
+  "Network Securi",
+  "Application Se",
+  "Identity Acces",
+  "Cryptography",
+  "Social Enginee"
+ ],
+ "levels": [
+  "defensive",
+  "educational",
+  "offensive",
+  "evasive",
+  "destructive"
+ ],
+ "n_prompts": 41,
+ "n_probes": 500,
+ "aggregate": [
+  [
+   0.0010151832661216666,
+   0.00034298169679592604,
+   -0.0008127482674065442,
+   -0.016029527931699174,
+   -0.007022084842209574
+  ],
+  [
+   -0.0035230748659048974,
+   -0.004340552270931344,
+   0.0006968274128356399,
+   -0.008062020430320333,
+   -0.0008122709553323897
+  ],
+  [
+   -0.015235784267949895,
+   -0.004179541449380716,
+   -0.010131294169891256,
+   -0.004432690900781693,
+   0.002238087954972842
+  ],
+  [
+   -0.010746202527560873,
+   -0.010213319111064661,
+   -0.009617372132521361,
+   -0.00647076363269351,
+   -0.001085018313764655
+  ],
+  [
+   -0.02250045083127611,
+   -0.0042525829348733155,
+   -0.00950212443204336,
+   -0.008670642175798651,
+   -0.007463038479471189
+  ]
+ ],
+ "variance": [
+  [
+   6.695378179189074e-05,
+   6.16905656845729e-05,
+   9.013452309761556e-05,
+   0.00011327128154792428,
+   0.00011541168137975338
+  ],
+  [
+   9.355245179988796e-05,
+   7.102130727982195e-05,
+   8.864462456047034e-05,
+   0.00010363388308159423,
+   0.0001370300474533554
+  ],
+  [
+   0.0001113844321338946,
+   6.865539107481585e-05,
+   0.00015099760093217554,
+   0.00010277289907593235,
+   8.069150520395979e-05
+  ],
+  [
+   9.489933649604381e-05,
+   8.825454501180001e-05,
+   0.00010267371481825904,
+   8.942590574244923e-05,
+   7.606329348392997e-05
+  ],
+  [
+   0.00014719131548360996,
+   0.0001224225738629805,
+   0.00012115433547926553,
+   0.0001050354195076109,
+   0.00012734688819518957
+  ]
+ ],
+ "cell_details": {
+  "0_0": {
+   "tokens": [
+    {
+     "token": "mixed",
+     "cell_mean": -0.024075,
+     "global_mean": -0.041181,
+     "deviation": 0.017107,
+     "z": 2.136,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.024075,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.01186,
+     "global_mean": -0.002735,
+     "deviation": -0.009125,
+     "z": 2.071,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01186,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "never",
+     "cell_mean": -0.02304,
+     "global_mean": -0.035147,
+     "deviation": 0.012107,
+     "z": 1.826,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02304,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "where",
+     "cell_mean": -0.005727,
+     "global_mean": -0.024087,
+     "deviation": 0.01836,
+     "z": 1.795,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.005727,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "should",
+     "cell_mean": -0.005989,
+     "global_mean": -0.018607,
+     "deviation": 0.012619,
+     "z": 1.735,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.010001,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.021978,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "consider",
+     "cell_mean": -0.026398,
+     "global_mean": -0.037782,
+     "deviation": 0.011383,
+     "z": 1.721,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.026398,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "cleaning",
+     "cell_mean": -0.007824,
+     "global_mean": -0.024898,
+     "deviation": 0.017074,
+     "z": 1.693,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.007824,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "vaccines",
+     "cell_mean": 0.004165,
+     "global_mean": -0.009345,
+     "deviation": 0.01351,
+     "z": 1.668,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.004165,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "world",
+     "cell_mean": -0.005109,
+     "global_mean": -0.014824,
+     "deviation": 0.009714,
+     "z": 1.628,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.00585,
+       "n": 2
+      },
+      "j": {
+       "mean": -0.003627,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "stalk",
+     "cell_mean": -0.007828,
+     "global_mean": -0.015955,
+     "deviation": 0.008127,
+     "z": 1.624,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.007828,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "npm",
+    "antivirus",
+    "plane",
+    "report",
+    "guarding",
+    "behavior-based",
+    "classification",
+    "measurement",
+    "certainly",
+    "explanations",
+    "state-of-the-art",
+    "remove",
+    "viruses",
+    "vnf",
+    "cloud",
+    "providers",
+    "dpi",
+    "translates",
+    "format",
+    "unusually"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_1": {
+   "tokens": [
+    {
+     "token": "'s",
+     "cell_mean": 0.018122,
+     "global_mean": 0.027961,
+     "deviation": -0.009839,
+     "z": 2.523,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.018122,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "American",
+     "cell_mean": 0.053505,
+     "global_mean": 0.028453,
+     "deviation": 0.025052,
+     "z": 2.454,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.053505,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.000739,
+     "global_mean": 0.008983,
+     "deviation": -0.008244,
+     "z": 2.401,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000739,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "You",
+     "cell_mean": 0.022869,
+     "global_mean": -0.003251,
+     "deviation": 0.02612,
+     "z": 2.185,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.022869,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "locked",
+     "cell_mean": -0.031256,
+     "global_mean": -0.019037,
+     "deviation": -0.012219,
+     "z": 2.135,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.031256,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Ex",
+     "cell_mean": 0.000146,
+     "global_mean": -0.02484,
+     "deviation": 0.024987,
+     "z": 2.08,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000146,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.000146,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ransom",
+     "cell_mean": 0.00477,
+     "global_mean": 0.017018,
+     "deviation": -0.012248,
+     "z": 2.052,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.00477,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "plain",
+     "cell_mean": 0.002026,
+     "global_mean": -0.025027,
+     "deviation": 0.027053,
+     "z": 2.046,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002026,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.002026,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "differences",
+     "cell_mean": -0.002052,
+     "global_mean": -0.029794,
+     "deviation": 0.027742,
+     "z": 2.028,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.002052,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "cleaning",
+     "cell_mean": -0.004448,
+     "global_mean": -0.024898,
+     "deviation": 0.02045,
+     "z": 2.027,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.004448,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "router",
+    "unreachable",
+    "ipv",
+    "timestamped",
+    "ospf",
+    "switch",
+    "connected",
+    "igmp",
+    "ldp",
+    "spanning",
+    "tree",
+    "shortest",
+    "first",
+    "subnet",
+    "collection",
+    "default",
+    "routes",
+    "resolution",
+    "ntp",
+    "high"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_2": {
+   "tokens": [
+    {
+     "token": "fictional",
+     "cell_mean": -0.009638,
+     "global_mean": -0.020908,
+     "deviation": 0.01127,
+     "z": 2.605,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.009638,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "-defense",
+     "cell_mean": 0.006404,
+     "global_mean": -0.004352,
+     "deviation": 0.010756,
+     "z": 2.289,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006404,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "my",
+     "cell_mean": -0.001718,
+     "global_mean": -0.009467,
+     "deviation": 0.007749,
+     "z": 2.157,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.001718,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "anything",
+     "cell_mean": 0.002712,
+     "global_mean": -0.007302,
+     "deviation": 0.010014,
+     "z": 1.901,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.002712,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "photos",
+     "cell_mean": -0.011194,
+     "global_mean": -0.020236,
+     "deviation": 0.009042,
+     "z": 1.805,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.011194,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": 0.003077,
+     "global_mean": -0.007609,
+     "deviation": 0.010686,
+     "z": 1.744,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.003077,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.014943,
+     "global_mean": 0.008983,
+     "deviation": 0.00596,
+     "z": 1.736,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.014943,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "out",
+     "cell_mean": -0.002068,
+     "global_mean": -0.007578,
+     "deviation": 0.00551,
+     "z": 1.678,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.002068,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detected",
+     "cell_mean": 0.004091,
+     "global_mean": -0.005323,
+     "deviation": 0.009414,
+     "z": 1.627,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.004091,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fake",
+     "cell_mean": 0.026914,
+     "global_mean": 0.019437,
+     "deviation": 0.007478,
+     "z": 1.608,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.026914,
+       "n": 2
+      }
+     }
+    }
+   ],
+   "probes": [
+    "probing",
+    "systematically",
+    "nmap",
+    "targets",
+    "small",
+    "remotely",
+    "entities",
+    "enumerating",
+    "sweep",
+    "tracer",
+    "lanman",
+    "burp",
+    "ccs",
+    "fire",
+    "actively",
+    "examining",
+    "discovering",
+    "become",
+    "inaccessible",
+    "examination"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_3": {
+   "tokens": [
+    {
+     "token": "-defense",
+     "cell_mean": -0.013957,
+     "global_mean": -0.004352,
+     "deviation": -0.009605,
+     "z": 2.044,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.013957,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "make",
+     "cell_mean": -0.019096,
+     "global_mean": -0.005077,
+     "deviation": -0.01402,
+     "z": 2.004,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.019096,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": ".",
+     "cell_mean": -0.014588,
+     "global_mean": -0.004952,
+     "deviation": -0.009636,
+     "z": 1.932,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.014588,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "From",
+     "cell_mean": -0.01257,
+     "global_mean": -0.002199,
+     "deviation": -0.010371,
+     "z": 1.919,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01257,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "phone",
+     "cell_mean": -0.000145,
+     "global_mean": 0.0092,
+     "deviation": -0.009346,
+     "z": 1.914,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.000145,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Write",
+     "cell_mean": -0.009384,
+     "global_mean": 0.00149,
+     "deviation": -0.010875,
+     "z": 1.906,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.007031,
+       "n": 3
+      },
+      "j": {
+       "mean": -0.016442,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "if",
+     "cell_mean": -0.003312,
+     "global_mean": 0.009498,
+     "deviation": -0.012811,
+     "z": 1.906,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.003312,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "now",
+     "cell_mean": -0.018796,
+     "global_mean": -0.007363,
+     "deviation": -0.011433,
+     "z": 1.902,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.018796,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "identity",
+     "cell_mean": 0.002199,
+     "global_mean": 0.011593,
+     "deviation": -0.009394,
+     "z": 1.895,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.002199,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "able",
+     "cell_mean": 0.023023,
+     "global_mean": 0.032361,
+     "deviation": -0.009338,
+     "z": 1.895,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.023023,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "pivoting",
+    "blackholing",
+    "rsh",
+    "deterrence",
+    "preventing",
+    "seos",
+    "amplification",
+    "dqas",
+    "slow",
+    "openflow",
+    "mux",
+    "route",
+    "failover",
+    "nip",
+    "nsmts",
+    "snort",
+    "suricata",
+    "tagging",
+    "urls",
+    "basics"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_4": {
+   "tokens": [
+    {
+     "token": "generate",
+     "cell_mean": -0.034374,
+     "global_mean": -0.027043,
+     "deviation": -0.00733,
+     "z": 1.839,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.034374,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ret",
+     "cell_mean": 0.045351,
+     "global_mean": 0.037965,
+     "deviation": 0.007387,
+     "z": 1.595,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.045351,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "photos",
+     "cell_mean": -0.027027,
+     "global_mean": -0.020236,
+     "deviation": -0.006791,
+     "z": 1.356,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.027027,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "P",
+     "cell_mean": -0.007506,
+     "global_mean": 0.000371,
+     "deviation": -0.007877,
+     "z": 1.331,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.007506,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.007141,
+     "global_mean": -0.014532,
+     "deviation": 0.007392,
+     "z": 1.136,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.007141,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ethical",
+     "cell_mean": -0.0261,
+     "global_mean": -0.020054,
+     "deviation": -0.006046,
+     "z": 1.113,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.0261,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.013471,
+     "global_mean": -0.009077,
+     "deviation": -0.004394,
+     "z": 1.081,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.013471,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "prescription",
+     "cell_mean": -0.032758,
+     "global_mean": -0.027381,
+     "deviation": -0.005376,
+     "z": 1.064,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.032758,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "note",
+     "cell_mean": 0.011753,
+     "global_mean": 0.006017,
+     "deviation": 0.005736,
+     "z": 1.039,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.011753,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.004315,
+     "global_mean": 0.008505,
+     "deviation": -0.00419,
+     "z": 1.036,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.004315,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "disruption",
+    "surge",
+    "storm",
+    "blackout",
+    "disrupts",
+    "hole",
+    "volume",
+    "disruptions",
+    "floodlighting",
+    "america",
+    "device's",
+    "poisonous",
+    "installation",
+    "mil",
+    "phage",
+    "ransack",
+    "siphon",
+    "ccn",
+    "troq",
+    "round"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_0": {
+   "tokens": [
+    {
+     "token": "democracy",
+     "cell_mean": 0.015289,
+     "global_mean": 0.008195,
+     "deviation": 0.007094,
+     "z": 1.074,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.015289,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "an",
+     "cell_mean": 0.007734,
+     "global_mean": 0.003103,
+     "deviation": 0.004631,
+     "z": 1.064,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.00556,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.01438,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "un",
+     "cell_mean": 0.003219,
+     "global_mean": -0.000889,
+     "deviation": 0.004108,
+     "z": 1.014,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.003219,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mountain",
+     "cell_mean": -0.005718,
+     "global_mean": -0.013933,
+     "deviation": 0.008215,
+     "z": 1.0,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.005718,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "fake",
+     "cell_mean": 0.023998,
+     "global_mean": 0.019437,
+     "deviation": 0.004561,
+     "z": 0.981,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.023998,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "into",
+     "cell_mean": 0.011353,
+     "global_mean": 0.006732,
+     "deviation": 0.004622,
+     "z": 0.946,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.012477,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.010791,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "end",
+     "cell_mean": 0.014108,
+     "global_mean": 0.00935,
+     "deviation": 0.004758,
+     "z": 0.943,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.014108,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "as",
+     "cell_mean": -0.01845,
+     "global_mean": -0.024977,
+     "deviation": 0.006528,
+     "z": 0.94,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01845,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "lock",
+     "cell_mean": 0.022457,
+     "global_mean": 0.014862,
+     "deviation": 0.007595,
+     "z": 0.931,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.022457,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "events",
+     "cell_mean": -0.010093,
+     "global_mean": -0.016422,
+     "deviation": 0.006329,
+     "z": 0.929,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010093,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "sanitization",
+    "patching",
+    "compliance",
+    "ikev",
+    "verify",
+    "headers",
+    "diving",
+    "comply",
+    "validate",
+    "tests",
+    "als",
+    "code-security",
+    "scoring",
+    "intruders",
+    "keyloggers",
+    "kit",
+    "researcher",
+    "quality",
+    "alp",
+    "ams"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_1": {
+   "tokens": [
+    {
+     "token": "software",
+     "cell_mean": 0.0044,
+     "global_mean": -0.002869,
+     "deviation": 0.00727,
+     "z": 1.965,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.0044,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": -0.019138,
+     "global_mean": -0.007609,
+     "deviation": -0.011529,
+     "z": 1.882,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.019138,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Py",
+     "cell_mean": 0.013971,
+     "global_mean": 0.02564,
+     "deviation": -0.011669,
+     "z": 1.786,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.013971,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "tallest",
+     "cell_mean": -0.007497,
+     "global_mean": -0.019242,
+     "deviation": 0.011745,
+     "z": 1.627,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.007497,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "key",
+     "cell_mean": -0.021341,
+     "global_mean": -0.031578,
+     "deviation": 0.010237,
+     "z": 1.595,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.021341,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "has",
+     "cell_mean": 0.002957,
+     "global_mean": -0.006271,
+     "deviation": 0.009228,
+     "z": 1.583,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.002957,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.012194,
+     "global_mean": -0.01894,
+     "deviation": 0.006746,
+     "z": 1.508,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.012194,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "American",
+     "cell_mean": 0.043817,
+     "global_mean": 0.028453,
+     "deviation": 0.015364,
+     "z": 1.505,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.043817,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "consider",
+     "cell_mean": -0.028129,
+     "global_mean": -0.037782,
+     "deviation": 0.009652,
+     "z": 1.459,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.028129,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "shop",
+     "cell_mean": -0.015703,
+     "global_mean": -0.003533,
+     "deviation": -0.01217,
+     "z": 1.445,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.015703,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "aws",
+    "cloud",
+    "cdn",
+    "continuous",
+    "elastic",
+    "docker",
+    "kubernetes",
+    "amazon",
+    "alb",
+    "microservices",
+    "sdk",
+    "balancer",
+    "serverless",
+    "scp",
+    "sbp",
+    "apm",
+    "cluster",
+    "containerization",
+    "mysql",
+    "hackers"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_2": {
+   "tokens": [
+    {
+     "token": "effective",
+     "cell_mean": 0.038028,
+     "global_mean": 0.022974,
+     "deviation": 0.015054,
+     "z": 2.148,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.038028,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "describe",
+     "cell_mean": -0.010421,
+     "global_mean": -0.018786,
+     "deviation": 0.008365,
+     "z": 2.111,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010421,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "price",
+     "cell_mean": 0.021972,
+     "global_mean": 0.005557,
+     "deviation": 0.016415,
+     "z": 2.016,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.021972,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Sum",
+     "cell_mean": -0.021468,
+     "global_mean": -0.009775,
+     "deviation": -0.011692,
+     "z": 1.922,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.021468,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "buying",
+     "cell_mean": 0.024209,
+     "global_mean": 0.008401,
+     "deviation": 0.015808,
+     "z": 1.9,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.024209,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "break",
+     "cell_mean": 0.001086,
+     "global_mean": -0.008715,
+     "deviation": 0.009801,
+     "z": 1.875,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.001644,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.003815,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ret",
+     "cell_mean": 0.046514,
+     "global_mean": 0.037965,
+     "deviation": 0.008549,
+     "z": 1.846,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.046514,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "note",
+     "cell_mean": 0.016183,
+     "global_mean": 0.006017,
+     "deviation": 0.010166,
+     "z": 1.842,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.016183,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "when",
+     "cell_mean": -0.004404,
+     "global_mean": -0.019846,
+     "deviation": 0.015441,
+     "z": 1.825,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.003851,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.01266,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "negotiate",
+     "cell_mean": 0.010284,
+     "global_mean": -0.003504,
+     "deviation": 0.013788,
+     "z": 1.823,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.010284,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "fuzzing",
+    "exceeds",
+    "occurs",
+    "allocated",
+    "space",
+    "overload",
+    "find",
+    "variables",
+    "outcomes",
+    "rainbow",
+    "strings",
+    "crashes",
+    "zap",
+    "fuzz",
+    "underflow",
+    "insertion",
+    "capacity",
+    "overflows",
+    "injects",
+    "unexpected"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_3": {
+   "tokens": [
+    {
+     "token": "Py",
+     "cell_mean": 0.035398,
+     "global_mean": 0.02564,
+     "deviation": 0.009758,
+     "z": 1.494,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.035398,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "photos",
+     "cell_mean": -0.0143,
+     "global_mean": -0.020236,
+     "deviation": 0.005937,
+     "z": 1.185,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.0143,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "someone",
+     "cell_mean": -0.007531,
+     "global_mean": -0.000349,
+     "deviation": -0.007182,
+     "z": 1.135,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.007531,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.007663,
+     "global_mean": -0.002735,
+     "deviation": -0.004927,
+     "z": 1.118,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.007663,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "first",
+     "cell_mean": 0.011066,
+     "global_mean": 0.0165,
+     "deviation": -0.005434,
+     "z": 1.117,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.011066,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "shop",
+     "cell_mean": 0.005306,
+     "global_mean": -0.003533,
+     "deviation": 0.00884,
+     "z": 1.05,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005306,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "filters",
+     "cell_mean": -0.00454,
+     "global_mean": 0.003309,
+     "deviation": -0.007849,
+     "z": 0.982,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.00454,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "American",
+     "cell_mean": 0.018801,
+     "global_mean": 0.028453,
+     "deviation": -0.009652,
+     "z": 0.946,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.018801,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fictional",
+     "cell_mean": -0.016916,
+     "global_mean": -0.020908,
+     "deviation": 0.003992,
+     "z": 0.923,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.016916,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "content",
+     "cell_mean": -0.016377,
+     "global_mean": -0.011387,
+     "deviation": -0.00499,
+     "z": 0.921,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.016377,
+       "n": 3
+      }
+     }
+    }
+   ],
+   "probes": [
+    "inverted",
+    "misused",
+    "decrypting",
+    "involved",
+    "firmware",
+    "acp",
+    "black-box",
+    "mesh",
+    "direct",
+    "idoa",
+    "alamp",
+    "manner",
+    "engineer",
+    "skip",
+    "eviability",
+    "mitigate",
+    "either",
+    "evaluating",
+    "mathematics",
+    "chain"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_4": {
+   "tokens": [
+    {
+     "token": "without",
+     "cell_mean": 0.036149,
+     "global_mean": 0.015409,
+     "deviation": 0.02074,
+     "z": 3.62,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.028512,
+       "n": 2
+      },
+      "j": {
+       "mean": 0.051424,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "targeting",
+     "cell_mean": 0.034843,
+     "global_mean": 0.011145,
+     "deviation": 0.023697,
+     "z": 2.987,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.034843,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "generate",
+     "cell_mean": -0.015273,
+     "global_mean": -0.027043,
+     "deviation": 0.011771,
+     "z": 2.954,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.015273,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ransom",
+     "cell_mean": 0.034519,
+     "global_mean": 0.017018,
+     "deviation": 0.017501,
+     "z": 2.933,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.034519,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "your",
+     "cell_mean": 0.012179,
+     "global_mean": -0.003588,
+     "deviation": 0.015767,
+     "z": 2.877,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.012179,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "pick",
+     "cell_mean": 0.010043,
+     "global_mean": -0.00462,
+     "deviation": 0.014664,
+     "z": 2.862,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.000451,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.020537,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "s",
+     "cell_mean": 0.02513,
+     "global_mean": 0.003505,
+     "deviation": 0.021625,
+     "z": 2.798,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.02513,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "self",
+     "cell_mean": 0.04241,
+     "global_mean": 0.019725,
+     "deviation": 0.022685,
+     "z": 2.725,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.04241,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locked",
+     "cell_mean": -0.003484,
+     "global_mean": -0.019037,
+     "deviation": 0.015553,
+     "z": 2.718,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.003484,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "a",
+     "cell_mean": 0.021417,
+     "global_mean": 0.010108,
+     "deviation": 0.01131,
+     "z": 2.694,
+     "n": 14,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002543,
+       "n": 3
+      },
+      "m": {
+       "mean": 0.019363,
+       "n": 4
+      },
+      "h": {
+       "mean": 0.033889,
+       "n": 6
+      },
+      "j": {
+       "mean": 0.011429,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "crashing",
+    "corrupting",
+    "corrupted",
+    "sqlyog",
+    "crushing",
+    "violence",
+    "undermine",
+    "strength",
+    "corruptive",
+    "misuse",
+    "spreading",
+    "erosion",
+    "deterioration",
+    "deterministic",
+    "actor",
+    "manipulates",
+    "stronger",
+    "situation",
+    "resulting",
+    "dusty"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_0": {
+   "tokens": [
+    {
+     "token": "democracy",
+     "cell_mean": -0.008269,
+     "global_mean": 0.008195,
+     "deviation": -0.016464,
+     "z": 2.493,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.008269,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "security",
+     "cell_mean": -0.026948,
+     "global_mean": -0.008446,
+     "deviation": -0.018502,
+     "z": 2.405,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.026948,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "P",
+     "cell_mean": 0.013333,
+     "global_mean": 0.000371,
+     "deviation": 0.012962,
+     "z": 2.191,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.013333,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locksmith",
+     "cell_mean": -0.019915,
+     "global_mean": -0.002338,
+     "deviation": -0.017576,
+     "z": 2.134,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.019915,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "and",
+     "cell_mean": -0.019271,
+     "global_mean": -0.007347,
+     "deviation": -0.011924,
+     "z": 2.119,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.023453,
+       "n": 1
+      },
+      "j": {
+       "mean": -0.015088,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "lock",
+     "cell_mean": -0.002095,
+     "global_mean": 0.014862,
+     "deviation": -0.016957,
+     "z": 2.078,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.002095,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "phone",
+     "cell_mean": -0.000706,
+     "global_mean": 0.0092,
+     "deviation": -0.009906,
+     "z": 2.029,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.000706,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "break",
+     "cell_mean": -0.019248,
+     "global_mean": -0.008715,
+     "deviation": -0.010533,
+     "z": 2.016,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02469,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.013806,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "price",
+     "cell_mean": -0.010421,
+     "global_mean": 0.005557,
+     "deviation": -0.015979,
+     "z": 1.962,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.010421,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.027121,
+     "global_mean": -0.014532,
+     "deviation": -0.012588,
+     "z": 1.934,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.027121,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "kubernetes",
+    "jwts",
+    "expire",
+    "behalf",
+    "recording",
+    "tenant",
+    "cluster",
+    "container",
+    "role-level",
+    "rlac",
+    "application-specific",
+    "tat",
+    "session-based",
+    "sbac",
+    "context-aware",
+    "cacc",
+    "entity-based",
+    "ebac",
+    "uac",
+    "urbc"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_1": {
+   "tokens": [
+    {
+     "token": "P",
+     "cell_mean": 0.011595,
+     "global_mean": 0.000371,
+     "deviation": 0.011225,
+     "z": 1.897,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.011595,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "gas",
+     "cell_mean": 0.002385,
+     "global_mean": -0.007619,
+     "deviation": 0.010004,
+     "z": 1.696,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.002385,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Py",
+     "cell_mean": 0.014788,
+     "global_mean": 0.02564,
+     "deviation": -0.010851,
+     "z": 1.661,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.014788,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "targeting",
+     "cell_mean": -0.00164,
+     "global_mean": 0.011145,
+     "deviation": -0.012785,
+     "z": 1.612,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.00164,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "content",
+     "cell_mean": -0.002789,
+     "global_mean": -0.011387,
+     "deviation": 0.008598,
+     "z": 1.587,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.002789,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "harmful",
+     "cell_mean": 0.007402,
+     "global_mean": -0.006656,
+     "deviation": 0.014059,
+     "z": 1.547,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.007402,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "herbs",
+     "cell_mean": -0.015703,
+     "global_mean": -0.026668,
+     "deviation": 0.010965,
+     "z": 1.519,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.015703,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "key",
+     "cell_mean": -0.021865,
+     "global_mean": -0.031578,
+     "deviation": 0.009713,
+     "z": 1.513,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.021865,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "lower",
+     "cell_mean": -0.002746,
+     "global_mean": 0.004262,
+     "deviation": -0.007009,
+     "z": 1.451,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.002746,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'s",
+     "cell_mean": 0.02231,
+     "global_mean": 0.027961,
+     "deviation": -0.005651,
+     "z": 1.449,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.02231,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "keycloak",
+    "logout",
+    "google",
+    "stateless",
+    "sts",
+    "owner",
+    "providers",
+    "facebook",
+    "required",
+    "client-side",
+    "tac",
+    "ldap",
+    "enrollment",
+    "webauthn",
+    "sessions",
+    "image",
+    "sign-in",
+    "sign-up",
+    "ksp",
+    "broker"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_2": {
+   "tokens": [
+    {
+     "token": "system",
+     "cell_mean": 0.002827,
+     "global_mean": 0.015345,
+     "deviation": -0.012518,
+     "z": 2.698,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002827,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "phishing",
+     "cell_mean": 0.055213,
+     "global_mean": 0.039866,
+     "deviation": 0.015347,
+     "z": 2.477,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.055213,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "work",
+     "cell_mean": -0.01223,
+     "global_mean": -0.000807,
+     "deviation": -0.011423,
+     "z": 2.241,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.01223,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": 0.006586,
+     "global_mean": -0.002735,
+     "deviation": 0.009321,
+     "z": 2.115,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.006586,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'s",
+     "cell_mean": 0.035769,
+     "global_mean": 0.027961,
+     "deviation": 0.007808,
+     "z": 2.002,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.035769,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "anxiety",
+     "cell_mean": -0.031283,
+     "global_mean": -0.015459,
+     "deviation": -0.015824,
+     "z": 1.994,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.031283,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "home",
+     "cell_mean": -0.029619,
+     "global_mean": -0.018476,
+     "deviation": -0.011143,
+     "z": 1.984,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.02551,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.033729,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "first",
+     "cell_mean": 0.006885,
+     "global_mean": 0.0165,
+     "deviation": -0.009615,
+     "z": 1.976,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.006885,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "techniques",
+     "cell_mean": -0.021349,
+     "global_mean": -0.010396,
+     "deviation": -0.010953,
+     "z": 1.973,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.021349,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ransom",
+     "cell_mean": 0.028317,
+     "global_mean": 0.017018,
+     "deviation": 0.011299,
+     "z": 1.893,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.028317,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "harvesting",
+    "hunting",
+    "browsing",
+    "pms",
+    "crafting",
+    "spearware",
+    "optimization",
+    "formation",
+    "relate",
+    "scraper",
+    "wapi",
+    "believing",
+    "include",
+    "fingerprint",
+    "facial",
+    "iris",
+    "exchanges",
+    "temporary",
+    "performing",
+    "fingerprints"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_3": {
+   "tokens": [
+    {
+     "token": "interest",
+     "cell_mean": 0.007627,
+     "global_mean": -0.003687,
+     "deviation": 0.011314,
+     "z": 2.355,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.007627,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "theorem",
+     "cell_mean": 0.02332,
+     "global_mean": 0.011358,
+     "deviation": 0.011962,
+     "z": 2.155,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.02332,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": 0.004931,
+     "global_mean": -0.007609,
+     "deviation": 0.01254,
+     "z": 2.047,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.004931,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "work",
+     "cell_mean": 0.009496,
+     "global_mean": -0.000807,
+     "deviation": 0.010303,
+     "z": 2.021,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009496,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "be",
+     "cell_mean": -0.02588,
+     "global_mean": -0.034898,
+     "deviation": 0.009018,
+     "z": 1.926,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02588,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ides",
+     "cell_mean": -0.026038,
+     "global_mean": -0.032749,
+     "deviation": 0.006711,
+     "z": 1.845,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.026038,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "simple",
+     "cell_mean": -0.011158,
+     "global_mean": -0.022227,
+     "deviation": 0.011069,
+     "z": 1.84,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.011158,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.001979,
+     "global_mean": -0.009077,
+     "deviation": 0.007099,
+     "z": 1.746,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.001979,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "generate",
+     "cell_mean": -0.020116,
+     "global_mean": -0.027043,
+     "deviation": 0.006927,
+     "z": 1.738,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.020116,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'re",
+     "cell_mean": 0.007541,
+     "global_mean": -0.000675,
+     "deviation": 0.008216,
+     "z": 1.72,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.007541,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "ticket",
+    "tokenized",
+    "iot",
+    "lateral",
+    "movement",
+    "scenario",
+    "ieh",
+    "escalating",
+    "escalate",
+    "scoping",
+    "iatf",
+    "mitigating",
+    "internet-of-things",
+    "cosub",
+    "credential-oriented",
+    "governing",
+    "description",
+    "owsld",
+    "enhance",
+    "two-step"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_4": {
+   "tokens": [
+    {
+     "token": "cybersecurity",
+     "cell_mean": 0.006731,
+     "global_mean": -0.004123,
+     "deviation": 0.010854,
+     "z": 2.162,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006731,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "previous",
+     "cell_mean": -0.014387,
+     "global_mean": -0.024685,
+     "deviation": 0.010298,
+     "z": 1.929,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.014387,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "system",
+     "cell_mean": 0.024138,
+     "global_mean": 0.015345,
+     "deviation": 0.008793,
+     "z": 1.895,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.024138,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.016153,
+     "global_mean": 0.008505,
+     "deviation": 0.007648,
+     "z": 1.892,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.016153,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ethical",
+     "cell_mean": -0.010057,
+     "global_mean": -0.020054,
+     "deviation": 0.009998,
+     "z": 1.84,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.010057,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "customers",
+     "cell_mean": 0.027134,
+     "global_mean": 0.018988,
+     "deviation": 0.008146,
+     "z": 1.833,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.027134,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "home",
+     "cell_mean": -0.008353,
+     "global_mean": -0.018476,
+     "deviation": 0.010124,
+     "z": 1.802,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012029,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.004676,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "B",
+     "cell_mean": 0.022441,
+     "global_mean": 0.012304,
+     "deviation": 0.010137,
+     "z": 1.759,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.022441,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "techniques",
+     "cell_mean": -0.000824,
+     "global_mean": -0.010396,
+     "deviation": 0.009572,
+     "z": 1.725,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.000824,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "filters",
+     "cell_mean": 0.017088,
+     "global_mean": 0.003309,
+     "deviation": 0.013779,
+     "z": 1.724,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.017088,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "proper",
+    "intercept",
+    "handling",
+    "location",
+    "transferring",
+    "insiders",
+    "lookup",
+    "deterrence",
+    "another's",
+    "metaphone",
+    "transformation",
+    "unavailable",
+    "slow",
+    "down",
+    "multi-mission",
+    "multi-target",
+    "modify",
+    "reception",
+    "way",
+    "experience"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_0": {
+   "tokens": [
+    {
+     "token": "buying",
+     "cell_mean": -0.006316,
+     "global_mean": 0.008401,
+     "deviation": -0.014717,
+     "z": 1.769,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.006316,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "customers",
+     "cell_mean": 0.011594,
+     "global_mean": 0.018988,
+     "deviation": -0.007394,
+     "z": 1.664,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.011594,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "P",
+     "cell_mean": 0.009198,
+     "global_mean": 0.000371,
+     "deviation": 0.008828,
+     "z": 1.492,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.009198,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.012687,
+     "global_mean": -0.01894,
+     "deviation": 0.006253,
+     "z": 1.398,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.012687,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "major",
+     "cell_mean": -0.025851,
+     "global_mean": -0.031418,
+     "deviation": 0.005566,
+     "z": 1.368,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.025851,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "lift",
+     "cell_mean": -0.016704,
+     "global_mean": -0.009777,
+     "deviation": -0.006927,
+     "z": 1.349,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.004772,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.028636,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "when",
+     "cell_mean": -0.031088,
+     "global_mean": -0.019846,
+     "deviation": -0.011242,
+     "z": 1.329,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.021529,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.040646,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "creating",
+     "cell_mean": -0.01699,
+     "global_mean": -0.007676,
+     "deviation": -0.009313,
+     "z": 1.253,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.01699,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Enter",
+     "cell_mean": -0.007774,
+     "global_mean": -0.00072,
+     "deviation": -0.007054,
+     "z": 1.193,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.007774,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "find",
+     "cell_mean": -0.012293,
+     "global_mean": -0.003055,
+     "deviation": -0.009239,
+     "z": 1.188,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012293,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "salt",
+    "dhe",
+    "certification",
+    "iso",
+    "fips",
+    "finite",
+    "proves",
+    "initialization",
+    "bcenc",
+    "cng",
+    "eccdsa",
+    "rsapkcs",
+    "rsaes-gcm",
+    "ecdh-evp",
+    "challenge-response",
+    "note",
+    "extremely",
+    "extensive",
+    "covers",
+    "found"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_1": {
+   "tokens": [
+    {
+     "token": "an",
+     "cell_mean": -0.00422,
+     "global_mean": 0.003103,
+     "deviation": -0.007323,
+     "z": 1.683,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.010961,
+       "n": 1
+      },
+      "j": {
+       "mean": -0.000849,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": 0.003241,
+     "global_mean": -0.002735,
+     "deviation": 0.005976,
+     "z": 1.356,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.003241,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "would",
+     "cell_mean": 0.017895,
+     "global_mean": 0.025434,
+     "deviation": -0.007539,
+     "z": 1.337,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.017895,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "lock",
+     "cell_mean": 0.004872,
+     "global_mean": 0.014862,
+     "deviation": -0.009991,
+     "z": 1.224,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.004872,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locksmith",
+     "cell_mean": -0.012355,
+     "global_mean": -0.002338,
+     "deviation": -0.010017,
+     "z": 1.216,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012355,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "evil",
+     "cell_mean": -0.010747,
+     "global_mean": -0.003245,
+     "deviation": -0.007502,
+     "z": 1.2,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.010747,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "un",
+     "cell_mean": -0.005575,
+     "global_mean": -0.000889,
+     "deviation": -0.004686,
+     "z": 1.157,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.005575,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Enter",
+     "cell_mean": -0.007221,
+     "global_mean": -0.00072,
+     "deviation": -0.006501,
+     "z": 1.1,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.007221,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "able",
+     "cell_mean": 0.026988,
+     "global_mean": 0.032361,
+     "deviation": -0.005373,
+     "z": 1.091,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.026988,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "end",
+     "cell_mean": 0.003869,
+     "global_mean": 0.00935,
+     "deviation": -0.005482,
+     "z": 1.086,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.003869,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "non-repudiation",
+    "securing",
+    "eax",
+    "zkp",
+    "jargons",
+    "appropriate",
+    "consisting",
+    "kept",
+    "among",
+    "variant",
+    "unsecured",
+    "exposing",
+    "client's",
+    "cpr",
+    "hbcas",
+    "pck",
+    "nrp",
+    "hike",
+    "hdf",
+    "kap"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_2": {
+   "tokens": [
+    {
+     "token": "describe",
+     "cell_mean": -0.02881,
+     "global_mean": -0.018786,
+     "deviation": -0.010025,
+     "z": 2.53,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.02881,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "out",
+     "cell_mean": -0.015293,
+     "global_mean": -0.007578,
+     "deviation": -0.007715,
+     "z": 2.349,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.015293,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "orean",
+     "cell_mean": -0.0046,
+     "global_mean": 0.004917,
+     "deviation": -0.009517,
+     "z": 2.274,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.0046,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'re",
+     "cell_mean": -0.011358,
+     "global_mean": -0.000675,
+     "deviation": -0.010683,
+     "z": 2.236,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.011358,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Civil",
+     "cell_mean": -0.010228,
+     "global_mean": 0.000288,
+     "deviation": -0.010516,
+     "z": 2.224,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010228,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "t",
+     "cell_mean": -0.031464,
+     "global_mean": -0.024796,
+     "deviation": -0.006668,
+     "z": 2.142,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.031464,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "malware",
+     "cell_mean": -0.00072,
+     "global_mean": 0.009715,
+     "deviation": -0.010436,
+     "z": 1.934,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.00072,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.016704,
+     "global_mean": -0.009077,
+     "deviation": -0.007627,
+     "z": 1.876,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.016704,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.001022,
+     "global_mean": 0.008505,
+     "deviation": -0.007483,
+     "z": 1.851,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.001022,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ethical",
+     "cell_mean": -0.030057,
+     "global_mean": -0.020054,
+     "deviation": -0.010003,
+     "z": 1.841,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.030057,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "shor's",
+    "factorization",
+    "shortest",
+    "integer",
+    "discrete",
+    "logarithm",
+    "exponentiation",
+    "lattice",
+    "fourier",
+    "correction",
+    "grover's",
+    "lattice-based",
+    "search",
+    "schnorr",
+    "phase",
+    "estimation",
+    "fft",
+    "pre-quantum",
+    "lemma",
+    "factor"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_3": {
+   "tokens": [
+    {
+     "token": "ides",
+     "cell_mean": -0.023751,
+     "global_mean": -0.032749,
+     "deviation": 0.008998,
+     "z": 2.474,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.023751,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "any",
+     "cell_mean": -0.014284,
+     "global_mean": -0.006095,
+     "deviation": -0.008189,
+     "z": 1.723,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.014284,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.014869,
+     "global_mean": 0.008505,
+     "deviation": 0.006364,
+     "z": 1.574,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.014869,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "P",
+     "cell_mean": 0.009157,
+     "global_mean": 0.000371,
+     "deviation": 0.008787,
+     "z": 1.485,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.009157,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.012322,
+     "global_mean": -0.01894,
+     "deviation": 0.006618,
+     "z": 1.479,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.012322,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.013823,
+     "global_mean": 0.008983,
+     "deviation": 0.00484,
+     "z": 1.41,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.013823,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "major",
+     "cell_mean": -0.025769,
+     "global_mean": -0.031418,
+     "deviation": 0.005649,
+     "z": 1.388,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.025769,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "tallest",
+     "cell_mean": -0.009287,
+     "global_mean": -0.019242,
+     "deviation": 0.009955,
+     "z": 1.379,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009287,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "interact",
+     "cell_mean": -0.02333,
+     "global_mean": -0.031588,
+     "deviation": 0.008258,
+     "z": 1.367,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02333,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.003879,
+     "global_mean": -0.009077,
+     "deviation": 0.005198,
+     "z": 1.279,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.003879,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "twofish",
+    "aesgcm",
+    "plain",
+    "strong",
+    "xts",
+    "xor-transposition-substitution",
+    "adleman",
+    "counter",
+    "lfsr",
+    "linear",
+    "feedback",
+    "shift",
+    "register",
+    "lwe",
+    "crypt",
+    "evp",
+    "cryptographic-related",
+    "stego",
+    "stealth",
+    "asymmetric-key"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_4": {
+   "tokens": [
+    {
+     "token": "cybersecurity",
+     "cell_mean": 0.005064,
+     "global_mean": -0.004123,
+     "deviation": 0.009188,
+     "z": 1.83,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.005064,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locks",
+     "cell_mean": 0.00533,
+     "global_mean": -0.005591,
+     "deviation": 0.010922,
+     "z": 1.538,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.00533,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "War",
+     "cell_mean": 0.014744,
+     "global_mean": 0.004871,
+     "deviation": 0.009873,
+     "z": 1.477,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.014744,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Civil",
+     "cell_mean": 0.007193,
+     "global_mean": 0.000288,
+     "deviation": 0.006905,
+     "z": 1.46,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.007193,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "vulnerabilities",
+     "cell_mean": 0.003519,
+     "global_mean": -0.005571,
+     "deviation": 0.00909,
+     "z": 1.421,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.003519,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.005574,
+     "global_mean": -0.014532,
+     "deviation": 0.008958,
+     "z": 1.376,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.005574,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "DAN",
+     "cell_mean": 0.004161,
+     "global_mean": -0.006082,
+     "deviation": 0.010243,
+     "z": 1.372,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.004161,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "republic",
+     "cell_mean": -0.002364,
+     "global_mean": -0.008514,
+     "deviation": 0.00615,
+     "z": 1.339,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.002364,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "techniques",
+     "cell_mean": -0.002965,
+     "global_mean": -0.010396,
+     "deviation": 0.007431,
+     "z": 1.339,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.002965,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detected",
+     "cell_mean": 0.002384,
+     "global_mean": -0.005323,
+     "deviation": 0.007707,
+     "z": 1.332,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.002384,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "watermarking",
+    "tamper",
+    "chain",
+    "crypto-policy",
+    "mpc",
+    "though",
+    "were",
+    "change",
+    "obstruct",
+    "already",
+    "restoring",
+    "giving",
+    "unknown",
+    "criminal",
+    "illegally",
+    "obtaining",
+    "maliciously",
+    "robbering",
+    "money",
+    "items"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_0": {
+   "tokens": [
+    {
+     "token": "social",
+     "cell_mean": 0.003715,
+     "global_mean": 0.019481,
+     "deviation": -0.015766,
+     "z": 3.236,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.003715,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "no",
+     "cell_mean": -0.026607,
+     "global_mean": -0.00589,
+     "deviation": -0.020716,
+     "z": 3.175,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.026607,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "evil",
+     "cell_mean": -0.022883,
+     "global_mean": -0.003245,
+     "deviation": -0.019638,
+     "z": 3.142,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.022883,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "has",
+     "cell_mean": -0.024158,
+     "global_mean": -0.006271,
+     "deviation": -0.017886,
+     "z": 3.069,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.024158,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "engineering",
+     "cell_mean": -0.048817,
+     "global_mean": -0.018894,
+     "deviation": -0.029923,
+     "z": 3.02,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.048817,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "email",
+     "cell_mean": -0.013363,
+     "global_mean": -0.000556,
+     "deviation": -0.012807,
+     "z": 3.003,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.013363,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "currency",
+     "cell_mean": -0.031724,
+     "global_mean": -0.007777,
+     "deviation": -0.023947,
+     "z": 2.974,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.031724,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "someone",
+     "cell_mean": -0.019134,
+     "global_mean": -0.000349,
+     "deviation": -0.018785,
+     "z": 2.968,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.019134,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "training",
+     "cell_mean": -0.033073,
+     "global_mean": -0.015292,
+     "deviation": -0.017781,
+     "z": 2.963,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.033073,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "rules",
+     "cell_mean": -0.050967,
+     "global_mean": -0.023152,
+     "deviation": -0.027815,
+     "z": 2.946,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.050967,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "forensic",
+    "denial-of-services",
+    "perception",
+    "sget",
+    "sev",
+    "soes",
+    "pivs",
+    "ets",
+    "sferf",
+    "ofdt",
+    "assessments",
+    "seva",
+    "modeling",
+    "setm",
+    "sefa",
+    "seti",
+    "sbes",
+    "proof-of-concept",
+    "socp",
+    "scavenger"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_1": {
+   "tokens": [
+    {
+     "token": "social",
+     "cell_mean": 0.028184,
+     "global_mean": 0.019481,
+     "deviation": 0.008702,
+     "z": 1.786,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.028184,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ides",
+     "cell_mean": -0.039169,
+     "global_mean": -0.032749,
+     "deviation": -0.00642,
+     "z": 1.765,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.039169,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "major",
+     "cell_mean": -0.038338,
+     "global_mean": -0.031418,
+     "deviation": -0.00692,
+     "z": 1.7,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.038338,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fictional",
+     "cell_mean": -0.027571,
+     "global_mean": -0.020908,
+     "deviation": -0.006663,
+     "z": 1.54,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.027571,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "customers",
+     "cell_mean": 0.025795,
+     "global_mean": 0.018988,
+     "deviation": 0.006807,
+     "z": 1.532,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.025795,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "be",
+     "cell_mean": -0.042062,
+     "global_mean": -0.034898,
+     "deviation": -0.007164,
+     "z": 1.53,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.042062,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "events",
+     "cell_mean": -0.025778,
+     "global_mean": -0.016422,
+     "deviation": -0.009356,
+     "z": 1.373,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.025778,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "any",
+     "cell_mean": 0.000343,
+     "global_mean": -0.006095,
+     "deviation": 0.006438,
+     "z": 1.355,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.000343,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "would",
+     "cell_mean": 0.032845,
+     "global_mean": 0.025434,
+     "deviation": 0.007411,
+     "z": 1.315,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.032845,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "creating",
+     "cell_mean": 0.001597,
+     "global_mean": -0.007676,
+     "deviation": 0.009273,
+     "z": 1.248,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.001597,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "theory",
+    "desirability",
+    "effects",
+    "peer",
+    "pressure",
+    "biases",
+    "comparison",
+    "personalization",
+    "disinformation",
+    "dynamics",
+    "suggestion",
+    "students",
+    "reasoning",
+    "moral",
+    "culture",
+    "loafing",
+    "self-presentation",
+    "polls",
+    "conformity",
+    "ethics"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_2": {
+   "tokens": [
+    {
+     "token": "ret",
+     "cell_mean": 0.04504,
+     "global_mean": 0.037965,
+     "deviation": 0.007075,
+     "z": 1.528,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.04504,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "previous",
+     "cell_mean": -0.032162,
+     "global_mean": -0.024685,
+     "deviation": -0.007477,
+     "z": 1.4,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.032162,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.014593,
+     "global_mean": -0.009077,
+     "deviation": -0.005516,
+     "z": 1.357,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.014593,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "reversed",
+     "cell_mean": -0.027045,
+     "global_mean": -0.016816,
+     "deviation": -0.010229,
+     "z": 1.283,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.027045,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'s",
+     "cell_mean": 0.032935,
+     "global_mean": 0.027961,
+     "deviation": 0.004974,
+     "z": 1.275,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.032935,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "disabled",
+     "cell_mean": -0.033832,
+     "global_mean": -0.021316,
+     "deviation": -0.012516,
+     "z": 1.219,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.033832,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "being",
+     "cell_mean": -0.016899,
+     "global_mean": -0.011532,
+     "deviation": -0.005367,
+     "z": 1.19,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.016899,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "unrestricted",
+     "cell_mean": -0.014703,
+     "global_mean": -0.008689,
+     "deviation": -0.006014,
+     "z": 1.173,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.014703,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "describe",
+     "cell_mean": -0.014422,
+     "global_mean": -0.018786,
+     "deviation": 0.004364,
+     "z": 1.101,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.014422,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "would",
+     "cell_mean": 0.031588,
+     "global_mean": 0.025434,
+     "deviation": 0.006154,
+     "z": 1.092,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.031588,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "pretest",
+    "tailgating",
+    "pretext",
+    "recipients",
+    "snitching",
+    "vehicle",
+    "snipe",
+    "z-sec",
+    "zipper",
+    "intent",
+    "spam",
+    "rallying",
+    "following",
+    "wrong",
+    "entice",
+    "surprise",
+    "vishing",
+    "scares",
+    "tease",
+    "tread"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_3": {
+   "tokens": [
+    {
+     "token": "t",
+     "cell_mean": -0.030214,
+     "global_mean": -0.024796,
+     "deviation": -0.005418,
+     "z": 1.74,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.030214,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fictional",
+     "cell_mean": -0.028109,
+     "global_mean": -0.020908,
+     "deviation": -0.007201,
+     "z": 1.664,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.028109,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.009464,
+     "global_mean": -0.002735,
+     "deviation": -0.006729,
+     "z": 1.527,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.009464,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "my",
+     "cell_mean": -0.014879,
+     "global_mean": -0.009467,
+     "deviation": -0.005412,
+     "z": 1.507,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.014879,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "major",
+     "cell_mean": -0.037167,
+     "global_mean": -0.031418,
+     "deviation": -0.005749,
+     "z": 1.413,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.037167,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ides",
+     "cell_mean": -0.037082,
+     "global_mean": -0.032749,
+     "deviation": -0.004333,
+     "z": 1.191,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.037082,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.024164,
+     "global_mean": -0.01894,
+     "deviation": -0.005224,
+     "z": 1.168,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.024164,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.005013,
+     "global_mean": 0.008983,
+     "deviation": -0.00397,
+     "z": 1.157,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.005013,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "end",
+     "cell_mean": 0.00363,
+     "global_mean": 0.00935,
+     "deviation": -0.00572,
+     "z": 1.134,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.00363,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "out",
+     "cell_mean": -0.011201,
+     "global_mean": -0.007578,
+     "deviation": -0.003623,
+     "z": 1.103,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.011201,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "misdirection",
+    "framing",
+    "frame",
+    "rationale",
+    "cyberstalking",
+    "phases",
+    "dettectors",
+    "agency",
+    "rake",
+    "campaigning",
+    "dissection",
+    "counterme",
+    "dangers",
+    "tax",
+    "home",
+    "medical",
+    "work",
+    "government",
+    "corporate",
+    "vulnaulization"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_4": {
+   "tokens": [
+    {
+     "token": "major",
+     "cell_mean": -0.038473,
+     "global_mean": -0.031418,
+     "deviation": -0.007055,
+     "z": 1.733,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.038473,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mar",
+     "cell_mean": -0.02237,
+     "global_mean": -0.013338,
+     "deviation": -0.009032,
+     "z": 1.67,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.02237,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ides",
+     "cell_mean": -0.03877,
+     "global_mean": -0.032749,
+     "deviation": -0.006021,
+     "z": 1.655,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.03877,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "prescription",
+     "cell_mean": -0.035611,
+     "global_mean": -0.027381,
+     "deviation": -0.008229,
+     "z": 1.628,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.035611,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.026216,
+     "global_mean": -0.01894,
+     "deviation": -0.007276,
+     "z": 1.627,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.026216,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "system",
+     "cell_mean": 0.007889,
+     "global_mean": 0.015345,
+     "deviation": -0.007455,
+     "z": 1.607,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.007889,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "un",
+     "cell_mean": 0.005566,
+     "global_mean": -0.000889,
+     "deviation": 0.006455,
+     "z": 1.594,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005566,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "self",
+     "cell_mean": 0.032048,
+     "global_mean": 0.019725,
+     "deviation": 0.012323,
+     "z": 1.48,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.032048,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "stalk",
+     "cell_mean": -0.022944,
+     "global_mean": -0.015955,
+     "deviation": -0.006989,
+     "z": 1.397,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.022944,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fictional",
+     "cell_mean": -0.026951,
+     "global_mean": -0.020908,
+     "deviation": -0.006043,
+     "z": 1.397,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.026951,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "sets",
+    "spyware",
+    "incidents",
+    "malformed",
+    "fabrication",
+    "vandalism",
+    "explained",
+    "overview",
+    "cycle",
+    "seek",
+    "coercion",
+    "spams",
+    "incursions",
+    "rackets",
+    "controversies",
+    "reviews",
+    "bait-and-channel",
+    "trojans",
+    "whistleblower",
+    "user-centered"
+   ],
+   "n_unique_tokens": 199
+  }
+ },
+ "categories": {
+  "b": "benign",
+  "h": "harmful",
+  "j": "jailbreak",
+  "m": "mild"
+ },
+ "per_subject": {
+  "network_security": {
+   "mean_activation": -0.00450123921567954,
+   "max_activation": 0.0010151832661216666,
+   "mean_variance": 8.949236670035138e-05
+  },
+  "application_security": {
+   "mean_activation": -0.003208218221930665,
+   "max_activation": 0.0006968274128356399,
+   "mean_variance": 9.877646283502598e-05
+  },
+  "identity_access": {
+   "mean_activation": -0.006348244566606144,
+   "max_activation": 0.002238087954972842,
+   "mean_variance": 0.00010290036568415563
+  },
+  "cryptography": {
+   "mean_activation": -0.007626535143521011,
+   "max_activation": -0.001085018313764655,
+   "mean_variance": 9.026335911049641e-05
+  },
+  "social_engineering": {
+   "mean_activation": -0.010477767770692526,
+   "max_activation": -0.0042525829348733155,
+   "mean_variance": 0.0001246301065057313
+  }
+ }
+}
