@@ -75,6 +75,7 @@ module_runner = ModuleRunner()
 # _analysis_lock: serializes forward passes, activation caches, and session writes.
 # _loading_lock: makes the loading_state check-and-set atomic.
 _analysis_lock = threading.Lock()
+mm.inference_lock = _analysis_lock  # share lock with ModelManager for module thread safety
 _loading_lock = threading.Lock()
 _batch_running = False
 
@@ -1553,6 +1554,18 @@ async def reset_module(module_name: str):
     if not result["ok"]:
         return JSONResponse(status_code=400, content=result)
     return result
+
+
+@app.get("/api/modules/{module_name}/download_log")
+async def download_module_log(module_name: str):
+    """Download the standalone log file for a completed module."""
+    log_path = module_runner.get_log_path(module_name)
+    if not log_path or not Path(log_path).exists():
+        return JSONResponse(status_code=404,
+                            content={"ok": False, "error": "No log file available."})
+    return FileResponse(
+        log_path, media_type="application/json",
+        filename=f"module_{module_name}_log.json")
 
 
 @app.get("/api/log")

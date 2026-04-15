@@ -2922,6 +2922,9 @@ async function resetModule(name) {
       if (res) res.innerHTML = '';
       var btn = $('mod-run-' + name);
       if (btn) btn.disabled = false;
+      // Remove download log button
+      var logBtn = $('mod-log-' + name);
+      if (logBtn) logBtn.remove();
       // Reset params to defaults
       var m = _moduleData[name];
       if (m && m.parameters) {
@@ -2946,6 +2949,9 @@ async function runModule(name) {
   btn.disabled = true;
   btn.textContent = 'Running...';
   prog.textContent = 'Starting...';
+  // Remove stale download log button
+  var oldLog = $('mod-log-' + name);
+  if (oldLog) oldLog.remove();
 
   var params = getModuleParams(name);
 
@@ -3020,6 +3026,19 @@ async function pollModule(name) {
       if (prog) {
         var elapsed = d.completed_at && d.started_at ? (d.completed_at - d.started_at).toFixed(1) : '?';
         prog.textContent = 'Completed in ' + elapsed + 's';
+      }
+      // Show download log button
+      if (d.has_log) {
+        var existing = $('mod-log-' + name);
+        if (!existing) {
+          var logBtn = document.createElement('button');
+          logBtn.id = 'mod-log-' + name;
+          logBtn.className = 'btn btn-sm';
+          logBtn.style.cssText = 'border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer';
+          logBtn.textContent = 'Download Log';
+          logBtn.onclick = function(e) { e.stopPropagation(); window.open('/api/modules/' + name + '/download_log', '_blank'); };
+          if (btn && btn.parentNode) btn.parentNode.insertBefore(logBtn, btn.nextSibling);
+        }
       }
       fetchModuleResults(name);
     } else if (d.status === 'error') {

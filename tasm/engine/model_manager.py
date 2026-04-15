@@ -12,6 +12,7 @@ import gc
 import os
 import json
 import time
+import threading
 import traceback
 import psutil
 from pathlib import Path
@@ -283,11 +284,14 @@ class ModelManager:
         self._hooks = []
         self.activations = {}
         self.attn_weights = {}
+        self.inference_lock = threading.Lock()
 
     @property
     def active_model(self):
         """Return the model selected by inference_class (base or instruct)."""
-        if (self.state and self.state.inference_class == "base"
+        if self.state is None:
+            return None
+        if (self.state.inference_class == "base"
                 and self.state.model_base is not None):
             return self.state.model_base
         return self.state.model_instruct

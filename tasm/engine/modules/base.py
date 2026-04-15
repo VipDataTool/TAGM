@@ -134,6 +134,7 @@ class _ModuleState:
         self.started_at = None
         self.completed_at = None
         self.thread = None
+        self.log_path = None
 
 
 class ModuleRunner:
@@ -204,6 +205,7 @@ class ModuleRunner:
             "status": state.status,
             "progress": state.progress,
             "has_results": state.results is not None,
+            "has_log": state.log_path is not None,
             "error": state.error,
             "started_at": state.started_at,
             "completed_at": state.completed_at,
@@ -212,6 +214,10 @@ class ModuleRunner:
     def get_results(self, name: str) -> Optional[dict]:
         state = self._state.get(name)
         return state.results if state else None
+
+    def get_log_path(self, name: str) -> Optional[str]:
+        state = self._state.get(name)
+        return state.log_path if state else None
 
     def reset_module(self, name: str) -> dict:
         """Reset a module to idle state, clearing results and errors."""
@@ -226,6 +232,7 @@ class ModuleRunner:
         state.error = None
         state.started_at = None
         state.completed_at = None
+        state.log_path = None
         logger.info(f"[MODULES] {name} reset to idle")
         return {"ok": True}
 
@@ -286,6 +293,16 @@ class ModuleRunner:
                         logger.info(f"[MODULES] Saved results to {out_path}")
                     except Exception as e:
                         logger.warning(f"[MODULES] Failed to save results: {e}")
+
+                # Always save standalone log to project root
+                log_path = self._project_root / f"module_{name}_log.json"
+                try:
+                    with open(log_path, "w") as f:
+                        json.dump(results, f, indent=1, default=str)
+                    state.log_path = str(log_path)
+                    logger.info(f"[MODULES] Saved log to {log_path}")
+                except Exception as e:
+                    logger.warning(f"[MODULES] Failed to save log: {e}")
 
             except Exception as e:
                 state.status = "error"

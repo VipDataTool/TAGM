@@ -484,7 +484,11 @@ class ProbeGeneratorModule(TASMModule):
         max_probes = int(params.get("max_probes_per_cell", 0))
         ap_batch = int(params.get("auto_populate_batch", 5))
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
-        words_per_probe = int(params.get("words_per_probe", 3))
+        words_per_probe = int(params.get("words_per_probe", 1))
+
+        # Inference lock — prevents concurrent model access with analyzer
+        _inf_lock = (self._model_manager.inference_lock
+                     if self._model_manager else None)
 
         # ── Load stopwords ──
         sw_file = params.get("stopword_file", "").strip()
@@ -550,22 +554,28 @@ class ProbeGeneratorModule(TASMModule):
                         cls, col, seeds, self._active_tokenizer,
                         word_count=max_tokens,
                         template=prompt_template)
-                    inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
-                    inputs = {k: v.to(device) for k, v in inputs.items()}
 
-                    with torch.no_grad():
-                        out = self._active_model.generate(
-                            **inputs,
-                            max_new_tokens=max_tokens,
-                            do_sample=True,
-                            temperature=temperature,
-                            top_p=top_p,
-                            repetition_penalty=rep_penalty,
-                        )
-
-                    gen_ids = out[0][inputs["input_ids"].shape[1]:]
-                    response = self._active_tokenizer.decode(
-                        gen_ids, skip_special_tokens=True)
+                    # Acquire inference lock to prevent concurrent model access
+                    if _inf_lock:
+                        _inf_lock.acquire()
+                    try:
+                        inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
+                        inputs = {k: v.to(device) for k, v in inputs.items()}
+                        with torch.no_grad():
+                            out = self._active_model.generate(
+                                **inputs,
+                                max_new_tokens=max_tokens,
+                                do_sample=True,
+                                temperature=temperature,
+                                top_p=top_p,
+                                repetition_penalty=rep_penalty,
+                            )
+                        gen_ids = out[0][inputs["input_ids"].shape[1]:]
+                        response = self._active_tokenizer.decode(
+                            gen_ids, skip_special_tokens=True)
+                    finally:
+                        if _inf_lock:
+                            _inf_lock.release()
                     word_counts = _tokenize_response(
                         response, self._active_tokenizer, stopwords)
                     vocab.update(word_counts)
@@ -669,23 +679,28 @@ class ProbeGeneratorModule(TASMModule):
                             cls, col, seeds, self._active_tokenizer,
                             word_count=max_tokens,
                             template=prompt_template)
-                        inputs = self._active_tokenizer(
-                            prompt_text, return_tensors="pt")
-                        inputs = {k: v.to(device) for k, v in inputs.items()}
 
-                        with torch.no_grad():
-                            out = self._active_model.generate(
-                                **inputs,
-                                max_new_tokens=max_tokens,
-                                do_sample=True,
-                                temperature=temperature,
-                                top_p=top_p,
-                                repetition_penalty=rep_penalty,
-                            )
-
-                        gen_ids = out[0][inputs["input_ids"].shape[1]:]
-                        response = self._active_tokenizer.decode(
-                            gen_ids, skip_special_tokens=True)
+                        if _inf_lock:
+                            _inf_lock.acquire()
+                        try:
+                            inputs = self._active_tokenizer(
+                                prompt_text, return_tensors="pt")
+                            inputs = {k: v.to(device) for k, v in inputs.items()}
+                            with torch.no_grad():
+                                out = self._active_model.generate(
+                                    **inputs,
+                                    max_new_tokens=max_tokens,
+                                    do_sample=True,
+                                    temperature=temperature,
+                                    top_p=top_p,
+                                    repetition_penalty=rep_penalty,
+                                )
+                            gen_ids = out[0][inputs["input_ids"].shape[1]:]
+                            response = self._active_tokenizer.decode(
+                                gen_ids, skip_special_tokens=True)
+                        finally:
+                            if _inf_lock:
+                                _inf_lock.release()
                         word_counts = _tokenize_response(
                             response, self._active_tokenizer, stopwords)
                         cell_vocab[(cls, col)].update(word_counts)
@@ -806,12 +821,16 @@ class ProbeGeneratorModule(TASMModule):
 
                 aid_base = cls[:4]
                 for ri in range(max_rows):
-                    row = [cls, f"{aid_base}_{ri+1:03d}"]
+                    cells = []
                     for col in subclass_cols:
                         start = ri * words_per_probe
                         end = start + words_per_probe
                         chunk = col_words[col][start:end]
-                        row.append(" ".join(chunk))
+                        cells.append(" ".join(chunk))
+                    # Skip rows where all level columns are empty
+                    if not any(cells):
+                        continue
+                    row = [cls, f"{aid_base}_{ri+1:03d}"] + cells
                     writer.writerow(row)
 
         # ── Export catalog CSV (optional) ──
