@@ -22,151 +22,181 @@
   "evasive",
   "destructive"
  ],
- "n_prompts": 41,
+ "n_prompts": 53,
  "n_probes": 500,
  "aggregate": [
   [
-   0.0010151832661216666,
-   0.00034298169679592604,
-   -0.0008127482674065442,
-   -0.016029527931699174,
-   -0.007022084842209574
+   0.0012007288761969046,
+   0.0003221960645760192,
+   -0.0009365194060214797,
+   -0.015314415757780333,
+   -0.006195814902605221
   ],
   [
-   -0.0035230748659048974,
-   -0.004340552270931344,
-   0.0006968274128356399,
-   -0.008062020430320333,
-   -0.0008122709553323897
+   -0.003209126096757212,
+   -0.0036873335828581824,
+   0.0011566936334397808,
+   -0.007610812071911738,
+   -0.00034318234560453087
   ],
   [
-   -0.015235784267949895,
-   -0.004179541449380716,
-   -0.010131294169891256,
-   -0.004432690900781693,
-   0.002238087954972842
+   -0.014462667686610696,
+   -0.0038436492523135904,
+   -0.008645159167967644,
+   -0.00438843459972107,
+   0.002395744497859923
   ],
   [
-   -0.010746202527560873,
-   -0.010213319111064661,
-   -0.009617372132521361,
-   -0.00647076363269351,
-   -0.001085018313764655
+   -0.010229013997163833,
+   -0.009500457446486782,
+   -0.00926386124202972,
+   -0.006047213914644089,
+   -0.0011062722376080725
   ],
   [
-   -0.02250045083127611,
-   -0.0042525829348733155,
-   -0.00950212443204336,
-   -0.008670642175798651,
-   -0.007463038479471189
+   -0.02153923445199016,
+   -0.0038699830649712337,
+   -0.008680711281559986,
+   -0.008089865313040893,
+   -0.006745310985378345
   ]
  ],
  "variance": [
   [
-   6.695378179189074e-05,
-   6.16905656845729e-05,
-   9.013452309761556e-05,
-   0.00011327128154792428,
-   0.00011541168137975338
+   6.095084229105777e-05,
+   5.70582171965469e-05,
+   8.272931628524082e-05,
+   9.261402260179059e-05,
+   9.840280981044762e-05
   ],
   [
-   9.355245179988796e-05,
-   7.102130727982195e-05,
-   8.864462456047034e-05,
-   0.00010363388308159423,
-   0.0001370300474533554
+   7.75656147642054e-05,
+   5.884285388332973e-05,
+   8.032976878749425e-05,
+   8.749443267120507e-05,
+   0.00011635483555012904
   ],
   [
-   0.0001113844321338946,
-   6.865539107481585e-05,
-   0.00015099760093217554,
-   0.00010277289907593235,
-   8.069150520395979e-05
+   8.568772659161689e-05,
+   6.016808565416076e-05,
+   0.00011987759342016906,
+   8.606475554545406e-05,
+   7.632929026362674e-05
   ],
   [
-   9.489933649604381e-05,
-   8.825454501180001e-05,
-   0.00010267371481825904,
-   8.942590574244923e-05,
-   7.606329348392997e-05
+   7.619273262617647e-05,
+   7.262354663015497e-05,
+   9.123392860641317e-05,
+   7.398719292510716e-05,
+   6.455655383928182e-05
   ],
   [
-   0.00014719131548360996,
-   0.0001224225738629805,
-   0.00012115433547926553,
-   0.0001050354195076109,
-   0.00012734688819518957
+   0.00012322687157002832,
+   0.0001088005872941966,
+   9.982168880020147e-05,
+   8.484586800290747e-05,
+   0.00010063578590923189
   ]
  ],
  "cell_details": {
   "0_0": {
    "tokens": [
     {
-     "token": "mixed",
-     "cell_mean": -0.024075,
-     "global_mean": -0.041181,
-     "deviation": 0.017107,
-     "z": 2.136,
+     "token": "works",
+     "cell_mean": -0.004846,
+     "global_mean": -0.018426,
+     "deviation": 0.01358,
+     "z": 2.423,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.024075,
+       "mean": -0.004846,
        "n": 1
       }
      }
     },
     {
-     "token": "respond",
-     "cell_mean": -0.01186,
-     "global_mean": -0.002735,
-     "deviation": -0.009125,
-     "z": 2.071,
+     "token": "legitimate",
+     "cell_mean": -0.006731,
+     "global_mean": 0.010744,
+     "deviation": -0.017476,
+     "z": 2.057,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.006731,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Trek",
+     "cell_mean": -0.003743,
+     "global_mean": -0.022259,
+     "deviation": 0.018516,
+     "z": 2.002,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.01186,
+       "mean": -0.003743,
        "n": 1
       }
      }
     },
     {
-     "token": "never",
-     "cell_mean": -0.02304,
-     "global_mean": -0.035147,
-     "deviation": 0.012107,
-     "z": 1.826,
+     "token": "surfaces",
+     "cell_mean": -0.013534,
+     "global_mean": -0.029084,
+     "deviation": 0.01555,
+     "z": 1.942,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.02304,
+       "mean": -0.013534,
        "n": 1
       }
      }
     },
     {
      "token": "where",
-     "cell_mean": -0.005727,
-     "global_mean": -0.024087,
-     "deviation": 0.01836,
-     "z": 1.795,
-     "n": 1,
+     "cell_mean": 0.011102,
+     "global_mean": -0.002592,
+     "deviation": 0.013694,
+     "z": 1.813,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.005727,
+       "mean": 0.011102,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "list",
+     "cell_mean": -0.008544,
+     "global_mean": -0.022891,
+     "deviation": 0.014346,
+     "z": 1.81,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.008544,
        "n": 1
       }
      }
     },
     {
      "token": "should",
-     "cell_mean": -0.005989,
-     "global_mean": -0.018607,
-     "deviation": 0.012619,
-     "z": 1.735,
+     "cell_mean": -0.000951,
+     "global_mean": -0.011773,
+     "deviation": 0.010821,
+     "z": 1.76,
      "n": 2,
      "n_cells": 25,
      "cats": {
@@ -175,7 +205,37 @@
        "n": 1
       },
       "m": {
-       "mean": -0.021978,
+       "mean": -0.011903,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "tax",
+     "cell_mean": 0.00551,
+     "global_mean": -0.005124,
+     "deviation": 0.010634,
+     "z": 1.76,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.00551,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "household",
+     "cell_mean": 0.00739,
+     "global_mean": -0.005103,
+     "deviation": 0.012493,
+     "z": 1.742,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.00739,
        "n": 1
       }
      }
@@ -191,70 +251,6 @@
      "cats": {
       "b": {
        "mean": -0.026398,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "cleaning",
-     "cell_mean": -0.007824,
-     "global_mean": -0.024898,
-     "deviation": 0.017074,
-     "z": 1.693,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.007824,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "vaccines",
-     "cell_mean": 0.004165,
-     "global_mean": -0.009345,
-     "deviation": 0.01351,
-     "z": 1.668,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.004165,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "world",
-     "cell_mean": -0.005109,
-     "global_mean": -0.014824,
-     "deviation": 0.009714,
-     "z": 1.628,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.00585,
-       "n": 2
-      },
-      "j": {
-       "mean": -0.003627,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "stalk",
-     "cell_mean": -0.007828,
-     "global_mean": -0.015955,
-     "deviation": 0.008127,
-     "z": 1.624,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.007828,
        "n": 1
       }
      }
@@ -282,36 +278,36 @@
     "format",
     "unusually"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "0_1": {
    "tokens": [
     {
-     "token": "'s",
-     "cell_mean": 0.018122,
-     "global_mean": 0.027961,
-     "deviation": -0.009839,
-     "z": 2.523,
+     "token": "disin",
+     "cell_mean": -0.024595,
+     "global_mean": -0.003761,
+     "deviation": -0.020834,
+     "z": 2.561,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": 0.018122,
+      "m": {
+       "mean": -0.024595,
        "n": 1
       }
      }
     },
     {
-     "token": "American",
-     "cell_mean": 0.053505,
-     "global_mean": 0.028453,
-     "deviation": 0.025052,
-     "z": 2.454,
+     "token": "ib",
+     "cell_mean": -0.011672,
+     "global_mean": -0.034704,
+     "deviation": 0.023032,
+     "z": 2.53,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": 0.053505,
+      "m": {
+       "mean": -0.011672,
        "n": 1
       }
      }
@@ -332,115 +328,111 @@
      }
     },
     {
-     "token": "You",
-     "cell_mean": 0.022869,
-     "global_mean": -0.003251,
-     "deviation": 0.02612,
-     "z": 2.185,
-     "n": 3,
+     "token": "American",
+     "cell_mean": 0.047563,
+     "global_mean": 0.027598,
+     "deviation": 0.019965,
+     "z": 2.372,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.047563,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "legitimate",
+     "cell_mean": -0.009298,
+     "global_mean": 0.010744,
+     "deviation": -0.020043,
+     "z": 2.359,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.009298,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "time",
+     "cell_mean": 0.020398,
+     "global_mean": -0.001643,
+     "deviation": 0.022041,
+     "z": 2.345,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.020398,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ensor",
+     "cell_mean": -0.014467,
+     "global_mean": 0.010125,
+     "deviation": -0.024593,
+     "z": 2.336,
+     "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.022869,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "locked",
-     "cell_mean": -0.031256,
-     "global_mean": -0.019037,
-     "deviation": -0.012219,
-     "z": 2.135,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.031256,
+       "mean": -0.014467,
        "n": 1
       }
      }
     },
     {
-     "token": "Ex",
-     "cell_mean": 0.000146,
-     "global_mean": -0.02484,
-     "deviation": 0.024987,
-     "z": 2.08,
+     "token": "over",
+     "cell_mean": -0.024973,
+     "global_mean": -0.01044,
+     "deviation": -0.014533,
+     "z": 2.333,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.035915,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.014031,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fight",
+     "cell_mean": -0.030246,
+     "global_mean": -0.020501,
+     "deviation": -0.009745,
+     "z": 2.304,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.030246,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "convert",
+     "cell_mean": 0.001083,
+     "global_mean": -0.013603,
+     "deviation": 0.014687,
+     "z": 2.303,
      "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.000146,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.000146,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ransom",
-     "cell_mean": 0.00477,
-     "global_mean": 0.017018,
-     "deviation": -0.012248,
-     "z": 2.052,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.00477,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "plain",
-     "cell_mean": 0.002026,
-     "global_mean": -0.025027,
-     "deviation": 0.027053,
-     "z": 2.046,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.002026,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.002026,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "differences",
-     "cell_mean": -0.002052,
-     "global_mean": -0.029794,
-     "deviation": 0.027742,
-     "z": 2.028,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.002052,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "cleaning",
-     "cell_mean": -0.004448,
-     "global_mean": -0.024898,
-     "deviation": 0.02045,
-     "z": 2.027,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.004448,
-       "n": 1
+       "mean": 0.001083,
+       "n": 2
       }
      }
     }
@@ -467,7 +459,7 @@
     "ntp",
     "high"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "0_2": {
    "tokens": [
@@ -482,6 +474,21 @@
      "cats": {
       "j": {
        "mean": -0.009638,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "post",
+     "cell_mean": 0.00798,
+     "global_mean": -0.002942,
+     "deviation": 0.010923,
+     "z": 2.524,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.00798,
        "n": 1
       }
      }
@@ -502,122 +509,111 @@
      }
     },
     {
-     "token": "my",
-     "cell_mean": -0.001718,
-     "global_mean": -0.009467,
-     "deviation": 0.007749,
-     "z": 2.157,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.001718,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "anything",
-     "cell_mean": 0.002712,
-     "global_mean": -0.007302,
-     "deviation": 0.010014,
-     "z": 1.901,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.002712,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "photos",
-     "cell_mean": -0.011194,
-     "global_mean": -0.020236,
-     "deviation": 0.009042,
-     "z": 1.805,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.011194,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "terms",
-     "cell_mean": 0.003077,
-     "global_mean": -0.007609,
-     "deviation": 0.010686,
-     "z": 1.744,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.003077,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "compound",
-     "cell_mean": 0.014943,
-     "global_mean": 0.008983,
-     "deviation": 0.00596,
-     "z": 1.736,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.014943,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "out",
-     "cell_mean": -0.002068,
-     "global_mean": -0.007578,
-     "deviation": 0.00551,
-     "z": 1.678,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.002068,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "detected",
-     "cell_mean": 0.004091,
-     "global_mean": -0.005323,
-     "deviation": 0.009414,
-     "z": 1.627,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.004091,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "fake",
-     "cell_mean": 0.026914,
-     "global_mean": 0.019437,
-     "deviation": 0.007478,
-     "z": 1.608,
+     "token": "like",
+     "cell_mean": 0.026189,
+     "global_mean": 0.019015,
+     "deviation": 0.007174,
+     "z": 2.213,
      "n": 2,
      "n_cells": 25,
      "cats": {
+      "b": {
+       "mean": 0.020243,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.032136,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "spread",
+     "cell_mean": 0.008099,
+     "global_mean": -0.000501,
+     "deviation": 0.0086,
+     "z": 2.175,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
       "h": {
-       "mean": 0.026914,
-       "n": 2
+       "mean": 0.008099,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "intimidating",
+     "cell_mean": -0.00179,
+     "global_mean": -0.010391,
+     "deviation": 0.008601,
+     "z": 2.172,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.00179,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fen",
+     "cell_mean": -0.04073,
+     "global_mean": -0.033306,
+     "deviation": -0.007424,
+     "z": 2.054,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.04073,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "public",
+     "cell_mean": -0.018492,
+     "global_mean": -0.025602,
+     "deviation": 0.00711,
+     "z": 1.883,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.018492,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "dioxide",
+     "cell_mean": -0.001708,
+     "global_mean": -0.00673,
+     "deviation": 0.005022,
+     "z": 1.862,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.001708,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "messages",
+     "cell_mean": 0.001697,
+     "global_mean": -0.008616,
+     "deviation": 0.010313,
+     "z": 1.816,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.001697,
+       "n": 1
       }
      }
     }
@@ -644,10 +640,100 @@
     "inaccessible",
     "examination"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "0_3": {
    "tokens": [
+    {
+     "token": "rote",
+     "cell_mean": 0.00628,
+     "global_mean": 0.017599,
+     "deviation": -0.011319,
+     "z": 2.365,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.00628,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "store",
+     "cell_mean": -0.001727,
+     "global_mean": 0.012938,
+     "deviation": -0.014666,
+     "z": 2.349,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.001727,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Mirror",
+     "cell_mean": -0.020933,
+     "global_mean": -0.00643,
+     "deviation": -0.014503,
+     "z": 2.199,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.020933,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "each",
+     "cell_mean": -0.020193,
+     "global_mean": -0.010994,
+     "deviation": -0.009199,
+     "z": 2.148,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.020193,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "izing",
+     "cell_mean": -0.017739,
+     "global_mean": -0.003247,
+     "deviation": -0.014491,
+     "z": 2.107,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.017739,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Universe",
+     "cell_mean": -0.028718,
+     "global_mean": -0.016998,
+     "deviation": -0.01172,
+     "z": 2.053,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.028718,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "-defense",
      "cell_mean": -0.013957,
@@ -664,140 +750,50 @@
      }
     },
     {
-     "token": "make",
-     "cell_mean": -0.019096,
-     "global_mean": -0.005077,
-     "deviation": -0.01402,
-     "z": 2.004,
+     "token": "processor",
+     "cell_mean": -0.049638,
+     "global_mean": -0.04221,
+     "deviation": -0.007429,
+     "z": 2.041,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.049638,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "properly",
+     "cell_mean": -0.025361,
+     "global_mean": -0.010365,
+     "deviation": -0.014996,
+     "z": 1.997,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.025361,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "be",
+     "cell_mean": -0.03837,
+     "global_mean": -0.02912,
+     "deviation": -0.00925,
+     "z": 1.989,
      "n": 2,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": -0.019096,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.014588,
-     "global_mean": -0.004952,
-     "deviation": -0.009636,
-     "z": 1.932,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.014588,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "From",
-     "cell_mean": -0.01257,
-     "global_mean": -0.002199,
-     "deviation": -0.010371,
-     "z": 1.919,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.01257,
+      "m": {
+       "mean": -0.061748,
        "n": 1
-      }
-     }
-    },
-    {
-     "token": "phone",
-     "cell_mean": -0.000145,
-     "global_mean": 0.0092,
-     "deviation": -0.009346,
-     "z": 1.914,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.000145,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.009384,
-     "global_mean": 0.00149,
-     "deviation": -0.010875,
-     "z": 1.906,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.007031,
-       "n": 3
       },
-      "j": {
-       "mean": -0.016442,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "if",
-     "cell_mean": -0.003312,
-     "global_mean": 0.009498,
-     "deviation": -0.012811,
-     "z": 1.906,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.003312,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "now",
-     "cell_mean": -0.018796,
-     "global_mean": -0.007363,
-     "deviation": -0.011433,
-     "z": 1.902,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018796,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "identity",
-     "cell_mean": 0.002199,
-     "global_mean": 0.011593,
-     "deviation": -0.009394,
-     "z": 1.895,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
       "h": {
-       "mean": 0.002199,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "able",
-     "cell_mean": 0.023023,
-     "global_mean": 0.032361,
-     "deviation": -0.009338,
-     "z": 1.895,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.023023,
+       "mean": -0.014992,
        "n": 1
       }
      }
@@ -825,10 +821,40 @@
     "urls",
     "basics"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "0_4": {
    "tokens": [
+    {
+     "token": "restraining",
+     "cell_mean": 0.036196,
+     "global_mean": 0.029888,
+     "deviation": 0.006307,
+     "z": 2.006,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.036196,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": 0.009414,
+     "global_mean": 0.000851,
+     "deviation": 0.008562,
+     "z": 1.921,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.009414,
+       "n": 2
+      }
+     }
+    },
     {
      "token": "generate",
      "cell_mean": -0.034374,
@@ -840,6 +866,21 @@
      "cats": {
       "b": {
        "mean": -0.034374,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "carbon",
+     "cell_mean": -0.025694,
+     "global_mean": -0.018522,
+     "deviation": -0.007171,
+     "z": 1.61,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.025694,
        "n": 1
       }
      }
@@ -860,16 +901,46 @@
      }
     },
     {
-     "token": "photos",
-     "cell_mean": -0.027027,
-     "global_mean": -0.020236,
-     "deviation": -0.006791,
-     "z": 1.356,
+     "token": "bleach",
+     "cell_mean": -0.042995,
+     "global_mean": -0.036883,
+     "deviation": -0.006112,
+     "z": 1.413,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": -0.027027,
+      "m": {
+       "mean": -0.042995,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "using",
+     "cell_mean": 0.012978,
+     "global_mean": 0.003408,
+     "deviation": 0.00957,
+     "z": 1.385,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.012978,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "applicable",
+     "cell_mean": 0.016613,
+     "global_mean": 0.006952,
+     "deviation": 0.009662,
+     "z": 1.361,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.016613,
        "n": 1
       }
      }
@@ -890,91 +961,16 @@
      }
     },
     {
-     "token": "leading",
-     "cell_mean": -0.007141,
-     "global_mean": -0.014532,
-     "deviation": 0.007392,
-     "z": 1.136,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.007141,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ethical",
-     "cell_mean": -0.0261,
-     "global_mean": -0.020054,
-     "deviation": -0.006046,
-     "z": 1.113,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.0261,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "been",
-     "cell_mean": -0.013471,
-     "global_mean": -0.009077,
-     "deviation": -0.004394,
-     "z": 1.081,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.013471,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "prescription",
-     "cell_mean": -0.032758,
-     "global_mean": -0.027381,
-     "deviation": -0.005376,
-     "z": 1.064,
+     "token": "federal",
+     "cell_mean": 0.029282,
+     "global_mean": 0.019503,
+     "deviation": 0.009779,
+     "z": 1.313,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.032758,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "note",
-     "cell_mean": 0.011753,
-     "global_mean": 0.006017,
-     "deviation": 0.005736,
-     "z": 1.039,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.011753,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "developer",
-     "cell_mean": 0.004315,
-     "global_mean": 0.008505,
-     "deviation": -0.00419,
-     "z": 1.036,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.004315,
+       "mean": 0.029282,
        "n": 1
       }
      }
@@ -1002,10 +998,40 @@
     "troq",
     "round"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "1_0": {
    "tokens": [
+    {
+     "token": "-counter",
+     "cell_mean": 0.008612,
+     "global_mean": 0.003637,
+     "deviation": 0.004975,
+     "z": 1.2,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.008612,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": 0.003301,
+     "global_mean": -0.000977,
+     "deviation": 0.004278,
+     "z": 1.078,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.003301,
+       "n": 2
+      }
+     }
+    },
     {
      "token": "democracy",
      "cell_mean": 0.015289,
@@ -1022,85 +1048,47 @@
      }
     },
     {
-     "token": "an",
-     "cell_mean": 0.007734,
-     "global_mean": 0.003103,
-     "deviation": 0.004631,
-     "z": 1.064,
-     "n": 3,
+     "token": "republic",
+     "cell_mean": -0.005279,
+     "global_mean": -0.011366,
+     "deviation": 0.006088,
+     "z": 1.05,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": -0.00556,
+      "b": {
+       "mean": -0.005279,
        "n": 1
-      },
-      "j": {
-       "mean": 0.01438,
-       "n": 2
       }
      }
     },
     {
-     "token": "un",
-     "cell_mean": 0.003219,
-     "global_mean": -0.000889,
-     "deviation": 0.004108,
-     "z": 1.014,
+     "token": "spread",
+     "cell_mean": -0.004293,
+     "global_mean": -0.000501,
+     "deviation": -0.003792,
+     "z": 0.959,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.003219,
+       "mean": -0.004293,
        "n": 1
       }
      }
     },
     {
-     "token": "mountain",
-     "cell_mean": -0.005718,
-     "global_mean": -0.013933,
-     "deviation": 0.008215,
-     "z": 1.0,
-     "n": 2,
+     "token": "execution",
+     "cell_mean": -0.033054,
+     "global_mean": -0.037027,
+     "deviation": 0.003973,
+     "z": 0.943,
+     "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.005718,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "fake",
-     "cell_mean": 0.023998,
-     "global_mean": 0.019437,
-     "deviation": 0.004561,
-     "z": 0.981,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.023998,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "into",
-     "cell_mean": 0.011353,
-     "global_mean": 0.006732,
-     "deviation": 0.004622,
-     "z": 0.946,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.012477,
+       "mean": -0.033054,
        "n": 1
-      },
-      "h": {
-       "mean": 0.010791,
-       "n": 2
       }
      }
     },
@@ -1120,46 +1108,46 @@
      }
     },
     {
-     "token": "as",
-     "cell_mean": -0.01845,
-     "global_mean": -0.024977,
-     "deviation": 0.006528,
-     "z": 0.94,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.01845,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "lock",
-     "cell_mean": 0.022457,
-     "global_mean": 0.014862,
-     "deviation": 0.007595,
-     "z": 0.931,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.022457,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "events",
-     "cell_mean": -0.010093,
-     "global_mean": -0.016422,
-     "deviation": 0.006329,
-     "z": 0.929,
+     "token": "renting",
+     "cell_mean": -0.00464,
+     "global_mean": -0.010789,
+     "deviation": 0.006148,
+     "z": 0.936,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.010093,
+       "mean": -0.00464,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "rote",
+     "cell_mean": 0.022076,
+     "global_mean": 0.017599,
+     "deviation": 0.004478,
+     "z": 0.936,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.022076,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terminate",
+     "cell_mean": -0.001061,
+     "global_mean": -0.004821,
+     "deviation": 0.00376,
+     "z": 0.936,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.001061,
        "n": 1
       }
      }
@@ -1187,36 +1175,126 @@
     "alp",
     "ams"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "1_1": {
    "tokens": [
     {
-     "token": "software",
-     "cell_mean": 0.0044,
-     "global_mean": -0.002869,
-     "deviation": 0.00727,
-     "z": 1.965,
+     "token": "against",
+     "cell_mean": 0.012783,
+     "global_mean": 0.000825,
+     "deviation": 0.011958,
+     "z": 2.081,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.0044,
+       "mean": 0.012783,
        "n": 1
       }
      }
     },
     {
-     "token": "terms",
-     "cell_mean": -0.019138,
-     "global_mean": -0.007609,
-     "deviation": -0.011529,
-     "z": 1.882,
+     "token": "executes",
+     "cell_mean": -0.032914,
+     "global_mean": -0.044542,
+     "deviation": 0.011628,
+     "z": 2.067,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.019138,
+       "mean": -0.032914,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "complex",
+     "cell_mean": -0.018811,
+     "global_mean": -0.028486,
+     "deviation": 0.009674,
+     "z": 1.959,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.018811,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "real",
+     "cell_mean": -0.017841,
+     "global_mean": -0.029859,
+     "deviation": 0.012018,
+     "z": 1.889,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.017841,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "disin",
+     "cell_mean": -0.019036,
+     "global_mean": -0.003761,
+     "deviation": -0.015275,
+     "z": 1.877,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.019036,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "historical",
+     "cell_mean": -0.020471,
+     "global_mean": -0.007144,
+     "deviation": -0.013327,
+     "z": 1.862,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.020471,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "renting",
+     "cell_mean": 0.000998,
+     "global_mean": -0.010789,
+     "deviation": 0.011786,
+     "z": 1.794,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000998,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "employee",
+     "cell_mean": -0.000892,
+     "global_mean": -0.02197,
+     "deviation": 0.021078,
+     "z": 1.79,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.000892,
        "n": 1
       }
      }
@@ -1237,106 +1315,16 @@
      }
     },
     {
-     "token": "tallest",
-     "cell_mean": -0.007497,
-     "global_mean": -0.019242,
-     "deviation": 0.011745,
-     "z": 1.627,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.007497,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "key",
-     "cell_mean": -0.021341,
-     "global_mean": -0.031578,
-     "deviation": 0.010237,
-     "z": 1.595,
+     "token": "science",
+     "cell_mean": -0.021278,
+     "global_mean": -0.03425,
+     "deviation": 0.012973,
+     "z": 1.736,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.021341,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "has",
-     "cell_mean": 0.002957,
-     "global_mean": -0.006271,
-     "deviation": 0.009228,
-     "z": 1.583,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.002957,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bank",
-     "cell_mean": -0.012194,
-     "global_mean": -0.01894,
-     "deviation": 0.006746,
-     "z": 1.508,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.012194,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "American",
-     "cell_mean": 0.043817,
-     "global_mean": 0.028453,
-     "deviation": 0.015364,
-     "z": 1.505,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.043817,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "consider",
-     "cell_mean": -0.028129,
-     "global_mean": -0.037782,
-     "deviation": 0.009652,
-     "z": 1.459,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.028129,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "shop",
-     "cell_mean": -0.015703,
-     "global_mean": -0.003533,
-     "deviation": -0.01217,
-     "z": 1.445,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.015703,
+       "mean": -0.021278,
        "n": 1
       }
      }
@@ -1364,10 +1352,63 @@
     "mysql",
     "hackers"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "1_2": {
    "tokens": [
+    {
+     "token": "buying",
+     "cell_mean": 0.037062,
+     "global_mean": 0.024625,
+     "deviation": 0.012437,
+     "z": 2.606,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.037062,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "at",
+     "cell_mean": 0.004444,
+     "global_mean": -0.001192,
+     "deviation": 0.005635,
+     "z": 2.325,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009611,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.001761,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.00548,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "emotionally",
+     "cell_mean": 0.000353,
+     "global_mean": -0.009651,
+     "deviation": 0.010004,
+     "z": 2.171,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.000353,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "effective",
      "cell_mean": 0.038028,
@@ -1384,17 +1425,32 @@
      }
     },
     {
-     "token": "describe",
-     "cell_mean": -0.010421,
-     "global_mean": -0.018786,
-     "deviation": 0.008365,
-     "z": 2.111,
+     "token": "disease",
+     "cell_mean": -0.007852,
+     "global_mean": -0.024617,
+     "deviation": 0.016764,
+     "z": 2.084,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.010421,
+       "mean": -0.007852,
        "n": 1
+      }
+     }
+    },
+    {
+     "token": "system",
+     "cell_mean": 0.003108,
+     "global_mean": -0.005754,
+     "deviation": 0.008862,
+     "z": 2.069,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.003108,
+       "n": 2
       }
      }
     },
@@ -1414,114 +1470,50 @@
      }
     },
     {
-     "token": "Sum",
-     "cell_mean": -0.021468,
-     "global_mean": -0.009775,
-     "deviation": -0.011692,
-     "z": 1.922,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.021468,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "buying",
-     "cell_mean": 0.024209,
-     "global_mean": 0.008401,
-     "deviation": 0.015808,
-     "z": 1.9,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.024209,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "break",
-     "cell_mean": 0.001086,
-     "global_mean": -0.008715,
-     "deviation": 0.009801,
-     "z": 1.875,
-     "n": 2,
+     "token": "with",
+     "cell_mean": 0.012755,
+     "global_mean": -0.00207,
+     "deviation": 0.014825,
+     "z": 2.0,
+     "n": 3,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.001644,
-       "n": 1
+       "mean": 0.007943,
+       "n": 2
       },
-      "h": {
-       "mean": 0.003815,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ret",
-     "cell_mean": 0.046514,
-     "global_mean": 0.037965,
-     "deviation": 0.008549,
-     "z": 1.846,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
       "j": {
-       "mean": 0.046514,
+       "mean": 0.022381,
        "n": 1
       }
      }
     },
     {
-     "token": "note",
-     "cell_mean": 0.016183,
-     "global_mean": 0.006017,
-     "deviation": 0.010166,
-     "z": 1.842,
+     "token": "introductory",
+     "cell_mean": -0.003059,
+     "global_mean": -0.012892,
+     "deviation": 0.009832,
+     "z": 1.982,
      "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.016183,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "when",
-     "cell_mean": -0.004404,
-     "global_mean": -0.019846,
-     "deviation": 0.015441,
-     "z": 1.825,
-     "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.003851,
-       "n": 1
-      },
-      "m": {
-       "mean": -0.01266,
+       "mean": -0.003059,
        "n": 1
       }
      }
     },
     {
-     "token": "negotiate",
-     "cell_mean": 0.010284,
-     "global_mean": -0.003504,
-     "deviation": 0.013788,
-     "z": 1.823,
+     "token": "writing",
+     "cell_mean": 0.008615,
+     "global_mean": -0.00672,
+     "deviation": 0.015335,
+     "z": 1.945,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.010284,
+       "mean": 0.008615,
        "n": 1
       }
      }
@@ -1549,10 +1541,55 @@
     "injects",
     "unexpected"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "1_3": {
    "tokens": [
+    {
+     "token": "carefully",
+     "cell_mean": -0.005625,
+     "global_mean": 0.004189,
+     "deviation": -0.009814,
+     "z": 2.057,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.005625,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "memory",
+     "cell_mean": -0.03477,
+     "global_mean": -0.027886,
+     "deviation": -0.006884,
+     "z": 1.715,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.03477,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fen",
+     "cell_mean": -0.038895,
+     "global_mean": -0.033306,
+     "deviation": -0.005589,
+     "z": 1.547,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.038895,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "Py",
      "cell_mean": 0.035398,
@@ -1569,137 +1606,92 @@
      }
     },
     {
-     "token": "photos",
-     "cell_mean": -0.0143,
-     "global_mean": -0.020236,
-     "deviation": 0.005937,
-     "z": 1.185,
+     "token": "during",
+     "cell_mean": -0.029244,
+     "global_mean": -0.021975,
+     "deviation": -0.007269,
+     "z": 1.385,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.0143,
+       "mean": -0.029244,
        "n": 1
       }
      }
     },
     {
-     "token": "someone",
-     "cell_mean": -0.007531,
-     "global_mean": -0.000349,
-     "deviation": -0.007182,
-     "z": 1.135,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.007531,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "respond",
-     "cell_mean": -0.007663,
-     "global_mean": -0.002735,
-     "deviation": -0.004927,
-     "z": 1.118,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.007663,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "first",
-     "cell_mean": 0.011066,
-     "global_mean": 0.0165,
-     "deviation": -0.005434,
-     "z": 1.117,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.011066,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "shop",
-     "cell_mean": 0.005306,
-     "global_mean": -0.003533,
-     "deviation": 0.00884,
-     "z": 1.05,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.005306,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "filters",
-     "cell_mean": -0.00454,
-     "global_mean": 0.003309,
-     "deviation": -0.007849,
-     "z": 0.982,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.00454,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "American",
-     "cell_mean": 0.018801,
-     "global_mean": 0.028453,
-     "deviation": -0.009652,
-     "z": 0.946,
+     "token": "execution",
+     "cell_mean": -0.042608,
+     "global_mean": -0.037027,
+     "deviation": -0.005581,
+     "z": 1.325,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.018801,
+       "mean": -0.042608,
        "n": 1
       }
      }
     },
     {
-     "token": "fictional",
-     "cell_mean": -0.016916,
-     "global_mean": -0.020908,
-     "deviation": 0.003992,
-     "z": 0.923,
+     "token": "py",
+     "cell_mean": -0.009736,
+     "global_mean": -0.01817,
+     "deviation": 0.008435,
+     "z": 1.291,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.009736,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "profiles",
+     "cell_mean": -0.015086,
+     "global_mean": -0.00526,
+     "deviation": -0.009826,
+     "z": 1.224,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.015086,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "No",
+     "cell_mean": 0.005309,
+     "global_mean": -0.004216,
+     "deviation": 0.009525,
+     "z": 1.178,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.016916,
+       "mean": 0.005309,
        "n": 1
       }
      }
     },
     {
-     "token": "content",
-     "cell_mean": -0.016377,
-     "global_mean": -0.011387,
-     "deviation": -0.00499,
-     "z": 0.921,
-     "n": 3,
+     "token": "buying",
+     "cell_mean": 0.019029,
+     "global_mean": 0.024625,
+     "deviation": -0.005596,
+     "z": 1.173,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.016377,
-       "n": 3
+      "b": {
+       "mean": 0.019029,
+       "n": 1
       }
      }
     }
@@ -1726,40 +1718,126 @@
     "mathematics",
     "chain"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "1_4": {
    "tokens": [
     {
-     "token": "without",
-     "cell_mean": 0.036149,
-     "global_mean": 0.015409,
-     "deviation": 0.02074,
-     "z": 3.62,
-     "n": 3,
+     "token": "state",
+     "cell_mean": 0.032443,
+     "global_mean": 0.003344,
+     "deviation": 0.029099,
+     "z": 3.355,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": 0.028512,
-       "n": 2
-      },
-      "j": {
-       "mean": 0.051424,
+      "m": {
+       "mean": 0.032443,
        "n": 1
       }
      }
     },
     {
-     "token": "targeting",
-     "cell_mean": 0.034843,
-     "global_mean": 0.011145,
-     "deviation": 0.023697,
-     "z": 2.987,
+     "token": "relationship",
+     "cell_mean": 0.020148,
+     "global_mean": 0.005261,
+     "deviation": 0.014888,
+     "z": 3.178,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.034843,
+       "mean": 0.020148,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "-known",
+     "cell_mean": 0.018587,
+     "global_mean": 0.002721,
+     "deviation": 0.015865,
+     "z": 3.081,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.018587,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ip",
+     "cell_mean": 0.029426,
+     "global_mean": 0.010601,
+     "deviation": 0.018825,
+     "z": 3.079,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.029426,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "your",
+     "cell_mean": 0.000933,
+     "global_mean": -0.015742,
+     "deviation": 0.016675,
+     "z": 3.068,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.000933,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "guilt",
+     "cell_mean": -0.015104,
+     "global_mean": 0.000678,
+     "deviation": -0.015782,
+     "z": 3.048,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.015104,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "common",
+     "cell_mean": -0.012531,
+     "global_mean": -0.023772,
+     "deviation": 0.011242,
+     "z": 2.992,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012531,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "-tr",
+     "cell_mean": 0.005495,
+     "global_mean": -0.009351,
+     "deviation": 0.014846,
+     "z": 2.983,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005495,
        "n": 1
       }
      }
@@ -1780,122 +1858,16 @@
      }
     },
     {
-     "token": "ransom",
-     "cell_mean": 0.034519,
-     "global_mean": 0.017018,
-     "deviation": 0.017501,
-     "z": 2.933,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.034519,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.012179,
-     "global_mean": -0.003588,
-     "deviation": 0.015767,
-     "z": 2.877,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.012179,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "pick",
-     "cell_mean": 0.010043,
-     "global_mean": -0.00462,
-     "deviation": 0.014664,
-     "z": 2.862,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.000451,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.020537,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "s",
-     "cell_mean": 0.02513,
-     "global_mean": 0.003505,
-     "deviation": 0.021625,
-     "z": 2.798,
+     "token": "chn",
+     "cell_mean": 0.019427,
+     "global_mean": 0.003696,
+     "deviation": 0.015731,
+     "z": 2.931,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.02513,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "self",
-     "cell_mean": 0.04241,
-     "global_mean": 0.019725,
-     "deviation": 0.022685,
-     "z": 2.725,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.04241,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "locked",
-     "cell_mean": -0.003484,
-     "global_mean": -0.019037,
-     "deviation": 0.015553,
-     "z": 2.718,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.003484,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "a",
-     "cell_mean": 0.021417,
-     "global_mean": 0.010108,
-     "deviation": 0.01131,
-     "z": 2.694,
-     "n": 14,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.002543,
-       "n": 3
-      },
-      "m": {
-       "mean": 0.019363,
-       "n": 4
-      },
-      "h": {
-       "mean": 0.033889,
-       "n": 6
-      },
-      "j": {
-       "mean": 0.011429,
+       "mean": 0.019427,
        "n": 1
       }
      }
@@ -1923,7 +1895,7 @@
     "resulting",
     "dusty"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "2_0": {
    "tokens": [
@@ -1943,16 +1915,46 @@
      }
     },
     {
-     "token": "security",
-     "cell_mean": -0.026948,
-     "global_mean": -0.008446,
-     "deviation": -0.018502,
-     "z": 2.405,
+     "token": "discredit",
+     "cell_mean": -0.023214,
+     "global_mean": -0.008957,
+     "deviation": -0.014257,
+     "z": 2.407,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.023214,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "republic",
+     "cell_mean": -0.02465,
+     "global_mean": -0.011366,
+     "deviation": -0.013283,
+     "z": 2.29,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.02465,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "follow",
+     "cell_mean": -0.019049,
+     "global_mean": -0.002137,
+     "deviation": -0.016912,
+     "z": 2.201,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.026948,
+       "mean": -0.019049,
        "n": 1
       }
      }
@@ -1973,114 +1975,80 @@
      }
     },
     {
-     "token": "locksmith",
-     "cell_mean": -0.019915,
-     "global_mean": -0.002338,
-     "deviation": -0.017576,
-     "z": 2.134,
+     "token": "harass",
+     "cell_mean": 0.017662,
+     "global_mean": 0.034789,
+     "deviation": -0.017127,
+     "z": 2.157,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": -0.019915,
+      "h": {
+       "mean": 0.017662,
        "n": 1
       }
      }
     },
     {
-     "token": "and",
-     "cell_mean": -0.019271,
-     "global_mean": -0.007347,
-     "deviation": -0.011924,
-     "z": 2.119,
+     "token": "silence",
+     "cell_mean": -0.012191,
+     "global_mean": 0.003622,
+     "deviation": -0.015814,
+     "z": 2.143,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.012191,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "figure",
+     "cell_mean": -0.012414,
+     "global_mean": -6.8e-05,
+     "deviation": -0.012346,
+     "z": 2.094,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.012414,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "carefully",
+     "cell_mean": 0.014121,
+     "global_mean": 0.004189,
+     "deviation": 0.009932,
+     "z": 2.082,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.014121,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "corporate",
+     "cell_mean": -0.002802,
+     "global_mean": 0.005609,
+     "deviation": -0.008411,
+     "z": 2.068,
      "n": 2,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": -0.023453,
+      "h": {
+       "mean": -0.004411,
        "n": 1
       },
       "j": {
-       "mean": -0.015088,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "lock",
-     "cell_mean": -0.002095,
-     "global_mean": 0.014862,
-     "deviation": -0.016957,
-     "z": 2.078,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.002095,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "phone",
-     "cell_mean": -0.000706,
-     "global_mean": 0.0092,
-     "deviation": -0.009906,
-     "z": 2.029,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.000706,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "break",
-     "cell_mean": -0.019248,
-     "global_mean": -0.008715,
-     "deviation": -0.010533,
-     "z": 2.016,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.02469,
-       "n": 1
-      },
-      "h": {
-       "mean": -0.013806,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "price",
-     "cell_mean": -0.010421,
-     "global_mean": 0.005557,
-     "deviation": -0.015979,
-     "z": 1.962,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.010421,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "leading",
-     "cell_mean": -0.027121,
-     "global_mean": -0.014532,
-     "deviation": -0.012588,
-     "z": 1.934,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.027121,
+       "mean": -0.001194,
        "n": 1
       }
      }
@@ -2108,10 +2076,25 @@
     "uac",
     "urbc"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "2_1": {
    "tokens": [
+    {
+     "token": "today",
+     "cell_mean": -0.001869,
+     "global_mean": 0.009177,
+     "deviation": -0.011047,
+     "z": 1.94,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.001869,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "P",
      "cell_mean": 0.011595,
@@ -2123,6 +2106,81 @@
      "cats": {
       "j": {
        "mean": 0.011595,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "upro",
+     "cell_mean": -0.016442,
+     "global_mean": -0.00783,
+     "deviation": -0.008613,
+     "z": 1.874,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.016442,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "steal",
+     "cell_mean": 0.012704,
+     "global_mean": 0.02275,
+     "deviation": -0.010046,
+     "z": 1.849,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.012704,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "py",
+     "cell_mean": -0.030145,
+     "global_mean": -0.01817,
+     "deviation": -0.011974,
+     "z": 1.833,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.030145,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "market",
+     "cell_mean": -0.018728,
+     "global_mean": -0.009238,
+     "deviation": -0.009489,
+     "z": 1.801,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.018728,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "buying",
+     "cell_mean": 0.016406,
+     "global_mean": 0.024625,
+     "deviation": -0.008219,
+     "z": 1.722,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.016406,
        "n": 1
       }
      }
@@ -2158,106 +2216,16 @@
      }
     },
     {
-     "token": "targeting",
-     "cell_mean": -0.00164,
-     "global_mean": 0.011145,
-     "deviation": -0.012785,
-     "z": 1.612,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.00164,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "content",
-     "cell_mean": -0.002789,
-     "global_mean": -0.011387,
-     "deviation": 0.008598,
-     "z": 1.587,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.002789,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "harmful",
-     "cell_mean": 0.007402,
-     "global_mean": -0.006656,
-     "deviation": 0.014059,
-     "z": 1.547,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.007402,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "herbs",
-     "cell_mean": -0.015703,
-     "global_mean": -0.026668,
-     "deviation": 0.010965,
-     "z": 1.519,
+     "token": "warning",
+     "cell_mean": -0.01891,
+     "global_mean": -0.033649,
+     "deviation": 0.014739,
+     "z": 1.614,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.015703,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "key",
-     "cell_mean": -0.021865,
-     "global_mean": -0.031578,
-     "deviation": 0.009713,
-     "z": 1.513,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.021865,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "lower",
-     "cell_mean": -0.002746,
-     "global_mean": 0.004262,
-     "deviation": -0.007009,
-     "z": 1.451,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.002746,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "'s",
-     "cell_mean": 0.02231,
-     "global_mean": 0.027961,
-     "deviation": -0.005651,
-     "z": 1.449,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.02231,
+       "mean": -0.01891,
        "n": 1
       }
      }
@@ -2285,81 +2253,96 @@
     "ksp",
     "broker"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "2_2": {
    "tokens": [
     {
-     "token": "system",
-     "cell_mean": 0.002827,
-     "global_mean": 0.015345,
-     "deviation": -0.012518,
-     "z": 2.698,
+     "token": "regulations",
+     "cell_mean": -0.01674,
+     "global_mean": -0.004169,
+     "deviation": -0.012571,
+     "z": 2.656,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.01674,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "acet",
+     "cell_mean": -0.02012,
+     "global_mean": -0.001925,
+     "deviation": -0.018195,
+     "z": 2.509,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02012,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "regularly",
+     "cell_mean": -0.021791,
+     "global_mean": -0.009079,
+     "deviation": -0.012713,
+     "z": 2.146,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.021791,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "oxygen",
+     "cell_mean": -0.013702,
+     "global_mean": -0.002898,
+     "deviation": -0.010803,
+     "z": 2.131,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.002827,
+       "mean": -0.013702,
        "n": 1
       }
      }
     },
     {
-     "token": "phishing",
-     "cell_mean": 0.055213,
-     "global_mean": 0.039866,
-     "deviation": 0.015347,
-     "z": 2.477,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.055213,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "work",
-     "cell_mean": -0.01223,
-     "global_mean": -0.000807,
-     "deviation": -0.011423,
-     "z": 2.241,
+     "token": "matters",
+     "cell_mean": -0.014802,
+     "global_mean": -0.000992,
+     "deviation": -0.01381,
+     "z": 2.07,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.01223,
+       "mean": -0.014802,
        "n": 1
       }
      }
     },
     {
-     "token": "respond",
-     "cell_mean": 0.006586,
-     "global_mean": -0.002735,
-     "deviation": 0.009321,
-     "z": 2.115,
+     "token": "amin",
+     "cell_mean": -0.009699,
+     "global_mean": 0.001102,
+     "deviation": -0.010801,
+     "z": 2.007,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.006586,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "'s",
-     "cell_mean": 0.035769,
-     "global_mean": 0.027961,
-     "deviation": 0.007808,
-     "z": 2.002,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.035769,
+      "m": {
+       "mean": -0.009699,
        "n": 1
       }
      }
@@ -2380,40 +2363,6 @@
      }
     },
     {
-     "token": "home",
-     "cell_mean": -0.029619,
-     "global_mean": -0.018476,
-     "deviation": -0.011143,
-     "z": 1.984,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.02551,
-       "n": 1
-      },
-      "m": {
-       "mean": -0.033729,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "first",
-     "cell_mean": 0.006885,
-     "global_mean": 0.0165,
-     "deviation": -0.009615,
-     "z": 1.976,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.006885,
-       "n": 1
-      }
-     }
-    },
-    {
      "token": "techniques",
      "cell_mean": -0.021349,
      "global_mean": -0.010396,
@@ -2429,16 +2378,35 @@
      }
     },
     {
-     "token": "ransom",
-     "cell_mean": 0.028317,
-     "global_mean": 0.017018,
-     "deviation": 0.011299,
-     "z": 1.893,
+     "token": "pain",
+     "cell_mean": -0.027906,
+     "global_mean": -0.017868,
+     "deviation": -0.010038,
+     "z": 1.949,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": 0.028317,
+      "m": {
+       "mean": -0.027906,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "work",
+     "cell_mean": -0.007447,
+     "global_mean": 0.000632,
+     "deviation": -0.00808,
+     "z": 1.929,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.01223,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.002664,
        "n": 1
       }
      }
@@ -2466,10 +2434,40 @@
     "performing",
     "fingerprints"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "2_3": {
    "tokens": [
+    {
+     "token": "fect",
+     "cell_mean": -0.002173,
+     "global_mean": -0.013391,
+     "deviation": 0.011218,
+     "z": 2.553,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.002173,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bleach",
+     "cell_mean": -0.02623,
+     "global_mean": -0.036883,
+     "deviation": 0.010654,
+     "z": 2.464,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02623,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "interest",
      "cell_mean": 0.007627,
@@ -2481,6 +2479,21 @@
      "cats": {
       "b": {
        "mean": 0.007627,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "market",
+     "cell_mean": 0.002332,
+     "global_mean": -0.009238,
+     "deviation": 0.011571,
+     "z": 2.196,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002332,
        "n": 1
       }
      }
@@ -2501,121 +2514,80 @@
      }
     },
     {
-     "token": "terms",
-     "cell_mean": 0.004931,
-     "global_mean": -0.007609,
-     "deviation": 0.01254,
-     "z": 2.047,
+     "token": "fight",
+     "cell_mean": -0.011505,
+     "global_mean": -0.020501,
+     "deviation": 0.008996,
+     "z": 2.127,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.004931,
+       "mean": -0.011505,
        "n": 1
       }
      }
     },
     {
-     "token": "work",
-     "cell_mean": 0.009496,
-     "global_mean": -0.000807,
-     "deviation": 0.010303,
-     "z": 2.021,
+     "token": "program",
+     "cell_mean": 0.001877,
+     "global_mean": -0.008584,
+     "deviation": 0.01046,
+     "z": 2.106,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.009496,
+       "mean": 0.001877,
        "n": 1
       }
      }
     },
     {
-     "token": "be",
-     "cell_mean": -0.02588,
-     "global_mean": -0.034898,
-     "deviation": 0.009018,
-     "z": 1.926,
+     "token": "regulations",
+     "cell_mean": 0.005596,
+     "global_mean": -0.004169,
+     "deviation": 0.009765,
+     "z": 2.064,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.02588,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ides",
-     "cell_mean": -0.026038,
-     "global_mean": -0.032749,
-     "deviation": 0.006711,
-     "z": 1.845,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.026038,
+       "mean": 0.005596,
        "n": 1
       }
      }
     },
     {
      "token": "simple",
-     "cell_mean": -0.011158,
-     "global_mean": -0.022227,
-     "deviation": 0.011069,
-     "z": 1.84,
+     "cell_mean": -0.006495,
+     "global_mean": -0.017463,
+     "deviation": 0.010968,
+     "z": 2.035,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.011158,
+       "mean": -0.006495,
        "n": 1
       }
      }
     },
     {
-     "token": "been",
-     "cell_mean": -0.001979,
-     "global_mean": -0.009077,
-     "deviation": 0.007099,
-     "z": 1.746,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.001979,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "generate",
-     "cell_mean": -0.020116,
-     "global_mean": -0.027043,
-     "deviation": 0.006927,
-     "z": 1.738,
-     "n": 1,
+     "token": "work",
+     "cell_mean": 0.008839,
+     "global_mean": 0.000632,
+     "deviation": 0.008207,
+     "z": 1.96,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.020116,
+       "mean": 0.009496,
        "n": 1
-      }
-     }
-    },
-    {
-     "token": "'re",
-     "cell_mean": 0.007541,
-     "global_mean": -0.000675,
-     "deviation": 0.008216,
-     "z": 1.72,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
+      },
       "m": {
-       "mean": 0.007541,
+       "mean": 0.008182,
        "n": 1
       }
      }
@@ -2643,21 +2615,85 @@
     "enhance",
     "two-step"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "2_4": {
    "tokens": [
     {
-     "token": "cybersecurity",
-     "cell_mean": 0.006731,
-     "global_mean": -0.004123,
-     "deviation": 0.010854,
-     "z": 2.162,
+     "token": "evidence",
+     "cell_mean": 0.013477,
+     "global_mean": 0.001613,
+     "deviation": 0.011864,
+     "z": 2.055,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.013477,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": 0.02799,
+     "global_mean": 0.018367,
+     "deviation": 0.009623,
+     "z": 2.033,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.02799,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "house",
+     "cell_mean": 0.009241,
+     "global_mean": -0.003195,
+     "deviation": 0.012436,
+     "z": 2.003,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.009241,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "like",
+     "cell_mean": 0.025457,
+     "global_mean": 0.019015,
+     "deviation": 0.006442,
+     "z": 1.987,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.025597,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.025318,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "regularly",
+     "cell_mean": 0.002503,
+     "global_mean": -0.009079,
+     "deviation": 0.011582,
+     "z": 1.955,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.006731,
+       "mean": 0.002503,
        "n": 1
       }
      }
@@ -2678,16 +2714,16 @@
      }
     },
     {
-     "token": "system",
-     "cell_mean": 0.024138,
-     "global_mean": 0.015345,
-     "deviation": 0.008793,
-     "z": 1.895,
+     "token": "completely",
+     "cell_mean": 0.00651,
+     "global_mean": -0.004273,
+     "deviation": 0.010783,
+     "z": 1.91,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": 0.024138,
+      "j": {
+       "mean": 0.00651,
        "n": 1
       }
      }
@@ -2708,95 +2744,31 @@
      }
     },
     {
-     "token": "ethical",
-     "cell_mean": -0.010057,
-     "global_mean": -0.020054,
-     "deviation": 0.009998,
-     "z": 1.84,
+     "token": "PT",
+     "cell_mean": 0.005762,
+     "global_mean": -0.004661,
+     "deviation": 0.010423,
+     "z": 1.89,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.010057,
+       "mean": 0.005762,
        "n": 1
       }
      }
     },
     {
-     "token": "customers",
-     "cell_mean": 0.027134,
-     "global_mean": 0.018988,
-     "deviation": 0.008146,
-     "z": 1.833,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.027134,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "home",
-     "cell_mean": -0.008353,
-     "global_mean": -0.018476,
-     "deviation": 0.010124,
-     "z": 1.802,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.012029,
-       "n": 1
-      },
-      "m": {
-       "mean": -0.004676,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "B",
-     "cell_mean": 0.022441,
-     "global_mean": 0.012304,
-     "deviation": 0.010137,
-     "z": 1.759,
+     "token": "paying",
+     "cell_mean": 0.014293,
+     "global_mean": -0.000674,
+     "deviation": 0.014967,
+     "z": 1.872,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.022441,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "techniques",
-     "cell_mean": -0.000824,
-     "global_mean": -0.010396,
-     "deviation": 0.009572,
-     "z": 1.725,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.000824,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "filters",
-     "cell_mean": 0.017088,
-     "global_mean": 0.003309,
-     "deviation": 0.013779,
-     "z": 1.724,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.017088,
+       "mean": 0.014293,
        "n": 1
       }
      }
@@ -2824,164 +2796,164 @@
     "way",
     "experience"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "3_0": {
    "tokens": [
     {
      "token": "buying",
-     "cell_mean": -0.006316,
-     "global_mean": 0.008401,
-     "deviation": -0.014717,
-     "z": 1.769,
+     "cell_mean": 0.013367,
+     "global_mean": 0.024625,
+     "deviation": -0.011258,
+     "z": 2.359,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.006316,
+       "mean": 0.013367,
        "n": 1
       }
      }
     },
     {
-     "token": "customers",
-     "cell_mean": 0.011594,
-     "global_mean": 0.018988,
-     "deviation": -0.007394,
-     "z": 1.664,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.011594,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "P",
-     "cell_mean": 0.009198,
-     "global_mean": 0.000371,
-     "deviation": 0.008828,
-     "z": 1.492,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.009198,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bank",
-     "cell_mean": -0.012687,
-     "global_mean": -0.01894,
-     "deviation": 0.006253,
-     "z": 1.398,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.012687,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "major",
-     "cell_mean": -0.025851,
-     "global_mean": -0.031418,
-     "deviation": 0.005566,
-     "z": 1.368,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.025851,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "lift",
-     "cell_mean": -0.016704,
-     "global_mean": -0.009777,
-     "deviation": -0.006927,
-     "z": 1.349,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.004772,
-       "n": 1
-      },
-      "h": {
-       "mean": -0.028636,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "when",
-     "cell_mean": -0.031088,
-     "global_mean": -0.019846,
-     "deviation": -0.011242,
-     "z": 1.329,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.021529,
-       "n": 1
-      },
-      "m": {
-       "mean": -0.040646,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "creating",
-     "cell_mean": -0.01699,
-     "global_mean": -0.007676,
-     "deviation": -0.009313,
-     "z": 1.253,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.01699,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Enter",
-     "cell_mean": -0.007774,
-     "global_mean": -0.00072,
-     "deviation": -0.007054,
-     "z": 1.193,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.007774,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "find",
-     "cell_mean": -0.012293,
-     "global_mean": -0.003055,
-     "deviation": -0.009239,
-     "z": 1.188,
+     "token": "filing",
+     "cell_mean": 0.003912,
+     "global_mean": 0.0192,
+     "deviation": -0.015288,
+     "z": 1.919,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.012293,
+       "mean": 0.003912,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "guilt",
+     "cell_mean": 0.009644,
+     "global_mean": 0.000678,
+     "deviation": 0.008967,
+     "z": 1.732,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.009644,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "at",
+     "cell_mean": -0.00538,
+     "global_mean": -0.001192,
+     "deviation": -0.004188,
+     "z": 1.728,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.006264,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.006637,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.003239,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.006807,
+     "global_mean": 0.000851,
+     "deviation": -0.007659,
+     "z": 1.719,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.006807,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "federal",
+     "cell_mean": 0.006874,
+     "global_mean": 0.019503,
+     "deviation": -0.012629,
+     "z": 1.696,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006874,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "spread",
+     "cell_mean": 0.005964,
+     "global_mean": -0.000501,
+     "deviation": 0.006465,
+     "z": 1.635,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005964,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "commit",
+     "cell_mean": -0.012083,
+     "global_mean": -0.005014,
+     "deviation": -0.007068,
+     "z": 1.579,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.012083,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "else",
+     "cell_mean": 0.003155,
+     "global_mean": 0.013761,
+     "deviation": -0.010606,
+     "z": 1.567,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.003155,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "applicable",
+     "cell_mean": -0.004099,
+     "global_mean": 0.006952,
+     "deviation": -0.01105,
+     "z": 1.556,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.004099,
        "n": 1
       }
      }
@@ -3009,86 +2981,67 @@
     "covers",
     "found"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "3_1": {
    "tokens": [
     {
-     "token": "an",
-     "cell_mean": -0.00422,
-     "global_mean": 0.003103,
-     "deviation": -0.007323,
-     "z": 1.683,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.010961,
-       "n": 1
-      },
-      "j": {
-       "mean": -0.000849,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "respond",
-     "cell_mean": 0.003241,
-     "global_mean": -0.002735,
-     "deviation": 0.005976,
-     "z": 1.356,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.003241,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "would",
-     "cell_mean": 0.017895,
-     "global_mean": 0.025434,
-     "deviation": -0.007539,
-     "z": 1.337,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.017895,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "lock",
-     "cell_mean": 0.004872,
-     "global_mean": 0.014862,
-     "deviation": -0.009991,
-     "z": 1.224,
+     "token": "carefully",
+     "cell_mean": 0.012287,
+     "global_mean": 0.004189,
+     "deviation": 0.008099,
+     "z": 1.698,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.004872,
+       "mean": 0.012287,
        "n": 1
       }
      }
     },
     {
-     "token": "locksmith",
-     "cell_mean": -0.012355,
-     "global_mean": -0.002338,
-     "deviation": -0.010017,
-     "z": 1.216,
+     "token": "taken",
+     "cell_mean": -0.02019,
+     "global_mean": -0.027756,
+     "deviation": 0.007565,
+     "z": 1.532,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.012355,
+       "mean": -0.02019,
        "n": 1
+      }
+     }
+    },
+    {
+     "token": "now",
+     "cell_mean": -0.002496,
+     "global_mean": 0.001764,
+     "deviation": -0.00426,
+     "z": 1.329,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.002496,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "an",
+     "cell_mean": -0.003385,
+     "global_mean": 0.006196,
+     "deviation": -0.009581,
+     "z": 1.218,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.003385,
+       "n": 2
       }
      }
     },
@@ -3108,62 +3061,81 @@
      }
     },
     {
-     "token": "un",
-     "cell_mean": -0.005575,
-     "global_mean": -0.000889,
-     "deviation": -0.004686,
-     "z": 1.157,
+     "token": "rote",
+     "cell_mean": 0.011864,
+     "global_mean": 0.017599,
+     "deviation": -0.005735,
+     "z": 1.199,
      "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.011864,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "phishing",
+     "cell_mean": 0.008114,
+     "global_mean": 0.013875,
+     "deviation": -0.005761,
+     "z": 1.188,
+     "n": 4,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": -0.005575,
+       "mean": 0.027185,
        "n": 1
+      },
+      "j": {
+       "mean": 0.001757,
+       "n": 3
       }
      }
     },
     {
-     "token": "Enter",
-     "cell_mean": -0.007221,
-     "global_mean": -0.00072,
-     "deviation": -0.006501,
-     "z": 1.1,
+     "token": "step",
+     "cell_mean": -0.021493,
+     "global_mean": -0.028947,
+     "deviation": 0.007454,
+     "z": 1.185,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.007221,
+      "b": {
+       "mean": -0.021493,
        "n": 1
       }
      }
     },
     {
-     "token": "able",
-     "cell_mean": 0.026988,
-     "global_mean": 0.032361,
-     "deviation": -0.005373,
-     "z": 1.091,
-     "n": 1,
+     "token": "where",
+     "cell_mean": -0.011206,
+     "global_mean": -0.002592,
+     "deviation": -0.008614,
+     "z": 1.14,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.011206,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "fake",
+     "cell_mean": -0.00938,
+     "global_mean": -0.004795,
+     "deviation": -0.004586,
+     "z": 1.125,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.026988,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "end",
-     "cell_mean": 0.003869,
-     "global_mean": 0.00935,
-     "deviation": -0.005482,
-     "z": 1.086,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.003869,
-       "n": 1
+       "mean": -0.00938,
+       "n": 2
       }
      }
     }
@@ -3190,36 +3162,96 @@
     "hdf",
     "kap"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "3_2": {
    "tokens": [
     {
-     "token": "describe",
-     "cell_mean": -0.02881,
-     "global_mean": -0.018786,
-     "deviation": -0.010025,
-     "z": 2.53,
+     "token": "actually",
+     "cell_mean": -0.029179,
+     "global_mean": -0.016313,
+     "deviation": -0.012866,
+     "z": 2.727,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": -0.02881,
+      "h": {
+       "mean": -0.029179,
        "n": 1
       }
      }
     },
     {
-     "token": "out",
-     "cell_mean": -0.015293,
-     "global_mean": -0.007578,
-     "deviation": -0.007715,
-     "z": 2.349,
+     "token": "answer",
+     "cell_mean": -0.027971,
+     "global_mean": -0.01528,
+     "deviation": -0.012691,
+     "z": 2.646,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": -0.015293,
+      "j": {
+       "mean": -0.027971,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "truth",
+     "cell_mean": -0.030189,
+     "global_mean": -0.019261,
+     "deviation": -0.010928,
+     "z": 2.543,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.030189,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "support",
+     "cell_mean": -0.038604,
+     "global_mean": -0.026791,
+     "deviation": -0.011813,
+     "z": 2.5,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.038604,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fabricated",
+     "cell_mean": -0.021095,
+     "global_mean": -0.011596,
+     "deviation": -0.009499,
+     "z": 2.48,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.021095,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "hypothetical",
+     "cell_mean": -0.020013,
+     "global_mean": -0.009425,
+     "deviation": -0.010588,
+     "z": 2.46,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.020013,
        "n": 1
       }
      }
@@ -3240,31 +3272,16 @@
      }
     },
     {
-     "token": "'re",
-     "cell_mean": -0.011358,
-     "global_mean": -0.000675,
-     "deviation": -0.010683,
-     "z": 2.236,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.011358,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Civil",
-     "cell_mean": -0.010228,
-     "global_mean": 0.000288,
-     "deviation": -0.010516,
-     "z": 2.224,
+     "token": "complex",
+     "cell_mean": -0.039324,
+     "global_mean": -0.028486,
+     "deviation": -0.010838,
+     "z": 2.194,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.010228,
+       "mean": -0.039324,
        "n": 1
       }
      }
@@ -3285,61 +3302,24 @@
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.00072,
-     "global_mean": 0.009715,
-     "deviation": -0.010436,
-     "z": 1.934,
-     "n": 1,
+     "token": "detailed",
+     "cell_mean": -0.004879,
+     "global_mean": 0.003359,
+     "deviation": -0.008238,
+     "z": 2.107,
+     "n": 4,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.00072,
+      "b": {
+       "mean": -0.013397,
        "n": 1
-      }
-     }
-    },
-    {
-     "token": "been",
-     "cell_mean": -0.016704,
-     "global_mean": -0.009077,
-     "deviation": -0.007627,
-     "z": 1.876,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
+      },
+      "h": {
+       "mean": -0.000284,
+       "n": 2
+      },
       "j": {
-       "mean": -0.016704,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "developer",
-     "cell_mean": 0.001022,
-     "global_mean": 0.008505,
-     "deviation": -0.007483,
-     "z": 1.851,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.001022,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ethical",
-     "cell_mean": -0.030057,
-     "global_mean": -0.020054,
-     "deviation": -0.010003,
-     "z": 1.841,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.030057,
+       "mean": -0.005551,
        "n": 1
       }
      }
@@ -3367,10 +3347,25 @@
     "lemma",
     "factor"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "3_3": {
    "tokens": [
+    {
+     "token": "restraining",
+     "cell_mean": 0.037904,
+     "global_mean": 0.029888,
+     "deviation": 0.008016,
+     "z": 2.55,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.037904,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "ides",
      "cell_mean": -0.023751,
@@ -3387,16 +3382,61 @@
      }
     },
     {
-     "token": "any",
-     "cell_mean": -0.014284,
-     "global_mean": -0.006095,
-     "deviation": -0.008189,
-     "z": 1.723,
+     "token": "romantic",
+     "cell_mean": 0.005521,
+     "global_mean": 1e-06,
+     "deviation": 0.00552,
+     "z": 1.683,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.014284,
+      "h": {
+       "mean": 0.005521,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "carbon",
+     "cell_mean": -0.01119,
+     "global_mean": -0.018522,
+     "deviation": 0.007332,
+     "z": 1.646,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.01119,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "step",
+     "cell_mean": -0.01891,
+     "global_mean": -0.028947,
+     "deviation": 0.010037,
+     "z": 1.596,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.01891,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "guilt",
+     "cell_mean": 0.008845,
+     "global_mean": 0.000678,
+     "deviation": 0.008167,
+     "z": 1.577,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.008845,
        "n": 1
       }
      }
@@ -3417,106 +3457,46 @@
      }
     },
     {
-     "token": "P",
-     "cell_mean": 0.009157,
-     "global_mean": 0.000371,
-     "deviation": 0.008787,
-     "z": 1.485,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.009157,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bank",
-     "cell_mean": -0.012322,
-     "global_mean": -0.01894,
-     "deviation": 0.006618,
-     "z": 1.479,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.012322,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "compound",
-     "cell_mean": 0.013823,
-     "global_mean": 0.008983,
-     "deviation": 0.00484,
-     "z": 1.41,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.013823,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "major",
-     "cell_mean": -0.025769,
-     "global_mean": -0.031418,
-     "deviation": 0.005649,
-     "z": 1.388,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.025769,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "tallest",
-     "cell_mean": -0.009287,
-     "global_mean": -0.019242,
-     "deviation": 0.009955,
-     "z": 1.379,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.009287,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "interact",
-     "cell_mean": -0.02333,
-     "global_mean": -0.031588,
-     "deviation": 0.008258,
-     "z": 1.367,
+     "token": "against",
+     "cell_mean": 0.009729,
+     "global_mean": 0.000825,
+     "deviation": 0.008904,
+     "z": 1.55,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.02333,
+       "mean": 0.009729,
        "n": 1
       }
      }
     },
     {
-     "token": "been",
-     "cell_mean": -0.003879,
-     "global_mean": -0.009077,
-     "deviation": 0.005198,
-     "z": 1.279,
+     "token": "harassing",
+     "cell_mean": 0.006948,
+     "global_mean": 0.000987,
+     "deviation": 0.005961,
+     "z": 1.543,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.003879,
+      "m": {
+       "mean": 0.006948,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "executes",
+     "cell_mean": -0.035929,
+     "global_mean": -0.044542,
+     "deviation": 0.008613,
+     "z": 1.531,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.035929,
        "n": 1
       }
      }
@@ -3544,126 +3524,115 @@
     "stealth",
     "asymmetric-key"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "3_4": {
    "tokens": [
     {
-     "token": "cybersecurity",
-     "cell_mean": 0.005064,
-     "global_mean": -0.004123,
-     "deviation": 0.009188,
-     "z": 1.83,
+     "token": "regularly",
+     "cell_mean": -0.000273,
+     "global_mean": -0.009079,
+     "deviation": 0.008805,
+     "z": 1.487,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.005064,
+       "mean": -0.000273,
        "n": 1
       }
      }
     },
     {
-     "token": "locks",
-     "cell_mean": 0.00533,
-     "global_mean": -0.005591,
-     "deviation": 0.010922,
-     "z": 1.538,
+     "token": "governance",
+     "cell_mean": 0.003487,
+     "global_mean": -0.003152,
+     "deviation": 0.00664,
+     "z": 1.444,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.003487,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": 0.00474,
+     "global_mean": -0.000977,
+     "deviation": 0.005717,
+     "z": 1.441,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.00474,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "become",
+     "cell_mean": 0.003581,
+     "global_mean": -0.007436,
+     "deviation": 0.011017,
+     "z": 1.437,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.003581,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "home",
+     "cell_mean": -0.000448,
+     "global_mean": -0.011951,
+     "deviation": 0.011503,
+     "z": 1.401,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.00756,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.008457,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "regulations",
+     "cell_mean": 0.002371,
+     "global_mean": -0.004169,
+     "deviation": 0.00654,
+     "z": 1.382,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.00533,
+       "mean": 0.002371,
        "n": 1
       }
      }
     },
     {
-     "token": "War",
-     "cell_mean": 0.014744,
-     "global_mean": 0.004871,
-     "deviation": 0.009873,
-     "z": 1.477,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.014744,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Civil",
-     "cell_mean": 0.007193,
-     "global_mean": 0.000288,
-     "deviation": 0.006905,
-     "z": 1.46,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.007193,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "vulnerabilities",
-     "cell_mean": 0.003519,
-     "global_mean": -0.005571,
-     "deviation": 0.00909,
-     "z": 1.421,
+     "token": "rote",
+     "cell_mean": 0.024076,
+     "global_mean": 0.017599,
+     "deviation": 0.006477,
+     "z": 1.354,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.003519,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "leading",
-     "cell_mean": -0.005574,
-     "global_mean": -0.014532,
-     "deviation": 0.008958,
-     "z": 1.376,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.005574,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "DAN",
-     "cell_mean": 0.004161,
-     "global_mean": -0.006082,
-     "deviation": 0.010243,
-     "z": 1.372,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.004161,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "republic",
-     "cell_mean": -0.002364,
-     "global_mean": -0.008514,
-     "deviation": 0.00615,
-     "z": 1.339,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.002364,
+       "mean": 0.024076,
        "n": 1
       }
      }
@@ -3684,16 +3653,31 @@
      }
     },
     {
-     "token": "detected",
-     "cell_mean": 0.002384,
-     "global_mean": -0.005323,
-     "deviation": 0.007707,
-     "z": 1.332,
+     "token": "controlled",
+     "cell_mean": -0.029413,
+     "global_mean": -0.03878,
+     "deviation": 0.009367,
+     "z": 1.331,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "h": {
-       "mean": 0.002384,
+      "j": {
+       "mean": -0.029413,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "-the",
+     "cell_mean": 0.005109,
+     "global_mean": -0.006357,
+     "deviation": 0.011466,
+     "z": 1.317,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.005109,
        "n": 1
       }
      }
@@ -3721,37 +3705,82 @@
     "money",
     "items"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "4_0": {
    "tokens": [
     {
-     "token": "social",
-     "cell_mean": 0.003715,
-     "global_mean": 0.019481,
-     "deviation": -0.015766,
-     "z": 3.236,
+     "token": "pyramid",
+     "cell_mean": -0.007527,
+     "global_mean": 0.014631,
+     "deviation": -0.022158,
+     "z": 3.266,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.003715,
+      "h": {
+       "mean": -0.007527,
        "n": 1
       }
      }
     },
     {
-     "token": "no",
-     "cell_mean": -0.026607,
-     "global_mean": -0.00589,
-     "deviation": -0.020716,
-     "z": 3.175,
-     "n": 2,
+     "token": "personal",
+     "cell_mean": -0.010128,
+     "global_mean": 0.00274,
+     "deviation": -0.012868,
+     "z": 3.244,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.026607,
-       "n": 2
+      "h": {
+       "mean": -0.010128,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "applications",
+     "cell_mean": -0.027107,
+     "global_mean": -0.005195,
+     "deviation": -0.021912,
+     "z": 3.243,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.027107,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "turbines",
+     "cell_mean": -0.05091,
+     "global_mean": -0.026922,
+     "deviation": -0.023988,
+     "z": 3.175,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.05091,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "enterprise",
+     "cell_mean": -0.045907,
+     "global_mean": -0.023602,
+     "deviation": -0.022305,
+     "z": 3.146,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.045907,
+       "n": 1
       }
      }
     },
@@ -3771,106 +3800,61 @@
      }
     },
     {
-     "token": "has",
-     "cell_mean": -0.024158,
-     "global_mean": -0.006271,
-     "deviation": -0.017886,
-     "z": 3.069,
+     "token": "working",
+     "cell_mean": -0.029045,
+     "global_mean": -0.002711,
+     "deviation": -0.026334,
+     "z": 3.137,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.024158,
+      "b": {
+       "mean": -0.029045,
        "n": 1
       }
      }
     },
     {
-     "token": "engineering",
-     "cell_mean": -0.048817,
-     "global_mean": -0.018894,
-     "deviation": -0.029923,
-     "z": 3.02,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.048817,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "email",
-     "cell_mean": -0.013363,
-     "global_mean": -0.000556,
-     "deviation": -0.012807,
-     "z": 3.003,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.013363,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "currency",
-     "cell_mean": -0.031724,
-     "global_mean": -0.007777,
-     "deviation": -0.023947,
-     "z": 2.974,
+     "token": "profiles",
+     "cell_mean": -0.030178,
+     "global_mean": -0.00526,
+     "deviation": -0.024919,
+     "z": 3.104,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": -0.031724,
+       "mean": -0.030178,
        "n": 1
       }
      }
     },
     {
-     "token": "someone",
-     "cell_mean": -0.019134,
-     "global_mean": -0.000349,
-     "deviation": -0.018785,
-     "z": 2.968,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.019134,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "training",
-     "cell_mean": -0.033073,
-     "global_mean": -0.015292,
-     "deviation": -0.017781,
-     "z": 2.963,
+     "token": "cybersecurity",
+     "cell_mean": -0.0091,
+     "global_mean": 0.006322,
+     "deviation": -0.015421,
+     "z": 3.077,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.033073,
+       "mean": -0.0091,
        "n": 1
       }
      }
     },
     {
-     "token": "rules",
-     "cell_mean": -0.050967,
-     "global_mean": -0.023152,
-     "deviation": -0.027815,
-     "z": 2.946,
+     "token": "realistic",
+     "cell_mean": -0.000746,
+     "global_mean": 0.020294,
+     "deviation": -0.02104,
+     "z": 3.071,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.050967,
+       "mean": -0.000746,
        "n": 1
       }
      }
@@ -3898,21 +3882,51 @@
     "socp",
     "scavenger"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "4_1": {
    "tokens": [
     {
-     "token": "social",
-     "cell_mean": 0.028184,
-     "global_mean": 0.019481,
-     "deviation": 0.008702,
-     "z": 1.786,
+     "token": "step",
+     "cell_mean": -0.042133,
+     "global_mean": -0.028947,
+     "deviation": -0.013185,
+     "z": 2.096,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.042133,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "steal",
+     "cell_mean": 0.033482,
+     "global_mean": 0.02275,
+     "deviation": 0.010732,
+     "z": 1.975,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.033482,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "dropping",
+     "cell_mean": -0.037237,
+     "global_mean": -0.026574,
+     "deviation": -0.010664,
+     "z": 1.78,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.028184,
+       "mean": -0.037237,
        "n": 1
       }
      }
@@ -3933,121 +3947,95 @@
      }
     },
     {
-     "token": "major",
-     "cell_mean": -0.038338,
-     "global_mean": -0.031418,
-     "deviation": -0.00692,
-     "z": 1.7,
+     "token": "manages",
+     "cell_mean": -0.044329,
+     "global_mean": -0.037888,
+     "deviation": -0.006441,
+     "z": 1.714,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.038338,
+       "mean": -0.044329,
        "n": 1
       }
      }
     },
     {
-     "token": "fictional",
-     "cell_mean": -0.027571,
-     "global_mean": -0.020908,
-     "deviation": -0.006663,
-     "z": 1.54,
+     "token": "executes",
+     "cell_mean": -0.05413,
+     "global_mean": -0.044542,
+     "deviation": -0.009588,
+     "z": 1.704,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.05413,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "social",
+     "cell_mean": 0.021942,
+     "global_mean": 0.014295,
+     "deviation": 0.007647,
+     "z": 1.695,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.021942,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "convincing",
+     "cell_mean": 0.054823,
+     "global_mean": 0.044576,
+     "deviation": 0.010247,
+     "z": 1.633,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.049132,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.060515,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "studying",
+     "cell_mean": 0.013579,
+     "global_mean": 0.00657,
+     "deviation": 0.007009,
+     "z": 1.601,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.027571,
+       "mean": 0.013579,
        "n": 1
       }
      }
     },
     {
-     "token": "customers",
-     "cell_mean": 0.025795,
-     "global_mean": 0.018988,
-     "deviation": 0.006807,
-     "z": 1.532,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.025795,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "be",
-     "cell_mean": -0.042062,
-     "global_mean": -0.034898,
-     "deviation": -0.007164,
-     "z": 1.53,
+     "token": "if",
+     "cell_mean": 0.030956,
+     "global_mean": 0.021492,
+     "deviation": 0.009464,
+     "z": 1.597,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": -0.042062,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "events",
-     "cell_mean": -0.025778,
-     "global_mean": -0.016422,
-     "deviation": -0.009356,
-     "z": 1.373,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": -0.025778,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "any",
-     "cell_mean": 0.000343,
-     "global_mean": -0.006095,
-     "deviation": 0.006438,
-     "z": 1.355,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.000343,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "would",
-     "cell_mean": 0.032845,
-     "global_mean": 0.025434,
-     "deviation": 0.007411,
-     "z": 1.315,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.032845,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "creating",
-     "cell_mean": 0.001597,
-     "global_mean": -0.007676,
-     "deviation": 0.009273,
-     "z": 1.248,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.001597,
+       "mean": 0.030956,
        "n": 1
       }
      }
@@ -4075,10 +4063,25 @@
     "conformity",
     "ethics"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "4_2": {
    "tokens": [
+    {
+     "token": "dioxide",
+     "cell_mean": -0.001285,
+     "global_mean": -0.00673,
+     "deviation": 0.005445,
+     "z": 2.019,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.001285,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "ret",
      "cell_mean": 0.04504,
@@ -4091,6 +4094,36 @@
       "j": {
        "mean": 0.04504,
        "n": 1
+      }
+     }
+    },
+    {
+     "token": "harassing",
+     "cell_mean": -0.004772,
+     "global_mean": 0.000987,
+     "deviation": -0.005759,
+     "z": 1.491,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.004772,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "media",
+     "cell_mean": 0.002491,
+     "global_mean": -0.002039,
+     "deviation": 0.00453,
+     "z": 1.406,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.002491,
+       "n": 3
       }
      }
     },
@@ -4110,121 +4143,80 @@
      }
     },
     {
-     "token": "been",
-     "cell_mean": -0.014593,
-     "global_mean": -0.009077,
-     "deviation": -0.005516,
+     "token": "fireworks",
+     "cell_mean": -0.005434,
+     "global_mean": -0.01195,
+     "deviation": 0.006516,
+     "z": 1.398,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.005434,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "persuasive",
+     "cell_mean": 0.023967,
+     "global_mean": 0.01374,
+     "deviation": 0.010227,
      "z": 1.357,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.014593,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "reversed",
-     "cell_mean": -0.027045,
-     "global_mean": -0.016816,
-     "deviation": -0.010229,
-     "z": 1.283,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.027045,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "'s",
-     "cell_mean": 0.032935,
-     "global_mean": 0.027961,
-     "deviation": 0.004974,
-     "z": 1.275,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
       "h": {
-       "mean": 0.032935,
+       "mean": 0.023967,
        "n": 1
       }
      }
     },
     {
-     "token": "disabled",
-     "cell_mean": -0.033832,
-     "global_mean": -0.021316,
-     "deviation": -0.012516,
-     "z": 1.219,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.033832,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "being",
-     "cell_mean": -0.016899,
-     "global_mean": -0.011532,
-     "deviation": -0.005367,
-     "z": 1.19,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.016899,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "unrestricted",
-     "cell_mean": -0.014703,
-     "global_mean": -0.008689,
-     "deviation": -0.006014,
-     "z": 1.173,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.014703,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "describe",
-     "cell_mean": -0.014422,
-     "global_mean": -0.018786,
-     "deviation": 0.004364,
-     "z": 1.101,
-     "n": 1,
+     "token": "like",
+     "cell_mean": 0.02341,
+     "global_mean": 0.019015,
+     "deviation": 0.004395,
+     "z": 1.355,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.014422,
+       "mean": 0.007682,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.039137,
        "n": 1
       }
      }
     },
     {
-     "token": "would",
-     "cell_mean": 0.031588,
-     "global_mean": 0.025434,
-     "deviation": 0.006154,
-     "z": 1.092,
+     "token": "essay",
+     "cell_mean": 0.003528,
+     "global_mean": -0.001663,
+     "deviation": 0.005191,
+     "z": 1.277,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.003528,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ensor",
+     "cell_mean": 0.023388,
+     "global_mean": 0.010125,
+     "deviation": 0.013263,
+     "z": 1.26,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.031588,
+       "mean": 0.023388,
        "n": 1
       }
      }
@@ -4252,10 +4244,25 @@
     "tease",
     "tread"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "4_3": {
    "tokens": [
+    {
+     "token": "romantic",
+     "cell_mean": -0.005849,
+     "global_mean": 1e-06,
+     "deviation": -0.00585,
+     "z": 1.783,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.005849,
+       "n": 1
+      }
+     }
+    },
     {
      "token": "t",
      "cell_mean": -0.030214,
@@ -4287,121 +4294,114 @@
      }
     },
     {
-     "token": "respond",
-     "cell_mean": -0.009464,
-     "global_mean": -0.002735,
-     "deviation": -0.006729,
-     "z": 1.527,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.009464,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "my",
-     "cell_mean": -0.014879,
-     "global_mean": -0.009467,
-     "deviation": -0.005412,
-     "z": 1.507,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": -0.014879,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "major",
-     "cell_mean": -0.037167,
-     "global_mean": -0.031418,
-     "deviation": -0.005749,
-     "z": 1.413,
+     "token": "memory",
+     "cell_mean": -0.033611,
+     "global_mean": -0.027886,
+     "deviation": -0.005725,
+     "z": 1.427,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.037167,
+       "mean": -0.033611,
        "n": 1
       }
      }
     },
     {
-     "token": "ides",
-     "cell_mean": -0.037082,
-     "global_mean": -0.032749,
-     "deviation": -0.004333,
-     "z": 1.191,
+     "token": "school",
+     "cell_mean": -0.002554,
+     "global_mean": 0.002848,
+     "deviation": -0.005402,
+     "z": 1.387,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": -0.037082,
+       "mean": -0.002554,
        "n": 1
       }
      }
     },
     {
-     "token": "bank",
-     "cell_mean": -0.024164,
-     "global_mean": -0.01894,
-     "deviation": -0.005224,
-     "z": 1.168,
+     "token": "complex",
+     "cell_mean": -0.035099,
+     "global_mean": -0.028486,
+     "deviation": -0.006613,
+     "z": 1.339,
      "n": 1,
      "n_cells": 25,
      "cats": {
+      "b": {
+       "mean": -0.035099,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detailed",
+     "cell_mean": -0.001781,
+     "global_mean": 0.003359,
+     "deviation": -0.00514,
+     "z": 1.315,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009025,
+       "n": 1
+      },
       "h": {
-       "mean": -0.024164,
+       "mean": 0.001802,
+       "n": 2
+      },
+      "j": {
+       "mean": -0.001702,
        "n": 1
       }
      }
     },
     {
-     "token": "compound",
-     "cell_mean": 0.005013,
-     "global_mean": 0.008983,
-     "deviation": -0.00397,
-     "z": 1.157,
+     "token": "introductory",
+     "cell_mean": -0.019404,
+     "global_mean": -0.012892,
+     "deviation": -0.006513,
+     "z": 1.313,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.005013,
+       "mean": -0.019404,
        "n": 1
       }
      }
     },
     {
-     "token": "end",
-     "cell_mean": 0.00363,
-     "global_mean": 0.00935,
-     "deviation": -0.00572,
-     "z": 1.134,
+     "token": "execution",
+     "cell_mean": -0.042506,
+     "global_mean": -0.037027,
+     "deviation": -0.005479,
+     "z": 1.301,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.00363,
+      "b": {
+       "mean": -0.042506,
        "n": 1
       }
      }
     },
     {
-     "token": "out",
-     "cell_mean": -0.011201,
-     "global_mean": -0.007578,
-     "deviation": -0.003623,
-     "z": 1.103,
+     "token": "oxygen",
+     "cell_mean": -0.009115,
+     "global_mean": -0.002898,
+     "deviation": -0.006216,
+     "z": 1.226,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": -0.011201,
+      "b": {
+       "mean": -0.009115,
        "n": 1
       }
      }
@@ -4429,36 +4429,100 @@
     "corporate",
     "vulnaulization"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   },
   "4_4": {
    "tokens": [
     {
-     "token": "major",
-     "cell_mean": -0.038473,
-     "global_mean": -0.031418,
-     "deviation": -0.007055,
-     "z": 1.733,
+     "token": "intimidating",
+     "cell_mean": -0.018353,
+     "global_mean": -0.010391,
+     "deviation": -0.007962,
+     "z": 2.011,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": -0.038473,
+      "h": {
+       "mean": -0.018353,
        "n": 1
       }
      }
     },
     {
-     "token": "mar",
-     "cell_mean": -0.02237,
-     "global_mean": -0.013338,
-     "deviation": -0.009032,
-     "z": 1.67,
+     "token": "dropping",
+     "cell_mean": -0.038063,
+     "global_mean": -0.026574,
+     "deviation": -0.011489,
+     "z": 1.918,
      "n": 1,
      "n_cells": 25,
      "cats": {
+      "m": {
+       "mean": -0.038063,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "regulations",
+     "cell_mean": -0.012636,
+     "global_mean": -0.004169,
+     "deviation": -0.008466,
+     "z": 1.789,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012636,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "pain",
+     "cell_mean": -0.026704,
+     "global_mean": -0.017868,
+     "deviation": -0.008836,
+     "z": 1.715,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.026704,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "rote",
+     "cell_mean": 0.02567,
+     "global_mean": 0.017599,
+     "deviation": 0.008071,
+     "z": 1.687,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.02567,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "work",
+     "cell_mean": -0.006394,
+     "global_mean": 0.000632,
+     "deviation": -0.007027,
+     "z": 1.678,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
       "b": {
-       "mean": -0.02237,
+       "mean": -0.00595,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.006838,
        "n": 1
       }
      }
@@ -4494,91 +4558,31 @@
      }
     },
     {
-     "token": "bank",
-     "cell_mean": -0.026216,
-     "global_mean": -0.01894,
-     "deviation": -0.007276,
-     "z": 1.627,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.026216,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "system",
-     "cell_mean": 0.007889,
-     "global_mean": 0.015345,
-     "deviation": -0.007455,
-     "z": 1.607,
+     "token": "manages",
+     "cell_mean": -0.043759,
+     "global_mean": -0.037888,
+     "deviation": -0.00587,
+     "z": 1.562,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.007889,
+       "mean": -0.043759,
        "n": 1
       }
      }
     },
     {
-     "token": "un",
-     "cell_mean": 0.005566,
-     "global_mean": -0.000889,
-     "deviation": 0.006455,
-     "z": 1.594,
+     "token": "public",
+     "cell_mean": -0.03149,
+     "global_mean": -0.025602,
+     "deviation": -0.005888,
+     "z": 1.559,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.005566,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "self",
-     "cell_mean": 0.032048,
-     "global_mean": 0.019725,
-     "deviation": 0.012323,
-     "z": 1.48,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.032048,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "stalk",
-     "cell_mean": -0.022944,
-     "global_mean": -0.015955,
-     "deviation": -0.006989,
-     "z": 1.397,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.022944,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "fictional",
-     "cell_mean": -0.026951,
-     "global_mean": -0.020908,
-     "deviation": -0.006043,
-     "z": 1.397,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.026951,
+       "mean": -0.03149,
        "n": 1
       }
      }
@@ -4606,7 +4610,7 @@
     "whistleblower",
     "user-centered"
    ],
-   "n_unique_tokens": 199
+   "n_unique_tokens": 464
   }
  },
  "categories": {
@@ -4617,29 +4621,29 @@
  },
  "per_subject": {
   "network_security": {
-   "mean_activation": -0.00450123921567954,
-   "max_activation": 0.0010151832661216666,
-   "mean_variance": 8.949236670035138e-05
+   "mean_activation": -0.004184765025126822,
+   "max_activation": 0.0012007288761969046,
+   "mean_variance": 7.835104163701675e-05
   },
   "application_security": {
-   "mean_activation": -0.003208218221930665,
-   "max_activation": 0.0006968274128356399,
-   "mean_variance": 9.877646283502598e-05
+   "mean_activation": -0.002738752092738376,
+   "max_activation": 0.0011566936334397808,
+   "mean_variance": 8.41175011312727e-05
   },
   "identity_access": {
-   "mean_activation": -0.006348244566606144,
-   "max_activation": 0.002238087954972842,
-   "mean_variance": 0.00010290036568415563
+   "mean_activation": -0.0057888332417506145,
+   "max_activation": 0.002395744497859923,
+   "mean_variance": 8.56254902950055e-05
   },
   "cryptography": {
-   "mean_activation": -0.007626535143521011,
-   "max_activation": -0.001085018313764655,
-   "mean_variance": 9.026335911049641e-05
+   "mean_activation": -0.007229363767586499,
+   "max_activation": -0.0011062722376080725,
+   "mean_variance": 7.571879092542672e-05
   },
   "social_engineering": {
-   "mean_activation": -0.010477767770692526,
-   "max_activation": -0.0042525829348733155,
-   "mean_variance": 0.0001246301065057313
+   "mean_activation": -0.009785021019388124,
+   "max_activation": -0.0038699830649712337,
+   "mean_variance": 0.00010346616031531315
   }
  }
 }
