@@ -3561,10 +3561,13 @@ function renderProbeGeneratorResults(r) {
       h += ' <span style="color:var(--text-3);font-weight:400">(' + entries.length + ' queries)</span></div>';
       h += '<div class="collapsed" style="max-height:400px;overflow-y:auto">';
       entries.forEach(function(e) {
+        var nTok = (e.tokens_extracted && e.tokens_extracted.length) || e.n_tokens || 0;
+        var respFull = e.response || '';
+        var respPrev = respFull.length > 300 ? respFull.slice(0,300) + '…' : respFull;
         h += '<div style="padding:6px 0;border-top:1px solid var(--border);font-size:10px">';
         h += '<span style="color:var(--cyan);font-weight:600">Q' + e.q + '</span> ';
-        h += '<span style="color:var(--text-3)">(' + e.n_tokens + ' tokens)</span>';
-        h += '<div style="color:var(--text-2);margin-top:3px;line-height:1.5;white-space:pre-wrap;word-break:break-word">' + escHtml(e.response) + '</div>';
+        h += '<span style="color:var(--text-3)">(' + nTok + ' tokens)</span>';
+        h += '<div style="color:var(--text-2);margin-top:3px;line-height:1.5;white-space:pre-wrap;word-break:break-word">' + escHtml(respPrev) + '</div>';
         h += '</div>';
       });
       h += '</div></div>';

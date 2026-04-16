@@ -790,7 +790,20 @@ class ProbeGeneratorModule(TASMModule):
                     for tok in tokens:
                         writer.writerow([cls, col, tok])
 
-        # ── Export catalog CSV (optional) ──
+        # ── Per-cell catalog (canonical, full data) ──
+        # Full responses and full token lists, organized by cell.
+        # This is the authoritative audit trail — the JSON module log
+        # is the data model, the CSV export is a pure derivation.
+        cell_catalog = {}
+        for entry in catalog:
+            key = f"{entry['class']}|{entry['subclass']}"
+            cell_catalog.setdefault(key, []).append({
+                "q": entry["query"],
+                "response": entry["response"],
+                "tokens_extracted": list(entry["tokens_extracted"]),
+            })
+
+        # ── Export catalog CSV (optional, derived from cell_catalog) ──
         catalog_name = None
         if export_catalog:
             catalog_name = output_name.replace(".csv", "_catalog.csv")
@@ -802,24 +815,16 @@ class ProbeGeneratorModule(TASMModule):
                 writer = csv.writer(f)
                 writer.writerow(["class", "subclass", "query", "response",
                                  "tokens_extracted"])
-                for entry in catalog:
-                    writer.writerow([
-                        entry["class"],
-                        entry["subclass"],
-                        entry["query"],
-                        entry["response"],
-                        " ".join(entry["tokens_extracted"]),
-                    ])
-
-        # ── Per-cell catalog summary for frontend ──
-        cell_catalog = {}
-        for entry in catalog:
-            key = f"{entry['class']}|{entry['subclass']}"
-            cell_catalog.setdefault(key, []).append({
-                "q": entry["query"],
-                "response": entry["response"][:300],
-                "n_tokens": len(entry["tokens_extracted"]),
-            })
+                for key, entries in cell_catalog.items():
+                    cls, col = key.split("|", 1)
+                    for entry in entries:
+                        writer.writerow([
+                            cls,
+                            col,
+                            entry["q"],
+                            entry["response"],
+                            " ".join(entry["tokens_extracted"]),
+                        ])
 
         # ── Build results ──
         per_class = {}
