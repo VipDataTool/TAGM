@@ -387,8 +387,8 @@ class CorrectionBackscatterModule(TASMModule):
             if hm is not None:
                 decomposition[pk] = hm
 
-        # ── Primary projection: full detail with token tracking ──
-        prog(f"Computing cell-detail tokens for primary ({primary.upper()})...")
+        # ── Primary projection: full detail with probe-level tracking ──
+        prog(f"Computing cell-detail probes for primary ({primary.upper()})...")
 
         primary_data = decomposition.get(primary)
         if primary_data is None:
@@ -401,30 +401,6 @@ class CorrectionBackscatterModule(TASMModule):
 
         aggregate_heatmap = np.array(primary_data["aggregate"]) if primary_data else np.zeros((n_subj, n_levels))
         cell_probe_energy = np.array(primary_data["probe_energy"]) if primary_data else np.zeros((n_subj, n_levels))
-
-        # Token-level detail for primary projection
-        cell_token_data = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(list)))
-
-        if primary in suffix_energies and suffix_energies[primary] is not None:
-            _, tok_e_list = suffix_energies[primary]
-            for pi2 in range(n_prompts):
-                te = tok_e_list[pi2]
-                nt = n_toks[pi2]
-                tokens = tokens_list[pi2]
-                cat = cats_list[pi2]
-                if nt == 0:
-                    continue
-                for si in range(n_subj):
-                    for li in range(n_levels):
-                        pe_val = cell_probe_energy[si, li]
-                        if pe_val <= 0:
-                            continue
-                        for ti in range(min(nt, len(tokens))):
-                            tok = tokens[ti].strip()
-                            if tok:
-                                cell_token_data[(si, li)][tok][cat].append(
-                                    float(te[ti] * pe_val))
 
         # ── Per-cell variance (primary only) ──
         variance_grid = np.zeros((n_subj, n_levels))
@@ -453,60 +429,67 @@ class CorrectionBackscatterModule(TASMModule):
                 if len(vals) > 1:
                     variance_grid[si, li] = float(np.var(vals))
 
-        # ── Cell-specific token rankings ──
-        TOP_N = 10
-        token_cell_means = defaultdict(dict)
-        token_cell_cats = defaultdict(dict)
-        for (si, li), tok_dict in cell_token_data.items():
-            for tok, cat_dict in tok_dict.items():
-                all_vals = []
-                per_cat = {}
-                for cat_short, vals in cat_dict.items():
-                    m = float(np.mean(vals))
-                    per_cat[cat_short] = {"mean": round(m, 6), "n": len(vals)}
-                    all_vals.extend(vals)
-                token_cell_means[tok][(si, li)] = float(np.mean(all_vals))
-                token_cell_cats[tok][(si, li)] = per_cat
+        # ── Per-probe energy detail ──
+        # For each projection, extract individual probe energies
+        probe_energy_vectors = {}
+        for pk in PROJ_ORDER:
+            if pk in suffix_energies and suffix_energies[pk] is not None:
+                pe, _ = suffix_energies[pk]
+                probe_energy_vectors[pk] = pe
 
-        token_global = {}
-        for tok, cell_dict in token_cell_means.items():
-            means = list(cell_dict.values())
-            token_global[tok] = {
-                "global_mean": float(np.mean(means)),
-                "global_std": float(np.std(means)) if len(means) > 1 else 0.0,
-                "n_cells": len(means),
-            }
+        # Global probe stats (across all probes, primary projection)
+        primary_pe = probe_energy_vectors.get(primary, np.zeros(n_probes))
+        global_probe_mean = float(np.mean(primary_pe)) if n_probes > 0 else 0.0
+        global_probe_std = float(np.std(primary_pe)) if n_probes > 1 else 0.0
 
         cell_details = {}
-        for (si, li), tok_dict in cell_token_data.items():
-            cell_key = f"{si}_{li}"
-            token_rows = []
-            for tok in tok_dict:
-                cell_mean = token_cell_means[tok].get((si, li), 0)
-                g = token_global[tok]
-                deviation = cell_mean - g["global_mean"]
-                z_score = (abs(deviation) / g["global_std"]
-                           if g["global_std"] > 1e-10 else 0.0)
-                all_vals = []
-                for vals in tok_dict[tok].values():
-                    all_vals.extend(vals)
-                token_rows.append({
-                    "token": tok,
-                    "cell_mean": round(cell_mean, 6),
-                    "global_mean": round(g["global_mean"], 6),
-                    "deviation": round(deviation, 6),
-                    "z": round(z_score, 3),
-                    "n": len(all_vals),
-                    "n_cells": g["n_cells"],
-                    "cats": token_cell_cats[tok].get((si, li), {}),
-                })
-            token_rows.sort(key=lambda x: x["z"], reverse=True)
-            cell_details[cell_key] = {
-                "tokens": token_rows[:TOP_N],
-                "probes": cell_probes.get((si, li), []),
-                "probe_energy": round(float(cell_probe_energy[si, li]), 6),
-                "n_unique_tokens": len(token_rows),
-            }
+        for si in range(n_subj):
+            for li in range(n_levels):
+                cell_key = f"{si}_{li}"
+                # Find probe indices belonging to this cell
+                cell_probe_idx = [pi for pi, (s, l) in enumerate(probe_cells)
+                                  if s == si and l == li]
+                if not cell_probe_idx:
+                    cell_details[cell_key] = {
+                        "probes": [],
+                        "probe_energy": round(float(cell_probe_energy[si, li]), 6),
+                        "n_probes": 0,
+                    }
+                    continue
+
+                probe_rows = []
+                for pi in cell_probe_idx:
+                    text = raw_probes[pi].get("text", "") if pi < len(raw_probes) else ""
+                    energy = float(primary_pe[pi])
+                    deviation = energy - global_probe_mean
+                    z = abs(deviation) / global_probe_std if global_probe_std > 1e-12 else 0.0
+
+                    # Per-projection energy for this probe
+                    per_proj = {}
+                    for pk in PROJ_ORDER:
+                        if pk in probe_energy_vectors:
+                            per_proj[pk] = round(float(probe_energy_vectors[pk][pi]), 6)
+
+                    probe_rows.append({
+                        "text": text,
+                        "energy": round(energy, 6),
+                        "global_mean": round(global_probe_mean, 6),
+                        "deviation": round(deviation, 6),
+                        "z": round(z, 3),
+                        "projections": per_proj,
+                    })
+
+                probe_rows.sort(key=lambda x: x["energy"], reverse=True)
+
+                cell_details[cell_key] = {
+                    "probes": probe_rows,
+                    "probe_energy": round(float(cell_probe_energy[si, li]), 6),
+                    "n_probes": len(probe_rows),
+                    "cell_mean": round(float(np.mean([primary_pe[pi] for pi in cell_probe_idx])), 6),
+                    "cell_std": round(float(np.std([primary_pe[pi] for pi in cell_probe_idx])), 6),
+                    "cell_min": round(float(np.min([primary_pe[pi] for pi in cell_probe_idx])), 6),
+                    "cell_max": round(float(np.max([primary_pe[pi] for pi in cell_probe_idx])), 6),
+                }
 
         # ── Build output ──
         subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
@@ -559,6 +542,8 @@ class CorrectionBackscatterModule(TASMModule):
                 "model_dim": state.hidden_size,
                 "projections_computed": [pk for pk in PROJ_ORDER
                                          if pk in decomposition],
+                "global_probe_mean": round(global_probe_mean, 6),
+                "global_probe_std": round(global_probe_std, 6),
             },
         }
 

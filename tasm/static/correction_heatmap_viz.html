@@ -113,7 +113,7 @@ function renderGrid(){
       var cls=(selCell&&selCell.si===si&&selCell.li===li)?' sel':'';
       h+='<td id="'+id+'" class="'+cls+'" style="background:'+heatCol(val)+';color:'+(Math.abs(val/absMax)>0.35?'#fff':'var(--text2)')+'" ';
       h+='onclick="window._hmClick('+si+','+li+')" ';
-      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+': '+sign+val.toFixed(4)+' var='+vari.toFixed(6)+'">';
+      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+': '+sign+val.toFixed(6)+' var='+vari.toFixed(6)+'">';
       h+=sign+val.toFixed(3);
       h+='</td>';
     }
@@ -145,7 +145,7 @@ function renderDetail(){
 
   var h='<h3>'+esc(SUBJ[si].replace(/_/g,' '))+' × '+esc(LEVELS[li])+'</h3>';
   h+='<div class="cell-info">';
-  h+='Activation: <span style="color:'+(val>0?'var(--red)':'var(--blue)')+'">'+sign+val.toFixed(4)+'</span>';
+  h+='Activation: <span style="color:'+(val>0?'var(--red)':'var(--blue)')+'">'+sign+val.toFixed(6)+'</span>';
   h+=' · Variance: '+vari.toFixed(6);
   if(cd)h+=' · '+cd.n_unique_tokens+' unique tokens observed';
   h+='</div>';
@@ -201,9 +201,9 @@ function renderDetail(){
     var zCol=t.z>=2?'#E69F00':t.z>=1?'var(--cyan)':'var(--text2)';
     h+='<tr>';
     h+='<td style="color:var(--cyan);font-weight:600;white-space:nowrap">'+esc(t.token)+'</td>';
-    h+='<td style="color:'+(t.cell_mean>0?'var(--red)':'var(--blue)')+';font-variant-numeric:tabular-nums">'+cSign+t.cell_mean.toFixed(4)+'</td>';
-    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+(t.global_mean>0?'+':'')+t.global_mean.toFixed(4)+'</td>';
-    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+t.deviation.toFixed(4)+'</td>';
+    h+='<td style="color:'+(t.cell_mean>0?'var(--red)':'var(--blue)')+';font-variant-numeric:tabular-nums">'+cSign+t.cell_mean.toFixed(6)+'</td>';
+    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+(t.global_mean>0?'+':'')+t.global_mean.toFixed(6)+'</td>';
+    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+t.deviation.toFixed(6)+'</td>';
     h+='<td style="color:'+zCol+';font-weight:600">'+t.z.toFixed(1)+'</td>';
     h+='<td style="color:var(--text2)">'+t.n+'</td>';
 
@@ -213,7 +213,7 @@ function renderDetail(){
       if(!cd2){h+='<td style="color:#333">—</td>';return}
       var cs=cd2.mean>0?'+':'';
       var cc=cd2.mean>0?'var(--red)':'var(--blue)';
-      h+='<td><span class="cat-cell" style="color:'+cc+'">'+cs+cd2.mean.toFixed(4)+'</span> <span style="color:#555;font-size:9px">n='+cd2.n+'</span></td>';
+      h+='<td><span class="cat-cell" style="color:'+cc+'">'+cs+cd2.mean.toFixed(6)+'</span> <span style="color:#555;font-size:9px">n='+cd2.n+'</span></td>';
     });
 
     // Distribution bar
