@@ -366,6 +366,13 @@ class CorrectionBackscatterModule(TASMModule):
                                               "count": 0})
             per_prompt = []
 
+            # Per-probe-per-prompt backscatter:
+            #   shape (n_projected_prompts, n_probes), aggregation applied
+            #   across tokens in that prompt using the same rule as cells.
+            # We store a sparse dict keyed by prompt_idx to avoid emitting
+            # a fat 2D array for prompts that had no projected tokens.
+            probe_backscatter_per_prompt = {}
+
             for pi2 in range(n_prompts):
                 te = tok_e_list[pi2]
                 nt = n_toks[pi2]
@@ -399,6 +406,26 @@ class CorrectionBackscatterModule(TASMModule):
                     "grid": grid.tolist(),
                 })
 
+                # ── Per-probe backscatter for this prompt ──
+                # For each probe, backscatter = aggregate(token_energy * probe_energy)
+                # across the tokens in this prompt.
+                probe_row = np.zeros(n_probes)
+                token_slice = te[:nt]  # shape (nt,)
+                for probe_i in range(n_probes):
+                    pe_probe = probe_e[probe_i]
+                    if pe_probe <= 0:
+                        continue
+                    bs = token_slice * pe_probe  # shape (nt,)
+                    if aggregation == "max":
+                        probe_row[probe_i] = float(np.max(bs))
+                    elif aggregation == "sum":
+                        probe_row[probe_i] = float(np.sum(bs))
+                    else:
+                        probe_row[probe_i] = float(np.mean(bs))
+                probe_backscatter_per_prompt[pi2] = [
+                    round(float(v), 8) for v in probe_row
+                ]
+
             if count > 0:
                 agg /= count
 
@@ -416,6 +443,7 @@ class CorrectionBackscatterModule(TASMModule):
                 "probe_energy": cell_pe.tolist(),
                 "per_category": per_category,
                 "per_prompt": per_prompt,
+                "probe_backscatter_per_prompt": probe_backscatter_per_prompt,
             }
 
         decomposition = {}
@@ -509,6 +537,7 @@ class CorrectionBackscatterModule(TASMModule):
                             per_proj[pk] = round(float(probe_energy_vectors[pk][pi]), 6)
 
                     probe_rows.append({
+                        "probe_idx": pi,
                         "text": text,
                         "energy": round(energy, 6),
                         "global_mean": round(global_probe_mean, 6),
