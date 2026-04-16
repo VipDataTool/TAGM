@@ -121,43 +121,35 @@ function currentGridFor(pk){
 // ─── Legend ──────────────────────────────────────────────────
 
 function buildLegend(){
-  // Compute global scale across all 6 panels so they're comparable
-  var gmn=Infinity,gmx=0;
-  PROJ_ORDER.forEach(function(pk){
-    var g=currentGridFor(pk);if(!g)return;
-    var sc=gridScale(g);
-    if(sc.min<gmn)gmn=sc.min;
-    if(sc.max>gmx)gmx=sc.max;
-  });
-  if(gmx<1e-10)gmx=1;if(gmn===Infinity)gmn=0;
-  window._bsGlobalScale={min:gmn,max:gmx};
-
   var label=viewMode==="backscatter"?"token × probe energy":"probe correction energy";
-  var h='<span>'+gmn.toFixed(6)+'</span><div class="bar">';
+  var h='<div class="bar">';
   for(var i=0;i<20;i++){
     var t=i/19;
     h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
   }
-  h+='</div><span>'+gmx.toFixed(6)+'</span>';
-  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · shared scale across all 6 projections</span>';
+  h+='</div>';
+  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · each panel auto-scaled to its own range</span>';
   document.getElementById("legend").innerHTML=h;
 }
 
 // ─── Panel rendering ─────────────────────────────────────────
 
 function renderPanel(){
-  var sc=window._bsGlobalScale||{min:0,max:1};
   var wrap=document.getElementById("gridPanel");
   if(!PROJ_ORDER||!PROJ_ORDER.length){wrap.innerHTML='<div class="empty">No projection data</div>';return}
 
   var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">';
   PROJ_ORDER.forEach(function(pk){
     var g=currentGridFor(pk);if(!g)return;
+    var sc=gridScale(g);
     var label=PROJ_LABELS[pk]||pk.toUpperCase();
     var isPrimary=(pk===selProj);
     h+='<div style="min-width:220px">';
-    h+='<div style="font-size:11px;font-weight:600;color:'+(isPrimary?'var(--orange)':'var(--cyan)')+';margin-bottom:4px">';
+    h+='<div style="font-size:11px;font-weight:600;color:'+(isPrimary?'var(--orange)':'var(--cyan)')+';margin-bottom:2px">';
     h+=esc(label)+(isPrimary?' ★':'');
+    h+='</div>';
+    h+='<div style="font-size:9px;color:var(--text2);margin-bottom:3px;font-variant-numeric:tabular-nums">';
+    h+='range: '+sc.min.toFixed(6)+' – '+sc.max.toFixed(6);
     h+='</div>';
     h+=renderHeatmap(pk,g,sc);
     h+='</div>';
