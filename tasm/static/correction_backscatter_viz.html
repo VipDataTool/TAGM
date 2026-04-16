@@ -40,19 +40,14 @@ table.tok tr:hover{background:#ffffff08}
 <div class="sub" id="subtitle">Loading...</div>
 <div class="ctrl" id="ctrls"></div>
 <div class="legend" id="legend"></div>
-<div class="grid-wrap" id="gridWrap"></div>
-<div id="decompWrap" style="margin-bottom:16px"></div>
-<div style="margin-bottom:16px">
-  <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text2)">Probe Energy Grid (Detector Sensitivity)</div>
-  <div class="legend" id="peLegend"></div>
-  <div class="grid-wrap" id="peGridWrap"></div>
-</div>
-<div class="detail" id="detail"><div class="empty">Click any cell to see token-level backscatter detail</div></div>
+<div id="gridPanel" style="margin-bottom:16px"></div>
+<div class="detail" id="detail"><div class="empty">Click any cell in any heatmap to see the probes driving it</div></div>
 <div id="err"></div>
 <script>
 (function(){
 var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY,DECOMP,PROJ_ORDER,PROJ_LABELS;
-var selCat="all",selCell=null,valMin=0,valMax=1;
+var selCat="all",selCell=null,selProj=null;
+var viewMode="backscatter"; // "backscatter" (token×probe) or "probe_energy" (probe-only)
 var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
 var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak",a:"adversarial",d:"dual-use",u:"unknown"};
 
@@ -67,122 +62,25 @@ function init(){
   PROBE_ENERGY=D.probe_energy_grid||[];
   DECOMP=D.decomposition||{};PROJ_ORDER=D.projection_order||[];PROJ_LABELS=D.projection_labels||{};
 
-  // Find min/max for warm color scale (values are always ≥ 0)
-  valMin=Infinity;valMax=0;
-  for(var si=0;si<AGG.length;si++)for(var li=0;li<(AGG[si]||[]).length;li++){
-    var v=AGG[si][li]||0;
-    if(v>0&&v<valMin)valMin=v;
-    if(v>valMax)valMax=v;
-  }
-  if(valMax<1e-10)valMax=1;
-  if(valMin===Infinity)valMin=0;
-
   var cfg=D.config||{};
+  selProj=cfg.primary_projection||'qkv';
   document.getElementById("subtitle").textContent=
     SUBJ.length+" subjects × "+LEVELS.length+" levels · "+
     D.n_prompts_projected+" prompts · "+D.n_probes+" probes · "+
-    D.probe_file+" · primary: "+(cfg.primary_projection||'qkv').toUpperCase()+
+    D.probe_file+" · primary: "+selProj.toUpperCase()+
     " · "+cfg.aggregation+" agg · "+(cfg.projections_computed||[]).length+" projections";
 
   buildCtrls();
   buildLegend();
-  renderGrid();
-  renderDecomp();
-  renderProbeEnergyGrid();
-}
-
-function renderDecomp(){
-  if(!PROJ_ORDER||PROJ_ORDER.length<2){document.getElementById("decompWrap").innerHTML='';return}
-  var h='<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">Delta Decomposition</div>';
-  h+='<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">';
-  PROJ_ORDER.forEach(function(pk){
-    var d=DECOMP[pk];if(!d)return;
-    var dAgg=d.aggregate||[];
-    var sc=gridScale(dAgg);
-    var label=PROJ_LABELS[pk]||pk.toUpperCase();
-    h+='<div style="min-width:180px">';
-    h+='<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:3px">'+esc(label)+'</div>';
-    h+=miniGrid(dAgg,sc);
-    h+='</div>';
-  });
-  h+='</div>';
-  document.getElementById("decompWrap").innerHTML=h;
-}
-
-function gridScale(grid){
-  var mn=Infinity,mx=0;
-  for(var si=0;si<grid.length;si++)for(var li=0;li<(grid[si]||[]).length;li++){
-    var v=grid[si][li]||0;if(v>0&&v<mn)mn=v;if(v>mx)mx=v;
-  }
-  if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
-  return{min:mn,max:mx};
-}
-
-function miniGrid(grid,sc){
-  var h='<table class="hm" style="font-size:9px"><tr><th style="padding:2px 4px"></th>';
-  LEVELS.forEach(function(l){h+='<th style="padding:2px 3px;font-size:8px">'+esc(l)+'</th>'});h+='</tr>';
-  for(var si=0;si<SUBJ.length;si++){
-    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text);padding:2px 4px;font-size:8px">'+esc(SUBJ_SHORT[si])+'</th>';
-    for(var li=0;li<LEVELS.length;li++){
-      var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
-      var t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
-      var bg='rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';
-      var tc=t>0.4?'#fff':'var(--text2)';
-      h+='<td style="padding:2px 3px;background:'+bg+';color:'+tc+'">'+v.toFixed(6)+'</td>';
-    }
-    h+='</tr>';
-  }
-  h+='</table>';return h;
-}
-
-function peCol(val){
-  if(val<=0)return'rgb(30,30,36)';
-  var peMin2=Infinity,peMax2=0;
-  for(var si=0;si<PROBE_ENERGY.length;si++)for(var li=0;li<(PROBE_ENERGY[si]||[]).length;li++){
-    var v=PROBE_ENERGY[si][li]||0;if(v>0&&v<peMin2)peMin2=v;if(v>peMax2)peMax2=v;
-  }
-  if(peMax2<1e-10)return'rgb(30,30,36)';
-  if(peMin2===Infinity)peMin2=0;
-  var t=Math.max(0,Math.min(1,(val-peMin2)/(peMax2-peMin2)));
-  return'rgb('+Math.round(30+t*50)+','+Math.round(60+t*140)+','+Math.round(100+t*130)+')';
-}
-
-function renderProbeEnergyGrid(){
-  if(!PROBE_ENERGY||!PROBE_ENERGY.length){document.getElementById("peGridWrap").innerHTML='<div class="empty">No probe energy data</div>';return}
-  var peMin2=Infinity,peMax2=0;
-  for(var si=0;si<PROBE_ENERGY.length;si++)for(var li=0;li<(PROBE_ENERGY[si]||[]).length;li++){
-    var v=PROBE_ENERGY[si][li]||0;if(v>0&&v<peMin2)peMin2=v;if(v>peMax2)peMax2=v;
-  }
-  if(peMax2<1e-10)peMax2=1;if(peMin2===Infinity)peMin2=0;
-
-  var lh='<span>'+peMin2.toFixed(6)+'</span><div class="bar">';
-  for(var i=0;i<20;i++){var v2=peMin2+(i/19)*(peMax2-peMin2);
-    var t2=Math.max(0,Math.min(1,(v2-peMin2)/(peMax2-peMin2)));
-    lh+='<div style="flex:1;background:rgb('+Math.round(30+t2*50)+','+Math.round(60+t2*140)+','+Math.round(100+t2*130)+')"></div>'
-  }
-  lh+='</div><span>'+peMax2.toFixed(6)+'</span>';
-  lh+='<span style="margin-left:8px;color:#555">probe correction energy per cell</span>';
-  document.getElementById("peLegend").innerHTML=lh;
-
-  var h='<table class="hm"><tr><th></th>';
-  LEVELS.forEach(function(l){h+='<th>'+esc(l)+'</th>'});h+='</tr>';
-  for(var si=0;si<SUBJ.length;si++){
-    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text)">'+esc(SUBJ_SHORT[si])+'</th>';
-    for(var li=0;li<LEVELS.length;li++){
-      var pe=(PROBE_ENERGY[si]&&PROBE_ENERGY[si][li])?PROBE_ENERGY[si][li]:0;
-      var t3=(peMax2>peMin2)?Math.max(0,Math.min(1,(pe-peMin2)/(peMax2-peMin2))):0;
-      var bg='rgb('+Math.round(30+t3*50)+','+Math.round(60+t3*140)+','+Math.round(100+t3*130)+')';
-      var tc=t3>0.4?'#fff':'var(--text2)';
-      h+='<td style="background:'+bg+';color:'+tc+'" title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+': '+pe.toFixed(6)+'">'+pe.toFixed(6)+'</td>';
-    }
-    h+='</tr>';
-  }
-  h+='</table>';
-  document.getElementById("peGridWrap").innerHTML=h;
+  renderPanel();
 }
 
 function buildCtrls(){
-  var h='<label>Category filter:</label><select id="selCat" onchange="window._bsSetCat(this.value)">';
+  var h='<label>View:</label><select onchange="window._bsSetView(this.value)">';
+  h+='<option value="backscatter"'+(viewMode==="backscatter"?' selected':'')+'>Backscatter (token × probe)</option>';
+  h+='<option value="probe_energy"'+(viewMode==="probe_energy"?' selected':'')+'>Probe Energy (detector sensitivity)</option>';
+  h+='</select>';
+  h+='<label style="margin-left:12px">Category filter:</label><select onchange="window._bsSetCat(this.value)">';
   h+='<option value="all">All categories</option>';
   Object.keys(CATS).sort().forEach(function(k){
     h+='<option value="'+k+'">'+(CATS[k]||k)+'</option>';
@@ -190,72 +88,139 @@ function buildCtrls(){
   h+='</select>';
   document.getElementById("ctrls").innerHTML=h;
   window._bsSetCat=function(v){selCat=v;renderDetail()};
+  window._bsSetView=function(v){viewMode=v;buildLegend();renderPanel();renderDetail()};
 }
 
+// ─── Scale & color helpers ───────────────────────────────────
+
+function gridScale(grid){
+  var mn=Infinity,mx=0;
+  for(var i=0;i<grid.length;i++)for(var j=0;j<(grid[i]||[]).length;j++){
+    var v=grid[i][j]||0;if(v>0&&v<mn)mn=v;if(v>mx)mx=v;
+  }
+  if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
+  return{min:mn,max:mx};
+}
+
+// Warm ramp for backscatter (token × probe)
+function warmCol(t){
+  return'rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';
+}
+// Cool ramp for probe energy
+function coolCol(t){
+  return'rgb('+Math.round(30+t*50)+','+Math.round(60+t*140)+','+Math.round(100+t*130)+')';
+}
+function cellCol(t){return viewMode==="backscatter"?warmCol(t):coolCol(t)}
+
+function currentGridFor(pk){
+  // Returns the 2D grid for projection `pk` under the current viewMode
+  var d=DECOMP[pk];if(!d)return null;
+  return viewMode==="backscatter"?(d.aggregate||[]):(d.probe_energy||[]);
+}
+
+// ─── Legend ──────────────────────────────────────────────────
+
 function buildLegend(){
-  var h='<span>'+valMin.toFixed(6)+'</span><div class="bar">';
-  for(var i=0;i<20;i++){var v=valMin+(i/19)*(valMax-valMin);h+='<div style="flex:1;background:'+heatCol(v)+'"></div>'}
-  h+='</div><span>'+valMax.toFixed(6)+'</span>';
-  h+='<span style="margin-left:8px;color:#555">dark = low energy · bright = high energy</span>';
+  // Compute global scale across all 6 panels so they're comparable
+  var gmn=Infinity,gmx=0;
+  PROJ_ORDER.forEach(function(pk){
+    var g=currentGridFor(pk);if(!g)return;
+    var sc=gridScale(g);
+    if(sc.min<gmn)gmn=sc.min;
+    if(sc.max>gmx)gmx=sc.max;
+  });
+  if(gmx<1e-10)gmx=1;if(gmn===Infinity)gmn=0;
+  window._bsGlobalScale={min:gmn,max:gmx};
+
+  var label=viewMode==="backscatter"?"token × probe energy":"probe correction energy";
+  var h='<span>'+gmn.toFixed(6)+'</span><div class="bar">';
+  for(var i=0;i<20;i++){
+    var t=i/19;
+    h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
+  }
+  h+='</div><span>'+gmx.toFixed(6)+'</span>';
+  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · shared scale across all 6 projections</span>';
   document.getElementById("legend").innerHTML=h;
 }
 
-function heatCol(val){
-  if(val<=0)return'rgb(30,30,36)';
-  var t=Math.max(0,Math.min(1,(val-valMin)/(valMax-valMin)));
-  // Warm ramp: dark → amber → bright orange
-  var r=Math.round(30+t*200);
-  var g=Math.round(30+t*120);
-  var b=Math.round(36+t*10);
-  return'rgb('+r+','+g+','+b+')';
+// ─── Panel rendering ─────────────────────────────────────────
+
+function renderPanel(){
+  var sc=window._bsGlobalScale||{min:0,max:1};
+  var wrap=document.getElementById("gridPanel");
+  if(!PROJ_ORDER||!PROJ_ORDER.length){wrap.innerHTML='<div class="empty">No projection data</div>';return}
+
+  var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">';
+  PROJ_ORDER.forEach(function(pk){
+    var g=currentGridFor(pk);if(!g)return;
+    var label=PROJ_LABELS[pk]||pk.toUpperCase();
+    var isPrimary=(pk===selProj);
+    h+='<div style="min-width:220px">';
+    h+='<div style="font-size:11px;font-weight:600;color:'+(isPrimary?'var(--orange)':'var(--cyan)')+';margin-bottom:4px">';
+    h+=esc(label)+(isPrimary?' ★':'');
+    h+='</div>';
+    h+=renderHeatmap(pk,g,sc);
+    h+='</div>';
+  });
+  h+='</div>';
+  wrap.innerHTML=h;
 }
 
-function renderGrid(){
-  var h='<table class="hm"><tr><th></th>';
-  LEVELS.forEach(function(l){h+='<th>'+esc(l)+'</th>'});
+function renderHeatmap(pk,grid,sc){
+  var h='<table class="hm" style="font-size:10px"><tr><th style="padding:3px 5px"></th>';
+  LEVELS.forEach(function(l){h+='<th style="padding:3px 4px;font-size:9px">'+esc(l)+'</th>'});
   h+='</tr>';
   for(var si=0;si<SUBJ.length;si++){
-    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text)">'+esc(SUBJ_SHORT[si])+'</th>';
+    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text);padding:3px 5px;font-size:9px">'+esc(SUBJ_SHORT[si])+'</th>';
     for(var li=0;li<LEVELS.length;li++){
-      var val=(AGG[si]&&AGG[si][li]!=null)?AGG[si][li]:0;
-      var vari=(VAR[si]&&VAR[si][li])?VAR[si][li]:0;
-      var pe=(PROBE_ENERGY[si]&&PROBE_ENERGY[si][li])?PROBE_ENERGY[si][li]:0;
-      var id='c_'+si+'_'+li;
-      var cls=(selCell&&selCell.si===si&&selCell.li===li)?' sel':'';
-      var t=(valMax>valMin)?Math.max(0,Math.min(1,(val-valMin)/(valMax-valMin))):0;
-      var textCol=t>0.4?'#fff':'var(--text2)';
-      h+='<td id="'+id+'" class="'+cls+'" style="background:'+heatCol(val)+';color:'+textCol+'" ';
-      h+='onclick="window._bsClick('+si+','+li+')" ';
-      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+': energy='+val.toFixed(6)+' probe_e='+pe.toFixed(6)+' var='+vari.toFixed(8)+'">';
-      h+=val.toFixed(6);
+      var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
+      var t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
+      var bg=cellCol(t);
+      var tc=t>0.4?'#fff':'var(--text2)';
+      var id='c_'+pk+'_'+si+'_'+li;
+      var isSel=(selCell&&selCell.pk===pk&&selCell.si===si&&selCell.li===li);
+      var cls=isSel?' sel':'';
+      h+='<td id="'+id+'" class="'+cls+'" ';
+      h+='style="padding:3px 5px;background:'+bg+';color:'+tc+'" ';
+      h+='onclick="window._bsClick(\''+pk+'\','+si+','+li+')" ';
+      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+' ['+esc(pk.toUpperCase())+']: '+v.toFixed(6)+'">';
+      h+=v.toFixed(6);
       h+='</td>';
     }
     h+='</tr>';
   }
   h+='</table>';
-  document.getElementById("gridWrap").innerHTML=h;
-
-  window._bsClick=function(si,li){
-    selCell={si:si,li:li};
-    document.querySelectorAll('table.hm td').forEach(function(td){td.classList.remove('sel')});
-    var el=document.getElementById('c_'+si+'_'+li);
-    if(el)el.classList.add('sel');
-    renderDetail();
-  };
+  return h;
 }
+
+window._bsClick=function(pk,si,li){
+  selCell={pk:pk,si:si,li:li};
+  document.querySelectorAll('table.hm td').forEach(function(td){td.classList.remove('sel')});
+  var el=document.getElementById('c_'+pk+'_'+si+'_'+li);
+  if(el)el.classList.add('sel');
+  renderDetail();
+};
+
+// ─── Detail table ────────────────────────────────────────────
 
 function renderDetail(){
   var det=document.getElementById("detail");
-  if(!selCell){det.innerHTML='<div class="empty">Click any cell to see token-level backscatter detail</div>';return}
+  if(!selCell){
+    det.innerHTML='<div class="empty">Click any cell in any heatmap to see the probes driving it</div>';
+    return;
+  }
 
-  var si=selCell.si,li=selCell.li;
+  var pk=selCell.pk,si=selCell.si,li=selCell.li;
   var key=si+'_'+li;
   var cd=CELLS[key];
-  var val=(AGG[si]&&AGG[si][li]!=null)?AGG[si][li]:0;
+  var projData=DECOMP[pk]||{};
+  var projAgg=projData.aggregate||[];
+  var projPE=projData.probe_energy||[];
+  var val=(projAgg[si]&&projAgg[si][li]!=null)?projAgg[si][li]:0;
+  var pe=(projPE[si]&&projPE[si][li]!=null)?projPE[si][li]:0;
   var vari=(VAR[si]&&VAR[si][li])?VAR[si][li]:0;
-  var pe=(cd&&cd.probe_energy)?cd.probe_energy:0;
 
-  var h='<h3>'+esc(SUBJ[si].replace(/_/g,' '))+' × '+esc(LEVELS[li])+'</h3>';
+  var h='<h3>'+esc(SUBJ[si].replace(/_/g,' '))+' × '+esc(LEVELS[li])+' <span style="color:var(--cyan);font-size:11px;font-weight:400">['+esc(PROJ_LABELS[pk]||pk.toUpperCase())+']</span></h3>';
   h+='<div class="cell-info">';
   h+='Backscatter: <span style="color:var(--orange)">'+val.toFixed(6)+'</span>';
   h+=' · Probe energy: <span style="color:var(--cyan)">'+pe.toFixed(6)+'</span>';
@@ -269,43 +234,57 @@ function renderDetail(){
     det.innerHTML=h;return;
   }
 
-  var probes=cd.probes;
+  // Sort probes by the currently-selected projection's energy
+  var probes=cd.probes.slice().sort(function(a,b){
+    var av=(a.projections&&a.projections[pk]!=null)?a.projections[pk]:a.energy;
+    var bv=(b.projections&&b.projections[pk]!=null)?b.projections[pk]:b.energy;
+    return bv-av;
+  });
+
   var barMax=0;
-  probes.forEach(function(p){barMax=Math.max(barMax,p.energy)});
+  probes.forEach(function(p){
+    var e=(p.projections&&p.projections[pk]!=null)?p.projections[pk]:p.energy;
+    if(e>barMax)barMax=e;
+  });
   if(barMax<1e-10)barMax=1;
 
   var projKeys=PROJ_ORDER||[];
 
   h+='<div style="overflow-x:auto;max-height:400px;overflow-y:auto">';
   h+='<table class="tok"><thead><tr>';
-  h+='<th>Probe</th><th title="Correction energy for this probe (primary projection)">Energy</th><th title="Mean energy across all probes">Global</th><th title="Probe − Global">Δ</th><th title="Z-score: |Δ| / std">z</th>';
-  projKeys.forEach(function(pk){
-    h+='<th title="'+esc(PROJ_LABELS[pk]||pk)+'" style="color:var(--cyan);font-size:9px">'+pk.toUpperCase()+'</th>';
+  h+='<th>Probe</th><th title="Energy for this probe in the selected projection ('+esc(pk.toUpperCase())+')">'+esc(pk.toUpperCase())+' Energy</th><th title="Primary-projection energy">Primary</th><th title="Global mean across all probes">Global</th><th title="Selected − Global">Δ</th><th title="Z-score: |Δ| / std">z</th>';
+  projKeys.forEach(function(k){
+    var styleCol=(k===pk)?'var(--orange)':'var(--cyan)';
+    h+='<th title="'+esc(PROJ_LABELS[k]||k)+'" style="color:'+styleCol+';font-size:9px">'+k.toUpperCase()+'</th>';
   });
   h+='<th style="min-width:100px">Energy</th>';
   h+='</tr></thead><tbody>';
 
   probes.forEach(function(p){
-    var dCol=p.deviation>0?'var(--orange)':'var(--blue)';
-    var dSign=p.deviation>0?'+':'';
+    var projE=(p.projections&&p.projections[pk]!=null)?p.projections[pk]:p.energy;
+    var dev=projE-(p.global_mean||0);
+    var dCol=dev>0?'var(--orange)':'var(--blue)';
+    var dSign=dev>0?'+':'';
     var zCol=p.z>=2?'#E69F00':p.z>=1?'var(--cyan)':'var(--text2)';
     h+='<tr>';
     h+='<td style="color:var(--orange);font-weight:600;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(p.text)+'">'+esc(p.text)+'</td>';
-    h+='<td style="color:var(--text);font-variant-numeric:tabular-nums">'+p.energy.toFixed(6)+'</td>';
+    h+='<td style="color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">'+projE.toFixed(6)+'</td>';
+    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+p.energy.toFixed(6)+'</td>';
     h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+p.global_mean.toFixed(6)+'</td>';
-    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+p.deviation.toFixed(6)+'</td>';
+    h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+dev.toFixed(6)+'</td>';
     h+='<td style="color:'+zCol+';font-weight:600">'+p.z.toFixed(1)+'</td>';
 
-    projKeys.forEach(function(pk){
-      var pv=p.projections[pk];
+    projKeys.forEach(function(k){
+      var pv=p.projections?p.projections[k]:undefined;
       if(pv===undefined){h+='<td style="color:#333">—</td>';return}
-      h+='<td style="color:var(--text);font-variant-numeric:tabular-nums;font-size:9px">'+pv.toFixed(6)+'</td>';
+      var col=(k===pk)?'var(--orange)':'var(--text)';
+      var wt=(k===pk)?'600':'400';
+      h+='<td style="color:'+col+';font-weight:'+wt+';font-variant-numeric:tabular-nums;font-size:9px">'+pv.toFixed(6)+'</td>';
     });
 
-    // Energy bar
     h+='<td>';
     h+='<div class="bar-cell">';
-    var w=p.energy/barMax*100;
+    var w=projE/barMax*100;
     h+='<div class="bar-fill" style="left:0;width:'+w+'%;background:var(--cyan);opacity:0.7"></div>';
     h+='</div>';
     h+='</td>';
