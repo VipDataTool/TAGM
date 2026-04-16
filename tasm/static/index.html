@@ -3655,20 +3655,13 @@ function renderCorrectionBackscatterResults(r) {
     return th;
   }
 
-  // ── Primary aggregate heatmap ──
-  var aggSc = warmScale(agg);
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-  h += 'Primary Heatmap (' + escHtml((cfg.primary_projection || 'qkv').toUpperCase()) + ')';
-  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionBackscatter()">↗ Interactive Explorer</button>';
-  h += '</div>';
-  h += '<div class="mod-results-body">';
-  h += '<div style="padding:10px;overflow-x:auto">';
-  h += renderHeatmapTable(agg, warmColor, aggSc, 4);
-  h += '</div></div>';
-
   // ── Delta Decomposition: all projections side by side ──
+  var aggSc = warmScale(agg);  // retained for any per-subject scale use below
   if (projOrder.length > 1) {
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Delta Decomposition (' + projOrder.length + ' projections)</div>';
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+    h += 'Delta Decomposition (' + projOrder.length + ' projections)';
+    h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionBackscatter()">↗ Interactive Explorer</button>';
+    h += '</div>';
     h += '<div class="mod-results-body">';
     h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
     projOrder.forEach(function(pk) {
@@ -3702,14 +3695,6 @@ function renderCorrectionBackscatterResults(r) {
     });
     h += '</div></div>';
   }
-
-  // ── Primary probe energy grid ──
-  var peSc = warmScale(probeEnergy);
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Primary Probe Energy (' + escHtml((cfg.primary_projection || 'qkv').toUpperCase()) + ')</div>';
-  h += '<div class="mod-results-body">';
-  h += '<div style="padding:10px;overflow-x:auto">';
-  h += renderHeatmapTable(probeEnergy, peColor, peSc, 4);
-  h += '</div></div>';
 
   // ── Per-subject summary ──
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';

@@ -397,6 +397,20 @@ class ProbeGeneratorModule(TASMModule):
                 max_val=10,
             ),
             ModuleParameter(
+                name="skip_dedup",
+                display_name="Skip Discriminative Deduplication",
+                description=(
+                    "Bypass the two-axis dedup filter. Keeps every token "
+                    "that passes the frequency floor, including tokens "
+                    "shared across classes and across subclasses. Produces "
+                    "a raw probe distribution for comparison against the "
+                    "discriminative version. Cells will overlap in "
+                    "vocabulary — use only for diagnostic runs."
+                ),
+                type="bool",
+                default=False,
+            ),
+            ModuleParameter(
                 name="auto_apply",
                 display_name="Apply Probe Set After Generation",
                 description=(
@@ -463,6 +477,7 @@ class ProbeGeneratorModule(TASMModule):
         max_probes = int(params.get("max_probes_per_cell", 0))
         ap_batch = int(params.get("auto_populate_batch", 5))
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
+        skip_dedup = bool(params.get("skip_dedup", False))
 
         # Inference lock — prevents concurrent model access with analyzer
         _inf_lock = (self._model_manager.inference_lock
@@ -582,13 +597,20 @@ class ProbeGeneratorModule(TASMModule):
 
         # ── Dedup pipeline (reusable for auto-populate rounds) ──
         def _run_dedup(cv):
-            """Apply frequency filter + cross-axis dedup."""
+            """Apply frequency filter + cross-axis dedup.
+
+            When skip_dedup is True, only the frequency filter runs
+            and the cross-class / cross-subclass shared sets are empty.
+            """
             filtered = {}
             for key in cv:
                 filtered[key] = Counter({
                     tok: cnt for tok, cnt in cv[key].items()
                     if cnt >= min_freq
                 })
+            if skip_dedup:
+                # Raw mode: keep frequency-filtered vocab, no cross-axis removal
+                return filtered, set(), set()
             xclass = set()
             for col in subclass_cols:
                 tc = Counter()
@@ -869,6 +891,7 @@ class ProbeGeneratorModule(TASMModule):
             "queries_per_subject": n_queries,  # backward compat
             "max_new_tokens": max_tokens,
             "min_frequency": min_freq,
+            "skip_dedup": skip_dedup,
             "temperature": temperature,
             "top_p": top_p,
             "repetition_penalty": rep_penalty,
