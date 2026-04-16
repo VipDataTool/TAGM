@@ -271,6 +271,7 @@ class CorrectionBackscatterModule(TASMModule):
         n_toks = []
         tokens_list = []
         cats_list = []
+        prompts_list = []
         cat_names = {"b": "benign", "m": "mild", "h": "harmful",
                      "j": "jailbreak", "a": "adversarial",
                      "d": "dual-use", "u": "unknown"}
@@ -288,11 +289,13 @@ class CorrectionBackscatterModule(TASMModule):
                 cat = (r.get("category", "") or "unknown")[:1]
                 cats_list.append(cat)
                 all_cats_seen.add(cat)
+                prompts_list.append(r.get("prompt", "") or "")
             else:
                 tok_mats.append(None)
                 n_toks.append(0)
                 tokens_list.append([])
                 cats_list.append("u")
+                prompts_list.append(r.get("prompt", "") or "")
 
         n_prompts = len(session_results)
 
@@ -333,7 +336,15 @@ class CorrectionBackscatterModule(TASMModule):
 
         # ── Build heatmaps for each projection type ──
         def _build_heatmap(proj_key):
-            """Build aggregate heatmap and probe energy grid for one projection."""
+            """Build aggregate heatmap, per-category heatmaps, and per-prompt
+            heatmaps for one projection.
+
+            Returns:
+                aggregate:      (n_subj, n_levels) mean across all prompts
+                probe_energy:   (n_subj, n_levels) intrinsic detector sensitivity
+                per_category:   dict of {category_code: {aggregate, n_prompts}}
+                per_prompt:     list of {prompt_idx, category, grid} (one per prompt)
+            """
             if proj_key not in suffix_energies or suffix_energies[proj_key] is None:
                 return None
 
@@ -348,13 +359,19 @@ class CorrectionBackscatterModule(TASMModule):
             m = cell_pc > 0
             cell_pe[m] /= cell_pc[m]
 
-            # Aggregate heatmap
+            # Aggregate heatmap (all prompts) + per-category + per-prompt
             agg = np.zeros((n_subj, n_levels))
             count = 0
+            cat_accum = defaultdict(lambda: {"grid": np.zeros((n_subj, n_levels)),
+                                              "count": 0})
+            per_prompt = []
+
             for pi2 in range(n_prompts):
                 te = tok_e_list[pi2]
                 nt = n_toks[pi2]
                 if nt == 0:
+                    # Skip empty prompts but keep their slot for indexing
+                    per_prompt.append(None)
                     continue
                 grid = np.zeros((n_subj, n_levels))
                 for si in range(n_subj):
@@ -372,12 +389,33 @@ class CorrectionBackscatterModule(TASMModule):
                 agg += grid
                 count += 1
 
+                cat = cats_list[pi2]
+                cat_accum[cat]["grid"] += grid
+                cat_accum[cat]["count"] += 1
+
+                per_prompt.append({
+                    "prompt_idx": pi2,
+                    "category": cat,
+                    "grid": grid.tolist(),
+                })
+
             if count > 0:
                 agg /= count
+
+            per_category = {}
+            for cat, info in cat_accum.items():
+                if info["count"] > 0:
+                    info["grid"] /= info["count"]
+                per_category[cat] = {
+                    "aggregate": info["grid"].tolist(),
+                    "n_prompts": info["count"],
+                }
 
             return {
                 "aggregate": agg.tolist(),
                 "probe_energy": cell_pe.tolist(),
+                "per_category": per_category,
+                "per_prompt": per_prompt,
             }
 
         decomposition = {}
@@ -520,6 +558,17 @@ class CorrectionBackscatterModule(TASMModule):
             # Categories
             "categories": {k: cat_names.get(k, k)
                            for k in sorted(all_cats_seen)},
+
+            # Prompt metadata for slideshow / filtering
+            "prompts": [
+                {
+                    "idx": pi,
+                    "category": cats_list[pi],
+                    "text": (prompts_list[pi] or "")[:200],
+                    "projected": n_toks[pi] > 0,
+                }
+                for pi in range(n_prompts)
+            ],
 
             # Per-subject summary (primary)
             "per_subject": {

@@ -45,8 +45,8 @@ table.tok tr:hover{background:#ffffff08}
 <div id="err"></div>
 <script>
 (function(){
-var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY,DECOMP,PROJ_ORDER,PROJ_LABELS;
-var selCat="all",selCell=null,selProj=null;
+var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY,DECOMP,PROJ_ORDER,PROJ_LABELS,PROMPTS;
+var selCat="all",selCell=null,selProj=null,selPrompt="all";
 var viewMode="backscatter"; // "backscatter" (token×probe) or "probe_energy" (probe-only)
 var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
 var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak",a:"adversarial",d:"dual-use",u:"unknown"};
@@ -61,6 +61,7 @@ function init(){
   CELLS=D.cell_details||{};CATS=D.categories||{};SUBJ_SHORT=D.subj_short||SUBJ;
   PROBE_ENERGY=D.probe_energy_grid||[];
   DECOMP=D.decomposition||{};PROJ_ORDER=D.projection_order||[];PROJ_LABELS=D.projection_labels||{};
+  PROMPTS=D.prompts||[];
 
   var cfg=D.config||{};
   selProj=cfg.primary_projection||'qkv';
@@ -80,14 +81,43 @@ function buildCtrls(){
   h+='<option value="backscatter"'+(viewMode==="backscatter"?' selected':'')+'>Backscatter (token × probe)</option>';
   h+='<option value="probe_energy"'+(viewMode==="probe_energy"?' selected':'')+'>Probe Energy (detector sensitivity)</option>';
   h+='</select>';
-  h+='<label style="margin-left:12px">Category filter:</label><select onchange="window._bsSetCat(this.value)">';
-  h+='<option value="all">All categories</option>';
-  Object.keys(CATS).sort().forEach(function(k){
-    h+='<option value="'+k+'">'+(CATS[k]||k)+'</option>';
+
+  // Category picker — lists only categories that appear in prompts
+  var catsInData={};
+  PROMPTS.forEach(function(p){if(p.projected)catsInData[p.category]=true});
+  h+='<label style="margin-left:12px">Category:</label><select onchange="window._bsSetCat(this.value)">';
+  h+='<option value="all"'+(selCat==="all"?' selected':'')+'>All categories</option>';
+  Object.keys(catsInData).sort().forEach(function(k){
+    var n=PROMPTS.filter(function(p){return p.projected&&p.category===k}).length;
+    h+='<option value="'+k+'"'+(selCat===k?' selected':'')+'>'+(CATS[k]||k)+' ('+n+')</option>';
   });
   h+='</select>';
+
+  // Prompt picker — filtered to current category
+  var candidates=PROMPTS.filter(function(p){
+    if(!p.projected)return false;
+    if(selCat!=="all"&&p.category!==selCat)return false;
+    return true;
+  });
+  h+='<label style="margin-left:12px">Prompt:</label><select onchange="window._bsSetPrompt(this.value)">';
+  h+='<option value="all"'+(selPrompt==="all"?' selected':'')+'>All ('+candidates.length+' prompts)</option>';
+  candidates.forEach(function(p){
+    var label='#'+(p.idx+1)+' ['+(CATS[p.category]||p.category)+'] '+p.text;
+    if(label.length>100)label=label.slice(0,100)+'…';
+    h+='<option value="'+p.idx+'"'+(selPrompt==String(p.idx)?' selected':'')+'>'+esc(label)+'</option>';
+  });
+  h+='</select>';
+
   document.getElementById("ctrls").innerHTML=h;
-  window._bsSetCat=function(v){selCat=v;renderDetail()};
+  window._bsSetCat=function(v){
+    selCat=v;
+    selPrompt="all"; // reset prompt picker when category changes
+    buildCtrls();buildLegend();renderPanel();renderDetail();
+  };
+  window._bsSetPrompt=function(v){
+    selPrompt=v;
+    buildLegend();renderPanel();renderDetail();
+  };
   window._bsSetView=function(v){viewMode=v;buildLegend();renderPanel();renderDetail()};
 }
 
@@ -113,22 +143,59 @@ function coolCol(t){
 function cellCol(t){return viewMode==="backscatter"?warmCol(t):coolCol(t)}
 
 function currentGridFor(pk){
-  // Returns the 2D grid for projection `pk` under the current viewMode
+  // Returns the 2D grid for projection `pk` under the current viewMode,
+  // filtered by category + prompt selection.
   var d=DECOMP[pk];if(!d)return null;
-  return viewMode==="backscatter"?(d.aggregate||[]):(d.probe_energy||[]);
+
+  // Probe-energy view is input-independent — filters don't apply
+  if(viewMode==="probe_energy"){
+    return d.probe_energy||[];
+  }
+
+  // Backscatter view: respond to prompt/category selection
+  if(selPrompt!=="all"){
+    var pi=parseInt(selPrompt);
+    var pp=d.per_prompt||[];
+    var entry=pp[pi];
+    return (entry&&entry.grid)?entry.grid:[];
+  }
+  if(selCat!=="all"){
+    var pc=d.per_category||{};
+    var ce=pc[selCat];
+    return (ce&&ce.aggregate)?ce.aggregate:[];
+  }
+  return d.aggregate||[];
 }
 
 // ─── Legend ──────────────────────────────────────────────────
 
 function buildLegend(){
   var label=viewMode==="backscatter"?"token × probe energy":"probe correction energy";
+
+  // Describe the current filter scope
+  var scope="";
+  if(viewMode==="probe_energy"){
+    scope="intrinsic detector — independent of prompts";
+  }else if(selPrompt!=="all"){
+    var pi=parseInt(selPrompt);
+    var p=PROMPTS[pi];
+    var ptext=p?('#'+(pi+1)+' ['+(CATS[p.category]||p.category)+'] '+(p.text||'').slice(0,60)):'prompt '+selPrompt;
+    scope="prompt: "+ptext;
+  }else if(selCat!=="all"){
+    var n=PROMPTS.filter(function(p){return p.projected&&p.category===selCat}).length;
+    scope="category: "+(CATS[selCat]||selCat)+" ("+n+" prompts, mean)";
+  }else{
+    var nTot=PROMPTS.filter(function(p){return p.projected}).length;
+    scope="all "+nTot+" prompts (mean)";
+  }
+
   var h='<div class="bar">';
   for(var i=0;i<20;i++){
     var t=i/19;
     h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
   }
   h+='</div>';
-  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · each panel auto-scaled to its own range</span>';
+  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · '+esc(scope)+' · each panel auto-scaled</span>';
   document.getElementById("legend").innerHTML=h;
 }
 
