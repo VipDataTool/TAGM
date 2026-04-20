@@ -83,7 +83,8 @@ class AnalysisModule(ABC):
 
     @abstractmethod
     def run(self, session: dict, params: dict,
-            probes: Optional[dict] = None) -> AnalysisResult:
+            probes: Optional[dict] = None,
+            context: Optional[dict] = None) -> AnalysisResult:
         """Compute the analysis from a session record.
 
         session: dict in the canonical session shape. Keys include:
@@ -97,6 +98,15 @@ class AnalysisModule(ABC):
 
         probes: optional probe data (for analyses that need probe sets
         directly, like correction_manifold).
+
+        context: optional dict of runtime resources that don't round-trip
+        through the session snapshot. The app layer may pass:
+          - 'probe_store':          ProbeStore instance
+          - 'active_probe_template': the current _active_probe_template dict
+                                     (set_id, template_id, levels, ...)
+          - 'pipeline':             the loaded Pipeline (only when needed)
+        Analyses that don't need any of these can ignore `context`; it is
+        intentionally untyped so each analysis takes only what it needs.
 
         Returns an AnalysisResult. The framework merges it into the
         session record under result.analysis_name.

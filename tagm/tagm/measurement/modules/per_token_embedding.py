@@ -61,10 +61,14 @@ class PerTokenEmbedding(MeasurementModule):
             name="include_in_export",
             display_name="Include in JSON export",
             description=(
-                "If true, these (large) arrays are serialized in the session "
-                "export. Off by default to keep exports compact."
+                "If true, these (large) arrays are serialized on each "
+                "prompt record so downstream analyses (correction_heatmap, "
+                "correction_manifold) can read them. Defaults to on so the "
+                "Modules-tab analyses work out of the box; turn off to "
+                "keep session exports smaller when those analyses aren't "
+                "needed."
             ),
-            kind="bool", default=False, advanced=True,
+            kind="bool", default=True, advanced=True,
         ),
     ]
 

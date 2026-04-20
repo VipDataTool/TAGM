@@ -205,7 +205,28 @@ class ModuleRunner:
                 if errors:
                     st.results = {"ok": False, "errors": errors}
                 else:
-                    aresult = module.run(session_dict, resolved)
+                    # Build a context dict of runtime-only resources that
+                    # aren't captured in the session snapshot. Analyses that
+                    # need them (correction_heatmap needs probe embeddings
+                    # from the active set) pull from here; analyses that
+                    # don't ignore the kwarg.
+                    ctx: dict = {}
+                    try:
+                        # Imported lazily so tagm.service.modules_runner
+                        # doesn't gain a hard dependency on the app module.
+                        from tagm import app as _app_mod  # type: ignore
+                        ctx["probe_store"] = getattr(
+                            _app_mod.state, "probe_store", None)
+                        ctx["pipeline"] = getattr(
+                            _app_mod.state, "pipeline", None)
+                        ctx["active_probe_template"] = getattr(
+                            _app_mod, "_active_probe_template", None)
+                    except Exception:
+                        # Unit tests and standalone invocations can run
+                        # without an app module. Analyses that need
+                        # context resources will no-op gracefully.
+                        pass
+                    aresult = module.run(session_dict, resolved, context=ctx)
                     rdict = aresult.to_dict()
                     session.add_analysis(st.name, rdict)
                     st.results = rdict
@@ -235,15 +256,42 @@ class ModuleRunner:
 
                 try:
                     _prog("running", f"re-measuring {len(session.record.prompts)} prompts")
+                    # Snapshot each prompt's existing measurements dict BEFORE
+                    # the rerun. analyze_batch replaces session.record.prompts
+                    # entirely with freshly-computed PromptRecords, each of
+                    # which contains only the single selected measurement.
+                    # Without this snapshot, re-running one measurement from
+                    # the Modules tab destroys every other measurement on
+                    # every prompt in the session — the user would lose
+                    # stress_score, LTP, SFD, etc. any time they tweaked a
+                    # parameter on one module and clicked Run.
+                    prior_by_key = []  # list of (prompt_text, category, measurements_dict)
+                    for p in session.record.prompts:
+                        prior_by_key.append((
+                            p.prompt, p.category, dict(p.measurements),
+                        ))
                     rerun_prompts = [
-                        {"prompt": p.prompt, "category": p.category}
-                        for p in list(session.record.prompts)
+                        {"prompt": p_text, "category": p_cat}
+                        for (p_text, p_cat, _) in prior_by_key
                     ]
-                    # Replace prompts: rerun strategy mirrors /api/session/rerun
                     session.record.prompts = []
                     orchestrator.analyze_batch(
                         rerun_prompts, session=session,
                         progress=lambda s, m: _prog(s, m))
+
+                    # Merge: for each re-analyzed prompt, overlay the new
+                    # measurement on top of the prior measurements (which
+                    # includes every other module's data). Matching is
+                    # positional since analyze_batch preserves input order.
+                    for new_prec, (_, _, prior_meas) in zip(
+                            session.record.prompts, prior_by_key):
+                        # New prec now contains only {st.name: ...}. Merge it
+                        # onto the prior dict so we end up with all prior
+                        # measurements, with st.name updated/added.
+                        merged = dict(prior_meas)
+                        for k, v in (new_prec.measurements or {}).items():
+                            merged[k] = v
+                        new_prec.measurements = merged
                 finally:
                     # Restore prior selection on the orchestrator
                     orchestrator._selected = prior_selection
