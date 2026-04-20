@@ -1,38 +1,16 @@
 """ComparativeAnalysis: cross-prompt aggregate statistics and category separability.
 
-Ported from TASM's `engine/modules/comparative_analysis.py` plus the core of
-`engine/statistics.py::aggregate_batch`. Emits the JSON shape the frontend's
-`renderComparativeResults` function reads directly:
+For each declared metric, computes per-category means with bootstrap
+confidence intervals, computes Cohen's d between category pairs, and
+identifies the optimal classification threshold. Produces the
+session-level summary used for publishable plots.
 
-    {
-      "n_prompts": int,
-      "categories": [str, ...],
-      "plot_keys": [str, ...],
-      "aggregate": {
-        "categories": {
-          cat: {
-            "n": int,
-            "metrics": {
-              "stress_score":   {"estimate": float, "ci": [lo, hi]},
-              "entropy":        {...},
-              "middle_share":   {...},
-              "net_correction": {...},
-              "interior_cv":    {...},
-              "sfd_density_mean": {...},
-              "rank_displacement_tau": {...},
-            },
-          },
-        },
-        "separability": {
-          metric_key: {
-            "effect_size": {"estimate": float, "ci": [lo, hi]},
-            "threshold": {"threshold": float, "accuracy": float},
-          },
-        },
-      },
-    }
+Translated from TASM's `engine/modules/comparative_analysis.py` plus the
+core of `engine/statistics.py::aggregate_batch`.
 
-Uses TAGM's own bootstrap / threshold helpers in tagm.analysis.statistics.
+Dependencies: any measurement whose scalars the user wants aggregated.
+The default metrics below cover what TASM's comparative pipeline produced;
+users can pass custom metrics in `params.metrics`.
 """
 from __future__ import annotations
 
@@ -42,43 +20,28 @@ from typing import Optional
 from tagm.analysis.base import AnalysisModule, AnalysisResult
 from tagm.analysis.registry import register_analysis
 from tagm.analysis.statistics import (
-    bootstrap_ci, bootstrap_effect_size, extract_scalar,
+    bootstrap_ci, bootstrap_effect_size, cohens_d, extract_scalar,
     group_by_category, optimal_threshold,
 )
 from tagm.measurement.parameters import ModuleParameter
 
 
-# Metric keys rendered by the UI in the Category Summary table
-# (column ordering matches the JS renderer). Each entry is
-# (column_key, measurement_name, scalar_field).
-_UI_METRICS = [
-    ("stress_score",           "stress_score",               "stress_mean"),
-    ("entropy",                "last_position_attribution",  "entropy"),
-    ("middle_share",           "last_position_attribution",  "middle_share"),
-    ("net_correction",         "last_position_attribution",  "net_correction_to_last"),
-    ("interior_cv",            "last_position_attribution",  "interior_cv"),
-    ("sfd_density_mean",       "spectral_field_density",     "density_mean"),
-    ("rank_displacement_tau",  "rank_displacement",          "mean_tau"),
-    # Extra columns carried along for the Separability table. The UI
-    # doesn't render them as their own columns but they populate
-    # separability entries below.
-    ("top2_share",             "last_position_attribution",  "top2_share"),
-    ("ltp_mean_M",             "lateral_tension_profile",    "mean_M"),
-    ("ltp_max_prc",            "lateral_tension_profile",    "max_prc"),
-]
-
-
-# Plot keys the batch-viz panel can show. TASM's Comparative analysis
-# returned this list unconditionally — the VIZ_REGISTRY in the
-# frontend filters by `scope==='batch'` and by availability.
-_DEFAULT_PLOT_KEYS = [
-    "batch_summary", "separability",
-    "key_scatters", "discriminative_sublayers", "proof1_summary",
-    "exp_trajectory_overlay", "exp_difference_from_benign",
-    "exp_metric_scatters", "exp_behavioral_comparison",
-    "exp_ltp_category_comparison", "exp_ltp_m_vs_stress",
-    "exp_ltp_profile_shapes", "exp_sfd_category_comparison",
-    "exp_sfd_vs_asm", "exp_rank_displacement",
+# Default metric list: (measurement_name, scalar_field, display_name)
+_DEFAULT_METRICS = [
+    ("stress_score", "stress_mean", "Stress Score"),
+    ("last_position_attribution", "net_correction_to_last", "Net Correction"),
+    ("last_position_attribution", "entropy", "Entropy"),
+    ("last_position_attribution", "top2_share", "Top-2 Share"),
+    ("last_position_attribution", "middle_share", "Middle Share"),
+    ("last_position_attribution", "interior_cv", "Interior CV"),
+    ("lateral_tension_profile", "mean_M", "LTP Mean M"),
+    ("lateral_tension_profile", "mean_V", "LTP Mean V"),
+    ("lateral_tension_profile", "mean_L", "LTP Mean L"),
+    ("lateral_tension_profile", "max_prc", "LTP Max PRC"),
+    ("spectral_field_density", "density_mean", "SFD Density Mean"),
+    ("spectral_field_density", "density_max", "SFD Density Max"),
+    ("rank_displacement", "mean_disp_per_token", "RD Mean Disp"),
+    ("rank_displacement", "mean_replacement", "RD Mean Replacement"),
 ]
 
 
@@ -88,10 +51,9 @@ class ComparativeAnalysis(AnalysisModule):
     display_name = "Comparative Analysis"
     description = (
         "Per-category aggregate statistics with bootstrap CIs and pairwise "
-        "effect sizes. Produces the session-level summary the UI Category "
-        "Summary table and Separability panel read."
+        "effect sizes. Produces the session-level summary for comparison plots."
     )
-    version = "1.0.0"
+    version = "0.1.0"
 
     parameters = [
         ModuleParameter(
@@ -117,7 +79,7 @@ class ComparativeAnalysis(AnalysisModule):
         ),
     ]
 
-    def run(self, session, params, probes=None, context=None):
+    def run(self, session, params, probes=None):
         n_boot = int(params.get("n_bootstrap", 5000))
         ci = float(params.get("ci_level", 0.95))
         n_steps = int(params.get("threshold_steps", 500))
@@ -132,125 +94,72 @@ class ComparativeAnalysis(AnalysisModule):
         prompts = session.get("prompts") or []
         if not prompts:
             result.warnings.append("No prompts in session")
-            result.objects.update(_empty_aggregate())
             return result
 
-        # Group by category
         cats = group_by_category(session)
         cat_names = sorted(cats.keys())
 
-        # ── Build per-category metrics in the shape the UI reads ──
-        ui_categories: dict[str, dict] = {}
-        # Also collect per-metric per-category value arrays for the
-        # separability computation below.
-        metric_values: dict[str, dict[str, list[float]]] = {
-            key: {} for key, _, _ in _UI_METRICS
-        }
+        per_category: dict = {}
+        per_metric: dict = {}
 
-        for cat_name in cat_names:
-            cat_prompts = cats[cat_name]
-            metrics_entry: dict[str, dict] = {}
-            for col_key, meas_name, field_name in _UI_METRICS:
-                vals: list[float] = []
-                for p in cat_prompts:
-                    v = extract_scalar(p, meas_name, field_name)
+        for measurement_name, field_name, display in _DEFAULT_METRICS:
+            all_values = []
+            cat_values: dict[str, list] = {}
+            for cat_name in cat_names:
+                vals = []
+                for p in cats[cat_name]:
+                    v = extract_scalar(p, measurement_name, field_name)
                     if v is not None:
                         vals.append(v)
-                metric_values[col_key][cat_name] = vals
-                if not vals:
-                    continue
-                estimate_ci = bootstrap_ci(vals, n_boot=n_boot, ci=ci)
-                metrics_entry[col_key] = {
-                    "estimate": estimate_ci["estimate"],
-                    "ci": [estimate_ci["ci_low"], estimate_ci["ci_high"]],
-                    "n": len(vals),
-                }
-            ui_categories[cat_name] = {
-                "n": len(cat_prompts),
-                "metrics": metrics_entry,
+                cat_values[cat_name] = vals
+                all_values.extend(vals)
+
+            if not all_values:
+                continue
+
+            # Per-category bootstrap CIs
+            cat_ci = {
+                cname: bootstrap_ci(vals, n_boot=n_boot, ci=ci)
+                for cname, vals in cat_values.items()
             }
 
-        # ── Separability: Cohen's d between safe and risk partitions ──
-        # TASM distinguished "safe" (benign/mild) vs "risk" (harmful/
-        # jailbreak/etc) for the Cohen's d table. We follow the same
-        # convention so the UI's AUROC-style colour coding lines up.
-        safe_cats = {"benign", "baseline", "mild"}
-        risk_cats = set(cat_names) - safe_cats
-
-        separability: dict[str, dict] = {}
-        for col_key, meas_name, field_name in _UI_METRICS:
-            safe_vals: list[float] = []
-            risk_vals: list[float] = []
-            for cname, vals in metric_values[col_key].items():
-                if cname in safe_cats:
-                    safe_vals.extend(vals)
-                else:
-                    risk_vals.extend(vals)
-            if len(safe_vals) < 2 or len(risk_vals) < 2:
-                continue
-            es = bootstrap_effect_size(safe_vals, risk_vals,
-                                        n_boot=n_boot, ci=ci)
-            thr = optimal_threshold(safe_vals, risk_vals, n_steps=n_steps)
-            separability[col_key] = {
-                "effect_size": {
-                    "estimate": es["estimate"],
-                    "ci": [es["ci_low"], es["ci_high"]],
-                },
-                "threshold": {
+            # Pairwise effect sizes
+            pairwise = []
+            for a, b in combinations(cat_names, 2):
+                if not cat_values[a] or not cat_values[b]:
+                    continue
+                es = bootstrap_effect_size(cat_values[a], cat_values[b],
+                                            n_boot=n_boot, ci=ci)
+                thr = optimal_threshold(cat_values[a], cat_values[b], n_steps=n_steps)
+                pairwise.append({
+                    "category_a": a, "category_b": b,
+                    "cohens_d": es["estimate"],
+                    "cohens_d_ci": [es["ci_low"], es["ci_high"]],
                     "threshold": thr["threshold"],
                     "accuracy": thr["accuracy"],
                     "direction": thr["direction"],
-                },
-                "n_safe": len(safe_vals),
-                "n_risk": len(risk_vals),
+                })
+
+            metric_key = f"{measurement_name}.{field_name}"
+            per_metric[metric_key] = {
+                "measurement": measurement_name,
+                "field": field_name,
+                "display_name": display,
+                "per_category": cat_ci,
+                "pairwise_effects": pairwise,
+                "overall_n": len(all_values),
             }
 
-        # ── Pairwise per-category effects (kept from TAGM native) ──
-        pairwise: dict[str, list[dict]] = {}
-        for col_key in metric_values:
-            entries = []
-            for a, b in combinations(cat_names, 2):
-                va, vb = metric_values[col_key][a], metric_values[col_key][b]
-                if len(va) < 2 or len(vb) < 2:
-                    continue
-                es = bootstrap_effect_size(va, vb, n_boot=n_boot, ci=ci)
-                entries.append({
-                    "a": a, "b": b,
-                    "cohens_d": es["estimate"],
-                    "cohens_d_ci": [es["ci_low"], es["ci_high"]],
-                })
-            if entries:
-                pairwise[col_key] = entries
+        for cat_name in cat_names:
+            per_category[cat_name] = {
+                "n_prompts": len(cats[cat_name]),
+            }
 
-        aggregate = {
-            "categories": ui_categories,
-            "separability": separability,
-            "pairwise_effects": pairwise,
-            "n_total": len(prompts),
-        }
-
-        # Emit TASM wire format. The flattener in app.py hoists these
-        # into top-level keys on the /api/modules/.../results response.
-        result.objects["aggregate"] = aggregate
+        result.objects["per_metric"] = per_metric
+        result.objects["per_category"] = per_category
         result.objects["categories"] = list(cat_names)
-        result.objects["plot_keys"] = list(_DEFAULT_PLOT_KEYS)
-        result.objects["n_prompts"] = len(prompts)
         result.scalars["n_prompts"] = len(prompts)
         result.scalars["n_categories"] = len(cat_names)
-        result.scalars["n_metrics"] = len(_UI_METRICS)
+        result.scalars["n_metrics"] = len(per_metric)
 
         return result
-
-
-def _empty_aggregate() -> dict:
-    return {
-        "aggregate": {
-            "categories": {},
-            "separability": {},
-            "pairwise_effects": {},
-            "n_total": 0,
-        },
-        "categories": [],
-        "plot_keys": list(_DEFAULT_PLOT_KEYS),
-        "n_prompts": 0,
-    }

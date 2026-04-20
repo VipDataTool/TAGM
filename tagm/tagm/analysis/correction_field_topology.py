@@ -1,83 +1,56 @@
-"""Correction Field Topology analysis (ported from TASM's displacement_field).
+"""Correction Field Topology analysis.
 
-Direct port of TASM's `engine/modules/displacement_field.py`, adapted to
-read TAGM's per-prompt measurement shape and emit TASM's wire format so
-the existing frontend renderer (`renderCFTResults` in static/js/main.js)
-produces the same Topology Summary, Category Breakdown, Displacement
-Magnitude, and Bank Asymmetry cards it did under TASM.
+Reference module for the TAGM analysis layer. Ported from TASM's
+`engine/modules/displacement_field.py` (class
+CorrectionFieldTopologyModule). The algorithm in
+`_compute_topology_stats` is TASM's, verbatim. Everything else is
+TAGM interface scaffolding.
 
-The underlying quantities are preserved: `displacement_stats` pulls from
-rank_displacement's instruct_disp_profiles / base_disp_profiles, and
-`asymmetry_stats` derives from the same pair. `n_with_ltp_fallback` is
-the count of prompts that have no rank_displacement but do have
-lateral_tension_profile.profiles, matching TASM's semantics exactly.
+The module validates session data for 3D displacement-field
+visualization and computes aggregate topology statistics. The
+visualization itself renders client-side via Three.js from the
+session record; this module provides the data validation, summary
+statistics, and parameter surface for the UI.
 
-Input mapping (TASM flat → TAGM nested):
-  r.ltp.profiles       → p.measurements.lateral_tension_profile.objects.profiles
-  r.rank_displacement
-    .instruct_disp_profiles
-                        → p.measurements.rank_displacement.objects.instruct_disp_profiles
-    .base_disp_profiles → p.measurements.rank_displacement.objects.base_disp_profiles
-  r.base_counterfactual_tokens
-                        → p.measurements.lateral_tension_profile
-                            .objects.counterfactual_tokens
+Surface height encodes displacement magnitude. Asymmetry between
+instruct-bank and base-bank reveals where alignment training
+reshaped the output distribution.
 
-Output shape matches TASM verbatim; see renderCFTResults for fields.
+Per the TAGM analysis contract (see TAGM_analysis_layer_interface.md):
+  - `run()` returns a ModuleOutput; the framework wraps it in the
+    mailbox.
+  - `_prompt_view()` is the module-local translation from TAGM's
+    measurement-keyed prompt record to the TASM-shape dict the
+    algorithm reads. This is the only place in the codebase that
+    knows this module's field-name mapping.
 """
 from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
-from tagm.analysis.base import AnalysisModule, AnalysisResult
+from tagm.analysis.base import AnalysisModule, ModuleOutput
 from tagm.analysis.registry import register_analysis
 from tagm.measurement.parameters import ModuleParameter
 
 logger = logging.getLogger("tagm")
 
 
-def _extract_tasm_shape(p: dict) -> dict:
-    """Project a TAGM PromptRecord dict into the flat shape TASM's
-    topology-stats function reads. Returns a dict with keys 'ltp',
-    'rank_displacement', 'base_counterfactual_tokens', 'tokens',
-    'category' matching the fields TASM emitted on each session result.
+# ── TASM algorithm (verbatim) ──────────────────────────────────────
+# Source: tasm/engine/modules/displacement_field.py
+# Behavior unchanged. Consumes the TASM-shape records produced by
+# CorrectionFieldTopology._prompt_view below.
+
+def _compute_topology_stats(results):
+    """Compute aggregate topology statistics from session data.
+
+    Analyzes displacement/LTP profiles to produce summary metrics
+    about the correction field's structure across the session.
     """
-    meas = p.get("measurements") or {}
-    ltp = meas.get("lateral_tension_profile") or {}
-    ltp_objs = ltp.get("objects") or {}
-    rd = meas.get("rank_displacement") or {}
-    rd_objs = rd.get("objects") or {}
-
-    return {
-        "tokens": p.get("tokens") or [],
-        "category": p.get("category") or "",
-        "ltp": {
-            "profiles": ltp_objs.get("profiles") or [],
-            "base_profiles": ltp_objs.get("base_profiles") or [],
-        },
-        "rank_displacement": {
-            "instruct_disp_profiles":
-                rd_objs.get("instruct_disp_profiles") or [],
-            "base_disp_profiles":
-                rd_objs.get("base_disp_profiles") or [],
-        },
-        "base_counterfactual_tokens":
-            ltp_objs.get("counterfactual_tokens") or [],
-    }
-
-
-def _compute_topology_stats(results: list[dict]) -> dict:
-    """Compute aggregate topology statistics.
-
-    Faithful port of TASM's `_compute_topology_stats`. Takes a list of
-    TASM-shape per-prompt dicts (use _extract_tasm_shape to project
-    TAGM PromptRecords into that shape) and returns the stats dict the
-    TASM UI expects.
-    """
-    stats: dict[str, Any] = {
+    stats = {
         "n_total": len(results),
         "n_with_displacement": 0,
         "n_with_ltp_fallback": 0,
@@ -93,9 +66,9 @@ def _compute_topology_stats(results: list[dict]) -> dict:
         "asymmetry_stats": None,
     }
 
-    disp_magnitudes_by_cat: dict[str, list[float]] = defaultdict(list)
-    asymmetry_by_cat: dict[str, list[float]] = defaultdict(list)
-    all_token_counts: list[int] = []
+    disp_magnitudes_by_cat = defaultdict(list)
+    asymmetry_by_cat = defaultdict(list)
+    all_token_counts = []
 
     for r in results:
         cat = (r.get("category") or "unknown").lower().strip()
@@ -122,13 +95,14 @@ def _compute_topology_stats(results: list[dict]) -> dict:
 
         all_token_counts.append(n_tok)
 
+        # Category breakdown
         if cat not in stats["by_category"]:
-            stats["by_category"][cat] = {
-                "count": 0, "mean_tokens": 0, "token_counts": [],
-            }
+            stats["by_category"][cat] = {"count": 0, "mean_tokens": 0,
+                                          "token_counts": []}
         stats["by_category"][cat]["count"] += 1
         stats["by_category"][cat]["token_counts"].append(n_tok)
 
+        # Displacement magnitude statistics
         if has_disp:
             i_profs = rd.get("instruct_disp_profiles") or []
             b_profs = rd.get("base_disp_profiles") or []
@@ -140,23 +114,24 @@ def _compute_topology_stats(results: list[dict]) -> dict:
                 disp_magnitudes_by_cat[cat].append(i_mag + b_mag)
                 total = i_mag + b_mag
                 if total > 1e-10:
-                    asymmetry_by_cat[cat].append(
-                        (i_mag - b_mag) / total)
+                    asymmetry_by_cat[cat].append((i_mag - b_mag) / total)
 
+    # Aggregate token stats
     if all_token_counts:
         stats["token_stats"]["total_tokens"] = sum(all_token_counts)
         stats["token_stats"]["mean_tokens_per_prompt"] = round(
             float(np.mean(all_token_counts)), 1)
         stats["token_stats"]["max_tokens"] = max(all_token_counts)
 
+    # Per-category mean tokens
     for cat, info in stats["by_category"].items():
         counts = info.pop("token_counts")
-        info["mean_tokens"] = (round(float(np.mean(counts)), 1)
-                               if counts else 0)
+        info["mean_tokens"] = round(float(np.mean(counts)), 1) if counts else 0
 
+    # Displacement magnitude stats
     if disp_magnitudes_by_cat:
-        all_mags: list[float] = []
-        per_cat: dict[str, dict] = {}
+        all_mags = []
+        per_cat = {}
         for cat, mags in disp_magnitudes_by_cat.items():
             all_mags.extend(mags)
             arr = np.array(mags)
@@ -176,24 +151,23 @@ def _compute_topology_stats(results: list[dict]) -> dict:
             "by_category": per_cat,
         }
 
+    # Asymmetry stats
     if asymmetry_by_cat:
-        per_cat_asym: dict[str, dict] = {}
-        all_asym: list[float] = []
+        per_cat_asym = {}
+        all_asym = []
         for cat, vals in asymmetry_by_cat.items():
             all_asym.extend(vals)
             arr = np.array(vals)
             per_cat_asym[cat] = {
                 "mean": round(float(arr.mean()), 4),
                 "std": round(float(arr.std()), 4),
-                "instruct_dominant_frac":
-                    round(float(np.mean(arr > 0)), 4),
+                "instruct_dominant_frac": round(float(np.mean(arr > 0)), 4),
             }
         all_arr = np.array(all_asym)
         stats["asymmetry_stats"] = {
             "overall": {
                 "mean": round(float(all_arr.mean()), 4),
-                "instruct_dominant_frac":
-                    round(float(np.mean(all_arr > 0)), 4),
+                "instruct_dominant_frac": round(float(np.mean(all_arr > 0)), 4),
             },
             "by_category": per_cat_asym,
         }
@@ -201,154 +175,192 @@ def _compute_topology_stats(results: list[dict]) -> dict:
     return stats
 
 
+# ── TAGM analysis module ───────────────────────────────────────────
+
 @register_analysis
 class CorrectionFieldTopology(AnalysisModule):
-    """3D displacement-field topology statistics.
+    """Reference analysis: aggregate topology stats for the 3D viz."""
 
-    Ported from TASM's CorrectionFieldTopologyModule. Validates session
-    data for the Three.js terrain visualization and computes the
-    aggregate stats the UI Topology Summary card displays.
-    """
-
+    # ── Identity ───────────────────────────────────────────────────
     name = "correction_field_topology"
     display_name = "Correction Field Topology"
     description = (
-        "3D displacement-field visualization of the alignment "
-        "correction. Dual-bank terrain maps per-token probability "
-        "displacement between base and instruct models. Surface height "
-        "= displacement magnitude. Instruct bank (warm) shows promoted "
-        "candidates; base bank (cool) shows demoted candidates. "
-        "Asymmetry reveals where RLHF reshaped the output distribution."
+        "3D displacement-field visualization of the alignment correction. "
+        "Dual-bank terrain maps per-token probability displacement between "
+        "base and instruct models. Surface height = displacement magnitude. "
+        "Instruct bank (warm) shows promoted candidates; base bank (cool) "
+        "shows demoted candidates. Asymmetry reveals where RLHF reshaped "
+        "the output distribution."
     )
     version = "1.0.0"
 
-    # Soft dependency: LTP profiles OR rank_displacement profiles must
-    # be present on at least one prompt. check_dependencies enforces the
-    # disjunction.
-    depends_on_measurements = ()
+    # Disjunctive dependency: each prompt must have at least one of
+    # these measurements. The algorithm degrades gracefully between
+    # them (RD preferred, LTP fallback). See AnalysisModule.check_dependencies.
+    depends_on_measurements = ("rank_displacement", "lateral_tension_profile")
+
+    requires_probe_set = False
+    requires_delta_store = False
+    requires_pipeline = False
+
+    min_prompts = 1
 
     parameters = [
         ModuleParameter(
             name="category",
             display_name="Category Filter",
             description="Filter prompts by category, or show all.",
-            kind="select", default="all",
-            options=("all", "benign", "mild", "harmful", "jailbreak",
-                     "adversarial", "dual-use"),
+            kind="select",
+            default="all",
+            options=("all", "benign", "mild", "harmful",
+                     "jailbreak", "adversarial", "dual-use"),
         ),
         ModuleParameter(
             name="record_limit",
             display_name="Record Limit",
-            description=(
-                "Maximum prompts to load into the visualization. "
-                "Higher = slower but more complete."
-            ),
-            kind="int", default=100, min_value=1, max_value=2000,
+            description=("Maximum prompts to load into the visualization. "
+                         "Higher = slower but more complete."),
+            kind="int",
+            default=100,
+            min_value=1,
+            max_value=2000,
         ),
         ModuleParameter(
             name="token_limit",
             display_name="Token Limit",
-            description=(
-                "Maximum tokens rendered per prompt terrain. "
-                "Higher = more detail but heavier."
-            ),
-            kind="int", default=20, min_value=4, max_value=100,
+            description=("Maximum tokens rendered per prompt terrain. "
+                         "Higher = more detail but heavier."),
+            kind="int",
+            default=20,
+            min_value=4,
+            max_value=100,
         ),
         ModuleParameter(
             name="char_limit",
             display_name="Prompt Label Length",
-            description=(
-                "Character limit for prompt labels in the viewer "
-                "dropdown."
-            ),
-            kind="int", default=50, min_value=20, max_value=200,
+            description="Character limit for prompt labels in the viewer dropdown.",
+            kind="int",
+            default=50,
+            min_value=20,
+            max_value=200,
         ),
         ModuleParameter(
             name="auto_rotate",
             display_name="Auto-Rotate",
             description="Spin terrain around vertical axis on launch.",
-            kind="bool", default=False,
+            kind="bool",
+            default=False,
         ),
         ModuleParameter(
             name="rotate_speed",
             display_name="Rotate Speed (RPM)",
-            description=(
-                "Auto-rotation speed in revolutions per minute."
-            ),
-            kind="float", default=0.3, min_value=0.1, max_value=2.0,
+            description="Auto-rotation speed in revolutions per minute.",
+            kind="float",
+            default=0.3,
+            min_value=0.1,
+            max_value=2.0,
         ),
     ]
 
-    def check_dependencies(self, session):
-        prompts = session.get("prompts") or []
-        if not prompts:
-            return [f"Analysis '{self.name}' needs at least one prompt."]
-        for p in prompts:
-            proj = _extract_tasm_shape(p)
-            if (proj["rank_displacement"].get("instruct_disp_profiles")
-                    or proj["ltp"].get("profiles")):
-                return []
-        return [
-            f"Analysis '{self.name}' requires displacement or LTP "
-            f"profile data on at least one prompt. Re-run analysis "
-            f"with rank_displacement and/or lateral_tension_profile "
-            f"enabled (both are in the default selection)."
-        ]
+    # ── Execution ──────────────────────────────────────────────────
+    def run(self, session, params, *, progress,
+            probes=None, delta_store=None, pipeline=None) -> ModuleOutput:
+        progress("Analyzing displacement field topology...")
 
-    def run(self, session, params, probes=None, context=None):
-        result = AnalysisResult(
-            analysis_name=self.name,
-            analysis_version=self.version,
-            parameters={
-                "category": params.get("category", "all"),
-                "record_limit": params.get("record_limit", 100),
-                "token_limit": params.get("token_limit", 20),
-                "char_limit": params.get("char_limit", 50),
-                "auto_rotate": params.get("auto_rotate", False),
-                "rotate_speed": params.get("rotate_speed", 0.3),
-            },
-        )
+        # Translate each TAGM prompt into the TASM-shape dict the
+        # algorithm reads. All field-name knowledge lives in
+        # _prompt_view below — nowhere else in the module, nowhere
+        # else in TAGM.
+        records = [self._prompt_view(p)
+                   for p in (session.get("prompts") or [])]
 
-        prompts = session.get("prompts") or []
-        projected = [_extract_tasm_shape(p) for p in prompts]
-
-        logger.info("[CFT] Analyzing displacement field topology "
-                    "(%d prompts)...", len(projected))
-        stats = _compute_topology_stats(projected)
+        stats = _compute_topology_stats(records)
 
         n_usable = (stats["n_with_displacement"]
                     + stats["n_with_ltp_fallback"])
-        logger.info(
-            "[CFT] Found %d prompts with terrain data "
-            "(%d displacement, %d LTP fallback)",
-            n_usable, stats["n_with_displacement"],
-            stats["n_with_ltp_fallback"])
+        progress(
+            f"Found {n_usable} prompts with terrain data "
+            f"({stats['n_with_displacement']} displacement, "
+            f"{stats['n_with_ltp_fallback']} LTP fallback)")
 
-        if n_usable == 0:
-            err = ("No prompts with displacement or LTP profile data. "
-                   "Re-run analysis with rank_displacement and/or "
-                   "lateral_tension_profile enabled.")
-            result.warnings.append(err)
-            result.objects["error"] = err
-            result.objects.update(stats)
-            return result
-
-        stats["launch_params"] = {
-            "category": params.get("category", "all"),
-            "record_limit": params.get("record_limit", 100),
-            "token_limit": params.get("token_limit", 20),
-            "char_limit": params.get("char_limit", 50),
-            "auto_rotate": params.get("auto_rotate", False),
-            "rotate_speed": params.get("rotate_speed", 0.3),
+        # Echo launch params into the output so the UI's "Launch
+        # Visualization" button can read them in one shot.
+        launch_params = {
+            "category":     params["category"],
+            "record_limit": params["record_limit"],
+            "token_limit":  params["token_limit"],
+            "char_limit":   params["char_limit"],
+            "auto_rotate":  params["auto_rotate"],
+            "rotate_speed": params["rotate_speed"],
         }
 
-        # Emit TASM wire format under objects; modules_runner's flatten
-        # step exposes them at top-level for the UI reader.
-        result.objects.update(stats)
-        result.scalars["n_total"] = stats["n_total"]
-        result.scalars["n_with_displacement"] = stats["n_with_displacement"]
-        result.scalars["n_with_ltp_fallback"] = stats["n_with_ltp_fallback"]
-        result.scalars["n_with_base_candidates"] = stats[
-            "n_with_base_candidates"]
-        result.scalars["n_skipped"] = stats["n_skipped"]
-        return result
+        return ModuleOutput(
+            scalars={
+                "n_total":                stats["n_total"],
+                "n_with_displacement":    stats["n_with_displacement"],
+                "n_with_ltp_fallback":    stats["n_with_ltp_fallback"],
+                "n_with_base_candidates": stats["n_with_base_candidates"],
+                "n_skipped":              stats["n_skipped"],
+                "total_tokens":           stats["token_stats"]["total_tokens"],
+                "mean_tokens_per_prompt": stats["token_stats"]["mean_tokens_per_prompt"],
+                "max_tokens":             stats["token_stats"]["max_tokens"],
+            },
+            objects={
+                "by_category":        stats["by_category"],
+                "displacement_stats": stats["displacement_stats"],
+                "asymmetry_stats":    stats["asymmetry_stats"],
+                "launch_params":      launch_params,
+            },
+            per_prompt={},   # aggregate-only; per-prompt terrain data
+                              # lives on the prompts themselves, not here.
+        )
+
+    # ── TASM→TAGM translation (module-local, nowhere else) ────────
+    @staticmethod
+    def _prompt_view(p: dict) -> dict:
+        """Present one TAGM prompt as the TASM-shape dict the algorithm
+        reads.
+
+        This is the only place in the module (and the only place in
+        TAGM) that maps TAGM measurement output names to the TASM
+        field names `_compute_topology_stats` expects. If CFT ever
+        needed another field, this is where it would be added.
+
+        TAGM sources:
+          tokens, category        <- PromptRecord fields
+          ltp.profiles            <- measurements.lateral_tension_profile.objects.profiles
+          rank_displacement.*     <- measurements.rank_displacement.objects.*
+          base_counterfactual_tokens
+                                  <- measurements.lateral_tension_profile.objects.counterfactual_tokens
+        """
+        meas = p.get("measurements") or {}
+
+        # LTP reconstruction
+        ltp_m = meas.get("lateral_tension_profile") or {}
+        ltp_objects = (ltp_m.get("objects") or {})
+        ltp_view = {
+            "profiles": ltp_objects.get("profiles") or [],
+        }
+
+        # Rank displacement reconstruction
+        rd_m = meas.get("rank_displacement") or {}
+        rd_objects = (rd_m.get("objects") or {})
+        rd_view = {
+            "instruct_disp_profiles": rd_objects.get("instruct_disp_profiles") or [],
+            "base_disp_profiles":     rd_objects.get("base_disp_profiles") or [],
+        }
+
+        # Base-model counterfactual tokens. TAGM stores these on LTP's
+        # objects.counterfactual_tokens (the LTP measurement is the one
+        # that consults base-side logits for its bank). If LTP wasn't
+        # run, base counterfactuals are absent; algorithm handles None
+        # correctly.
+        base_cf = ltp_objects.get("counterfactual_tokens") or []
+
+        return {
+            "tokens":   p.get("tokens") or [],
+            "category": p.get("category") or "",
+            "ltp":      ltp_view,
+            "rank_displacement":         rd_view,
+            "base_counterfactual_tokens": base_cf,
+        }

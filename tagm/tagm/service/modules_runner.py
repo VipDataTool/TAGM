@@ -34,6 +34,75 @@ from tagm.measurement.parameters import resolve_parameters
 logger = logging.getLogger("tagm")
 
 
+# ── Mailbox receipt builders (framework-owned, no module input) ────
+# These assemble the three framework-owned compartments of an analysis
+# mailbox. Kept at module scope so they can be called from both the
+# success path and the error path.
+
+def _module_receipt(cls) -> dict:
+    """The `module` compartment — identity lifted from class attrs.
+
+    Read-only from the module's perspective (the module can't
+    override these; we read straight from the registered class)."""
+    return {
+        "name": cls.name,
+        "display_name": cls.display_name,
+        "description": cls.description,
+        "version": cls.version,
+    }
+
+
+def _sources_receipt(cls, resources: dict, session: dict) -> dict:
+    """The `sources` compartment — a receipt, not a copy.
+
+    Records identifiers only: measurement names (not measurement
+    data), probe set id (not probes), prompt ids (not prompts),
+    resource signatures (not the resources themselves). Zero bytes
+    of primary data are duplicated into the mailbox.
+
+    To retrieve what the module read, look up measurement names in
+    session.prompts[i].measurements[name] using the prompt_ids in
+    this receipt.
+    """
+    prompts = session.get("prompts") or []
+
+    probes = resources.get("probes")
+    probe_set_id = (
+        getattr(probes, "set_id", None) if probes is not None else None)
+
+    delta = resources.get("delta_store")
+    delta_sig = None
+    if delta is not None:
+        # Prefer an explicit signature method if the delta store has one;
+        # otherwise fall back to the class name for provenance.
+        sig_fn = getattr(delta, "signature", None)
+        if callable(sig_fn):
+            try:
+                delta_sig = str(sig_fn())
+            except Exception:
+                delta_sig = type(delta).__name__
+        else:
+            delta_sig = type(delta).__name__
+
+    pipeline = resources.get("pipeline")
+    pipeline_sig = None
+    if pipeline is not None:
+        mp = (session.get("model_pair") or {})
+        instruct = mp.get("instruct") or ""
+        base = mp.get("base") or ""
+        pipeline_sig = f"{instruct}+{base}" if (instruct or base) else None
+
+    return {
+        "measurements": list(cls.depends_on_measurements),
+        "probe_set_id": probe_set_id,
+        "delta_store_sig": delta_sig,
+        "pipeline_sig": pipeline_sig,
+        "n_prompts": len(prompts),
+        "prompt_ids": [p.get("prompt_id") or f"p{i:04d}"
+                       for i, p in enumerate(prompts)],
+    }
+
+
 @dataclass
 class _ModuleState:
     name: str
@@ -183,6 +252,197 @@ class ModuleRunner:
         thread.start()
         return {"ok": True, "started": True}
 
+    def _dispatch_analysis(self, st: _ModuleState, session,
+                           user_params: dict, prog) -> None:
+        """Dispatch one analysis and build its mailbox entry.
+
+        Interface contract: TAGM_analysis_layer_interface.md §8.
+
+        Mailbox layout: TAGM_analysis_layer_interface.md §2.
+        Four compartments — three framework-owned (module, run,
+        sources), one module-owned (output). We never let the module
+        write outside its compartment: its return value populates
+        output verbatim; we fill the other three from ground truth
+        (the registered class, dispatch state, resolved resources).
+        """
+        prog("analysis", f"running {st.name}")
+        cls = find_analysis(st.name)
+        module = cls()
+
+        # 1. Resolve parameters (may raise ValueError for validation errors).
+        try:
+            resolved = resolve_parameters(module.parameters, user_params)
+        except ValueError as exc:
+            return self._write_error_mailbox(
+                st, session, cls, dict(user_params or {}), str(exc))
+
+        # 2. Snapshot the session once so everything downstream sees
+        #    the same view.
+        session_dict = session.to_dict()
+
+        # 3. Pre-dispatch gates. Any failure here means the module
+        #    never runs; we write an error mailbox and bail.
+        if len(session_dict.get("prompts") or []) < cls.min_prompts:
+            return self._write_error_mailbox(
+                st, session, cls, resolved,
+                f"analysis '{st.name}' needs >={cls.min_prompts} prompts, "
+                f"session has {len(session_dict.get('prompts') or [])}")
+
+        dep_errors = module.check_dependencies(session_dict)
+        if dep_errors:
+            return self._write_error_mailbox(
+                st, session, cls, resolved, "; ".join(dep_errors))
+
+        # 4. Resolve resource requirements into kwargs.
+        try:
+            resources = self._resolve_resources(cls)
+        except RuntimeError as exc:
+            return self._write_error_mailbox(
+                st, session, cls, resolved, str(exc))
+
+        # 5. Dispatch. The module gets exactly what the spec promises.
+        warnings: list[str] = []
+
+        def _module_progress(msg: str, *, level: str = "info") -> None:
+            # Modules call `progress("...")` — single string arg.
+            # We also accept a `level` kwarg internally, but don't
+            # require modules to use it. Warnings bubble into the
+            # mailbox's run.warnings list.
+            if level == "warning":
+                warnings.append(msg)
+            st.progress = msg
+
+        started_at = st.started_at or time.time()
+        try:
+            output = module.run(
+                session_dict, resolved,
+                progress=_module_progress, **resources)
+        except Exception as exc:
+            logger.exception(f"[modules] analysis {st.name} raised")
+            return self._write_error_mailbox(
+                st, session, cls, resolved, str(exc),
+                started_at=started_at)
+
+        # 6. Validate the return value shape defensively. If a module
+        #    returns None or the wrong type, treat it as an error
+        #    rather than storing garbage.
+        from tagm.analysis.base import ModuleOutput
+        if not isinstance(output, ModuleOutput):
+            return self._write_error_mailbox(
+                st, session, cls, resolved,
+                f"analysis '{st.name}' returned "
+                f"{type(output).__name__}, expected ModuleOutput",
+                started_at=started_at)
+
+        # 7. Build the mailbox and store.
+        completed_at = time.time()
+        mailbox = {
+            "module": _module_receipt(cls),
+            "run": {
+                "status": "warnings" if warnings else "completed",
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "duration_s": completed_at - started_at,
+                "params": resolved,
+                "warnings": warnings,
+                "error": None,
+            },
+            "sources": _sources_receipt(cls, resources, session_dict),
+            "output": output.to_dict(),
+        }
+        session.add_analysis(st.name, mailbox)
+        st.results = mailbox
+        prog("done", "complete")
+
+    def _write_error_mailbox(self, st: _ModuleState, session,
+                             cls, resolved_params: dict, error: str,
+                             *, started_at: Optional[float] = None) -> None:
+        """Write an error-status mailbox entry.
+
+        Called on any pre-dispatch gate failure or raised exception
+        during the module's run(). Populates module/run/sources with
+        whatever ground truth we have; output is an empty shell.
+        """
+        started_at = started_at or st.started_at or time.time()
+        completed_at = time.time()
+        session_dict = session.to_dict()
+        mailbox = {
+            "module": _module_receipt(cls),
+            "run": {
+                "status": "error",
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "duration_s": completed_at - started_at,
+                "params": resolved_params,
+                "warnings": [],
+                "error": error,
+            },
+            "sources": _sources_receipt(cls, resources={}, session=session_dict),
+            "output": {"scalars": {}, "objects": {}, "per_prompt": {}},
+        }
+        session.add_analysis(st.name, mailbox)
+        st.results = mailbox
+        st.error = error
+        # Surface the error through the state record too so get_status
+        # callers see it without having to read the mailbox.
+        logger.warning(f"[modules] {st.name} error: {error}")
+
+    def _resolve_resources(self, cls) -> dict:
+        """Resolve declared resource requirements into kwargs.
+
+        Raises RuntimeError if a required resource isn't available.
+        Imports the app module lazily because modules_runner is
+        imported during app startup.
+        """
+        out: dict = {}
+        if not (cls.requires_probe_set or cls.requires_delta_store
+                or cls.requires_pipeline):
+            return out
+
+        try:
+            from tagm import app as _app_mod  # type: ignore
+        except Exception as e:
+            raise RuntimeError(
+                f"cannot resolve resources for '{cls.name}': "
+                f"app module not importable ({e})") from e
+
+        state = getattr(_app_mod, "state", None)
+        if cls.requires_probe_set:
+            active = getattr(_app_mod, "_active_probe_template", None)
+            probe_store = getattr(state, "probe_store", None) if state else None
+            if not active or probe_store is None:
+                raise RuntimeError(
+                    f"analysis '{cls.name}' requires an active probe set; "
+                    f"apply a probe template via the Configuration tab first")
+            set_id = active.get("set_id")
+            probe_set = probe_store.get(set_id) if set_id else None
+            if probe_set is None:
+                raise RuntimeError(
+                    f"analysis '{cls.name}' requires a probe set, but the "
+                    f"active template's set_id '{set_id}' is not in the "
+                    f"probe store")
+            out["probes"] = probe_set
+
+        if cls.requires_delta_store:
+            pipeline = getattr(state, "pipeline", None) if state else None
+            delta_store = (
+                getattr(pipeline, "delta_store", None) if pipeline else None)
+            if delta_store is None:
+                raise RuntimeError(
+                    f"analysis '{cls.name}' requires a delta store; "
+                    f"load a model pair first")
+            out["delta_store"] = delta_store
+
+        if cls.requires_pipeline:
+            pipeline = getattr(state, "pipeline", None) if state else None
+            if pipeline is None or not getattr(pipeline, "loaded", False):
+                raise RuntimeError(
+                    f"analysis '{cls.name}' requires a loaded pipeline; "
+                    f"load a model pair first")
+            out["pipeline"] = pipeline
+
+        return out
+
     def _run_in_thread(self, st: _ModuleState, session, orchestrator,
                         params: dict, progress_fn) -> None:
         """Background worker. Updates state on completion or failure."""
@@ -196,41 +456,7 @@ class ModuleRunner:
 
         try:
             if st.kind == "analysis":
-                _prog("analysis", f"running {st.name}")
-                cls = find_analysis(st.name)
-                module = cls()
-                resolved = resolve_parameters(module.parameters, params)
-                session_dict = session.to_dict()
-                errors = module.check_dependencies(session_dict)
-                if errors:
-                    st.results = {"ok": False, "errors": errors}
-                else:
-                    # Build a context dict of runtime-only resources that
-                    # aren't captured in the session snapshot. Analyses that
-                    # need them (correction_heatmap needs probe embeddings
-                    # from the active set) pull from here; analyses that
-                    # don't ignore the kwarg.
-                    ctx: dict = {}
-                    try:
-                        # Imported lazily so tagm.service.modules_runner
-                        # doesn't gain a hard dependency on the app module.
-                        from tagm import app as _app_mod  # type: ignore
-                        ctx["probe_store"] = getattr(
-                            _app_mod.state, "probe_store", None)
-                        ctx["pipeline"] = getattr(
-                            _app_mod.state, "pipeline", None)
-                        ctx["active_probe_template"] = getattr(
-                            _app_mod, "_active_probe_template", None)
-                    except Exception:
-                        # Unit tests and standalone invocations can run
-                        # without an app module. Analyses that need
-                        # context resources will no-op gracefully.
-                        pass
-                    aresult = module.run(session_dict, resolved, context=ctx)
-                    rdict = aresult.to_dict()
-                    session.add_analysis(st.name, rdict)
-                    st.results = rdict
-                _prog("done", "complete")
+                self._dispatch_analysis(st, session, params, _prog)
             else:
                 # Measurement module — run over all session prompts via
                 # the orchestrator. Adds this measurement to the active
@@ -314,10 +540,16 @@ class ModuleRunner:
                 }
                 _prog("done", "complete")
 
-            st.status = "completed"
             st.completed_at = time.time()
-            logger.info(f"[modules] {st.name} completed in "
-                        f"{st.completed_at - st.started_at:.1f}s")
+            # If _dispatch_analysis wrote an error mailbox, it set
+            # st.error; honor that and surface "error" to the UI.
+            # Otherwise we're in the success path -> "completed".
+            if st.error:
+                st.status = "error"
+            else:
+                st.status = "completed"
+                logger.info(f"[modules] {st.name} completed in "
+                            f"{st.completed_at - st.started_at:.1f}s")
         except Exception as e:
             logger.exception(f"[modules] {st.name} failed")
             st.status = "error"

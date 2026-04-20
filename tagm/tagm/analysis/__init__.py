@@ -6,34 +6,26 @@ Analysis modules are distinct from measurement modules:
     a MeasurementResult merged into the session for that prompt.
 
   - Analysis modules run post-session, consuming a whole session (many
-    prompts' measurement results) and producing aggregate outputs — cluster
-    assignments, comparative plots, MI-readiness diagnostics, topology
-    summaries, etc.
+    prompts' measurement results) and producing aggregate outputs.
 
-The base class here defines the contract; concrete analyses live in the
-sibling modules.
+Each analysis module returns a ModuleOutput (three compartments:
+scalars/objects/per_prompt); the framework wraps that return value in a
+four-compartment mailbox stored at session.record.analyses[name]. See
+TAGM_analysis_layer_interface.md for the full contract.
 """
-from tagm.analysis.base import AnalysisModule, AnalysisResult
+from tagm.analysis.base import AnalysisModule, ModuleOutput
 from tagm.analysis.registry import (
     register_analysis,
     find_analysis,
     list_analyses,
 )
 
-# Auto-register all analysis modules on import
-from tagm.analysis import comparative_analysis       # noqa: F401
-from tagm.analysis import mi_readiness               # noqa: F401
-from tagm.analysis import mi_instrumentation         # noqa: F401
-from tagm.analysis import token_variance             # noqa: F401
-from tagm.analysis import correction_heatmap         # noqa: F401
-from tagm.analysis import correction_manifold        # noqa: F401
-from tagm.analysis import correction_backscatter     # noqa: F401
-from tagm.analysis import domain_surface             # noqa: F401
+# Concrete analyses register here as they are ported in.
 from tagm.analysis import correction_field_topology  # noqa: F401
 
 __all__ = [
     "AnalysisModule",
-    "AnalysisResult",
+    "ModuleOutput",
     "register_analysis",
     "find_analysis",
     "list_analyses",

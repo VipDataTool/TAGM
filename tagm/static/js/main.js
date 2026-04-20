@@ -2467,8 +2467,17 @@ function getModuleParams(modName) {
     if (!el) { params[p.name] = p.default; return; }
     if (p.type === 'bool') params[p.name] = el.checked;
     else if (p.type === 'file') params[p.name] = '';  // resolved by upload in runModule
-    else if (p.type === 'int') { var v = parseInt(el.value); params[p.name] = isNaN(v) ? p.default : v; }
-    else if (p.type === 'float') { var v = parseFloat(el.value); params[p.name] = isNaN(v) ? p.default : v; }
+    else if (p.type === 'int' || p.type === 'float') {
+      var raw = (el.value == null ? '' : String(el.value)).trim();
+      var v = p.type === 'int' ? parseInt(raw, 10) : parseFloat(raw);
+      if (raw === '' || isNaN(v)) v = p.default;
+      // Clamp to the declared range so the backend validator doesn't
+      // reject a value the user could only have entered by ignoring
+      // the input's min/max attributes (or pasting out-of-range text).
+      if (p.min_val != null && v < p.min_val) v = p.min_val;
+      if (p.max_val != null && v > p.max_val) v = p.max_val;
+      params[p.name] = v;
+    }
     else params[p.name] = el.value;
   });
   return params;
@@ -2633,259 +2642,12 @@ async function fetchModuleResults(name) {
   } catch(e) { /* silent */ }
 }
 
-// ─── TAGM-native module-result renderer ────────────────────────
-// Handles both TAGM analysis output (AnalysisResult.to_dict shape)
-// and TAGM measurement-module output (per_prompt aggregation from
-// modules_runner). Neither shape matches the TASM-specific renderers
-// further down, so this function is used as the fallback whenever the
-// detected shape is TAGM-native. The goal is to show real structured
-// data — scalars in a summary row, numeric arrays as compact tables,
-// nested dicts as expandable sections — instead of the earlier code's
-// raw JSON dump.
-
-function _tagmFmtScalar(v) {
-  if (v === null || v === undefined) return '<span style="color:var(--text-3)">—</span>';
-  if (typeof v === 'number') {
-    if (Number.isInteger(v)) return String(v);
-    if (Math.abs(v) >= 1e4 || (Math.abs(v) < 1e-3 && v !== 0)) return v.toExponential(3);
-    return v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
-  }
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  return escHtml(String(v));
-}
-
-function _tagmIsNumericArray(a) {
-  if (!Array.isArray(a) || a.length === 0) return false;
-  for (var i = 0; i < a.length; i++) {
-    var v = a[i];
-    if (v === null) continue;
-    if (typeof v !== 'number') return false;
-  }
-  return true;
-}
-
-function _tagmArraySparkline(arr, max_cols) {
-  max_cols = max_cols || 32;
-  var shown = arr.slice(0, max_cols);
-  var finite = shown.filter(function(v){ return v !== null && isFinite(v); });
-  if (finite.length === 0) return '<span style="color:var(--text-3)">all null</span>';
-  var lo = Math.min.apply(null, finite), hi = Math.max.apply(null, finite);
-  var span = hi - lo; if (span === 0) span = 1;
-  var bars = '';
-  for (var i = 0; i < shown.length; i++) {
-    var v = shown[i];
-    if (v === null || !isFinite(v)) {
-      bars += '<span style="display:inline-block;width:6px;height:18px;margin-right:1px;background:var(--border)"></span>';
-    } else {
-      var frac = (v - lo) / span;
-      var h = Math.max(1, Math.round(frac * 18));
-      bars += '<span style="display:inline-block;width:6px;height:' + h +
-              'px;margin-right:1px;background:var(--cyan);vertical-align:bottom"></span>';
-    }
-  }
-  var tail = arr.length > max_cols ? (' … ' + (arr.length - max_cols) + ' more') : '';
-  return '<span style="line-height:1;display:inline-block;vertical-align:middle">' + bars + '</span>' +
-         '<span style="color:var(--text-3);font-size:10px;margin-left:6px">min=' +
-         _tagmFmtScalar(lo) + ' max=' + _tagmFmtScalar(hi) + tail + '</span>';
-}
-
-function _tagmRenderObjectEntry(key, val, depth) {
-  depth = depth || 0;
-  var h = '';
-  var keyHtml = '<div style="font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:' +
-                (depth === 0 ? '10px' : '6px') + ';margin-bottom:3px">' + escHtml(key) + '</div>';
-  if (val === null || val === undefined) {
-    h += keyHtml + '<div style="font-size:11px;color:var(--text-3);margin-left:10px">null</div>';
-    return h;
-  }
-  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
-    h += keyHtml + '<div style="font-family:var(--mono);font-size:11px;margin-left:10px">' +
-         _tagmFmtScalar(val) + '</div>';
-    return h;
-  }
-  if (Array.isArray(val)) {
-    if (_tagmIsNumericArray(val)) {
-      h += keyHtml + '<div style="margin-left:10px;padding:4px 0">' +
-           _tagmArraySparkline(val) + '</div>';
-      return h;
-    }
-    // list of dicts or strings
-    if (val.length === 0) {
-      h += keyHtml + '<div style="font-size:11px;color:var(--text-3);margin-left:10px">(empty)</div>';
-      return h;
-    }
-    h += keyHtml + '<div style="margin-left:10px;font-family:var(--mono);font-size:10px;color:var(--text-2)">' +
-         val.length + ' items</div>';
-    if (val.length <= 20 && typeof val[0] !== 'object') {
-      h += '<div style="margin-left:10px;font-family:var(--mono);font-size:11px">' +
-           val.map(function(v){ return escHtml(String(v)); }).join(', ') + '</div>';
-    }
-    return h;
-  }
-  if (typeof val === 'object') {
-    var keys = Object.keys(val);
-    if (keys.length === 0) {
-      h += keyHtml + '<div style="font-size:11px;color:var(--text-3);margin-left:10px">(empty)</div>';
-      return h;
-    }
-    // Check if it's a flat scalar dict (all values are primitives)
-    var allPrim = true;
-    for (var i = 0; i < keys.length; i++) {
-      var v = val[keys[i]];
-      if (v !== null && typeof v === 'object') { allPrim = false; break; }
-    }
-    if (allPrim) {
-      h += keyHtml + '<div style="margin-left:10px"><table class="mod-tbl" style="font-size:11px">';
-      keys.forEach(function(k){
-        h += '<tr><td style="color:var(--text-2);padding:2px 8px 2px 0">' + escHtml(k) +
-             '</td><td style="font-family:var(--mono)">' + _tagmFmtScalar(val[k]) + '</td></tr>';
-      });
-      h += '</table></div>';
-      return h;
-    }
-    // Nested dict — recurse with depth guard
-    h += keyHtml;
-    if (depth >= 3) {
-      h += '<div style="font-size:11px;color:var(--text-3);margin-left:10px">(nested, expand via JSON below)</div>';
-      return h;
-    }
-    h += '<div style="margin-left:14px;padding-left:8px;border-left:1px solid var(--border)">';
-    keys.slice(0, 20).forEach(function(k){
-      h += _tagmRenderObjectEntry(k, val[k], depth + 1);
-    });
-    if (keys.length > 20) {
-      h += '<div style="font-size:11px;color:var(--text-3)">… ' + (keys.length - 20) + ' more keys</div>';
-    }
-    h += '</div>';
-    return h;
-  }
-  h += keyHtml + '<div style="font-size:11px;color:var(--text-3);margin-left:10px">(unrenderable)</div>';
-  return h;
-}
-
-function renderTagmNativeResults(name, results) {
-  var h = '<div class="mod-results">';
-  var isAnalysis = typeof results.analysis_name === 'string';
-  var header = isAnalysis
-    ? 'Analysis Output — ' + escHtml(results.analysis_name) +
-        ' <span style="font-size:10px;color:var(--text-3);font-weight:normal;margin-left:6px">v' +
-        escHtml(results.analysis_version || '?') + '</span>'
-    : 'Measurement Output — ' + escHtml(results.name || name);
-  h += '<div class="mod-results-header">' + header + '</div>';
-  h += '<div class="mod-results-body">';
-
-  // Warnings first if any
-  if (results.warnings && results.warnings.length) {
-    h += '<div style="padding:8px 12px;background:rgba(213,94,0,0.08);border-left:3px solid var(--orange);margin:8px 10px;border-radius:2px">';
-    h += '<div style="font-family:var(--mono);font-size:11px;color:var(--orange);font-weight:600;margin-bottom:4px">Warnings</div>';
-    h += '<ul style="margin:0;padding-left:18px;font-size:11px;color:var(--text-1)">';
-    results.warnings.forEach(function(w){
-      h += '<li>' + escHtml(String(w)) + '</li>';
-    });
-    h += '</ul></div>';
-  }
-
-  if (isAnalysis) {
-    // Scalars summary
-    var scalars = results.scalars || {};
-    var skeys = Object.keys(scalars);
-    if (skeys.length) {
-      h += '<div style="padding:8px 16px;border-bottom:1px solid var(--border)">';
-      h += '<div style="font-family:var(--mono);font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Summary</div>';
-      h += '<div class="mod-summary">';
-      skeys.forEach(function(k){
-        h += tvStat(k, _tagmFmtScalar(scalars[k]), '');
-      });
-      h += '</div></div>';
-    }
-
-    // Objects — the meat of the output
-    var objects = results.objects || {};
-    var okeys = Object.keys(objects);
-    if (okeys.length) {
-      h += '<div style="padding:8px 16px">';
-      okeys.forEach(function(k){
-        h += _tagmRenderObjectEntry(k, objects[k], 0);
-      });
-      h += '</div>';
-    }
-
-    // Parameters (advanced)
-    var params = results.parameters || {};
-    var pkeys = Object.keys(params);
-    if (pkeys.length) {
-      h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')" style="margin-top:10px">Parameters</div>';
-      h += '<div class="mod-results-body collapsed"><div style="padding:6px 16px"><table class="mod-tbl" style="font-size:11px">';
-      pkeys.forEach(function(k){
-        h += '<tr><td style="color:var(--text-2);padding:2px 10px 2px 0;font-family:var(--mono)">' + escHtml(k) +
-             '</td><td style="font-family:var(--mono)">' + _tagmFmtScalar(params[k]) + '</td></tr>';
-      });
-      h += '</table></div></div>';
-    }
-  } else {
-    // Measurement per_prompt aggregation
-    var n = results.n_prompts != null ? results.n_prompts : (results.per_prompt || []).length;
-    h += '<div style="padding:8px 16px;border-bottom:1px solid var(--border)">';
-    h += '<div class="mod-summary">';
-    h += tvStat('Prompts', n, '');
-    h += '</div></div>';
-
-    var pp = results.per_prompt || [];
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per-Prompt Results</div>';
-    h += '<div class="mod-results-body collapsed">';
-    h += '<div style="padding:6px 10px;overflow-x:auto">';
-    h += '<table class="mod-tbl" style="font-size:11px;min-width:100%">';
-    h += '<thead><tr><th style="text-align:left">Prompt</th><th>Cat</th><th>Scalars</th></tr></thead><tbody>';
-    pp.slice(0, 50).forEach(function(row){
-      var r = row.result || {};
-      var scal = r.scalars || {};
-      var scalPreview = Object.keys(scal).slice(0, 4).map(function(k){
-        return '<span style="color:var(--text-2)">' + escHtml(k) + '=</span>' + _tagmFmtScalar(scal[k]);
-      }).join(' · ') || '<span style="color:var(--text-3)">—</span>';
-      h += '<tr>';
-      h += '<td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
-           escHtml((row.prompt || '').substring(0, 120)) + '</td>';
-      h += '<td><span class="pill ' + pillClass(row.category) + '">' + escHtml(row.category || '—') + '</span></td>';
-      h += '<td style="font-family:var(--mono);font-size:10px">' + scalPreview + '</td>';
-      h += '</tr>';
-    });
-    h += '</tbody></table>';
-    if (pp.length > 50) {
-      h += '<div style="font-size:10px;color:var(--text-3);padding:4px 0">… ' + (pp.length - 50) + ' more prompts</div>';
-    }
-    h += '</div></div>';
-  }
-
-  h += '</div></div>'; // end mod-results-body, mod-results
-  return h;
-}
 
 function renderModuleResults(name, results) {
   var container = $('mod-results-' + name);
   if (!container) return;
 
-  // TAGM output-shape detection. TAGM's analyses emit AnalysisResult-
-  // shaped dicts ({analysis_name, analysis_version, scalars, objects,
-  // per_prompt, parameters, warnings}) and TAGM's measurement-module
-  // results come back as {ok, name, n_prompts, per_prompt: [...]}.
-  // Neither shape matches what the TASM-derived renderers below expect,
-  // so we detect TAGM shape first and use the native renderer. The
-  // TASM-specific renderers remain available for any future caller that
-  // produces TASM-shape output.
-  var isTagmAnalysis = results && typeof results === 'object'
-    && typeof results.analysis_name === 'string'
-    && results.scalars !== undefined && results.objects !== undefined;
-  var isTagmMeasurement = results && typeof results === 'object'
-    && Array.isArray(results.per_prompt)
-    && results.per_prompt.length > 0
-    && results.per_prompt[0] && typeof results.per_prompt[0].result === 'object';
-
-  if (isTagmAnalysis || isTagmMeasurement) {
-    container.innerHTML = renderTagmNativeResults(name, results);
-    return;
-  }
-
-  // Route to module-specific renderer (TASM-shape results)
+  // Route to module-specific renderer
   if (name === 'token_variance') {
     container.innerHTML = renderTokenVarianceResults(results);
   } else if (name === 'domain_surface') {
@@ -2899,7 +2661,7 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderCorrectionHeatmapResults(results);
   } else if (name === 'correction_backscatter') {
     container.innerHTML = renderCorrectionBackscatterResults(results);
-  } else if (name === 'mechanistic_interpretability' || name === 'mi_readiness') {
+  } else if (name === 'mechanistic_interpretability') {
     container.innerHTML = renderMIResults(results);
   } else if (name === 'correction_field_topology') {
     container.innerHTML = renderCFTResults(results);

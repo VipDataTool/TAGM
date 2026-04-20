@@ -1801,66 +1801,10 @@ async def api_modules_results(module_name: str):
         raise HTTPException(status_code=404,
                              detail=f"No results available for '{module_name}'.")
 
-    results = _flatten_analysis_shape_for_ui(module_name, results)
+
     return {"ok": True, "results": results}
 
 
-# Analyses that have been ported to TASM wire format. For these, the
-# AnalysisResult.objects dict contains top-level fields the TASM-derived
-# JS renderers read directly (e.g. r.subjects, r.aggregate for
-# correction_heatmap); _flatten_analysis_shape_for_ui hoists objects.*
-# to top level so renderCorrectionHeatmapResults and friends see what
-# they expect. Analyses not in this set keep TAGM's nested
-# AnalysisResult shape and are rendered by the TAGM-native JS
-# fallback (renderTagmNativeResults in static/js/main.js).
-_TASM_WIRE_FORMAT_ANALYSES = frozenset({
-    "correction_heatmap",
-    "correction_field_topology",
-    "comparative_analysis",
-    "token_variance",
-    "correction_backscatter",
-    "correction_manifold",
-    "mi_readiness",
-    "mi_instrumentation",
-    "domain_surface",
-})
-
-
-def _flatten_analysis_shape_for_ui(name: str, results: dict) -> dict:
-    """If `results` is AnalysisResult-shape AND the analysis has been
-    ported to TASM wire format, promote .objects and .scalars to top
-    level so the TASM-derived JS renderers can read fields directly.
-
-    For any other shape, or for analyses not in the TASM-wire set,
-    returns `results` unchanged — the TAGM-native JS renderer takes
-    those through the nested shape.
-    """
-    if not isinstance(results, dict):
-        return results
-    if name not in _TASM_WIRE_FORMAT_ANALYSES:
-        return results
-    if ("analysis_name" not in results
-            or "scalars" not in results
-            or "objects" not in results):
-        return results
-
-    flat: dict = {}
-    flat["analysis_name"] = results.get("analysis_name")
-    flat["analysis_version"] = results.get("analysis_version")
-    flat["warnings"] = results.get("warnings") or []
-    flat["parameters"] = results.get("parameters") or {}
-    flat["per_prompt"] = results.get("per_prompt") or {}
-
-    for k, v in (results.get("scalars") or {}).items():
-        flat.setdefault(k, v)
-    for k, v in (results.get("objects") or {}).items():
-        flat[k] = v
-
-    flat["_tagm_analysis_native"] = {
-        "scalars": results.get("scalars") or {},
-        "objects": results.get("objects") or {},
-    }
-    return flat
 
 
 @app.post("/api/modules/{module_name}/reset")
