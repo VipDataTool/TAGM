@@ -386,6 +386,13 @@ def _default_capture_config(n_layers: int) -> CaptureConfig:
             hook_point="attn_output",
             capture=frozenset({"attention_weights"}),
         ))
+        # residual_post_block is what per_token_embedding reads for
+        # depth-labeled snapshots (default depths "subject:12,escalation:18").
+        points.append(CapturePoint(
+            layer=layer,
+            hook_point="residual_post_block",
+            capture=frozenset({"hidden"}),
+        ))
     # final_norm is layer-independent; per_token_embedding wants it
     # by default (include_final_norm=True).
     points.append(CapturePoint(
@@ -2288,11 +2295,19 @@ _export_state = {"ready": False, "path": None}
 async def api_export_prepare(request: Request):
     """Prepare a session export. Body is JSON of options (csv, json,
     pdf, charts flags). All ignored except as informational — TAGM's
-    export is a single .json.gz file regardless."""
+    export is a single .json.gz file regardless.
+
+    Emits 'exporting' and 'done' progress events so main.js's
+    pollExport() can detect completion. main.js waits for a progress
+    entry with stage='done' and a message containing 'Export ready'
+    before it hits /api/export/download — without these events, the
+    UI polls indefinitely and the download never fires."""
     try:
         _ = await request.json()
     except Exception:
         pass
+
+    state.progress("exporting", "Preparing session export...")
 
     # Generate the export and stash it to disk
     from tagm.service.export import export_session
@@ -2304,10 +2319,20 @@ async def api_export_prepare(request: Request):
     def _do_export():
         export_session(state.session, Path(path))
 
-    await run_in_threadpool(_do_export)
+    try:
+        await run_in_threadpool(_do_export)
+    except Exception as e:
+        logger.exception("Export failed")
+        state.progress("error", f"Export failed: {e}")
+        return {"ok": False, "error": str(e)}
+
     _export_state["ready"] = True
     _export_state["path"] = path
-    return {"ok": True, "ready": True, "path": path}
+    size_bytes = Path(path).stat().st_size if Path(path).exists() else 0
+    state.progress("done",
+        f"Export ready ({size_bytes // 1024} KB). Click Download.")
+    return {"ok": True, "ready": True, "path": path,
+            "size_bytes": size_bytes}
 
 
 @app.get("/api/export/download")
@@ -2316,7 +2341,8 @@ async def api_export_download():
     if /api/export hasn't been called first."""
     path = _export_state.get("path")
     if not path or not Path(path).exists():
-        # Generate on the fly
+        # Generate on the fly (no progress events — this is a direct
+        # download path, not the polled two-step flow).
         from tagm.service.export import export_session
         import tempfile
         fd, path = tempfile.mkstemp(suffix=".json.gz", prefix="tagm_export_")

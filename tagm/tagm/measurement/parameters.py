@@ -50,6 +50,29 @@ class ModuleParameter:
                 f"Parameter '{self.name}' of kind '{self.kind}' requires options")
 
     def to_dict(self) -> dict:
+        # The TASM-derived frontend's renderParamControl reads `type`,
+        # `min_val`, `max_val` (NOT `kind`, `min_value`, `max_value`).
+        # Emitting both native TAGM and TASM-compat field names keeps
+        # any downstream consumer happy while letting the UI render its
+        # rich controls (checkbox for bool, number input with min/max
+        # for int/float, <select> for select, etc.) instead of falling
+        # through to a plain text input for every parameter.
+        #
+        # multi_select and layer_list have no matching TASM control;
+        # they degrade to a text input (the fallback branch), and the
+        # user can type a comma-separated value. Integer/float defaults
+        # for layer_list render as e.g. "0,1,2,..." which the backend
+        # will need to parse from string on these code paths — safer
+        # to set these via the API directly for now.
+        tasm_type_map = {
+            "int": "int",
+            "float": "float",
+            "bool": "bool",
+            "string": "string",
+            "select": "select",
+            "multi_select": "string",   # fallback
+            "layer_list": "string",     # fallback
+        }
         return {
             "name": self.name,
             "display_name": self.display_name,
@@ -60,6 +83,10 @@ class ModuleParameter:
             "min_value": self.min_value,
             "max_value": self.max_value,
             "advanced": self.advanced,
+            # TASM-compat aliases consumed by static/js/main.js
+            "type": tasm_type_map.get(self.kind, "string"),
+            "min_val": self.min_value,
+            "max_val": self.max_value,
         }
 
     def validate(self, value: Any) -> list[str]:
@@ -119,6 +146,13 @@ def resolve_parameters(declared: list[ModuleParameter],
     For each declared parameter, use the user-supplied value if present,
     otherwise the default. Unknown user-supplied keys raise ValueError
     (they indicate a stale UI or a typo).
+
+    Stringy coercion for `layer_list` and `multi_select`: the TASM-
+    derived frontend's text inputs serialize these as comma-separated
+    strings (or empty string when the user leaves the default list
+    untouched). The backend validator requires a list, so we coerce
+    here before validation rather than propagating that parse concern
+    into every caller.
     """
     user = dict(user_supplied or {})
     declared_names = {p.name for p in declared}
@@ -133,6 +167,25 @@ def resolve_parameters(declared: list[ModuleParameter],
     errors: list[str] = []
     for p in declared:
         value = user.get(p.name, p.default)
+
+        # Stringy-to-list coercion for list-shaped kinds.
+        if p.kind in ("layer_list", "multi_select") and isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                value = []
+            else:
+                parts = [s.strip() for s in stripped.split(",") if s.strip()]
+                if p.kind == "layer_list":
+                    try:
+                        value = [int(s) for s in parts]
+                    except ValueError:
+                        errors.append(
+                            f"'{p.name}' (layer_list) could not parse "
+                            f"{stripped!r} as integers")
+                        continue
+                else:
+                    value = parts
+
         if value is not None:
             for e in p.validate(value):
                 errors.append(e)
