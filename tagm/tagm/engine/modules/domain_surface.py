@@ -273,19 +273,20 @@ def _load_probe_cache(cache_path):
         return None
 
 
-def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
+def embed_and_cache_probes(model, tokenizer, adapter, project_root, probe_file,
                            model_id, layer_frac=0.50, progress=None,
                            delta_matrix=None):
     """Pre-embed all probes from a CSV and save to cache.
 
-    Called from app.py after model load.  Registers a forward hook on the
-    target layer's input_layernorm, runs each probe text through the model,
-    and stores the mean hidden-state embedding.
+    Registers a forward hook via the adapter's hook resolution (model-family
+    agnostic), runs each probe text through the model, and stores the mean
+    hidden-state embedding.
 
     Args:
         model: HuggingFace causal LM (instruct model).
         tokenizer: HuggingFace tokenizer.
-        project_root: TASM project root directory.
+        adapter: ModelAdapter instance for hook resolution.
+        project_root: Project root directory.
         probe_file: Probe CSV filename (relative to project_root).
         model_id: Model identifier string for cache key.
         layer_frac: Capture depth as fraction of model depth (0.0–1.0).
@@ -309,10 +310,10 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         logger.warning(f"[DOMAIN] No probes loaded from {csv_path}")
         return None
 
-    n_layers = model.config.num_hidden_layers
+    n_layers = adapter.n_layers(model)
     target_layer = max(0, min(n_layers - 1, int(layer_frac * n_layers)))
 
-    # Set up hook
+    # Hook via adapter — model-family agnostic
     captured = {}
 
     def hook_fn(module, inp, output):
@@ -321,20 +322,19 @@ def embed_and_cache_probes(model, tokenizer, project_root, probe_file,
         else:
             captured["h"] = output.detach()
 
-    handle = model.model.layers[target_layer].input_layernorm.register_forward_hook(hook_fn)
+    target_module = adapter.resolve_hook_target(model, "pre_attn_norm", target_layer)
+    handle = target_module.register_forward_hook(hook_fn)
 
     embeddings = []
     try:
         for i, probe in enumerate(probes):
             inputs = tokenizer(probe["text"], return_tensors="pt")
-            # Move to same device as model
             device = next(model.parameters()).device
             inputs = {k: v.to(device) for k, v in inputs.items()}
             with torch.no_grad():
                 model(**inputs)
             h = captured["h"][0]
             emb = h[1:].mean(dim=0).float() if h.shape[0] > 1 else h[0].float()
-            # Project through correction field if delta provided
             if delta_matrix is not None:
                 emb = torch.matmul(emb.cpu(), delta_matrix.float().cpu().T)
             emb = emb.cpu().numpy()

@@ -209,8 +209,7 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
 
 def _plot_heatmap(r: dict) -> bytes:
     plt = _setup_matplotlib()
-    at = r.get("amplitude_trajectory") or {}
-    hm = at.get("heatmap") or []
+    hm = r.get("heatmap") or []
     if not hm:
         return _empty_plot("No heatmap data")
 

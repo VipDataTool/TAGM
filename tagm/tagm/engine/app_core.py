@@ -53,6 +53,20 @@ class AppState:
         self.progress_log: list[dict] = []
         self.user_info: dict = {"name": "", "organization": "", "project": ""}
         self.inference_class: str = "instruct"
+        self._post_load_callbacks: list = []
+
+    def on_model_loaded(self, callback):
+        """Register a callback to run after model load completes.
+        Callback receives the pipeline as its argument."""
+        self._post_load_callbacks.append(callback)
+
+    def _fire_post_load(self):
+        """Call all registered post-load callbacks."""
+        for cb in self._post_load_callbacks:
+            try:
+                cb(self.pipeline)
+            except Exception as e:
+                logger.warning(f"[post_load] Callback failed: {e}")
 
     def progress(self, stage: str, message: str):
         self.progress_log.append({
@@ -168,6 +182,7 @@ def _load_worker(instruct_id: str, base_id: str,
         state.session.set_model(instruct_id)
 
         state.loading_state = {"active": False, "error": None}
+        state._fire_post_load()
         state.progress("ready", f"Model pair loaded: {instruct_id}")
 
     except Exception as e:

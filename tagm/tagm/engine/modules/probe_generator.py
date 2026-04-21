@@ -184,34 +184,40 @@ class ProbeGeneratorModule(TASMModule):
 
     def __init__(self):
         super().__init__()
-        self._model = None
-        self._tokenizer = None
-        self._model_manager = None
+        self._pipeline = None
         self._project_root = None
 
     def set_project_root(self, root):
         self._project_root = root
 
+    def set_pipeline(self, pipeline):
+        """Provide access to the loaded pipeline (model, tokenizer, adapter)."""
+        self._pipeline = pipeline
+
+    # Legacy compatibility
     def set_model(self, model, tokenizer):
-        """Provide access to the loaded instruct model (legacy)."""
-        self._model = model
-        self._tokenizer = tokenizer
+        pass  # use set_pipeline instead
 
     def set_model_manager(self, mm):
-        """Provide access to the ModelManager for dynamic model selection."""
-        self._model_manager = mm
+        pass  # use set_pipeline instead
 
     @property
     def _active_model(self):
-        if self._model_manager is not None:
-            return self._model_manager.active_model
-        return self._model
+        if self._pipeline is not None:
+            return self._pipeline.instruct_model
+        return None
 
     @property
     def _active_tokenizer(self):
-        if self._model_manager is not None:
-            return self._model_manager.state.tokenizer
-        return self._tokenizer
+        if self._pipeline is not None:
+            return self._pipeline.tokenizer
+        return None
+
+    @property
+    def _active_adapter(self):
+        if self._pipeline is not None:
+            return self._pipeline.adapter
+        return None
 
     @property
     def parameters(self):
@@ -479,9 +485,8 @@ class ProbeGeneratorModule(TASMModule):
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
         skip_dedup = bool(params.get("skip_dedup", False))
 
-        # Inference lock — prevents concurrent model access with analyzer
-        _inf_lock = (self._model_manager.inference_lock
-                     if self._model_manager else None)
+        # No concurrent inference lock needed — module runs in its own thread
+        _inf_lock = None
 
         # ── Load stopwords ──
         sw_file = params.get("stopword_file", "").strip()
@@ -878,8 +883,8 @@ class ProbeGeneratorModule(TASMModule):
 
         # Determine which model class was used
         inference_class = "unknown"
-        if self._model_manager is not None:
-            inference_class = self._model_manager.state.inference_class
+        if self._pipeline is not None:
+            inference_class = "instruct"  # probe generation always uses instruct model
 
         output = {
             "template_file": template_file,
@@ -931,7 +936,7 @@ class ProbeGeneratorModule(TASMModule):
 
         # ── Auto-apply: embed and activate the generated probe set ──
         auto_apply = bool(params.get("auto_apply", False))
-        if auto_apply and self._model_manager is not None:
+        if auto_apply and self._pipeline is not None:
             output["auto_apply"] = self._auto_apply_probes(
                 output_name, out_path, progress)
         else:
@@ -950,14 +955,14 @@ class ProbeGeneratorModule(TASMModule):
                                       _detect_level_cols, _parse_meta)
         import json as _json
 
-        state = self._model_manager.state
-        if state is None or state.model_instruct is None:
+        if self._pipeline is None or self._active_model is None:
             logger.warning("[PROBE_GEN] Auto-apply skipped: no model loaded")
             return {"applied": False, "error": "No model loaded"}
 
-        model = state.model_instruct
-        tokenizer = state.tokenizer
-        model_id = state.instruct_model_id or state.pair_id
+        model = self._active_model
+        tokenizer = self._active_tokenizer
+        adapter = self._active_adapter
+        model_id = self._pipeline.instruct_model_id
 
         if progress:
             progress("Auto-apply: embedding probe set...")
@@ -983,6 +988,7 @@ class ProbeGeneratorModule(TASMModule):
 
         depths = sorted(set([subj_frac, esc_frac]))
         embedded = 0
+        n_layers = adapter.n_layers(model)
 
         for frac in depths:
             if progress:
@@ -990,12 +996,12 @@ class ProbeGeneratorModule(TASMModule):
 
             delta = None
             if use_proj:
-                target_layer = max(0, min(state.n_layers - 1, int(frac * state.n_layers)))
-                delta = state.o_delta(target_layer)
+                target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
+                delta = self._pipeline.delta_store.o_delta_or_none(target_layer)
 
             try:
                 embed_and_cache_probes(
-                    model, tokenizer,
+                    model, tokenizer, adapter,
                     self._project_root, filename, model_id,
                     layer_frac=frac,
                     progress=lambda stage, msg: progress(f"Auto-apply L{int(frac*100)}: {msg}") if progress else None,
@@ -1008,7 +1014,7 @@ class ProbeGeneratorModule(TASMModule):
             logger.error("[PROBE_GEN] Auto-apply failed: could not embed at any depth")
             return {"applied": False, "error": "Failed to embed probes at any depth"}
 
-        # Activate the probe set by writing probe_config.json
+        # Activate the probe set
         config_path = os.path.join(self._project_root, "probe_config.json")
         try:
             _json.dump({"active": [filename]},

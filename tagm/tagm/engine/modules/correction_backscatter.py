@@ -32,6 +32,56 @@ from .correction_heatmap import _get_active_probe
 
 logger = logging.getLogger("tasm")
 
+
+class _PipelineState:
+    """Adapter providing TASM-compatible state interface over a TAGM Pipeline.
+
+    Backscatter accesses deltas by full state_dict key like
+    "model.layers.5.self_attn.v_proj.weight". This class translates
+    those lookups into Pipeline.delta_store.get(layer_idx, role) calls.
+    """
+
+    def __init__(self, pipeline):
+        self._pipeline = pipeline
+        self._adapter = pipeline.adapter
+        self._model = pipeline.instruct_model
+        self._delta_store = pipeline.delta_store
+
+        # Build delta lookup and Frobenius norms
+        self._deltas = {}
+        self._frob_norms = {}
+        n = self._adapter.n_layers(self._model)
+        for layer_idx in range(n):
+            for role in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                dw = self._delta_store.get_or_none(layer_idx, role)
+                if dw is not None:
+                    key = self._adapter.projection_weight_key(role, layer_idx)
+                    self._deltas[key] = dw
+                    self._frob_norms[key] = float(dw.float().norm().item())
+
+    @property
+    def loaded(self):
+        return self._pipeline.loaded
+
+    @property
+    def hidden_size(self):
+        return self._adapter.hidden_size(self._model)
+
+    @property
+    def signal_layers(self):
+        from tagm.engine import config as engine_config
+        n = self._adapter.n_layers(self._model)
+        return list(range(n))
+
+    @property
+    def deltas(self):
+        return self._deltas
+
+    @property
+    def delta_frob_norms(self):
+        return self._frob_norms
+
+
 # All attn projection types and their composite groupings
 PROJ_TYPES = {
     "q":   ["q_proj.weight"],
@@ -75,13 +125,20 @@ class CorrectionBackscatterModule(TASMModule):
     def __init__(self):
         super().__init__()
         self._project_root = None
-        self._model_manager = None
+        self._pipeline = None
 
     def set_project_root(self, root):
         self._project_root = root
 
+    def set_pipeline(self, pipeline):
+        self._pipeline = pipeline
+
     def set_model_manager(self, mm):
-        self._model_manager = mm
+        pass  # use set_pipeline instead
+
+    def _make_state(self):
+        """Build a state-like object from the pipeline for delta access."""
+        return _PipelineState(self._pipeline)
 
     @property
     def parameters(self):
@@ -118,12 +175,12 @@ class CorrectionBackscatterModule(TASMModule):
         if not ok:
             return ok, msg
 
-        if self._model_manager is None or self._model_manager.state is None:
+        if self._pipeline is None or not self._pipeline.loaded:
             return False, "Model not loaded. Backscatter requires ΔW access."
 
-        state = self._model_manager.state
-        if not state.loaded or not state.signal_layers:
-            return False, "Model not fully loaded or no signal layers."
+        state = self._make_state()
+        if not state.signal_layers:
+            return False, "No signal layers configured."
 
         if not _get_active_probe(self._project_root):
             return False, "No probe set active."
@@ -186,7 +243,7 @@ class CorrectionBackscatterModule(TASMModule):
                 progress(msg)
             logger.info(f"[BACKSCATTER] {msg}")
 
-        state = self._model_manager.state
+        state = self._make_state()
         probe_file = _get_active_probe(self._project_root)
         aggregation = params.get("aggregation", "mean")
         primary = params.get("primary_projection", "qkv")

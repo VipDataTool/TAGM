@@ -72,6 +72,9 @@ _module_runner = ModuleRunner()
 _cache = Cache()
 _probe_store = ProbeStore(root=_cache.layout.probes)
 
+# When a model loads, propagate the pipeline to modules that need it
+state.on_model_loaded(_module_runner.set_pipeline)
+
 # ─── App ────────────────────────────────────────────────────────
 app = FastAPI(title="TAGM", version="2.0.0")
 

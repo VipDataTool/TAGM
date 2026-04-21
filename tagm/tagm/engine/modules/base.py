@@ -197,6 +197,20 @@ class ModuleRunner:
     def get_module(self, name: str) -> Optional[TASMModule]:
         return self._modules.get(name)
 
+    def set_pipeline(self, pipeline) -> None:
+        """Propagate pipeline reference to modules that need model access.
+
+        Called after model load. Modules that support set_pipeline() get
+        the pipeline (model, tokenizer, adapter, delta_store).
+        """
+        for name, mod in self._modules.items():
+            if hasattr(mod, 'set_pipeline'):
+                try:
+                    mod.set_pipeline(pipeline)
+                    logger.info(f"[MODULES] {name}: pipeline connected")
+                except Exception as e:
+                    logger.warning(f"[MODULES] {name}: set_pipeline failed: {e}")
+
     def get_status(self, name: str) -> dict:
         state = self._state.get(name)
         if not state:
