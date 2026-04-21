@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Correction Backscatter — TAGM</title>
+<style>
+:root{--bg:#1C2128;--bg2:#262C34;--text:#E8ECEF;--text2:#6B7280;--border:#444C56;--red:#DC3025;--blue:#268BD2;--cyan:#56B4E9;--orange:#E69F00;--mono:"IBM Plex Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;padding:16px}
+h2{font-size:14px;font-weight:600;margin-bottom:4px}
+.sub{font-size:11px;color:var(--text2);margin-bottom:12px}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ctrl label{color:var(--text2);font-size:11px}
+.ctrl select{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 6px;font-family:var(--mono);font-size:11px}
+.grid-wrap{overflow-x:auto;margin-bottom:16px}
+table.hm{border-collapse:collapse;font-size:11px}
+table.hm th,table.hm td{padding:6px 10px;text-align:center;border:1px solid #2D333B;cursor:pointer;transition:outline .1s}
+table.hm th{color:var(--text2);font-weight:500;background:var(--bg2)}
+table.hm td.sel{outline:2px solid var(--cyan);outline-offset:-2px;z-index:1;position:relative}
+table.hm td:hover{outline:1px solid #888;outline-offset:-1px}
+.legend{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:10px;color:var(--text2)}
+.legend .bar{display:flex;height:10px;width:140px;border-radius:2px;overflow:hidden}
+.detail{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:16px;min-height:120px}
+.detail h3{font-size:13px;font-weight:600;color:var(--orange);margin-bottom:4px}
+.detail .cell-info{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6}
+.detail .probes{font-size:10px;color:var(--text2);margin-bottom:10px;padding:6px 8px;background:var(--bg);border-radius:4px}
+.detail .probes span{color:#888}
+table.tok{width:100%;border-collapse:collapse;font-size:11px}
+table.tok th{text-align:left;color:var(--text2);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2)}
+table.tok td{padding:4px 8px;border-bottom:1px solid #2D333B}
+table.tok tr:hover{background:#ffffff08}
+.cat-cell{display:inline-block;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.bar-cell{position:relative;width:80px;height:14px;background:#1a1a1a;border-radius:2px;display:inline-block;vertical-align:middle}
+.bar-fill{position:absolute;top:0;left:0;height:100%;border-radius:2px}
+.empty{color:var(--text2);font-style:italic;padding:20px;text-align:center}
+#err{color:#D55E00;padding:10px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h2>Correction Backscatter — Energy-Product Heatmap</h2>
+<div class="sub" id="subtitle">Loading...</div>
+<div class="ctrl" id="ctrls"></div>
+<div class="legend" id="legend"></div>
+<div id="gridPanel" style="margin-bottom:16px"></div>
+<div class="detail" id="detail"><div class="empty">Click any cell in any heatmap to see the probes driving it</div></div>
+<div id="err"></div>
+<script>
+(function(){
+var D,SUBJ,LEVELS,AGG,VAR,CELLS,CATS,SUBJ_SHORT,PROBE_ENERGY,DECOMP,PROJ_ORDER,PROJ_LABELS,PROMPTS;
+var selCat="all",selCell=null,selProj=null,selPrompt="all";
+var viewMode="backscatter"; // "backscatter" (token×probe) or "probe_energy" (probe-only)
+var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
+var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak",a:"adversarial",d:"dual-use",u:"unknown"};
+
+fetch("/api/modules/correction_backscatter/results").then(function(r){return r.json()}).then(function(resp){
+  if(!resp.ok||!resp.results)throw new Error(resp.error||"No results");
+  D=resp.results;init();
+}).catch(function(e){document.getElementById("err").textContent="Failed to load: "+e.message});
+
+function init(){
+  SUBJ=D.subjects||[];LEVELS=D.levels||[];AGG=D.aggregate||[];VAR=D.variance||[];
+  CELLS=D.cell_details||{};CATS=D.categories||{};SUBJ_SHORT=D.subj_short||SUBJ;
+  PROBE_ENERGY=D.probe_energy_grid||[];
+  DECOMP=D.decomposition||{};PROJ_ORDER=D.projection_order||[];PROJ_LABELS=D.projection_labels||{};
+  PROMPTS=D.prompts||[];
+
+  var cfg=D.config||{};
+  selProj=cfg.primary_projection||'qkv';
+  document.getElementById("subtitle").textContent=
+    SUBJ.length+" subjects × "+LEVELS.length+" levels · "+
+    D.n_prompts_projected+" prompts · "+D.n_probes+" probes · "+
+    D.probe_file+" · primary: "+selProj.toUpperCase()+
+    " · "+cfg.aggregation+" agg · "+(cfg.projections_computed||[]).length+" projections";
+
+  buildCtrls();
+  buildLegend();
+  renderPanel();
+}
+
+function buildCtrls(){
+  var h='<label>View:</label><select onchange="window._bsSetView(this.value)">';
+  h+='<option value="backscatter"'+(viewMode==="backscatter"?' selected':'')+'>Backscatter (token × probe)</option>';
+  h+='<option value="probe_energy"'+(viewMode==="probe_energy"?' selected':'')+'>Probe Energy (detector sensitivity)</option>';
+  h+='</select>';
+
+  // Category picker — lists only categories that appear in prompts
+  var catsInData={};
+  PROMPTS.forEach(function(p){if(p.projected)catsInData[p.category]=true});
+  h+='<label style="margin-left:12px">Category:</label><select onchange="window._bsSetCat(this.value)">';
+  h+='<option value="all"'+(selCat==="all"?' selected':'')+'>All categories</option>';
+  Object.keys(catsInData).sort().forEach(function(k){
+    var n=PROMPTS.filter(function(p){return p.projected&&p.category===k}).length;
+    h+='<option value="'+k+'"'+(selCat===k?' selected':'')+'>'+(CATS[k]||k)+' ('+n+')</option>';
+  });
+  h+='</select>';
+
+  // Prompt picker — filtered to current category
+  var candidates=PROMPTS.filter(function(p){
+    if(!p.projected)return false;
+    if(selCat!=="all"&&p.category!==selCat)return false;
+    return true;
+  });
+  h+='<label style="margin-left:12px">Prompt:</label><select onchange="window._bsSetPrompt(this.value)">';
+  h+='<option value="all"'+(selPrompt==="all"?' selected':'')+'>All ('+candidates.length+' prompts)</option>';
+  candidates.forEach(function(p){
+    var label='#'+(p.idx+1)+' ['+(CATS[p.category]||p.category)+'] '+p.text;
+    if(label.length>100)label=label.slice(0,100)+'…';
+    h+='<option value="'+p.idx+'"'+(selPrompt==String(p.idx)?' selected':'')+'>'+esc(label)+'</option>';
+  });
+  h+='</select>';
+
+  document.getElementById("ctrls").innerHTML=h;
+  window._bsSetCat=function(v){
+    selCat=v;
+    selPrompt="all"; // reset prompt picker when category changes
+    buildCtrls();buildLegend();renderPanel();renderDetail();
+  };
+  window._bsSetPrompt=function(v){
+    selPrompt=v;
+    buildLegend();renderPanel();renderDetail();
+  };
+  window._bsSetView=function(v){viewMode=v;buildLegend();renderPanel();renderDetail()};
+}
+
+// ─── Scale & color helpers ───────────────────────────────────
+
+function gridScale(grid){
+  var mn=Infinity,mx=0;
+  for(var i=0;i<grid.length;i++)for(var j=0;j<(grid[i]||[]).length;j++){
+    var v=grid[i][j]||0;if(v>0&&v<mn)mn=v;if(v>mx)mx=v;
+  }
+  if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
+  return{min:mn,max:mx};
+}
+
+// Warm ramp for backscatter (token × probe)
+function warmCol(t){
+  return'rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';
+}
+// Cool ramp for probe energy
+function coolCol(t){
+  return'rgb('+Math.round(30+t*50)+','+Math.round(60+t*140)+','+Math.round(100+t*130)+')';
+}
+function cellCol(t){return viewMode==="backscatter"?warmCol(t):coolCol(t)}
+
+function currentGridFor(pk){
+  // Returns the 2D grid for projection `pk` under the current viewMode,
+  // filtered by category + prompt selection.
+  var d=DECOMP[pk];if(!d)return null;
+
+  // Probe-energy view is input-independent — filters don't apply
+  if(viewMode==="probe_energy"){
+    return d.probe_energy||[];
+  }
+
+  // Backscatter view: respond to prompt/category selection
+  if(selPrompt!=="all"){
+    var pi=parseInt(selPrompt);
+    var pp=d.per_prompt||[];
+    var entry=pp[pi];
+    return (entry&&entry.grid)?entry.grid:[];
+  }
+  if(selCat!=="all"){
+    var pc=d.per_category||{};
+    var ce=pc[selCat];
+    return (ce&&ce.aggregate)?ce.aggregate:[];
+  }
+  return d.aggregate||[];
+}
+
+// ─── Legend ──────────────────────────────────────────────────
+
+function buildLegend(){
+  var label=viewMode==="backscatter"?"token × probe energy":"probe correction energy";
+
+  // Describe the current filter scope
+  var scope="";
+  if(viewMode==="probe_energy"){
+    scope="intrinsic detector — independent of prompts";
+  }else if(selPrompt!=="all"){
+    var pi=parseInt(selPrompt);
+    var p=PROMPTS[pi];
+    var ptext=p?('#'+(pi+1)+' ['+(CATS[p.category]||p.category)+'] '+(p.text||'').slice(0,60)):'prompt '+selPrompt;
+    scope="prompt: "+ptext;
+  }else if(selCat!=="all"){
+    var n=PROMPTS.filter(function(p){return p.projected&&p.category===selCat}).length;
+    scope="category: "+(CATS[selCat]||selCat)+" ("+n+" prompts, mean)";
+  }else{
+    var nTot=PROMPTS.filter(function(p){return p.projected}).length;
+    scope="all "+nTot+" prompts (mean)";
+  }
+
+  var h='<div class="bar">';
+  for(var i=0;i<20;i++){
+    var t=i/19;
+    h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
+  }
+  h+='</div>';
+  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · '+esc(scope)+' · each panel auto-scaled</span>';
+  document.getElementById("legend").innerHTML=h;
+}
+
+// ─── Panel rendering ─────────────────────────────────────────
+
+function renderPanel(){
+  var wrap=document.getElementById("gridPanel");
+  if(!PROJ_ORDER||!PROJ_ORDER.length){wrap.innerHTML='<div class="empty">No projection data</div>';return}
+
+  var h='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">';
+  PROJ_ORDER.forEach(function(pk){
+    var g=currentGridFor(pk);if(!g)return;
+    var sc=gridScale(g);
+    var label=PROJ_LABELS[pk]||pk.toUpperCase();
+    var isPrimary=(pk===selProj);
+    h+='<div style="min-width:220px">';
+    h+='<div style="font-size:11px;font-weight:600;color:'+(isPrimary?'var(--orange)':'var(--cyan)')+';margin-bottom:2px">';
+    h+=esc(label)+(isPrimary?' ★':'');
+    h+='</div>';
+    h+='<div style="font-size:9px;color:var(--text2);margin-bottom:3px;font-variant-numeric:tabular-nums">';
+    h+='range: '+sc.min.toFixed(6)+' – '+sc.max.toFixed(6);
+    h+='</div>';
+    h+=renderHeatmap(pk,g,sc);
+    h+='</div>';
+  });
+  h+='</div>';
+  wrap.innerHTML=h;
+}
+
+function renderHeatmap(pk,grid,sc){
+  var h='<table class="hm" style="font-size:10px"><tr><th style="padding:3px 5px"></th>';
+  LEVELS.forEach(function(l){h+='<th style="padding:3px 4px;font-size:9px">'+esc(l)+'</th>'});
+  h+='</tr>';
+  for(var si=0;si<SUBJ.length;si++){
+    h+='<tr><th style="text-align:left;font-weight:600;color:var(--text);padding:3px 5px;font-size:9px">'+esc(SUBJ_SHORT[si])+'</th>';
+    for(var li=0;li<LEVELS.length;li++){
+      var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
+      var t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
+      var bg=cellCol(t);
+      var tc=t>0.4?'#fff':'var(--text2)';
+      var id='c_'+pk+'_'+si+'_'+li;
+      var isSel=(selCell&&selCell.pk===pk&&selCell.si===si&&selCell.li===li);
+      var cls=isSel?' sel':'';
+      h+='<td id="'+id+'" class="'+cls+'" ';
+      h+='style="padding:3px 5px;background:'+bg+';color:'+tc+'" ';
+      h+='onclick="window._bsClick(\''+pk+'\','+si+','+li+')" ';
+      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+' ['+esc(pk.toUpperCase())+']: '+v.toFixed(6)+'">';
+      h+=v.toFixed(6);
+      h+='</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</table>';
+  return h;
+}
+
+window._bsClick=function(pk,si,li){
+  selCell={pk:pk,si:si,li:li};
+  document.querySelectorAll('table.hm td').forEach(function(td){td.classList.remove('sel')});
+  var el=document.getElementById('c_'+pk+'_'+si+'_'+li);
+  if(el)el.classList.add('sel');
+  renderDetail();
+};
+
+// ─── Detail table ────────────────────────────────────────────
+
+// Compute per-probe backscatter under the current filter scope.
+// Returns array of scalars (one per probe index) for projection `pk`.
+// - selPrompt !== "all": that single prompt's row
+// - selCat !== "all":    mean across prompts in that category
+// - both "all":          mean across all projected prompts
+function currentProbeBackscatter(pk){
+  var d=DECOMP[pk]||{};
+  var bbp=d.probe_backscatter_per_prompt||{};
+
+  // Helper: get row for a specific prompt index, or null
+  function rowFor(pi){
+    var r=bbp[pi];
+    if(!r)r=bbp[String(pi)]; // JSON keys are strings
+    return r||null;
+  }
+
+  if(selPrompt!=="all"){
+    return rowFor(parseInt(selPrompt));
+  }
+
+  // Build list of prompt indices to average over
+  var idxs=[];
+  PROMPTS.forEach(function(p){
+    if(!p.projected)return;
+    if(selCat!=="all"&&p.category!==selCat)return;
+    idxs.push(p.idx);
+  });
+  if(!idxs.length)return null;
+
+  // Mean across selected prompts
+  var first=rowFor(idxs[0]);
+  if(!first)return null;
+  var n=first.length;
+  var acc=new Array(n);for(var i=0;i<n;i++)acc[i]=0;
+  var count=0;
+  idxs.forEach(function(pi){
+    var r=rowFor(pi);
+    if(!r||r.length!==n)return;
+    for(var j=0;j<n;j++)acc[j]+=r[j];
+    count++;
+  });
+  if(count===0)return null;
+  for(var k=0;k<n;k++)acc[k]/=count;
+  return acc;
+}
+
+function renderDetail(){
+  var det=document.getElementById("detail");
+  if(!selCell){
+    det.innerHTML='<div class="empty">Click any cell in any heatmap to see the probes driving it</div>';
+    return;
+  }
+
+  var pk=selCell.pk,si=selCell.si,li=selCell.li;
+  var key=si+'_'+li;
+  var cd=CELLS[key];
+  var projData=DECOMP[pk]||{};
+  var projPE=projData.probe_energy||[];
+  var pe=(projPE[si]&&projPE[si][li]!=null)?projPE[si][li]:0;
+
+  // Filter-scoped grid for the displayed backscatter value
+  var grid=currentGridFor(pk);
+  var val=(grid&&grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
+  var vari=(VAR[si]&&VAR[si][li])?VAR[si][li]:0;
+
+  // Scope label
+  var scopeLabel="";
+  if(selPrompt!=="all"){
+    var p=PROMPTS[parseInt(selPrompt)];
+    scopeLabel=p?('prompt #'+(p.idx+1)+' ['+(CATS[p.category]||p.category)+']'):('prompt '+selPrompt);
+  }else if(selCat!=="all"){
+    scopeLabel='category: '+(CATS[selCat]||selCat);
+  }else{
+    scopeLabel='all prompts (mean)';
+  }
+
+  var h='<h3>'+esc(SUBJ[si].replace(/_/g,' '))+' × '+esc(LEVELS[li])+' <span style="color:var(--cyan);font-size:11px;font-weight:400">['+esc(PROJ_LABELS[pk]||pk.toUpperCase())+'] · '+esc(scopeLabel)+'</span></h3>';
+  h+='<div class="cell-info">';
+  h+='Backscatter: <span style="color:var(--orange)">'+val.toFixed(6)+'</span>';
+  h+=' · Probe energy: <span style="color:var(--cyan)">'+pe.toFixed(6)+'</span>';
+  h+=' · Variance: '+vari.toFixed(8);
+  if(cd)h+=' · '+cd.n_probes+' probes in cell';
+  h+='</div>';
+
+  if(!cd||!cd.probes||!cd.probes.length){
+    h+='<div class="empty">No probe data for this cell</div>';
+    det.innerHTML=h;return;
+  }
+
+  // Scoped per-probe backscatter for the selected projection + all projections
+  var probeBS=currentProbeBackscatter(pk);
+  var projBS={};
+  (PROJ_ORDER||[]).forEach(function(k){projBS[k]=currentProbeBackscatter(k)});
+
+  // Look up the scoped backscatter for a probe row
+  function bsFor(p,projKey){
+    var vec=(projKey===pk)?probeBS:projBS[projKey];
+    if(!vec||p.probe_idx==null||p.probe_idx>=vec.length)return null;
+    return vec[p.probe_idx];
+  }
+
+  // Compute cell-level scoped stats (mean/std of scoped backscatter for the probes in this cell)
+  var cellBSValues=[];
+  cd.probes.forEach(function(p){
+    var v=bsFor(p,pk);
+    if(v!=null)cellBSValues.push(v);
+  });
+  var cellBSMean=0,cellBSStd=0;
+  if(cellBSValues.length){
+    cellBSMean=cellBSValues.reduce(function(a,b){return a+b},0)/cellBSValues.length;
+    if(cellBSValues.length>1){
+      var sq=cellBSValues.reduce(function(a,b){return a+(b-cellBSMean)*(b-cellBSMean)},0);
+      cellBSStd=Math.sqrt(sq/cellBSValues.length);
+    }
+  }
+
+  // Sort probes by scoped backscatter (if available) else by intrinsic
+  var probes=cd.probes.slice().sort(function(a,b){
+    var av=bsFor(a,pk),bv=bsFor(b,pk);
+    if(av==null)av=(a.projections&&a.projections[pk]!=null)?a.projections[pk]:a.energy;
+    if(bv==null)bv=(b.projections&&b.projections[pk]!=null)?b.projections[pk]:b.energy;
+    return bv-av;
+  });
+
+  var barMax=0;
+  probes.forEach(function(p){
+    var v=bsFor(p,pk);
+    if(v==null)v=(p.projections&&p.projections[pk]!=null)?p.projections[pk]:p.energy;
+    if(v>barMax)barMax=v;
+  });
+  if(barMax<1e-10)barMax=1;
+
+  var projKeys=PROJ_ORDER||[];
+  var hasScoped=(probeBS!=null);
+  var scopeHint=hasScoped
+    ?('Backscatter columns below are scoped to: '+scopeLabel+'. Intrinsic energies shown in parentheses.')
+    :'Filter scope produced no probe-level data; showing intrinsic energies.';
+
+  h+='<div style="font-size:10px;color:var(--text2);margin-bottom:6px">'+esc(scopeHint);
+  if(hasScoped){
+    h+=' · Cell mean backscatter: <span style="color:var(--orange)">'+cellBSMean.toFixed(6)+'</span>';
+    h+=' · σ='+cellBSStd.toFixed(6);
+  }
+  h+='</div>';
+
+  h+='<div style="overflow-x:auto;max-height:400px;overflow-y:auto">';
+  h+='<table class="tok"><thead><tr>';
+  h+='<th>Probe</th>';
+  h+='<th title="Scoped backscatter in '+esc(pk.toUpperCase())+' — token energy × probe energy, aggregated under current filter">'+esc(pk.toUpperCase())+' BS</th>';
+  h+='<th title="Intrinsic probe energy — invariant property of the probe alone">Intrinsic</th>';
+  h+='<th title="Cell mean of scoped backscatter">Δ vs cell</th>';
+  h+='<th title="Z-score of scoped backscatter within this cell">z</th>';
+  projKeys.forEach(function(k){
+    var styleCol=(k===pk)?'var(--orange)':'var(--cyan)';
+    h+='<th title="'+esc(PROJ_LABELS[k]||k)+' scoped backscatter" style="color:'+styleCol+';font-size:9px">'+k.toUpperCase()+'</th>';
+  });
+  h+='<th style="min-width:100px">Scoped BS</th>';
+  h+='</tr></thead><tbody>';
+
+  probes.forEach(function(p){
+    var bsVal=bsFor(p,pk);
+    var intrinsic=(p.projections&&p.projections[pk]!=null)?p.projections[pk]:p.energy;
+    var displayBS=(bsVal!=null)?bsVal:intrinsic;
+
+    var dev=(bsVal!=null)?(bsVal-cellBSMean):0;
+    var z=(bsVal!=null&&cellBSStd>1e-12)?(Math.abs(dev)/cellBSStd):0;
+    var dCol=dev>0?'var(--orange)':'var(--blue)';
+    var dSign=dev>0?'+':'';
+    var zCol=z>=2?'#E69F00':z>=1?'var(--cyan)':'var(--text2)';
+
+    h+='<tr>';
+    h+='<td style="color:var(--orange);font-weight:600;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="'+esc(p.text)+'">'+esc(p.text)+'</td>';
+    h+='<td style="color:var(--text);font-weight:600;font-variant-numeric:tabular-nums">'+displayBS.toFixed(6)+'</td>';
+    h+='<td style="color:var(--text2);font-variant-numeric:tabular-nums">'+intrinsic.toFixed(6)+'</td>';
+    if(bsVal!=null){
+      h+='<td style="color:'+dCol+';font-weight:600;font-variant-numeric:tabular-nums">'+dSign+dev.toFixed(6)+'</td>';
+      h+='<td style="color:'+zCol+';font-weight:600">'+z.toFixed(1)+'</td>';
+    }else{
+      h+='<td style="color:#333">—</td><td style="color:#333">—</td>';
+    }
+
+    projKeys.forEach(function(k){
+      var pv=bsFor(p,k);
+      if(pv==null)pv=p.projections?p.projections[k]:undefined;
+      if(pv==null){h+='<td style="color:#333">—</td>';return}
+      var col=(k===pk)?'var(--orange)':'var(--text)';
+      var wt=(k===pk)?'600':'400';
+      h+='<td style="color:'+col+';font-weight:'+wt+';font-variant-numeric:tabular-nums;font-size:9px">'+pv.toFixed(6)+'</td>';
+    });
+
+    h+='<td>';
+    h+='<div class="bar-cell">';
+    var w=displayBS/barMax*100;
+    h+='<div class="bar-fill" style="left:0;width:'+w+'%;background:var(--cyan);opacity:0.7"></div>';
+    h+='</div>';
+    h+='</td>';
+    h+='</tr>';
+  });
+
+  h+='</tbody></table></div>';
+  det.innerHTML=h;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+})();
+</script>
+</body>
+</html>
