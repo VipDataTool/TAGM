@@ -2467,17 +2467,8 @@ function getModuleParams(modName) {
     if (!el) { params[p.name] = p.default; return; }
     if (p.type === 'bool') params[p.name] = el.checked;
     else if (p.type === 'file') params[p.name] = '';  // resolved by upload in runModule
-    else if (p.type === 'int' || p.type === 'float') {
-      var raw = (el.value == null ? '' : String(el.value)).trim();
-      var v = p.type === 'int' ? parseInt(raw, 10) : parseFloat(raw);
-      if (raw === '' || isNaN(v)) v = p.default;
-      // Clamp to the declared range so the backend validator doesn't
-      // reject a value the user could only have entered by ignoring
-      // the input's min/max attributes (or pasting out-of-range text).
-      if (p.min_val != null && v < p.min_val) v = p.min_val;
-      if (p.max_val != null && v > p.max_val) v = p.max_val;
-      params[p.name] = v;
-    }
+    else if (p.type === 'int') { var v = parseInt(el.value); params[p.name] = isNaN(v) ? p.default : v; }
+    else if (p.type === 'float') { var v = parseFloat(el.value); params[p.name] = isNaN(v) ? p.default : v; }
     else params[p.name] = el.value;
   });
   return params;
@@ -2641,7 +2632,6 @@ async function fetchModuleResults(name) {
     renderModuleResults(name, d.results);
   } catch(e) { /* silent */ }
 }
-
 
 function renderModuleResults(name, results) {
   var container = $('mod-results-' + name);

@@ -1,171 +1,108 @@
-"""AnalysisModule base class + ModuleOutput dataclass.
+"""AnalysisModule abstract base.
 
-An analysis module is a post-session consumer: it reads primary data
-(per-prompt MeasurementResults on the session record) and optional
-secondary data (other analyses' outputs), plus any resource handles
-it declares a need for, and returns a ModuleOutput with three
-compartments.
-
-The module never writes anywhere except its own return value. The
-framework (service/modules_runner.py) wraps that return value in a
-four-compartment mailbox and stores it in session.record.analyses[name].
-See TAGM_analysis_layer_interface.md for the full contract.
+Analysis modules aggregate across many prompts' measurement results. They
+declare which measurements they depend on (by measurement name); the
+framework checks the session record for those dependencies before running
+the analysis and raises a clear error if any are absent.
 """
 from __future__ import annotations
 
-import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Any, Optional
 
 import numpy as np
 
-if TYPE_CHECKING:
-    # Avoid runtime import cycles; these are only for type annotations.
-    from tagm.core.deltas.store import DeltaStore
-    from tagm.core.pipeline import Pipeline
-    from tagm.probes.artifact import ProbeSet
-
-
-# ── JSON sanitation (shared with MeasurementResult) ────────────────
-
-def _sanitize(v: Any) -> Any:
-    """Coerce numpy/NaN/inf to JSON-safe values."""
-    if v is None:
-        return None
-    if isinstance(v, (bool, int, str)):
-        return v
-    if isinstance(v, float):
-        return None if (math.isnan(v) or math.isinf(v)) else v
-    if isinstance(v, (np.integer,)):
-        return int(v)
-    if isinstance(v, (np.floating,)):
-        f = float(v)
-        return None if (math.isnan(f) or math.isinf(f)) else f
-    if isinstance(v, np.ndarray):
-        return [_sanitize(x) for x in v.tolist()]
-    if isinstance(v, dict):
-        return {str(k): _sanitize(x) for k, x in v.items()}
-    if isinstance(v, (list, tuple)):
-        return [_sanitize(x) for x in v]
-    return v
-
-
-# ── ModuleOutput ───────────────────────────────────────────────────
 
 @dataclass
-class ModuleOutput:
-    """The only thing a module is allowed to produce.
+class AnalysisResult:
+    """Output of an analysis module.
 
-    Three compartments:
-      - scalars:    summary numbers the UI shows in the card header strip.
-      - objects:    everything else (tables, arrays, nested dicts).
-      - per_prompt: values keyed by prompt_id that per-prompt viewers pick out.
-
-    No name, no version, no timestamps, no warnings, no parameters.
-    Those are framework-owned and live in the mailbox's other three
-    compartments (module / run / sources) that wrap this one.
+    Loose schema — analyses produce varied outputs (clusters, plots,
+    tables), so the shape is `objects`-centric with scalars for summary
+    statistics. Serialization uses the same NaN→None sanitization as
+    MeasurementResult.
     """
+    analysis_name: str
+    analysis_version: str
+
     scalars: dict[str, float] = field(default_factory=dict)
     objects: dict[str, Any] = field(default_factory=dict)
     per_prompt: dict[str, Any] = field(default_factory=dict)
+    # per_prompt[field][prompt_id] = ... — used for per-prompt derived
+    # values that the analysis writes back into the session.
+
+    parameters: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        import math
+        def sanitize(v):
+            if v is None: return None
+            if isinstance(v, (bool, int, str)): return v
+            if isinstance(v, float):
+                return None if (math.isnan(v) or math.isinf(v)) else v
+            if isinstance(v, (np.integer,)): return int(v)
+            if isinstance(v, (np.floating,)):
+                f = float(v)
+                return None if (math.isnan(f) or math.isinf(f)) else f
+            if isinstance(v, np.ndarray):
+                return [sanitize(x) for x in v.tolist()]
+            if isinstance(v, dict):
+                return {str(k): sanitize(x) for k, x in v.items()}
+            if isinstance(v, (list, tuple)):
+                return [sanitize(x) for x in v]
+            return v
         return {
-            "scalars": _sanitize(self.scalars),
-            "objects": _sanitize(self.objects),
-            "per_prompt": _sanitize(self.per_prompt),
+            "analysis_name": self.analysis_name,
+            "analysis_version": self.analysis_version,
+            "scalars": sanitize(self.scalars),
+            "objects": sanitize(self.objects),
+            "per_prompt": sanitize(self.per_prompt),
+            "parameters": sanitize(self.parameters),
+            "warnings": list(self.warnings),
         }
 
 
-# ── AnalysisModule ─────────────────────────────────────────────────
-
 class AnalysisModule(ABC):
-    """Abstract base for post-session analysis modules.
+    """Abstract base for post-session analysis modules."""
 
-    Subclasses declare identity, data dependencies, resource needs,
-    and a parameter schema as class attributes, then implement run().
-    The framework handles registration, discovery, validation,
-    dispatch, failure isolation, and storage.
-
-    See TAGM_analysis_layer_interface.md §5 for the declaration
-    template and §9 for the per-module port checklist.
-    """
-
-    # ── Identity ───────────────────────────────────────────────────
     name: str = ""
     display_name: str = ""
     description: str = ""
     version: str = "0.1.0"
 
-    # ── Data dependencies ──────────────────────────────────────────
-    # Measurement names this analysis reads from each prompt's
-    # `.measurements` dict. The framework verifies presence before
-    # dispatch.
-    #
-    # Semantics (enforced by check_dependencies):
-    #   - Empty tuple: no dependency.
-    #   - One entry: every prompt must have that measurement.
-    #   - Multiple entries: every prompt must have AT LEAST ONE.
-    #     This supports modules that degrade gracefully between
-    #     interchangeable sources (e.g. CFT accepts LTP or RD).
+    # Measurement dependencies (names from the measurement registry).
+    # The framework validates these are present in the session before
+    # running the analysis. A missing dependency is a loud error, not
+    # silent degradation.
     depends_on_measurements: tuple[str, ...] = ()
 
-    # ── Resource requirements ──────────────────────────────────────
-    # Boolean flags. If True, the framework resolves the resource and
-    # passes it as a kwarg to run(). If the resource is absent, the
-    # framework raises before dispatch; the module never sees None
-    # when a required resource is unavailable.
-    requires_probe_set: bool = False
-    requires_delta_store: bool = False
-    requires_pipeline: bool = False
-
-    # ── Prompt-count gate ──────────────────────────────────────────
-    min_prompts: int = 1
-
-    # ── User-settable parameters ───────────────────────────────────
-    # List of ModuleParameter (from tagm.measurement.parameters).
+    # Parameter declarations (same ModuleParameter class as measurements).
     parameters: list = []
 
-    # ── Execution ──────────────────────────────────────────────────
     @abstractmethod
-    def run(
-        self,
-        session: dict,
-        params: dict,
-        *,
-        progress: Callable[[str], None],
-        probes: Optional["ProbeSet"] = None,
-        delta_store: Optional["DeltaStore"] = None,
-        pipeline: Optional["Pipeline"] = None,
-    ) -> ModuleOutput:
-        """Compute the analysis.
+    def run(self, session: dict, params: dict,
+            probes: Optional[dict] = None) -> AnalysisResult:
+        """Compute the analysis from a session record.
 
-        Args:
-          session: SessionRecord.to_dict() — read-only. Contains
-            `prompts` (list of per-prompt dicts each with a
-            `measurements` dict), `analyses` (prior analyses'
-            mailboxes), plus `model_pair`, `structure`,
-            `capture_config`, `measurements_config`, `probe_sets`.
-          params: resolved + validated parameter values. No missing
-            keys, no out-of-range values.
-          progress: progress("message") publishes to the UI status
-            line. No-op if unused.
-          probes: present iff requires_probe_set = True.
-          delta_store: present iff requires_delta_store = True.
-          pipeline: present iff requires_pipeline = True.
+        session: dict in the canonical session shape. Keys include:
+          - 'prompts': list of per-prompt dicts, each containing
+            'prompt', 'category', and keyed measurement results.
+          - 'model_pair': {instruct, base, adapter_family, ...}
+          - 'capture_config': the unioned CaptureConfig used.
+          - 'structure': model structure snapshot (n_layers, etc.).
 
-        Returns:
-          ModuleOutput. The framework wraps it in the mailbox.
+        params: resolved parameter values for this analysis.
 
-        Raises:
-          On unrecoverable error. The framework catches and records
-          the error in the mailbox's run.error field. The module
-          does not return a partial result on failure.
+        probes: optional probe data (for analyses that need probe sets
+        directly, like correction_manifold).
+
+        Returns an AnalysisResult. The framework merges it into the
+        session record under result.analysis_name.
         """
         ...
 
-    # ── Metadata (for UI /api/modules) ─────────────────────────────
     def metadata(self) -> dict:
         return {
             "name": self.name,
@@ -173,58 +110,53 @@ class AnalysisModule(ABC):
             "description": self.description,
             "version": self.version,
             "depends_on_measurements": list(self.depends_on_measurements),
-            "requires_probe_set": self.requires_probe_set,
-            "requires_delta_store": self.requires_delta_store,
-            "requires_pipeline": self.requires_pipeline,
-            "min_prompts": self.min_prompts,
             "parameters": [p.to_dict() for p in self.parameters],
         }
 
-    # ── Dependency check (framework calls before dispatch) ─────────
     def check_dependencies(self, session: dict) -> list[str]:
-        """Return a list of error strings for missing measurement deps.
+        """Return a list of error strings for missing measurement dependencies.
 
-        Semantics (see depends_on_measurements above):
-          - Empty: always passes.
-          - Single entry: strict — every prompt must have it.
-          - Multiple entries: disjunctive — every prompt must have
-            at least one. Partial coverage is not an error; modules
-            opt into graceful degradation by declaring multiple deps.
+        Reads the flat record shape: a measurement is "present on a prompt"
+        if any of the root-level keys it publishes is on that prompt's dict.
         """
         prompts = session.get("prompts") or []
         if not prompts:
-            return [f"Analysis '{self.name}' needs at least one prompt "
-                    f"with measurements"]
-        if not self.depends_on_measurements:
-            return []
-
+            return [f"Analysis '{self.name}' needs at least one prompt"]
         errors: list[str] = []
-        required = tuple(self.depends_on_measurements)
-
-        if len(required) == 1:
-            name = required[0]
+        for required in self.depends_on_measurements:
+            keys = _MEASUREMENT_OUTPUT_KEYS.get(required, (required,))
             missing = [i for i, p in enumerate(prompts)
-                       if name not in (p.get("measurements") or {})]
+                       if not any(k in p for k in keys)]
             if missing:
                 if len(missing) == len(prompts):
                     errors.append(
                         f"Analysis '{self.name}' requires measurement "
-                        f"'{name}'; no prompts have it")
+                        f"'{required}'; no prompts have it")
                 else:
                     errors.append(
                         f"Analysis '{self.name}' requires measurement "
-                        f"'{name}'; {len(missing)}/{len(prompts)} prompts "
-                        f"are missing it")
-        else:
-            none_with_any = True
-            for p in prompts:
-                ms = p.get("measurements") or {}
-                if any(r in ms for r in required):
-                    none_with_any = False
-                    break
-            if none_with_any:
-                errors.append(
-                    f"Analysis '{self.name}' requires at least one of "
-                    f"{list(required)}; no prompts have any of them")
-
+                        f"'{required}'; {len(missing)}/{len(prompts)} "
+                        f"prompts are missing it")
         return errors
+
+
+# Map each measurement name to the root-level keys it publishes on a
+# prompt record. Used by check_dependencies; mirrors the orchestrator's
+# `_record_measurement` mapping (one-way: name → keys it lands).
+_MEASUREMENT_OUTPUT_KEYS = {
+    "stress_score":              ("stress_score", "per_token_stress"),
+    "last_position_attribution": ("signed_attr", "net_correction", "entropy"),
+    "amplitude_trajectory":      ("amplitude_trajectory",
+                                  "amplitude_normalized"),
+    "amplitude_derived_metrics": ("per_token_attn_frac",
+                                  "per_token_coherence",
+                                  "per_token_sublayer_rank",
+                                  "token_similarity"),
+    "lateral_tension_profile":   ("ltp",),
+    "spectral_field_density":    ("sfd",),
+    "rank_displacement":         ("rank_displacement",),
+    "probe_projection":          ("probe_projection",),
+    "per_token_embedding":       ("per_token_embeddings",
+                                  "per_token_final_emb"),
+    "backscatter_projection":    ("backscatter",),
+}

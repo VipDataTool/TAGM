@@ -61,7 +61,7 @@ from fastapi.staticfiles import StaticFiles
 from tagm.core.adapter import list_families, find_adapter  # noqa: F401
 from tagm.core.adapter import registry as _adapter_registry  # noqa: F401
 from tagm.core.cache import Cache
-from tagm.core.capture.config import CaptureConfig, CapturePoint
+from tagm.core.capture.config import CaptureConfig
 from tagm.core.pipeline import Pipeline
 from tagm.measurement import modules as _measurement_modules  # noqa: F401  (registers)
 from tagm.measurement.registry import list_measurements
@@ -166,33 +166,30 @@ app = FastAPI(title="TAGM", description="Transformer Alignment Geometric Metrolo
 
 
 # ─── Security headers ───────────────────────────────────────────────
-# TAGM is a single-user local instrument — it runs on localhost against
-# a model the operator loaded themselves, served to a browser the
-# operator owns. The threat model that motivates a strict CSP (untrusted
-# content injection from a multi-tenant backend) does not apply here.
-# The TASM-derived UI uses inline event-handler attributes (onclick=,
-# onchange=) throughout, and the viz pages contain inline <script> blocks
-# that run the visualization logic. Both require 'unsafe-inline' in
-# script-src to execute under a CSP at all.
-#
-# Rather than refactor 32+ inline handlers across five HTML files into
-# addEventListener calls — which would be a net negative for readability
-# of TASM's UI that TAGM was supposed to keep verbatim — we allow
-# 'unsafe-inline' and explicitly whitelist the two CDN origins the
-# frontend actually uses: cdnjs (Three.js for domain_surface_viz) and
-# fonts.googleapis.com / fonts.gstatic.com (IBM Plex font family).
-# cdn.plot.ly is kept whitelisted against the day Plotly is introduced.
+# Strict Content Security Policy. We commit to modern browsers, so we
+# can disallow inline scripts entirely and require all JS to come from
+# /static/. This is a meaningful defense in depth: any successful
+# injection of HTML fails to execute scripts. Plotly, when added,
+# loads from cdn.plot.ly — that origin is added to script-src/style-src
+# as needed. Inline styles in index.html are kept minimal and scoped
+# to layout chrome that doesn't fit any reusable component.
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
     if response.headers.get("content-type", "").startswith("text/html"):
+        # The TASM-derived UI uses inline `onclick=` handlers throughout
+        # (every button in index.html), so script-src must include
+        # 'unsafe-inline'. Without this the Load Model button is dead
+        # (the click handler never runs).
+        # cdnjs.cloudflare.com is the THREE.js CDN the terrain renderer
+        # loads. cdn.plot.ly is the Plotly CDN used by some viz pages.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' "
             "https://cdn.plot.ly https://cdnjs.cloudflare.com; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
-            "font-src 'self' https://fonts.gstatic.com; "
+            "font-src 'self'; "
             "connect-src 'self'; "
             "object-src 'none'; "
             "frame-ancestors 'none'; "
@@ -232,21 +229,9 @@ async def api_status():
 
     # TASM-flat fields. main.js (TASM-derived frontend) reads these
     # directly. Carried alongside TAGM's nested shape so both styles work.
-    #
-    # model_loaded combines two TAGM conditions that TASM rolled into
-    # one: the pipeline itself is loaded, AND the orchestrator has a
-    # CaptureConfig + at least one selected measurement. Without the
-    # second condition we'd briefly report model_loaded=True during the
-    # window between pipeline.load() returning and _load_worker's
-    # auto-configure step, and main.js would enable the Analyze button
-    # against a half-ready backend.
-    pipeline_loaded = bool(pipeline_info.get("loaded"))
-    orch_ready = (state.orchestrator is not None
-                  and state.orchestrator.capture_config is not None
-                  and len(state.selected_measurements) > 0)
-    model_loaded = pipeline_loaded and orch_ready
+    model_loaded = bool(pipeline_info.get("loaded"))
     current_model = ""
-    if pipeline_loaded:
+    if model_loaded:
         current_model = (pipeline_info.get("model_pair", {})
                                        .get("instruct", ""))
 
@@ -259,29 +244,19 @@ async def api_status():
     loading_active = bool(state.loading_state.get("active"))
     loading_payload = (dict(state.loading_state) if loading_active else False)
 
-    # Session block. main.js bootstrap reads `st.session.n_results`
-    # (not `n_prompts`), `st.session.cache_size_bytes`, and
-    # `st.session.model` directly (see the "Restored session" block near
-    # the init IIFE). Include both name variants so both TAGM-native
-    # and TASM-compat readers find what they expect.
-    session_block = {
-        "session_id": state.session.session_id,
-        "n_prompts": len(state.session.prompts),
-        "n_results": len(state.session.prompts),       # TASM alias
-        "categories": state.session.categories(),
-        "measurement_names": state.session.measurement_names(),
-        "n_analyses": len(state.session.record.analyses),
-        "cache_size_bytes": state.cache.disk_usage(),  # TASM alias
-        "model": current_model,                         # TASM alias
-    }
-
     return {
         # Native TAGM nested shape
         "service": "TAGM",
         "pipeline": pipeline_info,
         "loading": loading_payload,
         "capture_config": (cap_cfg.to_dict() if cap_cfg is not None else None),
-        "session": session_block,
+        "session": {
+            "session_id": state.session.session_id,
+            "n_prompts": len(state.session.prompts),
+            "categories": state.session.categories(),
+            "measurement_names": state.session.measurement_names(),
+            "n_analyses": len(state.session.record.analyses),
+        },
         "selected_measurements": [
             {"name": n, "params": p} for n, p in state.selected_measurements
         ],
@@ -294,10 +269,6 @@ async def api_status():
         "session_id": state.session.session_id,
         "n_results": len(state.session.prompts),
         "cache_bytes": state.cache.disk_usage(),
-
-        # User info — main.js reads st.user_info.name/organization/project
-        # at bootstrap to rehydrate the Analyst form fields.
-        "user_info": dict(state.user_info) if state.user_info else None,
     }
 
 
@@ -350,64 +321,6 @@ async def api_adapters():
 
 # ─── Load / unload ──────────────────────────────────────────────────
 
-def _default_capture_config(n_layers: int) -> CaptureConfig:
-    """Build a CaptureConfig that satisfies every Wave-1 measurement's
-    CaptureExpectation without any user input.
-
-    Covers the union of what the registered measurements need:
-      - `pre_attn_norm` hidden at every layer (stress_score, LPA, LTP,
-         amplitude_trajectory, SFD)
-      - `post_attn_norm` hidden at every layer (amplitude_trajectory)
-      - `attn_output` attention_weights at every layer (LPA)
-
-    Measurements whose expectation this doesn't cover (none at present,
-    but the orchestrator's report/violation path handles any future
-    additions gracefully) are simply skipped at configure time.
-
-    The default is intentionally generous — a user who wants a narrow
-    capture for memory reasons can POST /api/capture with their own
-    CaptureConfig, which replaces this one.
-    """
-    points = []
-    layers = list(range(n_layers))
-    for layer in layers:
-        points.append(CapturePoint(
-            layer=layer,
-            hook_point="pre_attn_norm",
-            capture=frozenset({"hidden"}),
-        ))
-        points.append(CapturePoint(
-            layer=layer,
-            hook_point="post_attn_norm",
-            capture=frozenset({"hidden"}),
-        ))
-        points.append(CapturePoint(
-            layer=layer,
-            hook_point="attn_output",
-            capture=frozenset({"attention_weights"}),
-        ))
-        # residual_post_block is what per_token_embedding reads for
-        # depth-labeled snapshots (default depths "subject:12,escalation:18").
-        points.append(CapturePoint(
-            layer=layer,
-            hook_point="residual_post_block",
-            capture=frozenset({"hidden"}),
-        ))
-    # final_norm is layer-independent; per_token_embedding wants it
-    # by default (include_final_norm=True).
-    points.append(CapturePoint(
-        layer=None,
-        hook_point="final_norm",
-        capture=frozenset({"hidden"}),
-    ))
-    return CaptureConfig(
-        name="tagm_default_full",
-        description="Auto-installed on model load; covers all Wave-1 "
-                    "measurement CaptureExpectations.",
-        points=tuple(points),
-    )
-
-
 def _load_worker(instruct_id: str, base_id: str,
                  layer_filter, compute_spectral: bool) -> None:
     """Background worker: runs the actual (slow, blocking) model load.
@@ -454,51 +367,6 @@ def _load_worker(instruct_id: str, base_id: str,
         logger.info("[_load_worker] Creating orchestrator")
         state.progress("loading", "Creating orchestrator")
         state.orchestrator = Orchestrator(state.pipeline, state.probe_store)
-
-        # Step 4b: Install a default CaptureConfig and select every
-        # registered measurement that the default covers.
-        #
-        # TASM's UI assumed that "model loaded" implied "ready to
-        # analyze." There was no separate capture-configuration step —
-        # TASM derived capture implicitly from the measurement set.
-        # TAGM's backend separates the two concerns, but the TASM-
-        # derived frontend doesn't expose a capture UI. Rather than 409
-        # every /api/analyze until the user discovers /api/capture, we
-        # install a generous default covering all Wave-1 measurements'
-        # expectations. Users who want a narrower capture can hit
-        # /api/capture or /api/engine_setup directly; this default is
-        # just "work out of the box."
-        try:
-            n_layers = state.pipeline.adapter.n_layers(
-                state.pipeline.instruct_model)
-            default_cap = _default_capture_config(n_layers)
-            state.orchestrator.set_capture_config(default_cap)
-            logger.info(f"[_load_worker] Default CaptureConfig installed "
-                        f"({len(default_cap.points)} points over "
-                        f"{n_layers} layers)")
-
-            all_names = [m["name"] for m in list_measurements()]
-            report = state.orchestrator.configure_measurements(
-                [(n, {}) for n in all_names])
-            state.selected_measurements = [
-                (n, p) for n, p in report["selected"]]
-            logger.info(f"[_load_worker] Default measurement selection: "
-                        f"{len(report['selected'])} selected, "
-                        f"{len(report['skipped'])} skipped "
-                        f"(skipped: {report['skipped']})")
-            state.progress("loading",
-                f"Configured {len(report['selected'])} measurements "
-                f"(skipped {len(report['skipped'])}: "
-                f"{', '.join(report['skipped']) or 'none'})")
-        except Exception as cfg_err:
-            # Don't fail the load if default configuration fails — the
-            # user can still configure manually via /api/capture and
-            # /api/configure. But surface the problem in the UI log.
-            logger.warning(f"[_load_worker] Default configuration failed: "
-                           f"{cfg_err}")
-            state.progress("loading",
-                f"Warning: default capture/measurement configuration "
-                f"failed ({cfg_err}). Configure manually.")
 
         # Step 5: Mark done
         state.loading_state = {"active": False, "error": None}
@@ -1188,58 +1056,26 @@ async def api_reset():
 
 @app.get("/api/config")
 async def api_config_get():
-    """TASM-compat UI-preferences endpoint.
-
-    In TASM, `/api/config` was a simple persistent key-value store for
-    frontend UI state: viz toggles, font sizes, card collapse states,
-    the LTP layer-strategy dropdown value, etc. It had nothing to do
-    with the analysis engine — the body shape was whatever the frontend
-    chose to save, and GET returned it verbatim under a `config` key.
-
-    main.js's `saveConfig()` and `loadConfig()` functions still expect
-    exactly that contract (a `{ok, config: {...}}` response). An earlier
-    pass through this file repurposed `/api/config` to mean capture +
-    measurement selection, which silently broke every preference save
-    in the Config tab. The capture/selections dispatcher is preserved
-    under `/api/engine_setup` for anyone who wants it.
-    """
-    cfg_path = state.cache.layout.root / "ui_config.json"
-    if cfg_path.exists():
-        try:
-            return {"ok": True, "config": json.loads(cfg_path.read_text())}
-        except (OSError, json.JSONDecodeError) as e:
-            logger.warning(f"[/api/config GET] could not read {cfg_path}: {e}")
-    return {"ok": True, "config": {}}
+    """TASM-compat: return active config (capture + selected measurements)
+    in a single blob."""
+    cap = (state.orchestrator.capture_config
+           if state.orchestrator is not None else None)
+    return {
+        "ok": True,
+        "capture": cap.to_dict() if cap is not None else None,
+        "capture_signature": cap.signature() if cap is not None else None,
+        "selected_measurements": [
+            {"name": n, "params": p} for n, p in state.selected_measurements
+        ],
+        "available_measurements": list_measurements(),
+        "available_analyses": list_analyses(),
+    }
 
 
 @app.post("/api/config")
 async def api_config_post(request: Request):
-    """TASM-compat UI-preferences save. Body is an opaque JSON blob
-    that the frontend controls; we persist it verbatim and return
-    `{ok: true}`. See `api_config_get` for the history on this endpoint."""
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400,
-                            detail=f"Invalid JSON body: {e}")
-    cfg_path = state.cache.layout.root / "ui_config.json"
-    try:
-        cfg_path.write_text(json.dumps(body, indent=2))
-    except OSError as e:
-        logger.error(f"[/api/config POST] could not write {cfg_path}: {e}")
-        return {"ok": False, "error": str(e)}
-    return {"ok": True}
-
-
-@app.post("/api/engine_setup")
-async def api_engine_setup(request: Request):
-    """Unified capture + measurement-selection dispatcher.
-
-    Previously mounted at POST /api/config — moved here because the
-    TASM-derived frontend uses `/api/config` as a UI-preferences store
-    (see api_config_get's docstring). This endpoint retains the original
-    capture/selections behavior for any caller (including a future UI
-    or scripted setup) that wants it.
+    """TASM-compat: accept a unified config blob and dispatch to
+    /api/capture and /api/configure internally.
 
     Body:
       {
@@ -1301,26 +1137,23 @@ async def api_session_clear_plots():
             "freed_mb": 0, "cache_size_bytes": state.cache.disk_usage()}
 
 
-# ─── Session results / dashboard / detail (TASM-compat) ─────────────
+# ─── Session results / dashboard / detail ──────────────────────────
 #
-# TASM exposed three related read endpoints over the session:
-#   /api/session/results — paginated, per-record TASM-shape (with _index, _plot_keys)
+# Three related read endpoints over the session:
+#   /api/session/results — paginated, per-record (with _index, _plot_keys)
 #   /api/dashboard       — summary aggregation, slim per-record fields
-#   /api/results/detail  — start+count window, full TASM-shape records
+#   /api/results/detail  — start+count window, full records
 #
-# All three project TAGM's PromptRecord through the tasm_compat shaper
-# so main.js gets the field names it expects.
+# Records come off PromptRecord.to_dict() already in the shape the
+# frontend reads. These endpoints add per-record `_index` and `_plot_keys`
+# hints and (for the dashboard) strip per-token arrays for payload size.
 
 def _tasm_shape_with_meta(prec_dict: dict, idx: int) -> dict:
-    """Convert a TAGM PromptRecord dict to TASM shape and attach
-    the `_index` and `_plot_keys` fields the frontend reads."""
-    from tagm.service.tasm_compat import prompt_record_to_tasm_shape
-    out = prompt_record_to_tasm_shape(prec_dict)
+    """Attach `_index` and `_plot_keys` to a prompt record dict.
+    The record itself is already in the shape the frontend reads; no
+    translation is needed."""
+    out = dict(prec_dict)
     out["_index"] = idx
-    # Plot keys for this record. TASM's _plot_keys_for_result inspected
-    # the record fields; here we match the semantics by listing keys
-    # whose underlying data is present. Plots themselves come in session 5;
-    # the keys list lets the frontend render plot card slots that lazy-load.
     plot_keys: list[str] = []
     if out.get("per_token_stress"):
         plot_keys.append("stress_per_token")
@@ -1601,18 +1434,21 @@ async def api_session_restore():
         rec_dict.get("measurements_config") or {})
     new_session.record.analyses = rec_dict.get("analyses") or {}
     new_session.record.probe_sets = rec_dict.get("probe_sets") or []
-    # Prompts: each is a PromptRecord dict
+    # Prompts: each is a PromptRecord dict. Snapshots may be in either the
+    # new flat shape (values at the record root) or the old nested shape
+    # (values under a `measurements` sub-dict). PromptRecord.from_dict
+    # handles the flat case; we unnest the legacy shape on the way in.
     new_session.record.prompts = []
     for p in rec_dict.get("prompts") or []:
-        prec = PromptRecord(
-            prompt=p.get("prompt", ""),
-            category=p.get("category", ""),
-            tokens=list(p.get("tokens") or []),
-            seq_len=int(p.get("seq_len", 0)),
-            measurements=p.get("measurements") or {},
-            metadata=p.get("metadata") or {},
-            prompt_id=p.get("prompt_id", ""),
-        )
+        d = dict(p)
+        legacy = d.pop("measurements", None)
+        d.pop("metadata", None)
+        if isinstance(legacy, dict):
+            # Promote legacy nested measurement keys onto the record root
+            # so the rest of the app sees the same shape either way.
+            for k, v in legacy.items():
+                d.setdefault(k, v)
+        prec = PromptRecord.from_dict(d)
         new_session.record.prompts.append(prec)
 
     state.session = new_session
@@ -1696,19 +1532,18 @@ async def api_prompts_add(request: Request):
     return {"ok": True, "prompts": out}
 
 
-# ─── Modules: TASM-compat unified measurement+analysis interface ────
+# ─── Modules ────────────────────────────────────────────────────────
 #
-# TASM's frontend treated every measurement and analysis as a "module"
-# with the same async-job interface: list, run (background), poll
-# status, fetch results. The TAGM ModuleRunner wraps both kinds behind
-# that interface. See tagm/service/modules_runner.py for details.
+# The Modules tab lists analyses — tertiary consumers of session data.
+# Measurements are not modules; they run inside /api/analyze and their
+# outputs live on each prompt record. See tagm/service/modules_runner.py.
 
 from tagm.service.modules_runner import runner as _module_runner
 
 
 @app.get("/api/modules")
 async def api_modules():
-    """List all modules (measurements + analyses) with status."""
+    """List all analysis modules with status."""
     return {"ok": True, "modules": _module_runner.list_modules()}
 
 
@@ -1742,7 +1577,6 @@ async def api_modules_run(module_name: str, request: Request):
     result = _module_runner.run(
         name=module_name,
         session=state.session,
-        orchestrator=state.orchestrator,
         params=params,
         progress_fn=state.progress,
     )
@@ -1759,52 +1593,19 @@ async def api_modules_status(module_name: str):
 
 @app.get("/api/modules/{module_name}/results")
 async def api_modules_results(module_name: str):
-    """Fetch module results.
+    """Fetch analysis module results.
 
-    First checks the ModuleRunner's stash (set by an explicit run);
-    falls back to data already in the session (for measurements that
-    were computed via /api/analyze rather than via a module run, or
-    analyses already produced).
-
-    For analyses, flattens AnalysisResult shape ({analysis_name,
-    scalars, objects, per_prompt, parameters, warnings}) into the flat
-    TASM wire format the frontend renderers read at top level. Ported
-    analyses (correction_heatmap, correction_field_topology) stuff
-    their TASM-shape outputs under .objects; hoisting them here is
-    what makes renderCorrectionHeatmapResults and renderCFTResults
-    find r.subjects, r.aggregate, r.displacement_stats, etc.
+    Checks the ModuleRunner's stash first (the result of an explicit run)
+    and falls back to anything already stored in session.analyses (e.g.
+    from a previous run that was persisted with the session).
     """
     results = _module_runner.get_results(module_name)
-    if results is None:
-        # Session fallback: look for the data in the session record
-        if module_name in state.session.record.analyses:
-            results = state.session.record.analyses[module_name]
-        else:
-            # Look for the measurement across prompts
-            per_prompt = []
-            for p in state.session.record.prompts:
-                m = p.measurements.get(module_name)
-                if m:
-                    per_prompt.append({
-                        "prompt": p.prompt,
-                        "category": p.category,
-                        "result": m,
-                    })
-            if per_prompt:
-                results = {
-                    "ok": True,
-                    "name": module_name,
-                    "n_prompts": len(per_prompt),
-                    "per_prompt": per_prompt,
-                }
+    if results is None and module_name in state.session.record.analyses:
+        results = state.session.record.analyses[module_name]
     if results is None:
         raise HTTPException(status_code=404,
                              detail=f"No results available for '{module_name}'.")
-
-
     return {"ok": True, "results": results}
-
-
 
 
 @app.post("/api/modules/{module_name}/reset")
@@ -2202,7 +2003,7 @@ async def api_chat(request: Request):
                 p = state.orchestrator.analyze_prompt(
                     prompt_text, category=category or "chat_user",
                     session=state.session)
-                p.metadata["role"] = "user"
+                p.fields["role"] = "user"
                 return p
 
             await run_in_threadpool(_analyze_user)
@@ -2221,7 +2022,7 @@ async def api_chat(request: Request):
                 p = state.orchestrator.analyze_prompt(
                     response_text, category="model_response",
                     session=state.session)
-                p.metadata["role"] = "assistant"
+                p.fields["role"] = "assistant"
                 return p
 
             await run_in_threadpool(_analyze_response)
@@ -2252,13 +2053,11 @@ async def api_plots_individual(index: int, plot_key: str):
                              detail=f"Prompt index {index} out of range")
 
     from tagm.service.plots import render_plot
-    from tagm.service.tasm_compat import prompt_record_to_tasm_shape
 
     prompt_dict = prompts[index].to_dict()
 
     def _do_render():
-        shape = prompt_record_to_tasm_shape(prompt_dict)
-        return render_plot(plot_key, shape)
+        return render_plot(plot_key, prompt_dict)
 
     png = await run_in_threadpool(_do_render)
     if png is None:
@@ -2278,13 +2077,11 @@ async def api_plots_aggregate(plot_key: str):
                              detail="No prompts in session")
 
     from tagm.service.plots import render_plot
-    from tagm.service.tasm_compat import prompt_record_to_tasm_shape
 
     prompt_dict = state.session.record.prompts[0].to_dict()
 
     def _do_render():
-        shape = prompt_record_to_tasm_shape(prompt_dict)
-        return render_plot(plot_key, shape)
+        return render_plot(plot_key, prompt_dict)
 
     png = await run_in_threadpool(_do_render)
     if png is None:
@@ -2307,19 +2104,11 @@ _export_state = {"ready": False, "path": None}
 async def api_export_prepare(request: Request):
     """Prepare a session export. Body is JSON of options (csv, json,
     pdf, charts flags). All ignored except as informational — TAGM's
-    export is a single .json.gz file regardless.
-
-    Emits 'exporting' and 'done' progress events so main.js's
-    pollExport() can detect completion. main.js waits for a progress
-    entry with stage='done' and a message containing 'Export ready'
-    before it hits /api/export/download — without these events, the
-    UI polls indefinitely and the download never fires."""
+    export is a single .json.gz file regardless."""
     try:
         _ = await request.json()
     except Exception:
         pass
-
-    state.progress("exporting", "Preparing session export...")
 
     # Generate the export and stash it to disk
     from tagm.service.export import export_session
@@ -2331,20 +2120,10 @@ async def api_export_prepare(request: Request):
     def _do_export():
         export_session(state.session, Path(path))
 
-    try:
-        await run_in_threadpool(_do_export)
-    except Exception as e:
-        logger.exception("Export failed")
-        state.progress("error", f"Export failed: {e}")
-        return {"ok": False, "error": str(e)}
-
+    await run_in_threadpool(_do_export)
     _export_state["ready"] = True
     _export_state["path"] = path
-    size_bytes = Path(path).stat().st_size if Path(path).exists() else 0
-    state.progress("done",
-        f"Export ready ({size_bytes // 1024} KB). Click Download.")
-    return {"ok": True, "ready": True, "path": path,
-            "size_bytes": size_bytes}
+    return {"ok": True, "ready": True, "path": path}
 
 
 @app.get("/api/export/download")
@@ -2353,8 +2132,7 @@ async def api_export_download():
     if /api/export hasn't been called first."""
     path = _export_state.get("path")
     if not path or not Path(path).exists():
-        # Generate on the fly (no progress events — this is a direct
-        # download path, not the polled two-step flow).
+        # Generate on the fly
         from tagm.service.export import export_session
         import tempfile
         fd, path = tempfile.mkstemp(suffix=".json.gz", prefix="tagm_export_")

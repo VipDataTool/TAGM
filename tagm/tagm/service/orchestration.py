@@ -428,13 +428,33 @@ class Orchestrator:
 
             results_by_name[module.name] = mresult
 
+        # Build the record with flat field mapping. This replaces the old
+        # nested `measurements` serialization plus the tasm_compat translator
+        # that used to un-nest on the way out. Mapping lives here, once, in
+        # the writer.
+        fields: dict[str, Any] = {}
+        for name, mresult in results_by_name.items():
+            _record_measurement(fields, name, mresult)
+
+        # Pass-throughs from base_cache that the UI reads at the record root.
+        if base_cache:
+            bct = base_cache.get("base_counterfactual_tokens")
+            if bct:
+                fields["base_counterfactual_tokens"] = bct
+            # per_token_kl is optional; reserved for a future KL measurement.
+            ptk = base_cache.get("per_token_kl")
+            if ptk:
+                fields["per_token_kl"] = ptk
+
+        if errors:
+            fields["_errors"] = errors
+
         return PromptRecord(
             prompt=prompt,
             category=category,
             tokens=list(run_result.tokens),
             seq_len=int(run_result.seq_len),
-            measurements={n: r.to_dict() for n, r in results_by_name.items()},
-            metadata={"errors": errors} if errors else {},
+            fields=fields,
         )
 
     # ── Analysis dispatch ───────────────────────────────────────────
@@ -455,7 +475,157 @@ class Orchestrator:
         if errors:
             return {"ok": False, "errors": errors, "warnings": []}
 
-        result = module.run(session_dict, resolved, probes=probes)
-        rdict = result.to_dict()
+        # Analysis modules return a plain dict keyed with whatever fields
+        # the frontend reads directly. No schema wrapping.
+        rdict = module.run(session_dict, resolved, probes=probes)
+        if not isinstance(rdict, dict):
+            rdict = {"_raw": rdict}
         session.add_analysis(name, rdict)
         return {"ok": True, "errors": [], **rdict}
+
+
+# ── Measurement → record field mapping ──────────────────────────────
+#
+# One place, one function. Given a measurement name and its MeasurementResult,
+# write the keys the frontend reads onto the prompt record's `fields` dict.
+# When a new measurement is added, add its case here.
+#
+# The frontend key names come from TASM's `main.js` / `_terrainTransformData`
+# / `renderCFTResults` etc. — i.e. what the UI actually looks for.
+
+def _record_measurement(fields: dict, name: str, mresult) -> None:
+    """Map a MeasurementResult onto root-level fields on a prompt record."""
+    scalars = getattr(mresult, "scalars", {}) or {}
+    per_tok = getattr(mresult, "per_token", {}) or {}
+    per_lyr = getattr(mresult, "per_layer", {}) or {}
+    objects = getattr(mresult, "objects", {}) or {}
+
+    if name == "stress_score":
+        fields["stress_score"] = scalars.get("stress_mean")
+        if per_tok.get("stress"):
+            fields["per_token_stress"] = per_tok["stress"]
+
+    elif name == "last_position_attribution":
+        if per_tok.get("signed_attribution_to_last"):
+            fields["signed_attr"] = per_tok["signed_attribution_to_last"]
+        for k_out, k_in in (
+            ("net_correction", "net_correction_to_last"),
+            ("entropy", "entropy"),
+            ("top2_share", "top2_share"),
+            ("middle_share", "middle_share"),
+            ("interior_cv", "interior_cv"),
+            ("n_negative_tokens", "n_negative_tokens"),
+            ("has_negative_tokens", "has_negative_tokens"),
+        ):
+            if k_in in scalars:
+                fields[k_out] = scalars[k_in]
+        if objects.get("proof1_checks"):
+            fields["proof1_checks"] = objects["proof1_checks"]
+
+    elif name == "amplitude_trajectory":
+        fields["amplitude_trajectory"] = {
+            "raw": objects.get("amplitude_raw") or [],
+            "normalized": objects.get("amplitude_normalized") or [],
+            "heatmap": objects.get("heatmap") or [],
+            "heatmap_shape": objects.get("heatmap_shape") or [0, 0],
+            "sublayer_labels": objects.get("sublayer_labels") or [],
+            "mean_raw": scalars.get("trajectory_mean_raw"),
+            "mean_normalized": scalars.get("trajectory_mean_normalized"),
+        }
+        # Legacy alias some UI sites read at root.
+        if objects.get("amplitude_normalized"):
+            fields["amplitude_normalized"] = objects["amplitude_normalized"]
+
+    elif name == "amplitude_derived_metrics":
+        if per_tok.get("attn_frac"):
+            fields["per_token_attn_frac"] = per_tok["attn_frac"]
+        if per_tok.get("coherence"):
+            fields["per_token_coherence"] = per_tok["coherence"]
+        if per_tok.get("sublayer_rank"):
+            fields["per_token_sublayer_rank"] = per_tok["sublayer_rank"]
+        if objects.get("token_similarity"):
+            fields["token_similarity"] = objects["token_similarity"]
+
+    elif name == "lateral_tension_profile":
+        fields["ltp"] = {
+            "mean_M": scalars.get("mean_M"),
+            "mean_V": scalars.get("mean_V"),
+            "mean_L": scalars.get("mean_L"),
+            "max_prc": scalars.get("max_prc"),
+            "n_directional": scalars.get("n_directional"),
+            "n_layers_used": scalars.get("n_layers_used"),
+            "tension_magnitudes": per_tok.get("tension_magnitude") or [],
+            "prc_per_token": per_tok.get("prc") or [],
+            "offset_magnitude": per_lyr.get("offset_magnitude") or {},
+            "offset_variance": per_lyr.get("offset_variance") or {},
+            "lateral_coverage": per_lyr.get("lateral_coverage") or {},
+            "profiles": objects.get("profiles") or [],
+            "base_profiles": objects.get("base_profiles") or [],
+            "profile_shapes": objects.get("profile_shapes") or [],
+            "counterfactual_tokens": objects.get("counterfactual_tokens") or [],
+            "semantic_trajectory_2d": objects.get("semantic_trajectory_2d") or [],
+            "tension_trajectory_2d": objects.get("tension_trajectory_2d") or [],
+        }
+
+    elif name == "spectral_field_density":
+        fields["sfd"] = {
+            "density_mean": scalars.get("density_mean"),
+            "density_max": scalars.get("density_max"),
+            "density_var": scalars.get("density_var"),
+            "density_p90": scalars.get("density_p90"),
+            "global_erank": scalars.get("global_erank"),
+            "n_layers_used": scalars.get("n_layers_used"),
+            "per_token_density": per_tok.get("density") or [],
+        }
+
+    elif name == "rank_displacement":
+        fields["rank_displacement"] = {
+            "mean_disp_per_token": scalars.get("mean_disp_per_token"),
+            "mean_replacement": scalars.get("mean_replacement"),
+            "mean_tau": scalars.get("mean_tau"),
+            "mean_overlap": scalars.get("mean_overlap"),
+            "total_displacement": scalars.get("total_displacement"),
+            "n_positions": scalars.get("n_positions"),
+            "per_position": objects.get("per_position") or [],
+            "per_token_disp": per_tok.get("total_disp") or [],
+            "per_token_replacement": per_tok.get("replacement_ratio") or [],
+            "instruct_disp_profiles": objects.get("instruct_disp_profiles") or [],
+            "base_disp_profiles": objects.get("base_disp_profiles") or [],
+            "per_position_tau": objects.get("per_position_tau") or [],
+            "per_position_overlap": objects.get("per_position_overlap") or [],
+        }
+
+    elif name == "probe_projection":
+        fields["probe_projection"] = {
+            "best_class_idx": per_tok.get("best_class_idx") or [],
+            "best_score": per_tok.get("best_score") or [],
+            "score_matrix": objects.get("score_matrix") or [],
+            "probe_labels": objects.get("probe_labels") or [],
+            "per_token_assignment": objects.get("per_token_assignment") or [],
+        }
+
+    elif name == "per_token_embedding":
+        if objects.get("per_token_embeddings"):
+            fields["per_token_embeddings"] = objects["per_token_embeddings"]
+        # Alias used by correction_heatmap / correction_backscatter viz sites.
+        if objects.get("per_token_final_emb"):
+            fields["per_token_final_emb"] = objects["per_token_final_emb"]
+
+    elif name == "backscatter_projection":
+        fields["backscatter"] = {
+            "magnitude_matrix": objects.get("magnitude_matrix") or [],
+            "probe_labels": objects.get("probe_labels") or [],
+            "sublayer_labels": objects.get("sublayer_labels") or [],
+            "n_probes": scalars.get("n_probes"),
+            "n_sublayers": scalars.get("n_sublayers"),
+            "mean_magnitude": scalars.get("mean_magnitude"),
+        }
+
+    else:
+        # Unknown measurement: dump its serialized result under its own key
+        # so data isn't lost. Frontend won't know how to read it, but it's
+        # preserved for inspection.
+        if hasattr(mresult, "to_dict"):
+            fields[name] = mresult.to_dict()
+        else:
+            fields[name] = mresult
