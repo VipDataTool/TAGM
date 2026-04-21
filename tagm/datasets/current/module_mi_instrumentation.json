@@ -1,0 +1,517 @@
+{
+ "n_prompts": 12,
+ "n_safe": 6,
+ "n_risk": 6,
+ "hidden_dim": 896,
+ "refusal_direction": {
+  "auroc": 1.0,
+  "stress_auroc": 0.75,
+  "refusal_norm": 0.337329,
+  "mean_cosine_safe": -0.1319,
+  "mean_cosine_risk": 0.2054,
+  "std_cosine_safe": 0.0606,
+  "std_cosine_risk": 0.0736,
+  "separation": 0.3373,
+  "per_category": {
+   "benign": {
+    "mean": -0.1518,
+    "std": 0.0612,
+    "n": 3
+   },
+   "harmful": {
+    "mean": 0.2218,
+    "std": 0.0918,
+    "n": 3
+   },
+   "jailbreak": {
+    "mean": 0.189,
+    "std": 0.0431,
+    "n": 3
+   },
+   "mild": {
+    "mean": -0.1121,
+    "std": 0.0529,
+    "n": 3
+   }
+  }
+ },
+ "per_layer_auroc": {
+  "layers": [
+   {
+    "layer": 7,
+    "auroc": 0.4444,
+    "mean_safe": 0.006613,
+    "mean_risk": 0.006237,
+    "ratio": 0.943
+   },
+   {
+    "layer": 8,
+    "auroc": 0.3333,
+    "mean_safe": 0.008991,
+    "mean_risk": 0.007981,
+    "ratio": 0.888
+   },
+   {
+    "layer": 9,
+    "auroc": 0.25,
+    "mean_safe": 0.008151,
+    "mean_risk": 0.006784,
+    "ratio": 0.832
+   },
+   {
+    "layer": 10,
+    "auroc": 0.5278,
+    "mean_safe": 0.008818,
+    "mean_risk": 0.008848,
+    "ratio": 1.003
+   },
+   {
+    "layer": 11,
+    "auroc": 0.25,
+    "mean_safe": 0.008146,
+    "mean_risk": 0.00643,
+    "ratio": 0.789
+   },
+   {
+    "layer": 12,
+    "auroc": 0.5556,
+    "mean_safe": 0.00787,
+    "mean_risk": 0.008059,
+    "ratio": 1.024
+   },
+   {
+    "layer": 13,
+    "auroc": 0.3611,
+    "mean_safe": 0.007251,
+    "mean_risk": 0.00627,
+    "ratio": 0.865
+   },
+   {
+    "layer": 14,
+    "auroc": 0.4722,
+    "mean_safe": 0.009301,
+    "mean_risk": 0.008794,
+    "ratio": 0.946
+   },
+   {
+    "layer": 15,
+    "auroc": 0.3611,
+    "mean_safe": 0.011366,
+    "mean_risk": 0.01068,
+    "ratio": 0.94
+   }
+  ],
+  "n_layers": 9
+ },
+ "patching_priority": {
+  "top_points": [
+   {
+    "layer": 14,
+    "position": 13,
+    "intensity": 0.152177,
+    "n_observations": 1
+   },
+   {
+    "layer": 10,
+    "position": 13,
+    "intensity": 0.122797,
+    "n_observations": 1
+   },
+   {
+    "layer": 12,
+    "position": 13,
+    "intensity": 0.08167,
+    "n_observations": 1
+   },
+   {
+    "layer": 11,
+    "position": 0,
+    "intensity": 0.07971,
+    "n_observations": 12
+   },
+   {
+    "layer": 8,
+    "position": 13,
+    "intensity": 0.078362,
+    "n_observations": 1
+   },
+   {
+    "layer": 14,
+    "position": 8,
+    "intensity": 0.076666,
+    "n_observations": 8
+   },
+   {
+    "layer": 12,
+    "position": 12,
+    "intensity": 0.070207,
+    "n_observations": 1
+   },
+   {
+    "layer": 12,
+    "position": 11,
+    "intensity": 0.069576,
+    "n_observations": 2
+   },
+   {
+    "layer": 8,
+    "position": 12,
+    "intensity": 0.068234,
+    "n_observations": 1
+   },
+   {
+    "layer": 10,
+    "position": 11,
+    "intensity": 0.066642,
+    "n_observations": 2
+   },
+   {
+    "layer": 15,
+    "position": 8,
+    "intensity": 0.066517,
+    "n_observations": 8
+   },
+   {
+    "layer": 15,
+    "position": 13,
+    "intensity": 0.06531,
+    "n_observations": 1
+   },
+   {
+    "layer": 10,
+    "position": 8,
+    "intensity": 0.061059,
+    "n_observations": 8
+   },
+   {
+    "layer": 8,
+    "position": 8,
+    "intensity": 0.058848,
+    "n_observations": 8
+   },
+   {
+    "layer": 12,
+    "position": 8,
+    "intensity": 0.058267,
+    "n_observations": 8
+   },
+   {
+    "layer": 7,
+    "position": 8,
+    "intensity": 0.052696,
+    "n_observations": 8
+   },
+   {
+    "layer": 13,
+    "position": 0,
+    "intensity": 0.052134,
+    "n_observations": 12
+   },
+   {
+    "layer": 14,
+    "position": 9,
+    "intensity": 0.051805,
+    "n_observations": 3
+   },
+   {
+    "layer": 15,
+    "position": 0,
+    "intensity": 0.05154,
+    "n_observations": 12
+   },
+   {
+    "layer": 14,
+    "position": 11,
+    "intensity": 0.046813,
+    "n_observations": 2
+   }
+  ],
+  "layer_marginal": [
+   {
+    "layer": 7,
+    "mean_intensity": 0.021871,
+    "max_intensity": 0.052696
+   },
+   {
+    "layer": 8,
+    "mean_intensity": 0.032976,
+    "max_intensity": 0.078362
+   },
+   {
+    "layer": 9,
+    "mean_intensity": 0.019847,
+    "max_intensity": 0.03987
+   },
+   {
+    "layer": 10,
+    "mean_intensity": 0.038674,
+    "max_intensity": 0.122797
+   },
+   {
+    "layer": 11,
+    "mean_intensity": 0.011518,
+    "max_intensity": 0.07971
+   },
+   {
+    "layer": 12,
+    "mean_intensity": 0.036599,
+    "max_intensity": 0.08167
+   },
+   {
+    "layer": 13,
+    "mean_intensity": 0.019439,
+    "max_intensity": 0.052134
+   },
+   {
+    "layer": 14,
+    "mean_intensity": 0.039493,
+    "max_intensity": 0.152177
+   },
+   {
+    "layer": 15,
+    "mean_intensity": 0.035287,
+    "max_intensity": 0.066517
+   }
+  ],
+  "matrix_shape": [
+   9,
+   14
+  ],
+  "matrix": [
+   [
+    0.033235,
+    0.013141,
+    0.008115,
+    0.015726,
+    0.007167,
+    0.008437,
+    0.008492,
+    0.01587,
+    0.052696,
+    0.044035,
+    0.01975,
+    0.028458,
+    0.013717,
+    0.037351
+   ],
+   [
+    0.028664,
+    0.016824,
+    0.013482,
+    0.019692,
+    0.015027,
+    0.018227,
+    0.021469,
+    0.032426,
+    0.058848,
+    0.040358,
+    0.016097,
+    0.033954,
+    0.068234,
+    0.078362
+   ],
+   [
+    0.03987,
+    0.013132,
+    0.015009,
+    0.019194,
+    0.019068,
+    0.016202,
+    0.01221,
+    0.014458,
+    0.036079,
+    0.024369,
+    0.003805,
+    0.014063,
+    0.014175,
+    0.036227
+   ],
+   [
+    0.020208,
+    0.009891,
+    0.011619,
+    0.023871,
+    0.021948,
+    0.022721,
+    0.027215,
+    0.038649,
+    0.061059,
+    0.040996,
+    0.029413,
+    0.066642,
+    0.044407,
+    0.122797
+   ],
+   [
+    0.07971,
+    0.004917,
+    0.003665,
+    0.007138,
+    0.005608,
+    0.00747,
+    0.005185,
+    0.004994,
+    0.017153,
+    0.008185,
+    0.001319,
+    0.001806,
+    0.000603,
+    0.013497
+   ],
+   [
+    0.016151,
+    0.008792,
+    0.010617,
+    0.020092,
+    0.018302,
+    0.021838,
+    0.027187,
+    0.034689,
+    0.058267,
+    0.044616,
+    0.030377,
+    0.069576,
+    0.070207,
+    0.08167
+   ],
+   [
+    0.052134,
+    0.00551,
+    0.004355,
+    0.008858,
+    0.006897,
+    0.007886,
+    0.008174,
+    0.014747,
+    0.034687,
+    0.041525,
+    0.016337,
+    0.030222,
+    0.002505,
+    0.038311
+   ],
+   [
+    0.037672,
+    0.015301,
+    0.012018,
+    0.011125,
+    0.010912,
+    0.01653,
+    0.019033,
+    0.031765,
+    0.076666,
+    0.051805,
+    0.031643,
+    0.046813,
+    0.039442,
+    0.152177
+   ],
+   [
+    0.05154,
+    0.014389,
+    0.014643,
+    0.033275,
+    0.022034,
+    0.024001,
+    0.023157,
+    0.030336,
+    0.066517,
+    0.041077,
+    0.035791,
+    0.040433,
+    0.031513,
+    0.06531
+   ]
+  ],
+  "layers": [
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15
+  ]
+ },
+ "random_projection": {
+  "n_trials": 50,
+  "random_mean_auroc": 0.5694,
+  "random_std_auroc": 0.1883,
+  "random_max_auroc": 0.9722,
+  "random_p95_auroc": 0.8486,
+  "refusal_direction": {
+   "auroc": 1.0,
+   "delta_over_random": 0.4306,
+   "empirical_p": 0.0
+  },
+  "tagm_stress": {
+   "auroc": 0.75,
+   "delta_over_random": 0.1806,
+   "empirical_p": 0.18
+  },
+  "histogram": [
+   0.9722,
+   0.7222,
+   0.6111,
+   0.5833,
+   0.5556,
+   0.5556,
+   0.5833,
+   0.8333,
+   0.8333,
+   0.7222,
+   0.8611,
+   0.3889,
+   0.5,
+   0.7222,
+   0.6667,
+   0.8056,
+   0.3889,
+   0.5,
+   0.3889,
+   0.75,
+   0.5,
+   0.6389,
+   0.6667,
+   0.3333,
+   0.4167,
+   0.2778,
+   0.3611,
+   0.8333,
+   0.3611,
+   0.4722,
+   0.3333,
+   0.6944,
+   0.6667,
+   0.6111,
+   0.5833,
+   0.9167,
+   0.2222,
+   0.3889,
+   0.1944,
+   0.8056,
+   0.2222,
+   0.6111,
+   0.4444,
+   0.6111,
+   0.3611,
+   0.6944,
+   0.5,
+   0.5833,
+   0.6111,
+   0.6111
+  ]
+ },
+ "summary": {
+  "refusal_auroc": 1.0,
+  "stress_auroc": 0.75,
+  "random_mean": 0.5694,
+  "best_layer_auroc": 0.5556,
+  "best_layer": 12,
+  "refusal_separates": true,
+  "stress_separates": false,
+  "refusal_beats_stress": true
+ }
+}
