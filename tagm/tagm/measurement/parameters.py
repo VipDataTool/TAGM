@@ -19,6 +19,7 @@ VALID_KINDS = frozenset({
     "int", "float", "bool", "string",
     "select", "multi_select",
     "layer_list",
+    "file", "text", "textarea",
 })
 
 
@@ -54,11 +55,11 @@ class ModuleParameter:
             "name": self.name,
             "display_name": self.display_name,
             "description": self.description,
-            "kind": self.kind,
+            "type": self.kind,
             "default": self.default,
             "options": list(self.options),
-            "min_value": self.min_value,
-            "max_value": self.max_value,
+            "min_val": self.min_value,
+            "max_val": self.max_value,
             "advanced": self.advanced,
         }
 

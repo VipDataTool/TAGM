@@ -1,95 +1,41 @@
-"""Correction Manifold: fingerprint-based prompt clustering.
+"""CorrectionManifold: cluster prompts by correction-signature similarity.
 
-Ported from TASM's engine/modules/correction_manifold.py. Projects each
-prompt through probe delta lattice to produce a fingerprint, then PCA + 
-k-means for spatial clustering. Output shape matches TASM renderer.
+Builds a per-prompt signature vector from the scalar outputs of each
+measurement, z-scores it across the session, computes a full distance
+matrix (cosine or Euclidean), then runs a simple agglomerative clustering
+using single-linkage on the distance matrix.
+
+Translated from the core algorithm of TASM's
+`engine/modules/correction_manifold.py`. Visualization helpers (PCA
+projection for the 2D manifold plot, ESC-style trajectories) are skipped
+here — the service layer computes them on demand from the signatures
+output. This is flagged in NOTES.md.
 """
 from __future__ import annotations
 
-import logging
-from collections import Counter, defaultdict
-from typing import Optional
+from typing import Any
 
 import numpy as np
 
-from tagm.analysis.base import AnalysisModule
+from tagm.analysis.base import AnalysisModule, AnalysisResult
 from tagm.analysis.registry import register_analysis
+from tagm.analysis.statistics import extract_scalar
 from tagm.measurement.parameters import ModuleParameter
 
-logger = logging.getLogger("tagm")
 
-
-def _get_final_emb(r):
-    pte = ((r.get("measurements") or {}).get("per_token_embedding") or {})
-    return (pte.get("objects") or {}).get("per_token_embeddings", {}).get("final")
-
-
-def _kmeans(X, k, max_iter=100, n_init=10, seed=42):
-    """K-means clustering. Returns (labels, centroids, inertia)."""
-    rng = np.random.RandomState(seed)
-    n, d = X.shape
-    best_labels = None
-    best_centroids = None
-    best_inertia = np.inf
-
-    for _ in range(n_init):
-        centroids = np.empty((k, d))
-        centroids[0] = X[rng.randint(n)]
-        for ci in range(1, k):
-            dists = np.min([np.sum((X - centroids[j])**2, axis=1)
-                            for j in range(ci)], axis=0)
-            probs = dists / (dists.sum() + 1e-15)
-            centroids[ci] = X[rng.choice(n, p=probs)]
-
-        labels = np.zeros(n, dtype=int)
-        for _ in range(max_iter):
-            dists = np.array([np.sum((X - c)**2, axis=1) for c in centroids])
-            new_labels = np.argmin(dists, axis=0)
-            if np.array_equal(new_labels, labels):
-                break
-            labels = new_labels
-            for ci in range(k):
-                mask = labels == ci
-                if mask.any():
-                    centroids[ci] = X[mask].mean(axis=0)
-
-        inertia = sum(np.sum((X[labels == ci] - centroids[ci])**2)
-                       for ci in range(k))
-        if inertia < best_inertia:
-            best_inertia = inertia
-            best_labels = labels.copy()
-            best_centroids = centroids.copy()
-
-    return best_labels, best_centroids, best_inertia
-
-
-def _silhouette(X, labels):
-    """Mean silhouette score."""
-    n = len(labels)
-    if n < 2:
-        return 0.0
-    unique = np.unique(labels)
-    if len(unique) < 2:
-        return 0.0
-
-    scores = []
-    for i in range(n):
-        same = labels == labels[i]
-        same[i] = False
-        if same.sum() == 0:
-            scores.append(0.0)
-            continue
-        a = np.mean(np.sqrt(np.sum((X[same] - X[i])**2, axis=1)))
-        b_vals = []
-        for c in unique:
-            if c == labels[i]:
-                continue
-            other = labels == c
-            if other.sum() > 0:
-                b_vals.append(np.mean(np.sqrt(np.sum((X[other] - X[i])**2, axis=1))))
-        b = min(b_vals) if b_vals else a
-        scores.append((b - a) / max(a, b, 1e-10))
-    return float(np.mean(scores))
+# Default signature fields: (measurement, scalar, display)
+_SIGNATURE_FIELDS = [
+    ("stress_score", "stress_mean", "Stress"),
+    ("last_position_attribution", "net_correction_to_last", "NetCorrection"),
+    ("last_position_attribution", "entropy", "Entropy"),
+    ("last_position_attribution", "top2_share", "Top2Share"),
+    ("lateral_tension_profile", "mean_M", "LTP_M"),
+    ("lateral_tension_profile", "mean_V", "LTP_V"),
+    ("lateral_tension_profile", "max_prc", "MaxPRC"),
+    ("spectral_field_density", "density_mean", "SFD_Mean"),
+    ("spectral_field_density", "density_var", "SFD_Var"),
+    ("rank_displacement", "mean_replacement", "RD_Replacement"),
+]
 
 
 @register_analysis
@@ -97,211 +43,186 @@ class CorrectionManifold(AnalysisModule):
     name = "correction_manifold"
     display_name = "Correction Manifold"
     description = (
-        "Projects prompt tokens through probe delta lattice to produce "
-        "per-prompt fingerprints, then PCA + k-means clustering."
+        "Cluster prompts by similarity of their correction signatures, "
+        "yielding a grouping of prompts whose correction patterns resemble "
+        "each other across the selected measurement fields."
     )
-    version = "1.0.0"
-    min_results = 5
+    version = "0.1.0"
 
-    depends_on_measurements = ("per_token_embedding",)
+    depends_on_measurements = ("stress_score",)
 
     parameters = [
-        ModuleParameter(name="n_clusters", display_name="Clusters",
-                        description="Number of k-means clusters.",
-                        kind="int", default=4, min_value=2, max_value=20),
-        ModuleParameter(name="random_seed", display_name="Random Seed",
-                        description="Seed for k-means.",
-                        kind="int", default=42, min_value=0, max_value=99999),
+        ModuleParameter(
+            name="n_clusters",
+            display_name="Number of clusters",
+            description="Target cluster count for agglomerative clustering.",
+            kind="int", default=4, min_value=2, max_value=20,
+        ),
+        ModuleParameter(
+            name="distance",
+            display_name="Distance metric",
+            description="Distance between z-scored signature vectors.",
+            kind="select", default="cosine", options=("cosine", "euclidean"),
+        ),
+        ModuleParameter(
+            name="pca_2d",
+            display_name="Include 2D PCA projection",
+            description="Compute and include a 2D PCA projection for plotting.",
+            kind="bool", default=True,
+        ),
     ]
 
-    def __init__(self):
-        self._pipeline = None
-        self._probe_store = None
-
-    def set_pipeline(self, pipeline):
-        self._pipeline = pipeline
-
-    def set_probe_store(self, probe_store):
-        self._probe_store = probe_store
-
-    def check_dependencies(self, session: dict) -> list[str]:
-        errors = super().check_dependencies(session)
-        if self._probe_store is None:
-            errors.append("Correction Manifold requires a probe store.")
-        return errors
-
-    def run(self, session: dict, params: dict,
-            probes: Optional[dict] = None) -> dict:
-        prompts = session.get("prompts") or []
+    def run(self, session, params, probes=None):
         n_clusters = int(params.get("n_clusters", 4))
-        seed = int(params.get("random_seed", 42))
+        distance = params.get("distance", "cosine")
+        want_pca = bool(params.get("pca_2d", True))
 
-        probe_set = self._get_active_probe_set()
-        if probe_set is None:
-            return {"error": "No active probe set."}
+        result = AnalysisResult(
+            analysis_name=self.name,
+            analysis_version=self.version,
+            parameters={"n_clusters": n_clusters, "distance": distance,
+                        "pca_2d": want_pca,
+                        "signature_fields": [
+                            {"measurement": m, "field": f, "display": d}
+                            for m, f, d in _SIGNATURE_FIELDS
+                        ]},
+        )
 
-        classes = list(dict.fromkeys(p.row for p in probe_set.probes))
-        subclasses = list(dict.fromkeys(p.column for p in probe_set.probes))
-        n_cells = len(classes) * len(subclasses)
-        subj_idx = {s: i for i, s in enumerate(classes)}
-        level_idx = {l: i for i, l in enumerate(subclasses)}
+        prompts = session.get("prompts") or []
+        if len(prompts) < 2:
+            result.warnings.append("Need at least 2 prompts for manifold analysis")
+            return result
 
-        depth_labels = probe_set.depth_labels
-        if len(depth_labels) < 2:
-            return {"error": "Need at least 2 probe depths."}
+        # Build signature matrix
+        sig_rows: list[list[float]] = []
+        field_labels = [d for _, _, d in _SIGNATURE_FIELDS]
+        for p in prompts:
+            row = []
+            for m, f, _ in _SIGNATURE_FIELDS:
+                v = extract_scalar(p, m, f)
+                row.append(v if v is not None else np.nan)
+            sig_rows.append(row)
 
-        subj_mat, _ = probe_set.embeddings_matrix(depth_labels[0])
-        esc_mat, _ = probe_set.embeddings_matrix(depth_labels[1])
-        delta_mat = esc_mat - subj_mat
+        sigs = np.array(sig_rows, dtype=float)  # (n_prompts, n_fields)
 
-        # Build per-prompt fingerprints
-        fingerprints = []
-        valid_indices = []
-        categories = []
+        # Drop columns that are all-NaN
+        valid_cols = [i for i in range(sigs.shape[1])
+                      if not np.all(np.isnan(sigs[:, i]))]
+        if not valid_cols:
+            result.warnings.append("No signature fields produced usable data")
+            return result
+        sigs = sigs[:, valid_cols]
+        field_labels = [field_labels[i] for i in valid_cols]
 
-        for pi, r in enumerate(prompts):
-            fe = _get_final_emb(r)
-            if fe is None or len(fe) == 0:
+        # Impute per-column means for remaining NaNs
+        col_means = np.nanmean(sigs, axis=0)
+        inds = np.where(np.isnan(sigs))
+        sigs[inds] = np.take(col_means, inds[1])
+
+        # Z-score
+        mu = sigs.mean(axis=0)
+        sigma = sigs.std(axis=0)
+        sigma = np.where(sigma > 1e-12, sigma, 1.0)
+        z = (sigs - mu) / sigma
+
+        # Distance matrix
+        dmat = _pairwise_distance(z, distance)
+
+        # Agglomerative clustering (single linkage)
+        labels = _single_linkage_clusters(dmat, n_clusters=n_clusters)
+
+        # Cluster membership + per-cluster profile (mean z-scores)
+        per_cluster: dict[int, dict] = {}
+        for cid in set(labels):
+            members = [i for i, l in enumerate(labels) if l == cid]
+            if not members:
                 continue
-            emb = np.array(fe, dtype=np.float32)
-            tokens = r.get("tokens", [])
-            n_tok = min(len(tokens), emb.shape[0])
-            if n_tok == 0 or emb.shape[1] != delta_mat.shape[1]:
-                continue
+            cluster_sigs = z[members]
+            per_cluster[int(cid)] = {
+                "n_members": len(members),
+                "member_prompt_indices": members,
+                "mean_z": cluster_sigs.mean(axis=0).tolist(),
+                "std_z": cluster_sigs.std(axis=0).tolist(),
+            }
 
-            scores = emb[:n_tok] @ delta_mat.T
-            grid = np.zeros(n_cells)
-            for ci, probe in enumerate(probe_set.probes):
-                si = subj_idx.get(probe.row, 0)
-                li = level_idx.get(probe.column, 0)
-                cell_idx = si * len(subclasses) + li
-                if cell_idx < n_cells:
-                    grid[cell_idx] += float(np.mean(np.abs(scores[:, ci])))
+        result.objects["signature_fields"] = field_labels
+        result.objects["signatures_z"] = z.tolist()
+        result.objects["cluster_labels"] = [int(l) for l in labels]
+        result.objects["per_cluster"] = per_cluster
+        result.objects["distance_matrix"] = dmat.tolist()
+        result.scalars["n_prompts"] = len(prompts)
+        result.scalars["n_clusters_found"] = len(per_cluster)
+        result.scalars["n_signature_fields"] = len(field_labels)
 
-            fingerprints.append(grid)
-            valid_indices.append(pi)
-            categories.append((r.get("category") or "unknown").lower().strip())
+        if want_pca:
+            pca = _pca_2d(z)
+            if pca is not None:
+                result.objects["pca_2d"] = pca.tolist()
 
-        if len(fingerprints) < 3:
-            return {"error": f"Need at least 3 prompts with embeddings. Have {len(fingerprints)}."}
+        return result
 
-        X = np.array(fingerprints, dtype=np.float64)
 
-        # Z-score normalize
-        mu = X.mean(axis=0)
-        sd = X.std(axis=0)
-        sd[sd < 1e-10] = 1.0
-        Z = (X - mu) / sd
+# ── Helpers ─────────────────────────────────────────────────────────
 
-        # PCA to 2D
-        C = np.cov(Z.T)
-        if C.ndim == 0:
-            C = np.array([[C]])
-        eigvals, eigvecs = np.linalg.eigh(C)
-        idx = np.argsort(eigvals)[::-1]
-        eigvals = eigvals[idx]
-        eigvecs = eigvecs[:, idx]
-        total = eigvals.sum()
-        explained = eigvals[:2] / total if total > 1e-10 else np.zeros(2)
-        proj_2d = Z @ eigvecs[:, :2]
+def _pairwise_distance(X: np.ndarray, metric: str) -> np.ndarray:
+    n = X.shape[0]
+    if metric == "cosine":
+        norms = np.linalg.norm(X, axis=1, keepdims=True)
+        norms = np.where(norms > 1e-12, norms, 1.0)
+        Xn = X / norms
+        sim = Xn @ Xn.T
+        return (1.0 - sim).astype(float)
+    # euclidean
+    diff = X[:, None, :] - X[None, :, :]
+    return np.sqrt((diff ** 2).sum(axis=-1))
 
-        # K-means
-        k = min(n_clusters, len(fingerprints))
-        labels, centroids, _ = _kmeans(Z, k, seed=seed)
-        sil_score = _silhouette(Z, labels)
 
-        # Cluster-to-category mapping
-        cluster_mapping = []
-        for cl in range(k):
-            cl_cats = [categories[i] for i in range(len(categories)) if labels[i] == cl]
-            if cl_cats:
-                most_common = Counter(cl_cats).most_common(1)[0]
-                cluster_mapping.append((cl, most_common[0], most_common[1]))
+def _single_linkage_clusters(dmat: np.ndarray, n_clusters: int) -> list[int]:
+    """Simple single-linkage agglomerative clustering.
 
-        # Classification accuracy
-        cat_to_cluster = {}
-        for cl, cat, cnt in cluster_mapping:
-            if cat not in cat_to_cluster:
-                cat_to_cluster[cat] = cl
-        correct = sum(1 for i, cat in enumerate(categories)
-                      if cat_to_cluster.get(cat) == labels[i])
-        accuracy = correct / len(categories) if categories else 0
+    Not optimized — O(n^3) — but fine for session sizes (hundreds of prompts).
+    Starts with each point as its own cluster and merges the nearest pair
+    until only `n_clusters` remain.
+    """
+    n = dmat.shape[0]
+    if n <= n_clusters:
+        return list(range(n))
 
-        # Binary accuracy
-        safe_cats = {"benign", "mild"}
-        binary_true = ["safe" if c in safe_cats else "risk" for c in categories]
-        safe_cluster = None
-        for cl, cat, cnt in cluster_mapping:
-            if cat in safe_cats:
-                safe_cluster = cl
-                break
-        binary_pred = ["safe" if labels[i] == safe_cluster else "risk"
-                       for i in range(len(labels))]
-        binary_accuracy = sum(1 for a, b in zip(binary_true, binary_pred) if a == b) / max(len(binary_true), 1)
+    # Each cluster is represented by its member list
+    clusters: list[list[int]] = [[i] for i in range(n)]
 
-        # Viz data
-        prompts_viz = []
-        for i in range(len(valid_indices)):
-            prompts_viz.append({
-                "idx": int(valid_indices[i]),
-                "x": round(float(proj_2d[i, 0]), 4),
-                "y": round(float(proj_2d[i, 1]), 4),
-                "cluster": int(labels[i]),
-                "category": categories[i],
-                "prompt": (prompts[valid_indices[i]].get("prompt") or "")[:80],
-            })
+    def _min_inter_distance(a, b):
+        return min(dmat[i, j] for i in a for j in b)
 
-        centroids_2d = centroids @ eigvecs[:, :2]
-        clusters_viz = [
-            {"cluster": cl, "x": round(float(centroids_2d[cl, 0]), 4),
-             "y": round(float(centroids_2d[cl, 1]), 4),
-             "n_prompts": int((labels == cl).sum())}
-            for cl in range(k)
-        ]
+    while len(clusters) > n_clusters:
+        best = (0, 1, float("inf"))
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                d = _min_inter_distance(clusters[i], clusters[j])
+                if d < best[2]:
+                    best = (i, j, d)
+        i, j, _ = best
+        clusters[i] = clusters[i] + clusters[j]
+        del clusters[j]
 
-        cat_centroids = {}
-        for cat in set(categories):
-            mask = np.array([c == cat for c in categories])
-            if mask.sum() > 0:
-                cat_centroids[cat] = {
-                    "x": round(float(proj_2d[mask, 0].mean()), 4),
-                    "y": round(float(proj_2d[mask, 1].mean()), 4),
-                    "n": int(mask.sum()),
-                }
+    labels = [0] * n
+    for cid, members in enumerate(clusters):
+        for m in members:
+            labels[m] = cid
+    return labels
 
-        level_names = [l.replace("_", " ") for l in subclasses]
 
-        return {
-            "version": self.version,
-            "n_prompts": len(valid_indices),
-            "n_cells": n_cells,
-            "n_clusters": k,
-            "classes": classes,
-            "subclasses": level_names,
-            "class_short": [s.replace("_", " ").title()[:14] for s in classes],
-            "pca_explained": [round(float(e), 4) for e in explained],
-            "silhouette_score": round(sil_score, 4),
-            "cluster_mapping": [
-                {"cluster": cl, "category": cat, "overlap": cnt}
-                for cl, cat, cnt in cluster_mapping
-            ],
-            "classification": {
-                "overall_accuracy": round(accuracy, 4),
-                "binary": {
-                    "best_accuracy": round(binary_accuracy, 4),
-                    "n_safe": binary_true.count("safe"),
-                    "n_risk": binary_true.count("risk"),
-                },
-            },
-            "prompts": prompts_viz,
-            "clusters": clusters_viz,
-            "category_centroids": cat_centroids,
-        }
-
-    def _get_active_probe_set(self):
-        if self._probe_store is None:
-            return None
-        sets = self._probe_store.list()
-        if not sets:
-            return None
-        return self._probe_store.get_by_id(sets[-1]["set_id"])
+def _pca_2d(X: np.ndarray) -> np.ndarray:
+    """Project X into 2D via SVD. Returns (n, 2) or None on failure."""
+    if X.shape[0] < 2 or X.shape[1] < 1:
+        return None
+    centered = X - X.mean(axis=0)
+    try:
+        _, _, Vt = np.linalg.svd(centered, full_matrices=False)
+        k = min(2, Vt.shape[0])
+        proj = centered @ Vt[:k].T
+        if k < 2:
+            proj = np.hstack([proj, np.zeros((proj.shape[0], 1))])
+        return proj
+    except np.linalg.LinAlgError:
+        return None

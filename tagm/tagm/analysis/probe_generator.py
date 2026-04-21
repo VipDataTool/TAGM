@@ -356,12 +356,9 @@ class ProbeGenerator(AnalysisModule):
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
         skip_dedup = bool(params.get("skip_dedup", False))
 
-        model = self._pipeline.instruct_model or self._pipeline.base_model
+        model = self._pipeline.instruct_model
         tokenizer = self._pipeline.tokenizer
         device = self._pipeline.device
-
-        if model is None:
-            return {"error": "No model loaded."}
 
         # ── Load stopwords ──
         sw_path = _TEMPLATES_DIR / "stopwords.txt"
@@ -736,8 +733,7 @@ class ProbeGenerator(AnalysisModule):
             return {"applied": False, "error": str(e)}
 
         adapter = self._pipeline.adapter
-        model = self._pipeline.instruct_model or self._pipeline.base_model
-        n_layers = adapter.n_layers(model)
+        n_layers = adapter.n_layers(self._pipeline.instruct_model)
 
         gen_params = GenerationParams(
             depth_layers={

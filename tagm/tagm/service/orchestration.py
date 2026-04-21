@@ -455,6 +455,7 @@ class Orchestrator:
         if errors:
             return {"ok": False, "errors": errors, "warnings": []}
 
-        rdict = module.run(session_dict, resolved, probes=probes)
+        result = module.run(session_dict, resolved, probes=probes)
+        rdict = result.to_dict() if hasattr(result, "to_dict") else result
         session.add_analysis(name, rdict)
         return {"ok": True, "errors": [], **rdict}

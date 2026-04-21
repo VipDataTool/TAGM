@@ -1,30 +1,32 @@
-"""Correction Heatmap: per-cell aggregate of correction field interaction.
+"""CorrectionHeatmap: aggregate correction measures per probe cell.
 
-Ported from TASM's engine/modules/correction_heatmap.py. Projects prompt
-tokens through probe refinement deltas to produce aggregate heatmaps.
-Data reading adapted to TAGM's ProbeStore + native measurement schema.
-Output shape matches TASM so renderCorrectionHeatmapResults works unchanged.
+For each (row, column) cell of the active probe template, aggregates
+the correction measures (stress, attribution, density) of every token
+across the session whose best-matching probe landed in that cell.
+
+Produces a (n_rows × n_columns) grid of cell-level mean/std values per
+channel, plus drill-down lists of contributing tokens. Translated from
+TASM's `engine/modules/correction_heatmap.py`. TAGM's per-token alignment
+contract eliminates the off-by-one TASM bug where per_token_final_emb
+was indexed from position 1.
 """
 from __future__ import annotations
 
-import logging
 from collections import defaultdict
-from typing import Optional
+from typing import Any
 
 import numpy as np
 
-from tagm.analysis.base import AnalysisModule
+from tagm.analysis.base import AnalysisModule, AnalysisResult
 from tagm.analysis.registry import register_analysis
 from tagm.measurement.parameters import ModuleParameter
 
-logger = logging.getLogger("tagm")
 
-TOP_N = 15
-
-
-def _get_final_emb(r):
-    pte = ((r.get("measurements") or {}).get("per_token_embedding") or {})
-    return (pte.get("objects") or {}).get("per_token_embeddings", {}).get("final")
+_CHANNELS = {
+    "stress":  ("stress_score", "stress"),
+    "attr":    ("last_position_attribution", "signed_attribution_to_last"),
+    "density": ("spectral_field_density", "density"),
+}
 
 
 @register_analysis
@@ -32,167 +34,129 @@ class CorrectionHeatmap(AnalysisModule):
     name = "correction_heatmap"
     display_name = "Correction Heatmap"
     description = (
-        "Projects prompt tokens through probe refinement deltas "
-        "(escalation - subject depth) to produce an aggregate heatmap "
-        "of correction field interaction across subject × subclass cells."
+        "Per-cell aggregation of correction measures over all tokens whose "
+        "best-matching probe was assigned to that cell. Grid output "
+        "suitable for rendering a template-shaped heatmap."
     )
-    version = "1.0.0"
-    min_results = 1
+    version = "0.1.0"
 
-    depends_on_measurements = ("per_token_embedding",)
+    depends_on_measurements = ("probe_projection", "stress_score")
 
     parameters = [
-        ModuleParameter(name="aggregation", display_name="Aggregation",
-                        description="How to combine per-prompt heatmaps.",
-                        kind="select", default="mean",
-                        options=("mean", "max", "median")),
+        ModuleParameter(
+            name="channel",
+            display_name="Channel",
+            description="Which correction channel to aggregate.",
+            kind="select", default="stress",
+            options=("stress", "attr", "density"),
+        ),
+        ModuleParameter(
+            name="min_tokens_per_cell",
+            display_name="Minimum tokens per cell",
+            description="Cells with fewer contributing tokens are reported "
+                        "as NaN (under-powered).",
+            kind="int", default=5, min_value=1, max_value=100,
+        ),
     ]
 
-    def __init__(self):
-        self._pipeline = None
-        self._probe_store = None
+    def run(self, session, params, probes=None):
+        channel = params.get("channel", "stress")
+        min_n = int(params.get("min_tokens_per_cell", 5))
 
-    def set_pipeline(self, pipeline):
-        self._pipeline = pipeline
+        result = AnalysisResult(
+            analysis_name=self.name,
+            analysis_version=self.version,
+            parameters={"channel": channel, "min_tokens_per_cell": min_n},
+        )
 
-    def set_probe_store(self, probe_store):
-        self._probe_store = probe_store
+        if channel not in _CHANNELS:
+            result.warnings.append(f"Unknown channel '{channel}'")
+            return result
 
-    def check_dependencies(self, session: dict) -> list[str]:
-        errors = super().check_dependencies(session)
-        if self._probe_store is None:
-            errors.append("Correction Heatmap requires a probe store.")
-        return errors
-
-    def run(self, session: dict, params: dict,
-            probes: Optional[dict] = None) -> dict:
+        meas_name, field_name = _CHANNELS[channel]
         prompts = session.get("prompts") or []
-        aggregation = params.get("aggregation", "mean")
 
-        # Find active probe set
-        probe_set = self._get_active_probe_set()
-        if probe_set is None:
-            return {"error": "No active probe set. Generate probes first."}
+        # Cell-keyed accumulators
+        cell_values: dict[str, list[float]] = defaultdict(list)
+        cell_tokens: dict[str, list[dict]] = defaultdict(list)
+        probe_labels_seen: set[str] = set()
 
-        subjects = list(dict.fromkeys(p.row for p in probe_set.probes))
-        subclasses = list(dict.fromkeys(p.column for p in probe_set.probes))
-        n_subj = len(subjects)
-        n_levels = len(subclasses)
-        subj_idx = {s: i for i, s in enumerate(subjects)}
-        level_idx = {l: i for i, l in enumerate(subclasses)}
+        for prompt_idx, p in enumerate(prompts):
+            ms = p.get("measurements") or {}
+            proj = ms.get("probe_projection") or {}
+            labels = (proj.get("objects") or {}).get("probe_labels") or []
+            per_token = proj.get("per_token") or {}
+            best_idx = per_token.get("best_class_idx") or []
+            best_score = per_token.get("best_score") or []
 
-        # Get probe embeddings at subject and escalation depths
-        depth_labels = probe_set.depth_labels
-        if len(depth_labels) < 2:
-            return {"error": "Probe set needs at least 2 depths (subject + escalation)."}
-
-        subj_depth = depth_labels[0]
-        esc_depth = depth_labels[1]
-
-        subj_mat, subj_labels = probe_set.embeddings_matrix(subj_depth)
-        esc_mat, esc_labels = probe_set.embeddings_matrix(esc_depth)
-
-        if subj_mat.shape[0] == 0 or esc_mat.shape[0] == 0:
-            return {"error": "Probe embeddings missing at required depths."}
-
-        # Compute probe deltas: escalation - subject
-        delta_mat = esc_mat - subj_mat  # (n_probes, hidden_size)
-
-        # Map probes to grid cells
-        probe_cell_map = []
-        for p in probe_set.probes:
-            si = subj_idx.get(p.row, 0)
-            li = level_idx.get(p.column, 0)
-            probe_cell_map.append((si, li))
-
-        # Process prompts: project tokens through probe deltas
-        per_prompt_grids = []
-        all_cats_seen = set()
-        cat_names = {"b": "benign", "m": "mild", "h": "harmful",
-                     "j": "jailbreak", "a": "adversarial",
-                     "d": "dual-use", "u": "unknown"}
-        n_prompts_projected = 0
-
-        for r in prompts:
-            fe = _get_final_emb(r)
-            if fe is None or len(fe) == 0:
-                per_prompt_grids.append(None)
+            if not labels or not best_idx:
                 continue
 
-            emb_arr = np.array(fe, dtype=np.float32)
-            tokens = r.get("tokens", [])
-            n_tok = min(len(tokens), emb_arr.shape[0])
-            cat = ((r.get("category") or "unknown")[:1]).lower()
-            all_cats_seen.add(cat)
+            ch_meas = ms.get(meas_name) or {}
+            values = (ch_meas.get("per_token") or {}).get(field_name) or []
+            tokens = p.get("tokens") or []
 
-            # Dot product: each token against each probe delta
-            # (n_tok, hidden) @ (n_probes, hidden).T = (n_tok, n_probes)
-            if emb_arr.shape[1] != delta_mat.shape[1]:
-                per_prompt_grids.append(None)
-                continue
+            seq_len = min(len(best_idx), len(values), len(tokens))
+            for i in range(seq_len):
+                idx = best_idx[i]
+                val = values[i]
+                if idx is None or val is None:
+                    continue
+                try:
+                    idx_i = int(idx)
+                    val_f = float(val)
+                except (TypeError, ValueError):
+                    continue
+                if np.isnan(val_f) or np.isinf(val_f):
+                    continue
+                if not (0 <= idx_i < len(labels)):
+                    continue
+                label = labels[idx_i]
+                probe_labels_seen.add(label)
+                cell_values[label].append(val_f)
+                score = best_score[i] if i < len(best_score) else None
+                cell_tokens[label].append({
+                    "prompt_idx": prompt_idx,
+                    "position": i,
+                    "token": tokens[i],
+                    "value": val_f,
+                    "match_score": float(score) if score is not None else None,
+                })
 
-            scores = emb_arr[:n_tok] @ delta_mat.T  # (n_tok, n_probes)
-
-            # Aggregate into grid cells
-            grid = np.zeros((n_subj, n_levels))
-            grid_count = np.zeros((n_subj, n_levels))
-            for pi, (si, li) in enumerate(probe_cell_map):
-                cell_scores = scores[:, pi]  # all tokens for this probe
-                grid[si, li] += float(np.mean(np.abs(cell_scores)))
-                grid_count[si, li] += 1
-
-            mask = grid_count > 0
-            grid[mask] /= grid_count[mask]
-
-            per_prompt_grids.append(grid)
-            n_prompts_projected += 1
-
-        # Aggregate across prompts
-        valid_grids = [g for g in per_prompt_grids if g is not None]
-        if not valid_grids:
-            return {"error": "No prompts with token embeddings."}
-
-        stacked = np.stack(valid_grids)
-        if aggregation == "max":
-            aggregate = np.max(stacked, axis=0)
-        elif aggregation == "median":
-            aggregate = np.median(stacked, axis=0)
-        else:
-            aggregate = np.mean(stacked, axis=0)
-
-        variance = np.var(stacked, axis=0) if len(valid_grids) > 1 else np.zeros_like(aggregate)
-
-        subj_short = [s.replace("_", " ").title()[:14] for s in subjects]
-        level_names = [l.replace("_", " ") for l in subclasses]
-
-        return {
-            "version": self.version,
-            "probe_file": probe_set.template_name,
-            "subjects": subjects,
-            "subj_short": subj_short,
-            "levels": level_names,
-            "n_prompts": len(prompts),
-            "n_probes": len(probe_set.probes),
-            "aggregate": aggregate.tolist(),
-            "variance": variance.tolist(),
-            "cell_details": {},
-            "categories": {k: cat_names.get(k, k) for k in sorted(all_cats_seen)},
-            "per_subject": {
-                subj: {
-                    "mean_activation": float(aggregate[si].mean()),
-                    "max_activation": float(aggregate[si].max()),
-                    "mean_variance": float(variance[si].mean()),
+        # Compute cell statistics
+        cell_stats: dict[str, dict] = {}
+        for label in sorted(probe_labels_seen):
+            vals = cell_values[label]
+            if len(vals) < min_n:
+                cell_stats[label] = {
+                    "n": len(vals),
+                    "mean": float("nan"),
+                    "std": float("nan"),
+                    "min": float("nan"),
+                    "max": float("nan"),
+                    "underpowered": True,
                 }
-                for si, subj in enumerate(subjects)
-            },
-        }
+                continue
+            arr = np.array(vals, dtype=float)
+            cell_stats[label] = {
+                "n": len(vals),
+                "mean": float(arr.mean()),
+                "std": float(arr.std(ddof=1)) if len(arr) > 1 else 0.0,
+                "min": float(arr.min()),
+                "max": float(arr.max()),
+                "underpowered": False,
+            }
 
-    def _get_active_probe_set(self):
-        if self._probe_store is None:
-            return None
-        sets = self._probe_store.list()
-        if not sets:
-            return None
-        # Use most recent probe set
-        latest = sets[-1]
-        return self._probe_store.get_by_id(latest["set_id"])
+        # Top contributing tokens per cell (sorted by value magnitude)
+        top_tokens_per_cell = {}
+        for label, recs in cell_tokens.items():
+            top_tokens_per_cell[label] = sorted(
+                recs, key=lambda r: abs(r["value"]), reverse=True,
+            )[:20]
+
+        result.objects["cell_stats"] = cell_stats
+        result.objects["top_tokens_per_cell"] = top_tokens_per_cell
+        result.scalars["n_cells"] = len(cell_stats)
+        result.scalars["n_tokens_attributed"] = sum(s["n"] for s in cell_stats.values())
+        result.scalars["n_prompts"] = len(prompts)
+        return result

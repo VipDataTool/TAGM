@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -83,7 +83,7 @@ class AnalysisModule(ABC):
 
     @abstractmethod
     def run(self, session: dict, params: dict,
-            probes: Optional[dict] = None) -> AnalysisResult:
+            probes: Optional[dict] = None) -> Union[AnalysisResult, dict]:
         """Compute the analysis from a session record.
 
         session: dict in the canonical session shape. Keys include:
@@ -98,8 +98,8 @@ class AnalysisModule(ABC):
         probes: optional probe data (for analyses that need probe sets
         directly, like correction_manifold).
 
-        Returns an AnalysisResult. The framework merges it into the
-        session record under result.analysis_name.
+        Returns an AnalysisResult or a plain dict. The framework merges
+        it into the session record under the analysis name.
         """
         ...
 

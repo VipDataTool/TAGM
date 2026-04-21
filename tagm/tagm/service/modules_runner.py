@@ -212,7 +212,8 @@ class ModuleRunner:
                         module.set_probe_store(orchestrator.probe_store)
                     if hasattr(module, 'set_progress'):
                         module.set_progress(lambda msg: _prog("running", msg))
-                    rdict = module.run(session_dict, resolved)
+                    result = module.run(session_dict, resolved)
+                    rdict = result.to_dict() if hasattr(result, "to_dict") else result
                     session.add_analysis(st.name, rdict)
                     st.results = rdict
                 _prog("done", "complete")
