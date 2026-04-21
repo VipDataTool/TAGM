@@ -53,6 +53,9 @@ from tagm.probes.generator import EmbeddingGenerator, GenerationParams
 from tagm.probes.template import load_template, parse_template_csv
 from tagm.core.cache import Cache
 
+# Trigger analysis module registration (decorators fire on import)
+import tagm.analysis  # noqa: F401
+
 logger = logging.getLogger("tagm")
 
 _PACKAGE_DIR = Path(__file__).parent
@@ -425,12 +428,12 @@ async def export_session(request: Request):
 
     def _do_export():
         global _export_ready, _export_path
-        state.progress("export", "Preparing export...")
+        state.progress("exporting", "Preparing export...")
         p = _cache.layout.sessions / f"session_{state.session.session_id}.json.gz"
         _export(state.session, p)
         _export_path = p
         _export_ready = True
-        state.progress("ready", f"Export ready: {p.name}")
+        state.progress("done", f"Export ready: {p.name}")
 
     _export_ready = False
     await run_in_threadpool(_do_export)
@@ -450,12 +453,16 @@ async def export_download():
 
 @app.get("/api/plots/{plot_key}")
 async def get_plot(plot_key: str):
-    from tagm.service.plots import generate_batch_plot
+    """Batch-level plot. Renders from first result that has the data."""
+    from tagm.service.plots import render_plot
+    if not state.session.results:
+        raise HTTPException(status_code=404, detail="No data in session.")
+    # For batch-level plots, use the first result as representative
+    # (true batch aggregation plots are a future enhancement)
     try:
-        img = await run_in_threadpool(
-            generate_batch_plot, plot_key, state.session.results)
+        img = await run_in_threadpool(render_plot, plot_key, state.session.results[0])
         if img is None:
-            raise HTTPException(status_code=404, detail=f"No data for plot '{plot_key}'")
+            raise HTTPException(status_code=404, detail=f"Unknown plot '{plot_key}'")
         return StreamingResponse(_io.BytesIO(img), media_type="image/png")
     except HTTPException:
         raise
@@ -464,14 +471,13 @@ async def get_plot(plot_key: str):
 
 @app.get("/api/plots/individual/{index}/{plot_key}")
 async def get_individual_plot(index: int, plot_key: str):
-    from tagm.service.plots import generate_individual_plot
+    from tagm.service.plots import render_plot
     if index >= len(state.session.results):
         raise HTTPException(status_code=404)
     try:
-        img = await run_in_threadpool(
-            generate_individual_plot, plot_key, state.session.results[index])
+        img = await run_in_threadpool(render_plot, plot_key, state.session.results[index])
         if img is None:
-            raise HTTPException(status_code=404, detail=f"No data for plot '{plot_key}'")
+            raise HTTPException(status_code=404, detail=f"Unknown plot '{plot_key}'")
         return StreamingResponse(_io.BytesIO(img), media_type="image/png")
     except HTTPException:
         raise
