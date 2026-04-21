@@ -61,6 +61,7 @@ class LastPositionAttribution(MeasurementModule):
             ),
             kind="float",
             default=0.1, min_value=0.0, max_value=0.5,
+            engine_config_key="boundary_fraction",
         ),
         ModuleParameter(
             name="proof1_threshold",
@@ -72,6 +73,7 @@ class LastPositionAttribution(MeasurementModule):
             kind="float",
             default=1e-4, min_value=0.0,
             advanced=True,
+            engine_config_key="proof1_threshold",
         ),
     ]
 

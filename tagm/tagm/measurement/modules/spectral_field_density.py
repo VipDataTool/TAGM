@@ -165,12 +165,14 @@ class SpectralFieldDensity(MeasurementModule):
             description=("Number of right singular vectors retained for "
                          "per-token projection."),
             kind="int", default=16, min_value=1, max_value=256,
+            engine_config_key="sfd_svd_k",
         ),
         ModuleParameter(
             name="svd_seed",
             display_name="SVD random seed",
             description="Deterministic seed for torch.svd_lowrank.",
             kind="int", default=42, advanced=True,
+            engine_config_key="sfd_svd_seed",
         ),
     ]
 

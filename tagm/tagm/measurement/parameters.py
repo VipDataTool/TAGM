@@ -29,6 +29,16 @@ class ModuleParameter:
     Declared as a class-attribute list on the module. The framework uses
     the declarations to (1) render UI, (2) validate, (3) fill defaults,
     (4) record resolved values on the result.
+
+    `engine_config_key` (optional): name of a key in the global
+    `tagm.engine_config` registry to read the default from at parameter
+    resolution time. When set, the live engine_config value wins over
+    the static `default` field. The static default is used only as a
+    fallback if engine_config has no value for the key. This lets the
+    Advanced Parameters panel control default values for measurement
+    parameters that mirror engine_config keys (e.g. proof1_threshold,
+    ltp_overfetch_first), while still allowing per-module override on
+    a single run.
     """
     name: str
     display_name: str
@@ -39,6 +49,7 @@ class ModuleParameter:
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     advanced: bool = False           # UI hint: hide behind an "advanced" toggle
+    engine_config_key: Optional[str] = None
 
     def __post_init__(self):
         if self.kind not in VALID_KINDS:
@@ -116,9 +127,13 @@ def resolve_parameters(declared: list[ModuleParameter],
                         user_supplied: Optional[dict] = None) -> dict:
     """Merge user-supplied parameter values with declared defaults.
 
-    For each declared parameter, use the user-supplied value if present,
-    otherwise the default. Unknown user-supplied keys raise ValueError
-    (they indicate a stale UI or a typo).
+    For each declared parameter:
+      - if the user supplied a value, use it;
+      - else if the parameter declares an `engine_config_key`, read the
+        live engine_config value (falling back to `default` if absent);
+      - else use the declared `default`.
+
+    Unknown user-supplied keys raise ValueError (stale UI or typo).
     """
     user = dict(user_supplied or {})
     declared_names = {p.name for p in declared}
@@ -129,10 +144,23 @@ def resolve_parameters(declared: list[ModuleParameter],
             f"Unknown parameter(s) for this module: {sorted(unknown)}. "
             f"Declared: {sorted(declared_names)}")
 
+    # Lazy-import engine_config to avoid a hard cycle at import time.
+    # (engine_config is stdlib-only and has no module-level side effects
+    # beyond reading its persisted file, so this is safe.)
+    def _live_default(p: ModuleParameter) -> Any:
+        if not p.engine_config_key:
+            return p.default
+        try:
+            from tagm import engine_config as _ec
+            v = _ec.get(p.engine_config_key)
+            return v if v is not None else p.default
+        except Exception:
+            return p.default
+
     resolved: dict = {}
     errors: list[str] = []
     for p in declared:
-        value = user.get(p.name, p.default)
+        value = user[p.name] if p.name in user else _live_default(p)
         if value is not None:
             for e in p.validate(value):
                 errors.append(e)

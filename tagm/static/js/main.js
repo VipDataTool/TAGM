@@ -1732,6 +1732,16 @@ var ENGINE_PARAM_META = {
   chat_temperature:        {group:'Chat Generation', label:'Temperature',                 desc:'Sampling temperature for chat responses. Lower = more deterministic.', type:'float', step:0.05, min:0.0, max:2.0},
   chat_top_p:              {group:'Chat Generation', label:'Top-p (nucleus)',              desc:'Nucleus sampling threshold. Lower = fewer candidate tokens.', type:'float', step:0.05, min:0.1, max:1.0},
   chat_max_tokens:         {group:'Chat Generation', label:'Max tokens',                  desc:'Maximum tokens generated per chat response.', type:'int', min:32, max:2048, step:32},
+  auto_enable_amplitude_trajectory:      {group:'Auto-Analyze', label:'Amplitude trajectory',         desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_amplitude_derived_metrics: {group:'Auto-Analyze', label:'Amplitude derived metrics',    desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_stress_score:              {group:'Auto-Analyze', label:'Stress score',                  desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_last_position_attribution: {group:'Auto-Analyze', label:'Last-position attribution',     desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_lateral_tension_profile:   {group:'Auto-Analyze', label:'Lateral tension profile (LTP)', desc:'Requires base model loaded. Auto-enable when user clicks Analyze.', type:'bool'},
+  auto_enable_spectral_field_density:    {group:'Auto-Analyze', label:'Spectral field density (SFD)',  desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_rank_displacement:         {group:'Auto-Analyze', label:'Rank displacement (RD)',         desc:'Requires base model loaded. Auto-enable when user clicks Analyze.', type:'bool'},
+  auto_enable_probe_projection:          {group:'Auto-Analyze', label:'Probe projection',               desc:'Requires applied probe set. Auto-enable when user clicks Analyze.', type:'bool'},
+  auto_enable_per_token_embedding:       {group:'Auto-Analyze', label:'Per-token embedding',            desc:'Auto-enable when user clicks Analyze without explicit selection.', type:'bool'},
+  auto_enable_backscatter_projection:    {group:'Auto-Analyze', label:'Backscatter projection',         desc:'Requires applied probe set. Auto-enable when user clicks Analyze.', type:'bool'},
 };
 
 function _advToggleLock(unlocked){

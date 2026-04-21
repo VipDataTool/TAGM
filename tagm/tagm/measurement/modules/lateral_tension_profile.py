@@ -73,12 +73,14 @@ class LateralTensionProfile(MeasurementModule):
             description=("Extra candidates beyond k on the first topk call to "
                          "ensure k non-chosen remain."),
             kind="int", default=1, min_value=0, max_value=32, advanced=True,
+            engine_config_key="ltp_overfetch_first",
         ),
         ModuleParameter(
             name="overfetch_second",
             display_name="Overfetch (second pass)",
             description="Wider overfetch if first pass didn't yield k candidates.",
             kind="int", default=5, min_value=0, max_value=64, advanced=True,
+            engine_config_key="ltp_overfetch_second",
         ),
         ModuleParameter(
             name="prc_threshold",

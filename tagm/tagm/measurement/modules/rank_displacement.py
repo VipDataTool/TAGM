@@ -51,6 +51,7 @@ class RankDisplacement(MeasurementModule):
             display_name="Min shared candidates for tau",
             description="Minimum candidates in both banks to compute Kendall's tau.",
             kind="int", default=2, min_value=0, max_value=10, advanced=True,
+            engine_config_key="rd_min_shared",
         ),
     ]
 

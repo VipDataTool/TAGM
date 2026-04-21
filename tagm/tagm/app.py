@@ -625,6 +625,82 @@ async def api_configure(request: Request):
     return {"ok": ok, **report}
 
 
+# ─── Defaults for the TASM-derived UI ──────────────────────────────
+#
+# The legacy frontend doesn't issue explicit /api/capture and
+# /api/configure calls — TASM auto-derived them from analysis-options
+# checkboxes. We preserve that UX by installing sane defaults at the
+# moment the user clicks Analyze, if nothing is configured yet.
+#
+# Default capture: hidden states at every layer at pre_attn_norm,
+# post_attn_norm, mlp_output, plus attention_weights at attn_output.
+# Covers what the no-base/no-probe baseline measurements need.
+#
+# Default measurement selection: every registered measurement whose
+# `auto_enable_<name>` flag in engine_config is True. Pulled fresh
+# every call — when the user toggles a flag in the Advanced Parameters
+# panel, the next Analyze respects the new setting without a restart.
+
+def _auto_enabled_measurement_names() -> list[str]:
+    """Return measurement names whose auto_enable_<name> engine_config
+    flag is True. Read fresh from engine_config on every call."""
+    from tagm import engine_config as _ec
+    names: list[str] = []
+    for meta in list_measurements():
+        n = meta["name"]
+        if _ec.get(f"auto_enable_{n}"):
+            names.append(n)
+    return names
+
+
+def _build_default_capture(orch) -> "CaptureConfig":
+    """Construct a default CaptureConfig sized to the loaded pipeline."""
+    from tagm.core.capture.config import CaptureConfig, CapturePoint
+    n_layers = orch.pipeline.adapter.n_layers(orch.pipeline.instruct_model)
+    points: list[CapturePoint] = []
+    for layer in range(n_layers):
+        points.append(CapturePoint(
+            layer=layer, hook_point="pre_attn_norm",
+            capture=frozenset({"hidden"}),
+        ))
+        points.append(CapturePoint(
+            layer=layer, hook_point="post_attn_norm",
+            capture=frozenset({"hidden"}),
+        ))
+        points.append(CapturePoint(
+            layer=layer, hook_point="mlp_output",
+            capture=frozenset({"hidden"}),
+        ))
+        points.append(CapturePoint(
+            layer=layer, hook_point="attn_output",
+            capture=frozenset({"hidden", "attention_weights"}),
+        ))
+    return CaptureConfig(
+        name="auto_default",
+        description="Auto-installed default capture for analyze",
+        points=tuple(points),
+    )
+
+
+def _install_default_measurements(orch) -> None:
+    """Configure the orchestrator with the auto-enabled measurement set
+    from engine_config. Empty if no flags are on."""
+    names = _auto_enabled_measurement_names()
+    if not names:
+        return
+    selections = [(name, {}) for name in names]
+    report = orch.configure_measurements(selections)
+    state.selected_measurements = [
+        (name, p) for name, p in report["selected"]
+    ]
+
+
+def _install_default_capture_and_measurements(orch) -> None:
+    cap = _build_default_capture(orch)
+    orch.set_capture_config(cap)
+    _install_default_measurements(orch)
+
+
 @app.post("/api/analyze")
 async def api_analyze(request: Request):
     """Analyze a single prompt.
@@ -655,12 +731,33 @@ async def api_analyze(request: Request):
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt required")
     orch = state.require_orchestrator()
+
+    # The TASM-derived UI doesn't call /api/capture or /api/configure
+    # explicitly — TASM auto-configured these from analysis-options
+    # checkboxes. Keep the same UX: if nothing is set, install a
+    # sensible default capture + a baseline set of measurements that
+    # don't require base model or probes.
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
-    if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        try:
+            _install_default_capture_and_measurements(orch)
+            state.progress(
+                "configure",
+                "Auto-configured default capture + measurements for analyze")
+        except Exception as e:
+            logger.exception("auto-default capture/measurements failed")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not auto-configure analyze defaults: {e}")
+    elif not orch._selected:
+        try:
+            _install_default_measurements(orch)
+            state.progress(
+                "configure", "Auto-selected default measurements for analyze")
+        except Exception as e:
+            logger.exception("auto-default measurements failed")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not auto-select measurements: {e}")
 
     def _do_analyze():
         return orch.analyze_prompt(prompt, category=category,
@@ -700,11 +797,17 @@ async def api_batch(request: Request):
         raise HTTPException(status_code=400, detail="prompts required (list)")
     orch = state.require_orchestrator()
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
-    if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        try:
+            _install_default_capture_and_measurements(orch)
+        except Exception as e:
+            raise HTTPException(status_code=500,
+                                 detail=f"auto-config failed: {e}")
+    elif not orch._selected:
+        try:
+            _install_default_measurements(orch)
+        except Exception as e:
+            raise HTTPException(status_code=500,
+                                 detail=f"auto-config failed: {e}")
 
     def _do_batch():
         return orch.analyze_batch(prompts, session=state.session,
@@ -761,11 +864,17 @@ async def api_analyze_batch(request: Request):
 
     orch = state.require_orchestrator()
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
-    if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        try:
+            _install_default_capture_and_measurements(orch)
+        except Exception as e:
+            raise HTTPException(status_code=500,
+                                 detail=f"auto-config failed: {e}")
+    elif not orch._selected:
+        try:
+            _install_default_measurements(orch)
+        except Exception as e:
+            raise HTTPException(status_code=500,
+                                 detail=f"auto-config failed: {e}")
 
     with _batch_lock:
         if _batch_running:
@@ -1628,92 +1737,45 @@ async def api_modules_download_log(module_name: str):
                          filename=f"module_{module_name}_log.json")
 
 
-# ─── Engine config (TASM-compat) ───────────────────────────────────
+# ─── Engine config ─────────────────────────────────────────────────
 #
-# TASM exposed engine-wide parameters through this endpoint with
-# defaults that the UI presented as an "Advanced Parameters" panel.
-# In TAGM, most of those parameters now live per-measurement (as
-# scope parameters) and the orchestrator carries no engine-wide
-# settings. We expose a small set of orchestrator-level defaults
-# and accept arbitrary key/value updates that get echoed back.
+# Centralized registry of measurement-affecting parameters. Lives in
+# `tagm/engine_config.py` (port of TASM's engine/engine_config.py).
+# Measurements and analyses read values via `engine_config.get(...)`;
+# the Advanced Parameters panel in the UI Config tab edits them.
+# Persisted to disk so changes survive process restarts.
 
-_ENGINE_DEFAULTS = {
-    # Default measurement parameters that apply across runs
-    "ltp_k": 8,
-    "ltp_layer_strategy": "signal",
-    "ltp_svd_rank": 0,
-    "sfd_svd_k": 16,
-    "sfd_svd_seed": 42,
-    "compute_kl": False,
-    "compute_trajectory": True,
-    "compute_ltp": False,
-    "compute_sfd": False,
-    "topk": 8,
-    # Statistics
-    "boundary_fraction": 0.1,
-    "proof1_threshold": 1e-4,
-    # Serialization
-    "max_export_size_mb": 50,
-}
-
-_engine_config: dict = dict(_ENGINE_DEFAULTS)
+from tagm import engine_config as _engine_cfg
 
 
 @app.get("/api/engine_config")
 async def api_engine_config_get():
-    """Return current engine-wide config and defaults."""
+    """Return current engine config and the defaults map."""
     return {
         "ok": True,
-        "config": dict(_engine_config),
-        "defaults": dict(_ENGINE_DEFAULTS),
+        "config": _engine_cfg.as_dict(),
+        "defaults": _engine_cfg.defaults(),
     }
 
 
 @app.post("/api/engine_config")
 async def api_engine_config_set(request: Request):
-    """Update engine-wide config. Body: JSON {key: value, ...}.
-
-    Unknown keys are accepted (forward compat); type-checked against
-    defaults when present in the defaults dict."""
+    """Update engine config. Body: JSON {key: value, ...}. Unknown keys
+    are ignored (logged). Coercion to declared types is automatic."""
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    updates = body if isinstance(body, dict) else {}
-    if not updates:
+    if not isinstance(body, dict) or not body:
         raise HTTPException(status_code=400, detail="No updates provided")
-
-    for k, v in updates.items():
-        if k in _ENGINE_DEFAULTS:
-            default = _ENGINE_DEFAULTS[k]
-            # Coerce numeric/boolean types where defaults indicate
-            if isinstance(default, bool):
-                v = bool(v) if not isinstance(v, str) else v.lower() in (
-                    "true", "1", "yes")
-            elif isinstance(default, int) and not isinstance(default, bool):
-                try:
-                    v = int(v)
-                except (TypeError, ValueError):
-                    raise HTTPException(status_code=400,
-                                         detail=f"'{k}' must be int")
-            elif isinstance(default, float):
-                try:
-                    v = float(v)
-                except (TypeError, ValueError):
-                    raise HTTPException(status_code=400,
-                                         detail=f"'{k}' must be float")
-        _engine_config[k] = v
-
-    return {"ok": True, "config": dict(_engine_config)}
+    updated = _engine_cfg.update(body)
+    return {"ok": True, "config": updated}
 
 
 @app.post("/api/engine_config/reset")
 async def api_engine_config_reset():
     """Reset engine config to defaults."""
-    global _engine_config
-    _engine_config = dict(_ENGINE_DEFAULTS)
-    return {"ok": True, "config": dict(_engine_config)}
+    return {"ok": True, "config": _engine_cfg.reset()}
 
 
 # ─── Probe set apply / status / clear (TASM-compat) ────────────────
