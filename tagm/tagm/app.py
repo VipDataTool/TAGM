@@ -47,14 +47,11 @@ from tagm.engine.app_core import (
     _analysis_lock,
     MODELS_FILE, CONFIG_FILE,
 )
-from tagm.service.modules_runner import ModuleRunner
+from tagm.engine.modules import ModuleRunner
 from tagm.probes.store import ProbeStore
 from tagm.probes.generator import EmbeddingGenerator, GenerationParams
 from tagm.probes.template import load_template, parse_template_csv
 from tagm.core.cache import Cache
-
-# Trigger analysis module registration (decorators fire on import)
-import tagm.analysis  # noqa: F401
 
 logger = logging.getLogger("tagm")
 
@@ -339,9 +336,12 @@ async def run_module(module_name: str, request: Request):
             body = await request.json()
         except Exception:
             body = {}
-    result = _module_runner.run(
-        name=module_name, session=state.session,
-        params=body.get("params", {}), progress_fn=state.progress,
+    params = body.get("params") or {}
+    result = _module_runner.run_module(
+        name=module_name,
+        session_results=state.session.results,
+        params=params,
+        session_dir=state.session.session_dir if hasattr(state.session, 'session_dir') else None,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "run failed"))
@@ -355,20 +355,12 @@ async def module_status(module_name: str):
 async def module_results(module_name: str):
     results = _module_runner.get_results(module_name)
     if results is None:
-        # Fallback: look for data in session results
-        per_prompt = []
-        for r in state.session.results:
-            if module_name in (r.get("_tagm_analysis") or {}):
-                per_prompt.append(r)
-        if per_prompt:
-            results = {"ok": True, "name": module_name, "per_prompt": per_prompt}
-    if results is None:
         raise HTTPException(status_code=404, detail=f"No results for '{module_name}'.")
     return {"ok": True, "results": results}
 
 @app.post("/api/modules/{module_name}/reset")
 async def reset_module(module_name: str):
-    return _module_runner.reset(module_name)
+    return _module_runner.reset_module(module_name)
 
 @app.get("/api/modules/{module_name}/download_log")
 async def download_module_log(module_name: str):
