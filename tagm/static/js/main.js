@@ -301,7 +301,7 @@ async function restoreSessionFromDisk(){
       log('Session restored: '+r.n_results+' results'+(r.model?' ('+r.model+')':''),'done');
       vizRenderConfig(); // refresh config panel to update session info
     }else{
-      log('Restore failed: '+(r.error||'unknown error'),'error');
+      log('Restore failed: '+(r.detail||r.error||'unknown error'),'error');
     }
   }catch(e){log('Restore error: '+e.message,'error')}
 }
@@ -311,7 +311,7 @@ async function clearPlotCache(){
   try{
     const r=await(await fetch('/api/session/clear_plots',{method:'POST'})).json();
     if(r.ok){_cacheBytes=r.cache_size_bytes||0;updateSessionBadge();if($('cfgCacheSize'))$('cfgCacheSize').textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';log(`Plot cache cleared: ${r.freed_mb}MB freed`,'done')}
-    else{log('Clear failed: '+(r.error||''),'error')}
+    else{log('Clear failed: '+(r.detail||r.error||'unknown error'),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
 
@@ -320,7 +320,7 @@ async function clearAllSessionData(){
   try{
     const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
     if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
-    else{log('Clear failed: '+(r.error||''),'error')}
+    else{log('Clear failed: '+(r.detail||r.error||'unknown error'),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
 
@@ -360,7 +360,7 @@ async function addModel(){
     const r=await(await fetch('/api/models',{method:'POST',body:fd})).json();
     if(r.ok){log('Model pair added','done');$('addModelForm').classList.remove('visible');loadModelList();
       ['newModelId','newModelName','newModelBase','newModelInstruct'].forEach(i=>$(i).value='');}
-    else log('Error: '+(r.error||''),'error');
+    else log('Error: '+(r.detail||r.error||'unknown error'),'error');
   }catch(e){log('Error: '+e.message,'error')}
 }
 
@@ -467,7 +467,7 @@ async function analyzePrompt(){
       throw fetchErr;
     }
     if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
-    else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
+    else{var msg=data.detail||data.error||(resp&&!resp.ok?('HTTP '+resp.status+' '+(resp.statusText||'')):'Unknown');log('Error: '+msg,'error');showError('promptError',msg)}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
 }
@@ -479,7 +479,7 @@ async function analyzeBatch(){
   fd.append('file',file);fd.append('compute_trajectory',false);
   try{
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
-    if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
+    if(!data.ok){var msg=data.detail||data.error||(resp&&!resp.ok?('HTTP '+resp.status+' '+(resp.statusText||'')):'Unknown');log('Error: '+msg,'error');setLoading(btn,false);return}
     log(`Batch started: ${data.n_prompts} prompts...`);
     // Start reading from current log length so we don't see
     // done messages from a previous batch.
@@ -528,7 +528,7 @@ async function refreshSession(){
     const resp=await fetch('/api/dashboard');
     if(!resp.ok){log('Session refresh HTTP error: '+resp.status,'error');return}
     const data=await resp.json();
-    if(!data.ok){log('Session refresh: '+(data.error||'unknown error'),'error');return}
+    if(!data.ok){log('Session refresh: '+(data.detail||data.error||'unknown error'),'error');return}
 
     dashResults=data.results||[];
     if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;
@@ -567,7 +567,7 @@ async function exportSession(){
     const curProg=await(await fetch('/api/progress')).json();
     let lastLen=curProg.log.length;
     const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)});const data=await r.json();
-    if(!data.ok){log('Export error: '+(data.error||''),'error');_busy=false;return}
+    if(!data.ok){var msg=data.detail||data.error||(r&&!r.ok?('HTTP '+r.status+' '+(r.statusText||'')):'Unknown');log('Export error: '+msg,'error');_busy=false;return}
     log('Export started...');
     async function pollExport(){
       try{
@@ -872,7 +872,7 @@ async function dtRemoveSelected(){
       _promptTotal=r.remaining;
       dashResults=[];
       updateSessionBadge();renderDataTable();
-    } else { log('Remove failed: '+(r.error||'unknown'),'error') }
+    } else { log('Remove failed: '+(r.detail||r.error||'unknown'),'error') }
   }catch(e){log('Remove error: '+e.message,'error')}
 }
 
@@ -900,7 +900,7 @@ async function dtRerunSelected(){
       _promptTotal=r.total;
       dashResults=[];
       updateSessionBadge();dashResults=[];renderDataTable();
-    } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
+    } else { log('Rerun failed: '+(r.detail||r.error||'unknown'),'error') }
   }catch(e){log('Rerun error: '+e.message,'error')}
 }
 
@@ -1054,7 +1054,7 @@ function loadFromLibrary(){const s=$('promptLibrary');if(s.value==='')return;con
 async function addCurrentToLibrary(){
   const p=$('promptInput').value.trim();if(!p){showError('promptError','No prompt to save.');return}
   const fd=new FormData();fd.append('prompt',p);fd.append('category',$('categorySelect').value||'benign');fd.append('baseline',false);
-  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.error||'Failed')}catch(e){}
+  try{const r=await(await fetch('/api/prompts',{method:'POST',body:fd})).json();if(r.ok){promptLibraryData=r.prompts;renderPromptLibrary();log('Saved to library','done')}else showError('promptError',r.detail||r.error||'Failed')}catch(e){}
 }
 
 // ─── Keyboard Navigation ────────────────────────────────────────
@@ -1932,7 +1932,7 @@ async function applyProbeSet(){
     fd.append('file', picker.files[0]);
     var r = await(await fetch('/api/probe_set/apply', {method:'POST', body:fd})).json();
     if(!r.ok){
-      status.textContent = 'Error: ' + (r.error||'Unknown');
+      status.textContent = 'Error: ' + (r.detail||r.error||'Unknown');
       status.style.color = 'var(--red)';
       btn.disabled = false;
       btn.textContent = 'Apply';
@@ -1996,7 +1996,7 @@ async function clearProbeCaches(){
       status.style.color = 'var(--text-2)';
       log('Probe caches cleared: ' + r.deleted + ' files', 'done');
     } else {
-      status.textContent = 'Error: ' + (r.error||'Unknown');
+      status.textContent = 'Error: ' + (r.detail||r.error||'Unknown');
       status.style.color = 'var(--red)';
     }
   } catch(e) {
@@ -2542,7 +2542,7 @@ async function runModule(name) {
         fd.append('file', fi.files[0]);
         var ur = await fetch('/api/modules/upload_template', {method:'POST', body:fd});
         var ud = await ur.json();
-        if (!ud.ok) { throw new Error(ud.error || 'Upload failed'); }
+        if (!ud.ok) { throw new Error(ud.detail || ud.error || 'Upload failed'); }
         params[paramName] = ud.filename;
       }
     }
@@ -2566,7 +2566,7 @@ async function runModule(name) {
       btn.disabled = false;
       btn.textContent = 'Run';
       updateModuleStatus(name, 'error');
-      alert(d.error || 'Module failed to start');
+      alert(d.detail || d.error || 'Module failed to start');
       return;
     }
     updateModuleStatus(name, 'running');
@@ -2622,7 +2622,7 @@ async function pollModule(name) {
       updateModuleStatus(name, 'error');
       var btn2 = $('mod-run-' + name);
       if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
-      if (prog) prog.textContent = 'Error: ' + (d.error || 'unknown');
+      if (prog) prog.textContent = 'Error: ' + (d.detail || d.error || 'unknown');
     }
   } catch(e) { /* silent retry */ }
 }

@@ -500,13 +500,42 @@ def _record_measurement(fields: dict, name: str, mresult) -> None:
     per_lyr = getattr(mresult, "per_layer", {}) or {}
     objects = getattr(mresult, "objects", {}) or {}
 
+    # Array-safe "is this value present and non-empty?" check.
+    # `if per_tok.get(k):` blows up when the value is a numpy array
+    # because numpy refuses to cast multi-element arrays to bool. Use
+    # this helper for every read that might return an array.
+    def _has(container: dict, key: str) -> bool:
+        v = container.get(key)
+        if v is None:
+            return False
+        try:
+            return len(v) > 0
+        except TypeError:
+            # Scalar value (e.g. a Python number): truthiness is fine.
+            return bool(v)
+
+    # Array-safe "get or empty list" for fallbacks that feed into dict
+    # literals. `v or []` also raises on arrays.
+    def _or_empty(container: dict, key: str):
+        v = container.get(key)
+        return v if _has(container, key) else []
+
+    def _or_empty_dict(container: dict, key: str):
+        v = container.get(key)
+        if v is None:
+            return {}
+        try:
+            return v if len(v) > 0 else {}
+        except TypeError:
+            return {}
+
     if name == "stress_score":
         fields["stress_score"] = scalars.get("stress_mean")
-        if per_tok.get("stress"):
+        if _has(per_tok, "stress"):
             fields["per_token_stress"] = per_tok["stress"]
 
     elif name == "last_position_attribution":
-        if per_tok.get("signed_attribution_to_last"):
+        if _has(per_tok, "signed_attribution_to_last"):
             fields["signed_attr"] = per_tok["signed_attribution_to_last"]
         for k_out, k_in in (
             ("net_correction", "net_correction_to_last"),
@@ -519,31 +548,31 @@ def _record_measurement(fields: dict, name: str, mresult) -> None:
         ):
             if k_in in scalars:
                 fields[k_out] = scalars[k_in]
-        if objects.get("proof1_checks"):
+        if _has(objects, "proof1_checks"):
             fields["proof1_checks"] = objects["proof1_checks"]
 
     elif name == "amplitude_trajectory":
         fields["amplitude_trajectory"] = {
-            "raw": objects.get("amplitude_raw") or [],
-            "normalized": objects.get("amplitude_normalized") or [],
-            "heatmap": objects.get("heatmap") or [],
-            "heatmap_shape": objects.get("heatmap_shape") or [0, 0],
-            "sublayer_labels": objects.get("sublayer_labels") or [],
+            "raw": _or_empty(objects, "amplitude_raw"),
+            "normalized": _or_empty(objects, "amplitude_normalized"),
+            "heatmap": _or_empty(objects, "heatmap"),
+            "heatmap_shape": _or_empty(objects, "heatmap_shape") or [0, 0],
+            "sublayer_labels": _or_empty(objects, "sublayer_labels"),
             "mean_raw": scalars.get("trajectory_mean_raw"),
             "mean_normalized": scalars.get("trajectory_mean_normalized"),
         }
         # Legacy alias some UI sites read at root.
-        if objects.get("amplitude_normalized"):
+        if _has(objects, "amplitude_normalized"):
             fields["amplitude_normalized"] = objects["amplitude_normalized"]
 
     elif name == "amplitude_derived_metrics":
-        if per_tok.get("attn_frac"):
+        if _has(per_tok, "attn_frac"):
             fields["per_token_attn_frac"] = per_tok["attn_frac"]
-        if per_tok.get("coherence"):
+        if _has(per_tok, "coherence"):
             fields["per_token_coherence"] = per_tok["coherence"]
-        if per_tok.get("sublayer_rank"):
+        if _has(per_tok, "sublayer_rank"):
             fields["per_token_sublayer_rank"] = per_tok["sublayer_rank"]
-        if objects.get("token_similarity"):
+        if _has(objects, "token_similarity"):
             fields["token_similarity"] = objects["token_similarity"]
 
     elif name == "lateral_tension_profile":
@@ -554,17 +583,17 @@ def _record_measurement(fields: dict, name: str, mresult) -> None:
             "max_prc": scalars.get("max_prc"),
             "n_directional": scalars.get("n_directional"),
             "n_layers_used": scalars.get("n_layers_used"),
-            "tension_magnitudes": per_tok.get("tension_magnitude") or [],
-            "prc_per_token": per_tok.get("prc") or [],
-            "offset_magnitude": per_lyr.get("offset_magnitude") or {},
-            "offset_variance": per_lyr.get("offset_variance") or {},
-            "lateral_coverage": per_lyr.get("lateral_coverage") or {},
-            "profiles": objects.get("profiles") or [],
-            "base_profiles": objects.get("base_profiles") or [],
-            "profile_shapes": objects.get("profile_shapes") or [],
-            "counterfactual_tokens": objects.get("counterfactual_tokens") or [],
-            "semantic_trajectory_2d": objects.get("semantic_trajectory_2d") or [],
-            "tension_trajectory_2d": objects.get("tension_trajectory_2d") or [],
+            "tension_magnitudes": _or_empty(per_tok, "tension_magnitude"),
+            "prc_per_token": _or_empty(per_tok, "prc"),
+            "offset_magnitude": _or_empty_dict(per_lyr, "offset_magnitude"),
+            "offset_variance": _or_empty_dict(per_lyr, "offset_variance"),
+            "lateral_coverage": _or_empty_dict(per_lyr, "lateral_coverage"),
+            "profiles": _or_empty(objects, "profiles"),
+            "base_profiles": _or_empty(objects, "base_profiles"),
+            "profile_shapes": _or_empty(objects, "profile_shapes"),
+            "counterfactual_tokens": _or_empty(objects, "counterfactual_tokens"),
+            "semantic_trajectory_2d": _or_empty(objects, "semantic_trajectory_2d"),
+            "tension_trajectory_2d": _or_empty(objects, "tension_trajectory_2d"),
         }
 
     elif name == "spectral_field_density":
@@ -575,7 +604,7 @@ def _record_measurement(fields: dict, name: str, mresult) -> None:
             "density_p90": scalars.get("density_p90"),
             "global_erank": scalars.get("global_erank"),
             "n_layers_used": scalars.get("n_layers_used"),
-            "per_token_density": per_tok.get("density") or [],
+            "per_token_density": _or_empty(per_tok, "density"),
         }
 
     elif name == "rank_displacement":
@@ -586,36 +615,36 @@ def _record_measurement(fields: dict, name: str, mresult) -> None:
             "mean_overlap": scalars.get("mean_overlap"),
             "total_displacement": scalars.get("total_displacement"),
             "n_positions": scalars.get("n_positions"),
-            "per_position": objects.get("per_position") or [],
-            "per_token_disp": per_tok.get("total_disp") or [],
-            "per_token_replacement": per_tok.get("replacement_ratio") or [],
-            "instruct_disp_profiles": objects.get("instruct_disp_profiles") or [],
-            "base_disp_profiles": objects.get("base_disp_profiles") or [],
-            "per_position_tau": objects.get("per_position_tau") or [],
-            "per_position_overlap": objects.get("per_position_overlap") or [],
+            "per_position": _or_empty(objects, "per_position"),
+            "per_token_disp": _or_empty(per_tok, "total_disp"),
+            "per_token_replacement": _or_empty(per_tok, "replacement_ratio"),
+            "instruct_disp_profiles": _or_empty(objects, "instruct_disp_profiles"),
+            "base_disp_profiles": _or_empty(objects, "base_disp_profiles"),
+            "per_position_tau": _or_empty(objects, "per_position_tau"),
+            "per_position_overlap": _or_empty(objects, "per_position_overlap"),
         }
 
     elif name == "probe_projection":
         fields["probe_projection"] = {
-            "best_class_idx": per_tok.get("best_class_idx") or [],
-            "best_score": per_tok.get("best_score") or [],
-            "score_matrix": objects.get("score_matrix") or [],
-            "probe_labels": objects.get("probe_labels") or [],
-            "per_token_assignment": objects.get("per_token_assignment") or [],
+            "best_class_idx": _or_empty(per_tok, "best_class_idx"),
+            "best_score": _or_empty(per_tok, "best_score"),
+            "score_matrix": _or_empty(objects, "score_matrix"),
+            "probe_labels": _or_empty(objects, "probe_labels"),
+            "per_token_assignment": _or_empty(objects, "per_token_assignment"),
         }
 
     elif name == "per_token_embedding":
-        if objects.get("per_token_embeddings"):
+        if _has(objects, "per_token_embeddings"):
             fields["per_token_embeddings"] = objects["per_token_embeddings"]
         # Alias used by correction_heatmap / correction_backscatter viz sites.
-        if objects.get("per_token_final_emb"):
+        if _has(objects, "per_token_final_emb"):
             fields["per_token_final_emb"] = objects["per_token_final_emb"]
 
     elif name == "backscatter_projection":
         fields["backscatter"] = {
-            "magnitude_matrix": objects.get("magnitude_matrix") or [],
-            "probe_labels": objects.get("probe_labels") or [],
-            "sublayer_labels": objects.get("sublayer_labels") or [],
+            "magnitude_matrix": _or_empty(objects, "magnitude_matrix"),
+            "probe_labels": _or_empty(objects, "probe_labels"),
+            "sublayer_labels": _or_empty(objects, "sublayer_labels"),
             "n_probes": scalars.get("n_probes"),
             "n_sublayers": scalars.get("n_sublayers"),
             "mean_magnitude": scalars.get("mean_magnitude"),
