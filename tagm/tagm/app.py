@@ -61,7 +61,7 @@ from fastapi.staticfiles import StaticFiles
 from tagm.core.adapter import list_families, find_adapter  # noqa: F401
 from tagm.core.adapter import registry as _adapter_registry  # noqa: F401
 from tagm.core.cache import Cache
-from tagm.core.capture.config import CaptureConfig
+from tagm.core.capture.config import CaptureConfig, CapturePoint
 from tagm.core.pipeline import Pipeline
 from tagm.measurement import modules as _measurement_modules  # noqa: F401  (registers)
 from tagm.measurement.registry import list_measurements
@@ -165,6 +165,19 @@ def _load_model_registry() -> list[dict]:
 app = FastAPI(title="TAGM", description="Transformer Alignment Geometric Metrology")
 
 
+# ─── Global error handler ──────────────────────────────────────────
+# FastAPI's HTTPException returns {"detail": "..."} by default, but
+# the TASM-derived frontend checks data.error, not data.detail.
+# This handler ensures ALL HTTPExceptions surface as {"ok": false,
+# "error": "..."} so the UI always shows the actual error message.
+@app.exception_handler(HTTPException)
+async def http_exception_as_json(request, exc):
+    return JSONResponse(
+        {"ok": False, "error": exc.detail},
+        status_code=exc.status_code,
+    )
+
+
 # ─── Security headers ───────────────────────────────────────────────
 # Strict Content Security Policy. We commit to modern browsers, so we
 # can disallow inline scripts entirely and require all JS to come from
@@ -179,10 +192,10 @@ async def add_security_headers(request, call_next):
     if response.headers.get("content-type", "").startswith("text/html"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdn.plot.ly; "
-            "style-src 'self' 'unsafe-inline'; "  # inline styles in index.html
+            "script-src 'self' 'unsafe-inline' https://cdn.plot.ly https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "img-src 'self' data:; "
-            "font-src 'self'; "
+            "font-src 'self' https://fonts.gstatic.com; "
             "connect-src 'self'; "
             "object-src 'none'; "
             "frame-ancestors 'none'; "
@@ -314,6 +327,70 @@ async def api_adapters():
 
 # ─── Load / unload ──────────────────────────────────────────────────
 
+def _auto_configure_defaults(state) -> None:
+    """Set a default CaptureConfig and select core measurements.
+
+    Called automatically after model load so the user can analyze
+    immediately. This mirrors TASM's implicit auto-config behavior.
+    """
+    orch = state.orchestrator
+    pipeline = state.pipeline
+    adapter = pipeline.adapter
+    n_layers = adapter.n_layers(pipeline.instruct_model)
+
+    # Build capture points for all layers at the hook points the core
+    # measurements need.  This is deliberately generous — capturing at
+    # all layers adds ~no cost (the hooks just store references to
+    # tensors the forward pass already computed).
+    points = []
+    for layer in range(n_layers):
+        points.append(CapturePoint(
+            layer=layer, hook_point="pre_attn_norm",
+            capture=frozenset({"hidden"})))
+        points.append(CapturePoint(
+            layer=layer, hook_point="post_attn_norm",
+            capture=frozenset({"hidden"})))
+        points.append(CapturePoint(
+            layer=layer, hook_point="attn_output",
+            capture=frozenset({"hidden", "attention_weights"})))
+        points.append(CapturePoint(
+            layer=layer, hook_point="residual_post_block",
+            capture=frozenset({"hidden"})))
+
+    # final_norm (layer-independent)
+    points.append(CapturePoint(
+        layer=None, hook_point="final_norm",
+        capture=frozenset({"hidden"})))
+
+    cap = CaptureConfig(
+        name="auto_default",
+        description="Auto-configured default capture for all layers",
+        points=tuple(points),
+    )
+    orch.set_capture_config(cap)
+    logger.info(f"[auto_config] CaptureConfig set: {len(points)} points "
+                f"across {n_layers} layers")
+
+    # Select the core measurements that power the main UI
+    core_measurements = [
+        ("stress_score", {}),
+        ("last_position_attribution", {}),
+        ("amplitude_trajectory", {}),
+        ("amplitude_derived_metrics", {}),
+        ("per_token_embedding", {}),
+    ]
+
+    report = orch.configure_measurements(core_measurements)
+    selected_names = [n for n, _ in report["selected"]]
+    state.selected_measurements = list(report["selected"])
+    logger.info(f"[auto_config] Measurements configured: {selected_names}")
+
+    if report["errors"]:
+        logger.warning(f"[auto_config] Errors: {report['errors']}")
+    if report["skipped"]:
+        logger.warning(f"[auto_config] Skipped: {report['skipped']}")
+
+
 def _load_worker(instruct_id: str, base_id: str,
                  layer_filter, compute_spectral: bool) -> None:
     """Background worker: runs the actual (slow, blocking) model load.
@@ -361,7 +438,18 @@ def _load_worker(instruct_id: str, base_id: str,
         state.progress("loading", "Creating orchestrator")
         state.orchestrator = Orchestrator(state.pipeline, state.probe_store)
 
-        # Step 5: Mark done
+        # Step 5: Auto-configure default capture + measurements so the
+        # user can click "Analyze" immediately without manual setup.
+        # This mirrors TASM's implicit auto-config on model load.
+        try:
+            _auto_configure_defaults(state)
+        except Exception as e:
+            logger.warning(f"[_load_worker] Auto-config failed (non-fatal): {e}")
+            state.progress("loading",
+                           f"Auto-config warning: {e}. "
+                           "You may need to configure capture manually.")
+
+        # Step 6: Mark done
         state.loading_state = {"active": False, "error": None}
         state.progress("ready", f"Model pair loaded: {instruct_id}")
         logger.info(f"[_load_worker] DONE: loading_state reset, ready emitted")
@@ -646,14 +734,19 @@ async def api_analyze(request: Request):
         category = body.get("category", "")
 
     if not prompt:
-        raise HTTPException(status_code=400, detail="prompt required")
+        return JSONResponse({"ok": False, "error": "Prompt is required."},
+                            status_code=400)
     orch = state.require_orchestrator()
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
+        return JSONResponse(
+            {"ok": False, "error": "No capture configuration set. "
+             "Load a model first, or POST /api/capture."},
+            status_code=409)
     if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        return JSONResponse(
+            {"ok": False, "error": "No measurements selected. "
+             "Load a model first, or POST /api/configure."},
+            status_code=409)
 
     def _do_analyze():
         return orch.analyze_prompt(prompt, category=category,
@@ -663,7 +756,8 @@ async def api_analyze(request: Request):
         prec = await run_in_threadpool(_do_analyze)
     except Exception as e:
         logger.exception("Analyze failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse({"ok": False, "error": str(e)},
+                            status_code=500)
 
     # Snapshot session for /api/session/restore (non-blocking cost)
     await run_in_threadpool(_snapshot_session_to_disk)
@@ -690,14 +784,19 @@ async def api_batch(request: Request):
     body = await request.json()
     prompts = body.get("prompts") or []
     if not prompts:
-        raise HTTPException(status_code=400, detail="prompts required (list)")
+        return JSONResponse({"ok": False, "error": "prompts required (list)"},
+                            status_code=400)
     orch = state.require_orchestrator()
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
+        return JSONResponse(
+            {"ok": False, "error": "No capture configuration set. "
+             "Load a model first, or POST /api/capture."},
+            status_code=409)
     if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        return JSONResponse(
+            {"ok": False, "error": "No measurements selected. "
+             "Load a model first, or POST /api/configure."},
+            status_code=409)
 
     def _do_batch():
         return orch.analyze_batch(prompts, session=state.session,
@@ -707,7 +806,8 @@ async def api_batch(request: Request):
         records = await run_in_threadpool(_do_batch)
     except Exception as e:
         logger.exception("Batch failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse({"ok": False, "error": str(e)},
+                            status_code=500)
     return {"ok": True, "n_records": len(records),
             "prompts": [r.to_dict() for r in records]}
 
@@ -754,17 +854,22 @@ async def api_analyze_batch(request: Request):
 
     orch = state.require_orchestrator()
     if orch.capture_config is None:
-        raise HTTPException(status_code=409,
-                             detail="No CaptureConfig set. POST /api/capture first.")
+        return JSONResponse(
+            {"ok": False, "error": "No capture configuration set. "
+             "Load a model first, or POST /api/capture."},
+            status_code=409)
     if not orch._selected:
-        raise HTTPException(status_code=409,
-                             detail="No measurements selected. POST /api/configure first.")
+        return JSONResponse(
+            {"ok": False, "error": "No measurements selected. "
+             "Load a model first, or POST /api/configure."},
+            status_code=409)
 
     with _batch_lock:
         if _batch_running:
-            raise HTTPException(
-                status_code=409,
-                detail="A batch is already running. Wait for it to finish.")
+            return JSONResponse(
+                {"ok": False, "error": "A batch is already running. "
+                 "Wait for it to finish."},
+                status_code=409)
 
     form = await request.form()
     file = form.get("file")
