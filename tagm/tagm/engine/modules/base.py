@@ -148,7 +148,9 @@ class ModuleRunner:
         self._modules: dict[str, TASMModule] = {}
         self._state: dict[str, _ModuleState] = {}
         self._lock = threading.Lock()
-        self._project_root = Path(project_root) if project_root else Path(__file__).parent.parent.parent
+        # base.py is at tagm/tagm/engine/modules/base.py
+        # Project root (tagm/) is 4 levels up
+        self._project_root = Path(project_root) if project_root else Path(__file__).parent.parent.parent.parent
         self._discover_modules()
 
     def _discover_modules(self):
