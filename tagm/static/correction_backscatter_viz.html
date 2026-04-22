@@ -109,18 +109,93 @@ function buildCtrls(){
   });
   h+='</select>';
 
+  // Slideshow controls
+  h+='<span style="margin-left:12px;display:inline-flex;gap:4px;align-items:center">';
+  h+='<button onclick="window._bsPrev()" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Previous prompt">◀</button>';
+  h+='<button id="playBtn" onclick="window._bsPlayPause()" style="background:var(--bg2);color:var(--cyan);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Play/pause slideshow">▶ Play</button>';
+  h+='<button onclick="window._bsNext()" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Next prompt">▶</button>';
+  h+='<label style="margin-left:4px;font-size:10px;color:var(--text2)">Speed:</label>';
+  h+='<select id="speedSel" onchange="window._bsSetSpeed(this.value)" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:10px">';
+  [["500","0.5s"],["1000","1s"],["2000","2s"],["3000","3s"],["5000","5s"]].forEach(function(s){
+    h+='<option value="'+s[0]+'"'+(slideSpeed==parseInt(s[0])?' selected':'')+'>'+s[1]+'</option>';
+  });
+  h+='</select>';
+  h+='<span id="slideCounter" style="font-size:10px;color:var(--text2);min-width:60px"></span>';
+  h+='</span>';
+
   document.getElementById("ctrls").innerHTML=h;
   window._bsSetCat=function(v){
     selCat=v;
     selPrompt="all"; // reset prompt picker when category changes
+    stopSlideshow();
     buildCtrls();buildLegend();renderPanel();renderDetail();
   };
   window._bsSetPrompt=function(v){
     selPrompt=v;
     buildLegend();renderPanel();renderDetail();
+    updateSlideCounter();
   };
   window._bsSetView=function(v){viewMode=v;buildLegend();renderPanel();renderDetail()};
 }
+
+// ─── Slideshow ──────────────────────────────────────────────
+
+var slideTimer=null,slideSpeed=2000,slidePlaying=false;
+
+function getFilteredPrompts(){
+  return PROMPTS.filter(function(p){
+    if(!p.projected)return false;
+    if(selCat!=="all"&&p.category!==selCat)return false;
+    return true;
+  });
+}
+
+function updateSlideCounter(){
+  var el=document.getElementById("slideCounter");
+  if(!el)return;
+  var fps=getFilteredPrompts();
+  if(selPrompt==="all"){el.textContent="";return}
+  var pi=parseInt(selPrompt);
+  var idx=fps.findIndex(function(p){return p.idx===pi});
+  if(idx>=0)el.textContent=(idx+1)+"/"+fps.length;
+  else el.textContent="";
+}
+
+function stopSlideshow(){
+  slidePlaying=false;
+  if(slideTimer){clearInterval(slideTimer);slideTimer=null}
+  var btn=document.getElementById("playBtn");
+  if(btn){btn.textContent="▶ Play";btn.style.color="var(--cyan)"}
+}
+
+function advanceSlide(dir){
+  var fps=getFilteredPrompts();
+  if(!fps.length)return;
+  var curIdx=-1;
+  if(selPrompt!=="all"){
+    var pi=parseInt(selPrompt);
+    curIdx=fps.findIndex(function(p){return p.idx===pi});
+  }
+  var nextIdx=curIdx+dir;
+  if(nextIdx<0)nextIdx=fps.length-1;
+  if(nextIdx>=fps.length)nextIdx=0;
+  selPrompt=String(fps[nextIdx].idx);
+  buildCtrls();buildLegend();renderPanel();renderDetail();
+  updateSlideCounter();
+}
+
+window._bsPrev=function(){stopSlideshow();advanceSlide(-1)};
+window._bsNext=function(){stopSlideshow();advanceSlide(1)};
+window._bsSetSpeed=function(v){slideSpeed=parseInt(v);if(slidePlaying){stopSlideshow();window._bsPlayPause()}};
+window._bsPlayPause=function(){
+  if(slidePlaying){stopSlideshow();return}
+  slidePlaying=true;
+  var btn=document.getElementById("playBtn");
+  if(btn){btn.textContent="⏸ Pause";btn.style.color="var(--orange)"}
+  // If on "all", jump to first prompt
+  if(selPrompt==="all")advanceSlide(1);
+  slideTimer=setInterval(function(){advanceSlide(1)},slideSpeed);
+};
 
 // ─── Scale & color helpers ───────────────────────────────────
 
