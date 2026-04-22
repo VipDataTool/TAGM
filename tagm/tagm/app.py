@@ -377,33 +377,130 @@ async def download_module_log(module_name: str):
 # Probe sets
 # ═══════════════════════════════════════════════════════════════
 
-_applied_probe_template = {"template_id": None, "capture_signature": None}
-_probe_apply_status = {"active": False, "error": None, "done": False}
+_probe_apply_state = {"active": False, "error": None, "progress": None, "result": None}
 
 @app.post("/api/probe_set/apply")
 async def probe_apply(request: Request):
     form = await request.form()
-    template_name = (form.get("template") or form.get("template_name") or "").strip()
-    if not template_name:
-        raise HTTPException(status_code=400, detail="template required")
+    file = form.get("file")
+    if file is None:
+        return {"ok": False, "error": "No file uploaded."}
     if state.pipeline is None or not state.pipeline.loaded:
-        raise HTTPException(status_code=409, detail="No model loaded.")
-    _applied_probe_template["template_id"] = template_name
-    # Probe generation would happen here in full implementation
-    state.progress("probes", f"Probe set applied: {template_name}")
-    return {"ok": True, "template": template_name}
+        return {"ok": False, "error": "No model loaded."}
+
+    # Save the CSV to project root
+    _project_root = _PACKAGE_DIR.parent
+    filename = file.filename
+    dest = _project_root / filename
+    content = await file.read()
+    with open(dest, "wb") as f:
+        f.write(content)
+
+    # Start background embedding
+    _probe_apply_state["active"] = True
+    _probe_apply_state["error"] = None
+    _probe_apply_state["progress"] = "Starting probe embedding..."
+    _probe_apply_state["result"] = None
+
+    def _embed_worker():
+        try:
+            from tagm.engine.modules.domain_surface import (
+                embed_and_cache_probes, _load_probes, _detect_level_cols, _parse_meta)
+            from tagm.engine import config as engine_config
+            import json as _json
+
+            pipeline = state.pipeline
+            model = pipeline.instruct_model
+            tokenizer = pipeline.tokenizer
+            adapter = pipeline.adapter
+            model_id = pipeline.instruct_model_id
+            project_root = str(_project_root)
+
+            # Determine depths
+            csv_path = str(dest)
+            meta = _parse_meta(csv_path)
+
+            if "layer_low" in meta and "layer_high" in meta:
+                subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
+                esc_frac = max(0.0, min(1.0, float(meta["layer_high"])))
+            else:
+                subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
+                esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
+
+            depths = sorted(set([subj_frac, esc_frac]))
+            n_layers = adapter.n_layers(model)
+
+            for frac in depths:
+                tag = f"L{int(frac * 100)}"
+                _probe_apply_state["progress"] = f"Embedding at {tag}..."
+
+                use_proj = engine_config.get("probe_projection_space")
+                delta = None
+                if use_proj:
+                    target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
+                    delta = pipeline.delta_store.o_delta_or_none(target_layer)
+
+                embed_and_cache_probes(
+                    model, tokenizer, adapter,
+                    project_root, filename, model_id,
+                    layer_frac=frac,
+                    delta_matrix=delta if use_proj else None)
+
+            # Activate
+            config_path = _project_root / "probe_config.json"
+            _json.dump({"active": [filename]}, open(config_path, "w"), indent=2)
+
+            probes = _load_probes(csv_path)
+            level_cols, level_names = _detect_level_cols(csv_path)
+            subjects = sorted(set(p["subject"] for p in probes))
+
+            _probe_apply_state["result"] = {
+                "filename": filename,
+                "n_probes": len(probes),
+                "n_subjects": len(subjects),
+                "n_levels": len(level_cols),
+                "layer_L50": int(depths[0] * 100) if depths else 50,
+                "layer_L75": int(depths[-1] * 100) if len(depths) > 1 else int(depths[0] * 100),
+            }
+            state.progress("done", f"Probe set applied: {filename} ({len(probes)} probes)")
+
+        except Exception as e:
+            logger.exception("Probe apply failed")
+            _probe_apply_state["error"] = str(e)
+        finally:
+            _probe_apply_state["active"] = False
+
+    import threading
+    threading.Thread(target=_embed_worker, daemon=True).start()
+    return {"ok": True}
 
 @app.get("/api/probe_set/apply_status")
 async def probe_apply_status():
-    return {"ok": True, **_probe_apply_status}
+    return {"ok": True, **_probe_apply_state}
 
 @app.get("/api/probe_set/status")
 async def probe_status():
-    return {"ok": True, "active": _applied_probe_template, "sets": []}
+    _project_root = _PACKAGE_DIR.parent
+    config_path = _project_root / "probe_config.json"
+    active = []
+    if config_path.exists():
+        try:
+            active = json.loads(config_path.read_text()).get("active", [])
+        except Exception:
+            pass
+    return {"ok": True, "active": active, "sets": []}
 
 @app.post("/api/probe_set/clear_caches")
 async def probe_clear_caches():
-    return {"ok": True, "message": "Probe caches cleared."}
+    _project_root = _PACKAGE_DIR.parent
+    cache_dir = _project_root / "probe_cache"
+    cleared = 0
+    if cache_dir.exists():
+        import shutil
+        for f in cache_dir.iterdir():
+            f.unlink()
+            cleared += 1
+    return {"ok": True, "message": f"Cleared {cleared} cache files."}
 
 
 # ═══════════════════════════════════════════════════════════════
