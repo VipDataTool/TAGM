@@ -263,16 +263,16 @@ async def api_analyze_handler(request: Request):
     the flat result dict the frontend reads.
     """
     if state.analyzer is None:
-        raise HTTPException(status_code=400, detail="No model loaded.")
+        return {"ok": False, "error": "No model loaded."}
 
     form = await request.form()
     prompt = (form.get("prompt") or "").strip()
     category = (form.get("category") or "").strip()
 
     if not prompt:
-        raise HTTPException(status_code=400, detail="prompt required")
+        return {"ok": False, "error": "prompt required"}
     if len(prompt) > 5000:
-        raise HTTPException(status_code=400, detail="Prompt too long (max 5000)")
+        return {"ok": False, "error": "Prompt too long (max 5000)"}
 
     # Read per-request flags — this IS how TASM works
     compute_kl = _form_bool(form, "compute_kl")
@@ -321,7 +321,7 @@ async def api_analyze_handler(request: Request):
         result_dict = await run_in_threadpool(_do_analyze)
     except Exception as e:
         logger.exception("Analysis failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"ok": False, "error": str(e)}
 
     # Store in session
     idx = state.session.add_result(result_dict)
@@ -349,16 +349,16 @@ async def api_analyze_batch_handler(request: Request):
     import io as _io
 
     if state.analyzer is None:
-        raise HTTPException(status_code=400, detail="No model loaded.")
+        return {"ok": False, "error": "No model loaded."}
 
     with _batch_lock:
         if _batch_running:
-            raise HTTPException(status_code=409, detail="Batch already running.")
+            return {"ok": False, "error": "Batch already running."}
 
     form = await request.form()
     file = form.get("file")
-    if not isinstance(file, UploadFile):
-        raise HTTPException(status_code=400, detail="CSV file required")
+    if file is None or not hasattr(file, "read"):
+        return {"ok": False, "error": "CSV file required. Select a file before clicking Run Batch."}
 
     raw = await file.read()
     try:
@@ -376,7 +376,7 @@ async def api_analyze_batch_handler(request: Request):
             prompts.append({"prompt": p, "category": c})
 
     if not prompts:
-        raise HTTPException(status_code=400, detail="No valid prompts in CSV.")
+        return {"ok": False, "error": "No valid prompts in CSV. Needs 'prompt' column."}
 
     # Read flags
     compute_kl = _form_bool(form, "compute_kl")
