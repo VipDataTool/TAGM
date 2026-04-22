@@ -84,10 +84,10 @@ class ComparativeAnalysisModule(TASMModule):
         # ── Recompute if needed ──
         if agg is None:
             prog(f"Computing aggregate statistics for {n} prompts...")
-            from tagm.engine.result import PromptResult
+            from types import SimpleNamespace
             from tagm.engine.statistics import aggregate_batch
 
-            pr_list = [PromptResult.from_dict(r, mode="scalar") for r in session_results]
+            pr_list = [SimpleNamespace(**r) for r in session_results]
             agg = aggregate_batch(pr_list)
 
             # Persist to session directory
