@@ -144,12 +144,24 @@ function warmCol(t){
 function coolCol(t){
   return'rgb('+Math.round(30+t*50)+','+Math.round(60+t*140)+','+Math.round(100+t*130)+')';
 }
-// Diverging ramp for residuals: blue (negative) → dark (zero) → orange (positive)
+// Diverging ramp for residuals: blue (negative) → neutral (zero) → orange (positive)
 function divCol(t){
-  // t in [-1, 1]
-  if(t>=0){return'rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';}
-  var a=-t;
-  return'rgb('+Math.round(30+a*10)+','+Math.round(30+a*100)+','+Math.round(36+a*190)+')';
+  // t in [-1, 1], apply power curve for more contrast at low magnitudes
+  var a=Math.abs(t);
+  a=Math.pow(a, 0.6); // boost low values for visibility
+  if(t>=0){
+    // neutral → warm orange
+    var r=Math.round(40 + a*195);
+    var g=Math.round(35 + a*110);
+    var b=Math.round(30 - a*20);
+    return'rgb('+r+','+g+','+b+')';
+  }else{
+    // neutral → cool blue
+    var r=Math.round(40 - a*20);
+    var g=Math.round(35 + a*80);
+    var b=Math.round(30 + a*210);
+    return'rgb('+r+','+g+','+b+')';
+  }
 }
 function cellCol(t){
   if(viewMode==="residual")return divCol(t);
