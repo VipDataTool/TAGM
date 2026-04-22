@@ -1286,7 +1286,9 @@ function _terrainRendererCore(container, D, opts){
     var entries=D[curCat];
     if(!entries||!entries[curIdx])return;
     var parts=entries[curIdx],prompt=parts[0],toks=parts[1],rows=parts[2];
-    var nT=toks.length,scZ=12/Math.max(nT-1,1);
+    var nT=toks.length,scZ=SCX;
+    var zDepth=(nT-1)*scZ;
+    var zOffset=zDepth/2;
     var allMags=[];
     for(var ri=0;ri<rows.length;ri++){var rr=rows[ri];rr[0].forEach(function(v){allMags.push(v)});rr[1].forEach(function(v){allMags.push(v)})}
     var mn=Math.min.apply(null,allMags),mx=Math.max.apply(null,allMags);
@@ -1298,7 +1300,7 @@ function _terrainRendererCore(container, D, opts){
     for(var t=0;t<nT;t++){
       vtx.push([]);
       var bm=rows[t][0],im=rows[t][1],kl=rows[t][2];
-      var z=-t*scZ+6,klT=(kl-klMin)/(klMax-klMin||1);
+      var z=-t*scZ+zOffset,klT=(kl-klMin)/(klMax-klMin||1);
       var spineMag=(bm.reduce(function(a,v){return a+v},0)+im.reduce(function(a,v){return a+v},0))/(bm.length+im.length);
       for(var c=0;c<COLS;c++){
         var x,mag;
@@ -1354,7 +1356,7 @@ function _terrainRendererCore(container, D, opts){
     // Floor
     var fG=new THREE.PlaneGeometry(COLS*SCX+1.2,nT*scZ+2);fG.rotateX(-Math.PI/2);
     flr=new THREE.Mesh(fG,new THREE.MeshBasicMaterial({color:0x0c0c12,transparent:true,opacity:.25,side:THREE.DoubleSide}));
-    flr.position.set(0,FY-.01,6-(nT*scZ)/2);sc.add(flr);
+    flr.position.set(0,FY-.01,0);sc.add(flr);
 
     // Grid lines
     var OFF=0.032;
@@ -1463,9 +1465,11 @@ function _terrainRendererCore(container, D, opts){
     if(lMin)lMin.textContent=(mn*1e3).toFixed(1);
     if(lMax)lMax.textContent=(mx*1e3).toFixed(1);
 
-    // Center camera
-    th=0.0;ph=0.08;rad=14;
-    target.set(0,FY+1.0,6-(nT-1)*scZ/2);
+    // Center camera on terrain — frame based on larger dimension
+    th=0.0;ph=0.08;
+    var terrainW=COLS*SCX;
+    rad=Math.max(10, Math.max(terrainW, zDepth)*0.8+4);
+    target.set(0,FY+1.0,0);
     updateCam();
   }
 
@@ -1529,7 +1533,7 @@ function _terrainRendererCore(container, D, opts){
   window._terrainPrev=function(){var entries=D[curCat]||[];if(!entries.length)return;curIdx=(curIdx-1+entries.length)%entries.length;buildUI();build()};
   window._terrainPlayPause=function(){slideshowPlaying=!slideshowPlaying;buildUI();if(slideshowPlaying)_terrainAutoAdvance();else if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}};
   window._terrainSetSpeed=function(v){slideshowSpeed=parseInt(v)||4};
-  window._terrainResetView=function(){th=0.0;ph=0.08;rad=14;var entries=D[curCat]||[];var nT=entries[curIdx]?entries[curIdx][1].length:10;var scZ=12/Math.max(nT-1,1);target.set(0,FY+1.0,6-(nT-1)*scZ/2);updateCam()};
+  window._terrainResetView=function(){th=0.0;ph=0.08;var entries=D[curCat]||[];var nT=entries[curIdx]?entries[curIdx][1].length:10;var terrainW=COLS*SCX;var zDepth=(nT-1)*SCX;rad=Math.max(10,Math.max(terrainW,zDepth)*0.8+4);target.set(0,FY+1.0,0);updateCam()};
 
   function _terrainAutoAdvance(){
     if(!slideshowPlaying)return;
