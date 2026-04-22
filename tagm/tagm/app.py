@@ -488,7 +488,35 @@ async def probe_status():
             active = json.loads(config_path.read_text()).get("active", [])
         except Exception:
             pass
-    return {"ok": True, "active": active, "sets": []}
+
+    if not active:
+        return {"ok": True, "active": None}
+
+    filename = active[0]
+    csv_path = _project_root / filename
+    n_probes = 0
+    n_subjects = 0
+    cached = False
+
+    if csv_path.exists():
+        try:
+            from tagm.engine.modules.domain_surface import _load_probes
+            probes = _load_probes(str(csv_path))
+            n_probes = len(probes)
+            n_subjects = len(set(p["subject"] for p in probes))
+        except Exception:
+            pass
+
+    cache_dir = _project_root / "probe_cache"
+    if cache_dir.exists():
+        stem = csv_path.stem
+        cached = any(f.name.startswith(stem) and f.suffix == ".json"
+                     for f in cache_dir.iterdir())
+
+    return {
+        "ok": True, "active": True, "filename": filename,
+        "n_probes": n_probes, "n_subjects": n_subjects, "cached": cached,
+    }
 
 @app.post("/api/probe_set/clear_caches")
 async def probe_clear_caches():
