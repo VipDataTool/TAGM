@@ -112,7 +112,7 @@ function buildCtrls(){
   // Slideshow controls
   h+='<span style="margin-left:12px;display:inline-flex;gap:4px;align-items:center">';
   h+='<button onclick="window._bsPrev()" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Previous prompt">◀</button>';
-  h+='<button id="playBtn" onclick="window._bsPlayPause()" style="background:var(--bg2);color:var(--cyan);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Play/pause slideshow">▶ Play</button>';
+  h+='<button id="playBtn" onclick="window._bsPlayPause()" style="background:var(--bg2);color:'+(slidePlaying?'var(--orange)':'var(--cyan)')+';border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Play/pause slideshow">'+(slidePlaying?'⏸ Pause':'▶ Play')+'</button>';
   h+='<button onclick="window._bsNext()" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px" title="Next prompt">▶</button>';
   h+='<label style="margin-left:4px;font-size:10px;color:var(--text2)">Speed:</label>';
   h+='<select id="speedSel" onchange="window._bsSetSpeed(this.value)" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:var(--mono);font-size:10px">';
