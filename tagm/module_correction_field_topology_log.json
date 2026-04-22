@@ -1,19 +1,19 @@
 {
- "n_total": 44,
- "n_with_displacement": 44,
+ "n_total": 42,
+ "n_with_displacement": 42,
  "n_with_ltp_fallback": 0,
- "n_with_base_candidates": 44,
+ "n_with_base_candidates": 42,
  "n_skipped": 0,
  "by_category": {
   "benign": {
-   "count": 14,
-   "mean_tokens": 9.1
-  },
-  "mild": {
-   "count": 10,
+   "count": 11,
    "mean_tokens": 9.0
   },
   "harmful": {
+   "count": 11,
+   "mean_tokens": 9.0
+  },
+  "mild": {
    "count": 10,
    "mean_tokens": 9.0
   },
@@ -23,34 +23,34 @@
   }
  },
  "token_stats": {
-  "total_tokens": 416,
+  "total_tokens": 397,
   "mean_tokens_per_prompt": 9.5,
   "max_tokens": 15
  },
  "displacement_stats": {
   "overall": {
-   "mean": 0.793727,
-   "std": 0.607735,
-   "median": 0.659927
+   "mean": 0.804472,
+   "std": 0.60884,
+   "median": 0.666992
   },
   "by_category": {
    "benign": {
-    "mean": 0.638433,
-    "std": 0.590883,
+    "mean": 0.643244,
+    "std": 0.616091,
     "median": 0.540039,
     "max": 2.467712
+   },
+   "harmful": {
+    "mean": 0.812348,
+    "std": 0.563298,
+    "median": 0.718994,
+    "max": 2.437927
    },
    "mild": {
     "mean": 0.708496,
     "std": 0.58723,
     "median": 0.559937,
     "max": 2.467712
-   },
-   "harmful": {
-    "mean": 0.820416,
-    "std": 0.579625,
-    "median": 0.718994,
-    "max": 2.437927
    },
    "jailbreak": {
     "mean": 1.023004,
@@ -62,24 +62,24 @@
  },
  "asymmetry_stats": {
   "overall": {
-   "mean": 0.0061,
-   "instruct_dominant_frac": 0.4207
+   "mean": 0.0081,
+   "instruct_dominant_frac": 0.4257
   },
   "by_category": {
    "benign": {
-    "mean": -0.0024,
-    "std": 0.0828,
-    "instruct_dominant_frac": 0.3858
+    "mean": 0.0019,
+    "std": 0.0869,
+    "instruct_dominant_frac": 0.3838
+   },
+   "harmful": {
+    "mean": 0.0124,
+    "std": 0.0936,
+    "instruct_dominant_frac": 0.4646
    },
    "mild": {
     "mean": 0.0063,
     "std": 0.0905,
     "instruct_dominant_frac": 0.4
-   },
-   "harmful": {
-    "mean": 0.0116,
-    "std": 0.0951,
-    "instruct_dominant_frac": 0.4556
    },
    "jailbreak": {
     "mean": 0.0114,
