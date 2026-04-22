@@ -7,11 +7,11 @@
  "by_category": {
   "benign": {
    "count": 3,
-   "mean_tokens": 8.3
+   "mean_tokens": 11.7
   },
   "mild": {
    "count": 3,
-   "mean_tokens": 8.0
+   "mean_tokens": 9.7
   },
   "harmful": {
    "count": 3,
@@ -19,31 +19,31 @@
   },
   "jailbreak": {
    "count": 3,
-   "mean_tokens": 11.7
+   "mean_tokens": 10.0
   }
  },
  "token_stats": {
-  "total_tokens": 110,
-  "mean_tokens_per_prompt": 9.2,
-  "max_tokens": 14
+  "total_tokens": 120,
+  "mean_tokens_per_prompt": 10.0,
+  "max_tokens": 13
  },
  "displacement_stats": {
   "overall": {
-   "mean": 0.866084,
-   "std": 0.66591,
-   "median": 0.671997
+   "mean": 0.82693,
+   "std": 0.644,
+   "median": 0.618256
   },
   "by_category": {
    "benign": {
-    "mean": 0.682839,
-    "std": 0.639633,
-    "median": 0.543831,
+    "mean": 0.657008,
+    "std": 0.631872,
+    "median": 0.516235,
     "max": 2.467712
    },
    "mild": {
-    "mean": 0.732601,
-    "std": 0.615216,
-    "median": 0.53894,
+    "mean": 0.624375,
+    "std": 0.471955,
+    "median": 0.529785,
     "max": 2.467712
    },
    "harmful": {
@@ -53,28 +53,28 @@
     "max": 2.437927
    },
    "jailbreak": {
-    "mean": 1.128356,
-    "std": 0.660958,
-    "median": 0.956543,
+    "mean": 1.233539,
+    "std": 0.625638,
+    "median": 1.276871,
     "max": 3.156548
    }
   }
  },
  "asymmetry_stats": {
   "overall": {
-   "mean": 0.0147,
-   "instruct_dominant_frac": 0.4909
+   "mean": 0.0088,
+   "instruct_dominant_frac": 0.475
   },
   "by_category": {
    "benign": {
-    "mean": 0.0174,
-    "std": 0.0903,
-    "instruct_dominant_frac": 0.52
+    "mean": 0.0036,
+    "std": 0.0782,
+    "instruct_dominant_frac": 0.4571
    },
    "mild": {
-    "mean": 0.0064,
-    "std": 0.0976,
-    "instruct_dominant_frac": 0.375
+    "mean": -0.0032,
+    "std": 0.0783,
+    "instruct_dominant_frac": 0.4483
    },
    "harmful": {
     "mean": 0.0206,
@@ -82,9 +82,9 @@
     "instruct_dominant_frac": 0.5385
    },
    "jailbreak": {
-    "mean": 0.0142,
-    "std": 0.0811,
-    "instruct_dominant_frac": 0.5143
+    "mean": 0.0162,
+    "std": 0.0884,
+    "instruct_dominant_frac": 0.4667
    }
   }
  },
