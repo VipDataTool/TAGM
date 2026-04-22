@@ -571,22 +571,73 @@ async def export_download():
 # Plots (server-side matplotlib)
 # ═══════════════════════════════════════════════════════════════
 
+# Batch comparative plot dispatch table
+_BATCH_PLOT_DISPATCH = {
+    "exp_trajectory_overlay": "plot_trajectory_overlay",
+    "exp_difference_from_benign": "plot_difference_from_benign",
+    "exp_metric_scatters": "plot_metric_scatters",
+    "exp_behavioral_comparison": "plot_behavioral_comparison",
+    "exp_ltp_category_comparison": "plot_ltp_category_comparison",
+    "exp_ltp_m_vs_stress": "plot_ltp_m_vs_stress",
+    "exp_ltp_profile_shapes": "plot_ltp_profile_shape_distribution",
+    "exp_sfd_category_comparison": "plot_sfd_category_comparison",
+    "exp_sfd_vs_asm": "plot_sfd_vs_asm",
+    "exp_rank_displacement": "plot_rank_displacement_by_category",
+    "key_scatters": "plot_key_scatters",
+    "discriminative_sublayers": "plot_discriminative_sublayers",
+    "proof1_summary": "plot_proof1_summary",
+}
+
+def _render_batch_plot(plot_key: str, results: list) -> bytes | None:
+    """Render a batch comparative plot. Returns PNG bytes or None."""
+    import base64
+
+    # Aggregate-based plots (need SimpleNamespace for statistics extractors)
+    if plot_key in ("batch_summary", "separability"):
+        from types import SimpleNamespace
+        from tagm.engine.statistics import aggregate_batch
+        from tagm.engine.visualizations import plot_batch_summary, plot_separability
+        ns_results = [SimpleNamespace(**r) for r in results]
+        agg = aggregate_batch(ns_results)
+        if plot_key == "batch_summary":
+            b64 = plot_batch_summary(agg)
+        else:
+            b64 = plot_separability(agg)
+        return base64.b64decode(b64) if b64 else None
+
+    # Comparative plots (use raw dicts — functions use r.get() style)
+    func_name = _BATCH_PLOT_DISPATCH.get(plot_key)
+    if func_name:
+        import tagm.engine.comparative as comp
+        func = getattr(comp, func_name, None)
+        if func:
+            b64 = func(results)
+            return base64.b64decode(b64) if b64 else None
+
+    return None
+
 @app.get("/api/plots/{plot_key}")
 async def get_plot(plot_key: str):
-    """Batch-level plot. Renders from first result that has the data."""
-    from tagm.service.plots import render_plot
+    """Batch or per-prompt plot."""
     if not state.session.results:
         raise HTTPException(status_code=404, detail="No data in session.")
-    # For batch-level plots, use the first result as representative
-    # (true batch aggregation plots are a future enhancement)
     try:
+        # Try batch plot first
+        img = await run_in_threadpool(_render_batch_plot, plot_key, state.session.results)
+        if img is not None:
+            return StreamingResponse(_io.BytesIO(img), media_type="image/png")
+
+        # Fall back to per-prompt plot (first result)
+        from tagm.service.plots import render_plot
         img = await run_in_threadpool(render_plot, plot_key, state.session.results[0])
-        if img is None:
-            raise HTTPException(status_code=404, detail=f"Unknown plot '{plot_key}'")
-        return StreamingResponse(_io.BytesIO(img), media_type="image/png")
+        if img is not None:
+            return StreamingResponse(_io.BytesIO(img), media_type="image/png")
+
+        raise HTTPException(status_code=404, detail=f"Unknown plot '{plot_key}'")
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Plot {plot_key} failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/plots/individual/{index}/{plot_key}")

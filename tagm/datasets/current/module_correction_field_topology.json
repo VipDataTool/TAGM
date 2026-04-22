@@ -1,97 +1,97 @@
 {
- "n_total": 46,
- "n_with_displacement": 46,
+ "n_total": 44,
+ "n_with_displacement": 44,
  "n_with_ltp_fallback": 0,
- "n_with_base_candidates": 46,
+ "n_with_base_candidates": 44,
  "n_skipped": 0,
  "by_category": {
   "benign": {
-   "count": 11,
-   "mean_tokens": 8.7
-  },
-  "harmful": {
-   "count": 13,
-   "mean_tokens": 8.9
-  },
-  "jailbreak": {
-   "count": 12,
-   "mean_tokens": 10.7
+   "count": 14,
+   "mean_tokens": 9.1
   },
   "mild": {
    "count": 10,
    "mean_tokens": 9.0
+  },
+  "harmful": {
+   "count": 10,
+   "mean_tokens": 9.0
+  },
+  "jailbreak": {
+   "count": 10,
+   "mean_tokens": 10.9
   }
  },
  "token_stats": {
-  "total_tokens": 430,
-  "mean_tokens_per_prompt": 9.3,
+  "total_tokens": 416,
+  "mean_tokens_per_prompt": 9.5,
   "max_tokens": 15
  },
  "displacement_stats": {
   "overall": {
-   "mean": 0.808991,
-   "std": 0.603017,
-   "median": 0.683105
+   "mean": 0.793727,
+   "std": 0.607735,
+   "median": 0.659927
   },
   "by_category": {
    "benign": {
-    "mean": 0.653332,
-    "std": 0.620609,
-    "median": 0.5354,
+    "mean": 0.638433,
+    "std": 0.590883,
+    "median": 0.540039,
     "max": 2.467712
-   },
-   "harmful": {
-    "mean": 0.810766,
-    "std": 0.578234,
-    "median": 0.717163,
-    "max": 2.437927
-   },
-   "jailbreak": {
-    "mean": 0.994786,
-    "std": 0.572216,
-    "median": 0.84491,
-    "max": 3.156548
    },
    "mild": {
     "mean": 0.708496,
     "std": 0.58723,
     "median": 0.559937,
     "max": 2.467712
+   },
+   "harmful": {
+    "mean": 0.820416,
+    "std": 0.579625,
+    "median": 0.718994,
+    "max": 2.437927
+   },
+   "jailbreak": {
+    "mean": 1.023004,
+    "std": 0.594488,
+    "median": 0.875,
+    "max": 3.156548
    }
   }
  },
  "asymmetry_stats": {
   "overall": {
-   "mean": 0.0085,
-   "instruct_dominant_frac": 0.4233
+   "mean": 0.0061,
+   "instruct_dominant_frac": 0.4207
   },
   "by_category": {
    "benign": {
-    "mean": 0.0047,
-    "std": 0.0897,
-    "instruct_dominant_frac": 0.3958
-   },
-   "harmful": {
-    "mean": 0.0089,
-    "std": 0.0948,
-    "instruct_dominant_frac": 0.431
-   },
-   "jailbreak": {
-    "mean": 0.0126,
-    "std": 0.0697,
-    "instruct_dominant_frac": 0.4531
+    "mean": -0.0024,
+    "std": 0.0828,
+    "instruct_dominant_frac": 0.3858
    },
    "mild": {
     "mean": 0.0063,
     "std": 0.0905,
     "instruct_dominant_frac": 0.4
+   },
+   "harmful": {
+    "mean": 0.0116,
+    "std": 0.0951,
+    "instruct_dominant_frac": 0.4556
+   },
+   "jailbreak": {
+    "mean": 0.0114,
+    "std": 0.0708,
+    "instruct_dominant_frac": 0.4495
    }
   }
  },
  "launch_params": {
   "category": "all",
   "record_limit": 100,
-  "token_limit": 32,
+  "token_limit": 20,
   "char_limit": 50,
   "auto_rotate": false,
   "rotate_speed": 0.3
