@@ -429,7 +429,7 @@ async def api_analyze_batch_handler(request: Request):
                     state.progress("error", f"Prompt {i} failed: {e}")
 
             state.session.save_to_disk()
-            state.progress("ready", f"Batch complete: {len(prompts)} prompts analyzed")
+            state.progress("done", f"Batch complete: {len(prompts)} prompts analyzed")
         except Exception as e:
             logger.exception("Batch failed")
             state.progress("error", f"Batch failed: {e}")

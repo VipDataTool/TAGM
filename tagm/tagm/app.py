@@ -347,7 +347,7 @@ async def run_module(module_name: str, request: Request):
         session_dir=state.session.session_dir if hasattr(state.session, 'session_dir') else None,
     )
     if not result.get("ok"):
-        raise HTTPException(status_code=400, detail=result.get("error", "run failed"))
+        return {"ok": False, "error": result.get("error", "Module failed to start.")}
     return result
 
 @app.get("/api/modules/{module_name}/status")
