@@ -670,13 +670,12 @@ async def chat(request: Request):
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt required")
     use_base = (state.inference_class == "base")
-    model = state.pipeline.base_model if use_base else state.pipeline.instruct_model
-    if model is None:
-        raise HTTPException(status_code=409, detail=f"{state.inference_class} model not loaded.")
-    response = await run_in_threadpool(
-        generate_chat_response, model, state.pipeline.tokenizer, prompt,
+    messages = body.get("messages") or [{"role": "user", "content": prompt}]
+    result = await run_in_threadpool(
+        generate_chat_response, state.pipeline, messages,
+        max_tokens=engine_config.get("chat_max_tokens"),
         temperature=engine_config.get("chat_temperature"),
         top_p=engine_config.get("chat_top_p"),
-        max_tokens=engine_config.get("chat_max_tokens"),
+        use_base=use_base,
     )
-    return {"ok": True, "response": response}
+    return result
