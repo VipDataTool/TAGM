@@ -200,14 +200,18 @@ window._bsPlayPause=function(){
 // ─── Scale & color helpers ───────────────────────────────────
 
 function gridScale(grid){
-  var posMax=0,negMin=0;
+  var posMin=Infinity,posMax=0,negMin=0,negMax=-Infinity;
+  var hasPos=false,hasNeg=false;
   for(var i=0;i<grid.length;i++)for(var j=0;j<(grid[i]||[]).length;j++){
-    var v=grid[i][j]||0;
-    if(v>posMax)posMax=v;
-    if(v<negMin)negMin=v;
+    var v=grid[i][j];if(v==null)continue;
+    if(v>=0){hasPos=true;if(v>posMax)posMax=v;if(v<posMin)posMin=v;}
+    if(v<0){hasNeg=true;if(v<negMin)negMin=v;if(v>negMax)negMax=v;}
   }
-  var hasNeg=negMin<0,hasPos=posMax>0;
-  return{min:negMin,max:posMax,diverging:hasNeg,posMax:posMax,negMin:negMin};
+  if(!hasPos)posMin=posMax=0;
+  if(!hasNeg)negMin=negMax=0;
+  return{posMin:posMin,posMax:posMax,negMin:negMin,negMax:negMax,
+         min:hasNeg?negMin:posMin,max:hasPos?posMax:negMax,
+         hasPos:hasPos,hasNeg:hasNeg,diverging:hasNeg};
 }
 
 // Warm ramp for backscatter (token × probe)
@@ -325,7 +329,7 @@ function buildLegend(){
     }
   }
   h+='</div>';
-  var scaleHint=viewMode==="residual"?'blue = below mean · dark = near mean · orange = above mean':'dark = low · bright = high';
+  var scaleHint=viewMode==="residual"?'orange = positive · blue = negative · intensity = magnitude within each side':'dark = low · bright = high';
   h+='<span style="margin-left:8px;color:#555">'+scaleHint+' · '+label+' · '+esc(scope)+' · each panel auto-scaled</span>';
   document.getElementById("legend").innerHTML=h;
 }
@@ -366,13 +370,16 @@ function renderHeatmap(pk,grid,sc){
       var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
       var t;
       if(sc.diverging){
-        // Scale positive and negative sides independently
         if(v>=0){
-          t=(sc.posMax>1e-12)?v/sc.posMax:0;
+          // Orange: posMin (palest) → posMax (most vivid)
+          var range=sc.posMax-sc.posMin;
+          t=(range>1e-15)?(v-sc.posMin)/range:0.5;
           t=Math.max(0,Math.min(1,t));
         }else{
-          t=(sc.negMin<-1e-12)?v/sc.negMin:0; // negMin is negative, so v/negMin gives positive
-          t=-Math.max(0,Math.min(1,t)); // make it negative for divCol
+          // Blue: negMax/closest to 0 (palest) → negMin/most negative (most vivid)
+          var range=sc.negMin-sc.negMax; // both negative, range is negative
+          t=(Math.abs(range)>1e-15)?(v-sc.negMax)/range:0.5;
+          t=-Math.max(0,Math.min(1,t)); // negative for divCol
         }
       }else{
         t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
