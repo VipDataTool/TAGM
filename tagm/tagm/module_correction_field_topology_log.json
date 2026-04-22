@@ -1,90 +1,90 @@
 {
- "n_total": 12,
- "n_with_displacement": 12,
+ "n_total": 40,
+ "n_with_displacement": 40,
  "n_with_ltp_fallback": 0,
- "n_with_base_candidates": 12,
+ "n_with_base_candidates": 40,
  "n_skipped": 0,
  "by_category": {
   "benign": {
-   "count": 3,
-   "mean_tokens": 11.7
-  },
-  "mild": {
-   "count": 3,
-   "mean_tokens": 9.7
-  },
-  "harmful": {
-   "count": 3,
+   "count": 10,
    "mean_tokens": 8.7
   },
+  "mild": {
+   "count": 10,
+   "mean_tokens": 9.0
+  },
+  "harmful": {
+   "count": 10,
+   "mean_tokens": 9.0
+  },
   "jailbreak": {
-   "count": 3,
-   "mean_tokens": 10.0
+   "count": 10,
+   "mean_tokens": 10.9
   }
  },
  "token_stats": {
-  "total_tokens": 120,
-  "mean_tokens_per_prompt": 10.0,
-  "max_tokens": 13
+  "total_tokens": 376,
+  "mean_tokens_per_prompt": 9.4,
+  "max_tokens": 15
  },
  "displacement_stats": {
   "overall": {
-   "mean": 0.82693,
-   "std": 0.644,
-   "median": 0.618256
+   "mean": 0.814417,
+   "std": 0.611161,
+   "median": 0.683105
   },
   "by_category": {
    "benign": {
-    "mean": 0.657008,
-    "std": 0.631872,
-    "median": 0.516235,
+    "mean": 0.656453,
+    "std": 0.61328,
+    "median": 0.543831,
     "max": 2.467712
    },
    "mild": {
-    "mean": 0.624375,
-    "std": 0.471955,
-    "median": 0.529785,
+    "mean": 0.708496,
+    "std": 0.58723,
+    "median": 0.559937,
     "max": 2.467712
    },
    "harmful": {
-    "mean": 0.812435,
-    "std": 0.633252,
-    "median": 0.634552,
+    "mean": 0.820416,
+    "std": 0.579625,
+    "median": 0.718994,
     "max": 2.437927
    },
    "jailbreak": {
-    "mean": 1.233539,
-    "std": 0.625638,
-    "median": 1.276871,
+    "mean": 1.023004,
+    "std": 0.594488,
+    "median": 0.875,
     "max": 3.156548
    }
   }
  },
  "asymmetry_stats": {
   "overall": {
-   "mean": 0.0088,
-   "instruct_dominant_frac": 0.475
+   "mean": 0.0076,
+   "instruct_dominant_frac": 0.4229
   },
   "by_category": {
    "benign": {
-    "mean": 0.0036,
-    "std": 0.0782,
-    "instruct_dominant_frac": 0.4571
+    "mean": 0.0002,
+    "std": 0.0876,
+    "instruct_dominant_frac": 0.3793
    },
    "mild": {
-    "mean": -0.0032,
-    "std": 0.0783,
-    "instruct_dominant_frac": 0.4483
+    "mean": 0.0063,
+    "std": 0.0905,
+    "instruct_dominant_frac": 0.4
    },
    "harmful": {
-    "mean": 0.0206,
-    "std": 0.1127,
-    "instruct_dominant_frac": 0.5385
+    "mean": 0.0116,
+    "std": 0.0951,
+    "instruct_dominant_frac": 0.4556
    },
    "jailbreak": {
-    "mean": 0.0162,
-    "std": 0.0884,
-    "instruct_dominant_frac": 0.4667
+    "mean": 0.0114,
+    "std": 0.0708,
+    "instruct_dominant_frac": 0.4495
    }
   }
  },
