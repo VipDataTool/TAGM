@@ -19,12 +19,11 @@ fi
 # Clean bytecode cache to ensure code changes take effect
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
-# Install dependencies if --install was passed
-if [ "$1" = "--install" ]; then
+# Auto-install missing dependencies
+python -c "import uvicorn" 2>/dev/null || {
   echo "-> Installing dependencies..."
   pip install -q -r requirements.txt
-  shift
-fi
+}
 
 echo "-> Starting server on port 8000..."
 echo "   Open http://localhost:8000"
