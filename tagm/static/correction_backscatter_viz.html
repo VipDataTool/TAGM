@@ -79,6 +79,7 @@ function init(){
 function buildCtrls(){
   var h='<label>View:</label><select onchange="window._bsSetView(this.value)">';
   h+='<option value="backscatter"'+(viewMode==="backscatter"?' selected':'')+'>Backscatter (token × probe)</option>';
+  h+='<option value="residual"'+(viewMode==="residual"?' selected':'')+'>Residual (mean-subtracted)</option>';
   h+='<option value="probe_energy"'+(viewMode==="probe_energy"?' selected':'')+'>Probe Energy (detector sensitivity)</option>';
   h+='</select>';
 
@@ -124,12 +125,15 @@ function buildCtrls(){
 // ─── Scale & color helpers ───────────────────────────────────
 
 function gridScale(grid){
-  var mn=Infinity,mx=0;
+  var mn=Infinity,mx=0,hasNeg=false;
   for(var i=0;i<grid.length;i++)for(var j=0;j<(grid[i]||[]).length;j++){
-    var v=grid[i][j]||0;if(v>0&&v<mn)mn=v;if(v>mx)mx=v;
+    var v=grid[i][j]||0;
+    if(v<0)hasNeg=true;
+    if(Math.abs(v)>0&&Math.abs(v)<Math.abs(mn))mn=Math.abs(v);
+    if(Math.abs(v)>mx)mx=Math.abs(v);
   }
   if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
-  return{min:mn,max:mx};
+  return{min:hasNeg?-mx:mn,max:mx,diverging:hasNeg};
 }
 
 // Warm ramp for backscatter (token × probe)
@@ -140,7 +144,17 @@ function warmCol(t){
 function coolCol(t){
   return'rgb('+Math.round(30+t*50)+','+Math.round(60+t*140)+','+Math.round(100+t*130)+')';
 }
-function cellCol(t){return viewMode==="backscatter"?warmCol(t):coolCol(t)}
+// Diverging ramp for residuals: blue (negative) → dark (zero) → orange (positive)
+function divCol(t){
+  // t in [-1, 1]
+  if(t>=0){return'rgb('+Math.round(30+t*200)+','+Math.round(30+t*120)+','+Math.round(36+t*10)+')';}
+  var a=-t;
+  return'rgb('+Math.round(30+a*10)+','+Math.round(30+a*100)+','+Math.round(36+a*190)+')';
+}
+function cellCol(t){
+  if(viewMode==="residual")return divCol(t);
+  return viewMode==="backscatter"?warmCol(t):coolCol(t);
+}
 
 function currentGridFor(pk){
   // Returns the 2D grid for projection `pk` under the current viewMode,
@@ -152,30 +166,52 @@ function currentGridFor(pk){
     return d.probe_energy||[];
   }
 
-  // Backscatter view: respond to prompt/category selection
+  // Get the raw grid for the current selection
+  var grid;
   if(selPrompt!=="all"){
     var pi=parseInt(selPrompt);
     var pp=d.per_prompt||[];
     var entry=pp[pi];
-    return (entry&&entry.grid)?entry.grid:[];
-  }
-  if(selCat!=="all"){
+    grid=(entry&&entry.grid)?entry.grid:[];
+  }else if(selCat!=="all"){
     var pc=d.per_category||{};
     var ce=pc[selCat];
-    return (ce&&ce.aggregate)?ce.aggregate:[];
+    grid=(ce&&ce.aggregate)?ce.aggregate:[];
+  }else{
+    grid=d.aggregate||[];
   }
-  return d.aggregate||[];
+
+  // Residual mode: subtract all-prompt mean
+  if(viewMode==="residual"&&grid.length>0){
+    var meanGrid=d.aggregate||[];
+    if(meanGrid.length>0){
+      var res=[];
+      for(var i=0;i<grid.length;i++){
+        res[i]=[];
+        for(var j=0;j<(grid[i]||[]).length;j++){
+          var v=(grid[i]&&grid[i][j]!=null)?grid[i][j]:0;
+          var m=(meanGrid[i]&&meanGrid[i][j]!=null)?meanGrid[i][j]:0;
+          res[i][j]=v-m;
+        }
+      }
+      return res;
+    }
+  }
+
+  return grid;
 }
 
 // ─── Legend ──────────────────────────────────────────────────
 
 function buildLegend(){
-  var label=viewMode==="backscatter"?"token × probe energy":"probe correction energy";
+  var label=viewMode==="residual"?"deviation from all-prompt mean":(viewMode==="backscatter"?"token × probe energy":"probe correction energy");
 
   // Describe the current filter scope
   var scope="";
   if(viewMode==="probe_energy"){
     scope="intrinsic detector — independent of prompts";
+  }else if(viewMode==="residual"&&selPrompt==="all"&&selCat==="all"){
+    scope="residual of mean vs mean = zero everywhere — select a prompt or category";
   }else if(selPrompt!=="all"){
     var pi=parseInt(selPrompt);
     var p=PROMPTS[pi];
@@ -190,12 +226,21 @@ function buildLegend(){
   }
 
   var h='<div class="bar">';
-  for(var i=0;i<20;i++){
-    var t=i/19;
-    h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
+  if(viewMode==="residual"){
+    // Diverging legend: blue → dark → orange
+    for(var i=0;i<20;i++){
+      var t=(i/19)*2-1; // [-1, 1]
+      h+='<div style="flex:1;background:'+divCol(t)+'"></div>';
+    }
+  }else{
+    for(var i=0;i<20;i++){
+      var t=i/19;
+      h+='<div style="flex:1;background:'+cellCol(t)+'"></div>';
+    }
   }
   h+='</div>';
-  h+='<span style="margin-left:8px;color:#555">dark = low · bright = high · '+label+' · '+esc(scope)+' · each panel auto-scaled</span>';
+  var scaleHint=viewMode==="residual"?'blue = below mean · dark = near mean · orange = above mean':'dark = low · bright = high';
+  h+='<span style="margin-left:8px;color:#555">'+scaleHint+' · '+label+' · '+esc(scope)+' · each panel auto-scaled</span>';
   document.getElementById("legend").innerHTML=h;
 }
 
@@ -233,17 +278,25 @@ function renderHeatmap(pk,grid,sc){
     h+='<tr><th style="text-align:left;font-weight:600;color:var(--text);padding:3px 5px;font-size:9px">'+esc(SUBJ_SHORT[si])+'</th>';
     for(var li=0;li<LEVELS.length;li++){
       var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
-      var t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
+      var t;
+      if(sc.diverging){
+        // Map [-max, max] → [-1, 1]
+        t=(sc.max>0)?v/sc.max:0;
+        t=Math.max(-1,Math.min(1,t));
+      }else{
+        t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
+      }
       var bg=cellCol(t);
-      var tc=t>0.4?'#fff':'var(--text2)';
+      var tc=Math.abs(t)>0.4?'#fff':'var(--text2)';
       var id='c_'+pk+'_'+si+'_'+li;
       var isSel=(selCell&&selCell.pk===pk&&selCell.si===si&&selCell.li===li);
       var cls=isSel?' sel':'';
+      var displayVal=sc.diverging?(v>=0?'+':'')+v.toFixed(6):v.toFixed(6);
       h+='<td id="'+id+'" class="'+cls+'" ';
       h+='style="padding:3px 5px;background:'+bg+';color:'+tc+'" ';
       h+='onclick="window._bsClick(\''+pk+'\','+si+','+li+')" ';
-      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+' ['+esc(pk.toUpperCase())+']: '+v.toFixed(6)+'">';
-      h+=v.toFixed(6);
+      h+='title="'+esc(SUBJ[si])+' × '+esc(LEVELS[li])+' ['+esc(pk.toUpperCase())+']: '+displayVal+'">';
+      h+=displayVal;
       h+='</td>';
     }
     h+='</tr>';
