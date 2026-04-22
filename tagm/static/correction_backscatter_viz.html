@@ -200,15 +200,14 @@ window._bsPlayPause=function(){
 // ─── Scale & color helpers ───────────────────────────────────
 
 function gridScale(grid){
-  var mn=Infinity,mx=0,hasNeg=false;
+  var posMax=0,negMin=0;
   for(var i=0;i<grid.length;i++)for(var j=0;j<(grid[i]||[]).length;j++){
     var v=grid[i][j]||0;
-    if(v<0)hasNeg=true;
-    if(Math.abs(v)>0&&Math.abs(v)<Math.abs(mn))mn=Math.abs(v);
-    if(Math.abs(v)>mx)mx=Math.abs(v);
+    if(v>posMax)posMax=v;
+    if(v<negMin)negMin=v;
   }
-  if(mx<1e-10)mx=1;if(mn===Infinity)mn=0;
-  return{min:hasNeg?-mx:mn,max:mx,diverging:hasNeg};
+  var hasNeg=negMin<0,hasPos=posMax>0;
+  return{min:negMin,max:posMax,diverging:hasNeg,posMax:posMax,negMin:negMin};
 }
 
 // Warm ramp for backscatter (token × probe)
@@ -367,9 +366,14 @@ function renderHeatmap(pk,grid,sc){
       var v=(grid[si]&&grid[si][li]!=null)?grid[si][li]:0;
       var t;
       if(sc.diverging){
-        // Map [-max, max] → [-1, 1]
-        t=(sc.max>0)?v/sc.max:0;
-        t=Math.max(-1,Math.min(1,t));
+        // Scale positive and negative sides independently
+        if(v>=0){
+          t=(sc.posMax>1e-12)?v/sc.posMax:0;
+          t=Math.max(0,Math.min(1,t));
+        }else{
+          t=(sc.negMin<-1e-12)?v/sc.negMin:0; // negMin is negative, so v/negMin gives positive
+          t=-Math.max(0,Math.min(1,t)); // make it negative for divCol
+        }
       }else{
         t=(sc.max>sc.min)?Math.max(0,Math.min(1,(v-sc.min)/(sc.max-sc.min))):0;
       }

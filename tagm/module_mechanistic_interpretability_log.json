@@ -1,8 +1,8 @@
 {
- "n_prompts": 32,
+ "n_prompts": 40,
  "n_features": 11,
- "n_safe": 11,
- "n_risk": 21,
+ "n_safe": 20,
+ "n_risk": 20,
  "feature_names": [
   "stress_score",
   "net_correction",
@@ -19,10 +19,12 @@
  "categories": [
   "benign",
   "harmful",
-  "jailbreak"
+  "jailbreak",
+  "mild"
  ],
  "safe_categories": [
-  "benign"
+  "benign",
+  "mild"
  ],
  "config": {
   "n_folds": 5,
@@ -39,138 +41,138 @@
   "n_folds": 5
  },
  "auroc_length_only": {
-  "auc": 0.6367,
-  "std": 0.2132
+  "auc": 0.6438,
+  "std": 0.1741
  },
- "mean_seq_len_safe": 8.7,
- "mean_seq_len_risk": 10.0,
+ "mean_seq_len_safe": 8.8,
+ "mean_seq_len_risk": 9.9,
  "auroc_residualized": {
-  "auc": 0.9367,
+  "auc": 0.9375,
   "std": 0.0559
  },
  "length_confounds": [
   {
-   "metric": "stress_score",
-   "r": 0.693,
-   "r_squared": 0.4802,
+   "metric": "ltp_mean_M",
+   "r": -0.7172,
+   "r_squared": 0.5144,
    "severity": "moderately confounded"
   },
   {
-   "metric": "ltp_mean_M",
-   "r": -0.6809,
-   "r_squared": 0.4636,
+   "metric": "stress_score",
+   "r": 0.6941,
+   "r_squared": 0.4818,
    "severity": "moderately confounded"
   },
   {
    "metric": "interior_cv",
-   "r": 0.4813,
-   "r_squared": 0.2317,
+   "r": 0.4584,
+   "r_squared": 0.2101,
    "severity": "mildly confounded"
   },
   {
    "metric": "net_correction",
-   "r": 0.45,
-   "r_squared": 0.2025,
+   "r": 0.3843,
+   "r_squared": 0.1477,
    "severity": "mildly confounded"
   },
   {
    "metric": "top2_share",
-   "r": -0.3922,
-   "r_squared": 0.1538,
+   "r": -0.3486,
+   "r_squared": 0.1216,
    "severity": "mildly confounded"
   },
   {
    "metric": "middle_share",
-   "r": 0.3922,
-   "r_squared": 0.1538,
+   "r": 0.3486,
+   "r_squared": 0.1216,
    "severity": "mildly confounded"
   },
   {
    "metric": "entropy",
-   "r": -0.2631,
-   "r_squared": 0.0692,
-   "severity": "minimal"
+   "r": -0.3435,
+   "r_squared": 0.118,
+   "severity": "mildly confounded"
   },
   {
    "metric": "ltp_n_directional",
-   "r": 0.2126,
-   "r_squared": 0.0452,
-   "severity": "minimal"
-  },
-  {
-   "metric": "rank_displacement_mean_tau",
-   "r": -0.0506,
-   "r_squared": 0.0026,
-   "severity": "minimal"
-  },
-  {
-   "metric": "sfd_density_mean",
-   "r": 0.0275,
-   "r_squared": 0.0008,
+   "r": 0.1873,
+   "r_squared": 0.0351,
    "severity": "minimal"
   },
   {
    "metric": "kl_divergence",
-   "r": 0.0017,
-   "r_squared": 0.0,
+   "r": -0.0662,
+   "r_squared": 0.0044,
+   "severity": "minimal"
+  },
+  {
+   "metric": "rank_displacement_mean_tau",
+   "r": -0.0551,
+   "r_squared": 0.003,
+   "severity": "minimal"
+  },
+  {
+   "metric": "sfd_density_mean",
+   "r": -0.0252,
+   "r_squared": 0.0006,
    "severity": "minimal"
   }
  ],
  "per_metric_auroc": [
   {
+   "metric": "net_correction",
+   "auroc": 0.885,
+   "direction": "higher \u2192 risk"
+  },
+  {
    "metric": "sfd_density_mean",
-   "auroc": 0.9697,
+   "auroc": 0.8175,
    "direction": "higher \u2192 risk"
   },
   {
    "metric": "rank_displacement_mean_tau",
-   "auroc": 0.8052,
+   "auroc": 0.8175,
    "direction": "lower \u2192 risk"
   },
   {
-   "metric": "net_correction",
-   "auroc": 0.8009,
-   "direction": "higher \u2192 risk"
-  },
-  {
-   "metric": "kl_divergence",
-   "auroc": 0.7879,
-   "direction": "higher \u2192 risk"
-  },
-  {
    "metric": "top2_share",
-   "auroc": 0.7576,
+   "auroc": 0.79,
    "direction": "lower \u2192 risk"
   },
   {
    "metric": "middle_share",
-   "auroc": 0.7576,
+   "auroc": 0.79,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "kl_divergence",
+   "auroc": 0.7825,
    "direction": "higher \u2192 risk"
   },
   {
    "metric": "stress_score",
-   "auroc": 0.7273,
-   "direction": "higher \u2192 risk"
-  },
-  {
-   "metric": "entropy",
-   "auroc": 0.658,
+   "auroc": 0.7625,
    "direction": "higher \u2192 risk"
   },
   {
    "metric": "interior_cv",
-   "auroc": 0.6364,
+   "auroc": 0.71,
    "direction": "higher \u2192 risk"
   },
   {
-   "metric": "ltp_mean_M",
-   "auroc": 0.6017,
+   "metric": "entropy",
+   "auroc": 0.6975,
    "direction": "higher \u2192 risk"
   },
   {
    "metric": "ltp_n_directional",
-   "auroc": 0.5649,
+   "auroc": 0.5525,
    "direction": "lower \u2192 risk"
+  },
+  {
+   "metric": "ltp_mean_M",
+   "auroc": 0.5238,
+   "direction": "higher \u2192 risk"
   }
  ],
  "pca": {
@@ -178,224 +180,224 @@
    {
     "index": 1,
     "name": "Correction Magnitude",
-    "variance_explained": 43.9,
-    "cumulative": 43.9,
+    "variance_explained": 43.7,
+    "cumulative": 43.7,
     "top_loadings": [
      {
       "metric": "middle_share",
-      "loading": -0.4291
+      "loading": -0.4355
      },
      {
       "metric": "top2_share",
-      "loading": 0.4291
+      "loading": 0.4355
      },
      {
       "metric": "net_correction",
-      "loading": -0.4147
+      "loading": -0.4259
      },
      {
       "metric": "stress_score",
-      "loading": -0.3606
+      "loading": -0.3539
      },
      {
       "metric": "entropy",
-      "loading": -0.3312
+      "loading": -0.3204
      }
     ]
    },
    {
     "index": 2,
     "name": "Correction Distribution",
-    "variance_explained": 20.0,
-    "cumulative": 63.9,
+    "variance_explained": 19.5,
+    "cumulative": 63.3,
     "top_loadings": [
      {
       "metric": "ltp_mean_M",
-      "loading": 0.5126
+      "loading": 0.5673
      },
      {
       "metric": "interior_cv",
-      "loading": -0.4716
+      "loading": -0.4343
      },
      {
       "metric": "sfd_density_mean",
-      "loading": 0.4068
+      "loading": 0.3995
      },
      {
       "metric": "kl_divergence",
-      "loading": 0.3203
+      "loading": 0.3235
      },
      {
-      "metric": "rank_displacement_mean_tau",
-      "loading": -0.2897
+      "metric": "entropy",
+      "loading": 0.3017
      }
     ]
    },
    {
     "index": 3,
     "name": "Spectral Engagement",
-    "variance_explained": 11.5,
-    "cumulative": 75.4,
+    "variance_explained": 10.4,
+    "cumulative": 73.6,
     "top_loadings": [
      {
       "metric": "ltp_n_directional",
-      "loading": 0.6313
-     },
-     {
-      "metric": "kl_divergence",
-      "loading": -0.3958
-     },
-     {
-      "metric": "entropy",
-      "loading": 0.3767
-     },
-     {
-      "metric": "ltp_mean_M",
-      "loading": 0.329
+      "loading": 0.7928
      },
      {
       "metric": "sfd_density_mean",
-      "loading": -0.236
+      "loading": -0.3302
+     },
+     {
+      "metric": "entropy",
+      "loading": 0.2774
+     },
+     {
+      "metric": "kl_divergence",
+      "loading": -0.2593
+     },
+     {
+      "metric": "ltp_mean_M",
+      "loading": 0.2092
      }
     ]
    },
    {
     "index": 4,
     "name": "Directional Tension",
-    "variance_explained": 8.7,
-    "cumulative": 84.1,
+    "variance_explained": 8.8,
+    "cumulative": 82.4,
     "top_loadings": [
      {
       "metric": "ltp_n_directional",
-      "loading": 0.6719
-     },
-     {
-      "metric": "ltp_mean_M",
-      "loading": -0.3923
+      "loading": 0.4837
      },
      {
       "metric": "rank_displacement_mean_tau",
-      "loading": -0.3426
-     },
-     {
-      "metric": "interior_cv",
-      "loading": -0.2785
+      "loading": -0.3932
      },
      {
       "metric": "entropy",
-      "loading": -0.2725
+      "loading": -0.3816
+     },
+     {
+      "metric": "ltp_mean_M",
+      "loading": -0.3591
+     },
+     {
+      "metric": "kl_divergence",
+      "loading": 0.3566
      }
     ]
    },
    {
     "index": 5,
     "name": "Output Divergence",
-    "variance_explained": 6.9,
-    "cumulative": 91.0,
+    "variance_explained": 7.5,
+    "cumulative": 89.9,
     "top_loadings": [
      {
       "metric": "sfd_density_mean",
-      "loading": -0.6531
+      "loading": -0.6473
      },
      {
       "metric": "kl_divergence",
-      "loading": 0.4265
+      "loading": 0.4918
      },
      {
       "metric": "rank_displacement_mean_tau",
-      "loading": -0.3939
-     },
-     {
-      "metric": "interior_cv",
-      "loading": 0.2857
+      "loading": -0.3868
      },
      {
       "metric": "stress_score",
-      "loading": -0.2804
+      "loading": -0.2712
+     },
+     {
+      "metric": "interior_cv",
+      "loading": 0.2481
      }
     ]
    },
    {
     "index": 6,
     "name": "Field Concentration",
-    "variance_explained": 2.9,
-    "cumulative": 93.9,
+    "variance_explained": 3.4,
+    "cumulative": 93.3,
     "top_loadings": [
      {
       "metric": "rank_displacement_mean_tau",
-      "loading": 0.4697
+      "loading": 0.7036
      },
      {
       "metric": "kl_divergence",
-      "loading": 0.4402
+      "loading": 0.5922
      },
      {
       "metric": "net_correction",
-      "loading": 0.3867
+      "loading": 0.2275
      },
      {
       "metric": "interior_cv",
-      "loading": -0.3827
+      "loading": -0.1509
      },
      {
-      "metric": "sfd_density_mean",
-      "loading": -0.3019
+      "metric": "stress_score",
+      "loading": 0.1417
      }
     ]
    },
    {
     "index": 7,
     "name": "Rank Stability",
-    "variance_explained": 2.5,
-    "cumulative": 96.4,
+    "variance_explained": 2.8,
+    "cumulative": 96.1,
     "top_loadings": [
      {
-      "metric": "ltp_mean_M",
-      "loading": 0.5835
-     },
-     {
       "metric": "stress_score",
-      "loading": 0.506
+      "loading": 0.5952
      },
      {
-      "metric": "entropy",
-      "loading": -0.3128
+      "metric": "sfd_density_mean",
+      "loading": -0.4103
      },
      {
-      "metric": "top2_share",
-      "loading": 0.2744
+      "metric": "ltp_mean_M",
+      "loading": 0.3478
      },
      {
-      "metric": "middle_share",
-      "loading": -0.2744
+      "metric": "interior_cv",
+      "loading": -0.3256
+     },
+     {
+      "metric": "net_correction",
+      "loading": 0.2726
      }
     ]
    },
    {
     "index": 8,
     "name": "Spectral Entropy",
-    "variance_explained": 2.2,
-    "cumulative": 98.6,
+    "variance_explained": 2.3,
+    "cumulative": 98.5,
     "top_loadings": [
      {
-      "metric": "rank_displacement_mean_tau",
-      "loading": -0.4881
-     },
-     {
       "metric": "interior_cv",
-      "loading": -0.4836
+      "loading": 0.6114
      },
      {
-      "metric": "kl_divergence",
-      "loading": -0.4622
+      "metric": "ltp_mean_M",
+      "loading": 0.5897
+     },
+     {
+      "metric": "entropy",
+      "loading": -0.347
      },
      {
       "metric": "ltp_n_directional",
-      "loading": -0.3302
+      "loading": 0.2499
      },
      {
       "metric": "sfd_density_mean",
-      "loading": -0.3299
+      "loading": 0.1527
      }
     ]
    }
@@ -416,19 +418,19 @@
    {
     "metric_a": "net_correction",
     "metric_b": "top2_share",
-    "r": -0.8543,
+    "r": -0.876,
     "implication": "redundant"
    },
    {
     "metric_a": "net_correction",
     "metric_b": "middle_share",
-    "r": 0.8543,
+    "r": 0.876,
     "implication": "redundant"
    },
    {
     "metric_a": "stress_score",
     "metric_b": "net_correction",
-    "r": 0.8314,
+    "r": 0.807,
     "implication": "redundant"
    }
   ],
@@ -436,23 +438,18 @@
   "n_redundant_pairs": 4
  },
  "random_baseline": {
-  "mean_auc": 0.5203,
-  "std_auc": 0.1417,
-  "min_auc": 0.25,
-  "max_auc": 0.7333,
+  "mean_auc": 0.4637,
+  "std_auc": 0.0629,
+  "min_auc": 0.375,
+  "max_auc": 0.5625,
   "n_trials": 10,
-  "delta_above_random": 0.4797
+  "delta_above_random": 0.5363
  },
  "category_stress": {
   "benign": {
-   "n": 11,
-   "mean_stress": 3.1354,
-   "std_stress": 0.1055
-  },
-  "jailbreak": {
-   "n": 11,
-   "mean_stress": 3.4334,
-   "std_stress": 0.1186
+   "n": 10,
+   "mean_stress": 3.1323,
+   "std_stress": 0.1102
   },
   "mild": {
    "n": 10,
@@ -464,12 +461,17 @@
    "mean_stress": 3.1428,
    "std_stress": 0.0607
   },
+  "jailbreak": {
+   "n": 10,
+   "mean_stress": 3.4278,
+   "std_stress": 0.1229
+  },
   "_separation": {
-   "safe_mean": 3.1239,
-   "risk_mean": 3.295,
-   "cohens_d": 1.209,
-   "n_safe": 21,
-   "n_risk": 21
+   "safe_mean": 3.1217,
+   "risk_mean": 3.2853,
+   "cohens_d": 1.157,
+   "n_safe": 20,
+   "n_risk": 20
   }
  },
  "scorecard": [
@@ -481,12 +483,12 @@
   {
    "item": "Length Confound",
    "status": "strong",
-   "detail": "Residualized AUC 0.937 \u2014 signal survives length removal"
+   "detail": "Residualized AUC 0.938 \u2014 signal survives length removal"
   },
   {
    "item": "Weight-Delta Specificity",
    "status": "strong",
-   "detail": "\u0394 +0.480 over random projection"
+   "detail": "\u0394 +0.536 over random projection"
   },
   {
    "item": "Metric Efficiency",
@@ -496,7 +498,7 @@
   {
    "item": "Sample Size",
    "status": "adequate",
-   "detail": "Min class size 11 \u2014 borderline, more data recommended"
+   "detail": "Min class size 20 \u2014 borderline, more data recommended"
   }
  ],
  "overall_readiness": "near_ready",
