@@ -51,11 +51,15 @@ class _PipelineState:
         self._deltas = {}
         self._frob_norms = {}
         n = self._adapter.n_layers(self._model)
+        # Adapter role names are "q","k","v","o" but backscatter constructs keys
+        # like "model.layers.5.self_attn.v_proj.weight" — adapter generates the same
+        role_map = {"q": "q_proj.weight", "k": "k_proj.weight",
+                    "v": "v_proj.weight", "o": "o_proj.weight"}
         for layer_idx in range(n):
-            for role in ("q_proj", "k_proj", "v_proj", "o_proj"):
-                dw = self._delta_store.get_or_none(layer_idx, role)
+            for adapter_role in ("q", "k", "v", "o"):
+                dw = self._delta_store.get_or_none(layer_idx, adapter_role)
                 if dw is not None:
-                    key = self._adapter.projection_weight_key(role, layer_idx)
+                    key = self._adapter.projection_weight_key(adapter_role, layer_idx)
                     self._deltas[key] = dw
                     self._frob_norms[key] = float(dw.float().norm().item())
 

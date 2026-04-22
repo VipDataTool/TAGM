@@ -384,21 +384,35 @@ def _plot_sfd_density(r: dict) -> bytes:
 def _plot_rank_displacement(r: dict) -> bytes:
     plt = _setup_matplotlib()
     rd = r.get("rank_displacement") or {}
-    disp = rd.get("per_token_disp") or []
-    repl = rd.get("per_token_replacement") or []
+
+    # Engine produces per_position (list of dicts) with total_disp and replacement_ratio
+    per_pos = rd.get("per_position") or []
+    if per_pos and isinstance(per_pos[0], dict):
+        disp = [p.get("total_disp", 0) for p in per_pos]
+        repl = [p.get("replacement_ratio", 0) for p in per_pos]
+    else:
+        # Fallback: try legacy flat arrays
+        disp = rd.get("per_token_disp") or []
+        repl = rd.get("per_token_replacement") or []
+
     if not disp:
         return _empty_plot("No rank displacement data")
 
+    tokens = r.get("tokens", [])
+    x = range(len(disp))
+    labels = tokens[:len(disp)] if tokens else [str(i) for i in x]
+
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-    ax1.bar(range(len(disp)), disp, color=_BLUE, edgecolor=_GRID,
-            linewidth=0.5)
+    ax1.bar(x, disp, color=_BLUE, edgecolor=_GRID, linewidth=0.5)
     ax1.set_ylabel("Total displacement")
-    ax1.set_title("Per-position rank displacement")
+    ax1.set_title(f"Per-position rank displacement (τ={rd.get('mean_tau', 0):.3f})")
     if repl:
-        ax2.bar(range(len(repl)), repl, color=_RED, edgecolor=_GRID,
-                linewidth=0.5)
+        ax2.bar(x, repl, color=_RED, edgecolor=_GRID, linewidth=0.5)
         ax2.set_ylabel("Replacement ratio")
     ax2.set_xlabel("Token position")
+    if len(labels) <= 20:
+        ax2.set_xticks(list(x))
+        ax2.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
     fig.tight_layout()
     return _render(fig)
 
