@@ -2665,6 +2665,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderMIInstrumentationResults(results);
   } else if (name === 'model_dialogue') {
     container.innerHTML = renderModelDialogueResults(results);
+    // Auto-open chat window when Run completes
+    if (results && results.chat_url) popoutChat();
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';

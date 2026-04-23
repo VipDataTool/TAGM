@@ -60,7 +60,7 @@ DEFAULTS = {
     # ── Chat Generation ──
     "chat_temperature": 0.7,
     "chat_top_p": 0.9,
-    "chat_max_tokens": 512,
+    "chat_max_tokens": 256,
 }
 
 _config = dict(DEFAULTS)

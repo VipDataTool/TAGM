@@ -64,7 +64,7 @@ class ModelDialogueModule(TASMModule):
                 "longer. Default 256."
             ),
             type="int",
-            default=256,
+            default=128,
         ),
         ModuleParameter(
             name="analyze_prompts",

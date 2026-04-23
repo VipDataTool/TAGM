@@ -74,7 +74,7 @@ header a:hover{color:var(--text-0)}
 const chatMessages=[];
 let busy=false;
 let turnCount=0;
-let chatCfg={max_tokens:256,temperature:0.7,top_p:0.9,analyze_prompts:true,analyze_responses:false,compute_ltp:true,compute_sfd:true};
+let chatCfg={max_tokens:128,temperature:0.7,top_p:0.9,analyze_prompts:true,analyze_responses:false,compute_ltp:true,compute_sfd:true};
 
 function $(id){return document.getElementById(id)}
 
@@ -143,7 +143,8 @@ async function send(){
   setStatus('Generating response...');
 
   try{
-    const resp=await fetch('/api/chat',{
+    const controller=new AbortController();setTimeout(()=>controller.abort(),300000);
+    const resp=await fetch('/api/chat',{signal:controller.signal,
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
