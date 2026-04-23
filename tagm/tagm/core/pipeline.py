@@ -57,12 +57,20 @@ class Pipeline:
         self.base_model: Optional["PreTrainedModel"] = None
         self.tokenizer: Optional["PreTrainedTokenizer"] = None
         self.delta_store: Optional["DeltaStore"] = None
+        self.inference_class: str = "instruct"
 
         self._loaded = False
 
     @property
     def loaded(self) -> bool:
         return self._loaded
+
+    @property
+    def active_model(self):
+        """Return the model selected by inference_class."""
+        if self.inference_class == "base" and self.base_model is not None:
+            return self.base_model
+        return self.instruct_model
 
     def load(
         self,

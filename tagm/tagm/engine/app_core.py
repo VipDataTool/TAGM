@@ -124,6 +124,7 @@ def api_status_handler():
         "cache_bytes": state.session.get_cache_size(),
         "restorable": disk_info,
         "user_info": state.user_info,
+        "inference_class": state.pipeline.inference_class if model_loaded else "instruct",
     }
 
 

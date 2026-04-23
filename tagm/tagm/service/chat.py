@@ -1,27 +1,22 @@
-"""Chat service.
+"""Chat service — Model Dialogue Interface.
 
-Wraps the loaded pipeline's instruct (or base) model with a generation
-endpoint that mirrors TASM's /api/chat surface. The TASM frontend
-(chat.html) sends a list of {role, content} messages, an optional
-analyze flag, and expects {ok, response, model_class, ...} back.
+Uses pipeline.active_model for generation. The active model is
+determined by pipeline.inference_class, which is set via the
+/api/set_inference_model endpoint. Base model loading happens at
+toggle time, not per-message.
 
-Streaming is intentionally NOT enabled in this version — TASM's chat
-returned the full response in one JSON payload, and chat.html doesn't
-implement streaming-receive. Adding streaming later would require both
-ends.
+Chat interactions can optionally be analyzed and recorded into the
+session for studying conversational dynamics.
 """
 from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
 
 import torch
 
 logger = logging.getLogger("tagm")
 
-# Single global lock — generation and analysis must not interleave on
-# the same model; both call into torch on shared parameters.
 _chat_lock = threading.Lock()
 
 
@@ -31,49 +26,35 @@ def generate_chat_response(
     max_tokens: int = 256,
     temperature: float = 0.7,
     top_p: float = 0.9,
-    use_base: bool = False,
 ) -> dict:
-    """Generate a chat response from the loaded pipeline's model.
+    """Generate a chat response from the active model.
 
-    Args:
-        pipeline:    Loaded TAGM Pipeline.
-        messages:    [{"role": "user"|"assistant"|"system", "content": "..."}, ...]
-        max_tokens:  Max new tokens to generate.
-        temperature: Sampling temperature.
-        top_p:       Nucleus sampling threshold.
-        use_base:    If True, generate with the base model; else instruct.
-
-    Returns:
-        {"ok": True, "response": str, "model_class": "instruct"|"base"}
-        or {"ok": False, "error": str}
+    The active model is selected by pipeline.inference_class.
+    Base model is loaded at toggle time via set_inference_model.
     """
     if not pipeline or not pipeline.loaded:
         return {"ok": False, "error": "No model loaded"}
     if not messages:
         return {"ok": False, "error": "No messages provided"}
 
-    model = pipeline.base_model if use_base else pipeline.instruct_model
+    model = pipeline.active_model
     if model is None:
-        return {"ok": False,
-                "error": ("Base model not loaded" if use_base
-                          else "Instruct model not loaded")}
+        return {"ok": False, "error": "No active model available"}
 
     tokenizer = pipeline.tokenizer
     device = pipeline.device
-    model_class = "base" if use_base else "instruct"
+    model_class = pipeline.inference_class
 
     with _chat_lock:
         try:
-            # Base models lack chat templates — fall back to raw last message.
-            if use_base:
+            # Base models lack chat templates — use raw text
+            if model_class == "base":
                 text = messages[-1].get("content", "")
             else:
-                # Try chat template; fall back gracefully if unavailable
                 try:
                     text = tokenizer.apply_chat_template(
                         messages, tokenize=False, add_generation_prompt=True)
                 except Exception:
-                    # Roll our own minimal format
                     text = ""
                     for m in messages:
                         role = m.get("role", "user")

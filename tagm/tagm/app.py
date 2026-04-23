@@ -168,8 +168,21 @@ async def load_model(request: Request):
 @app.post("/api/set_inference_model")
 async def set_inference_model(request: Request):
     form = await request.form()
-    cls = (form.get("model_class") or "instruct").strip()
-    state.inference_class = cls
+    cls = (form.get("model_class") or "").strip()
+    if cls not in ("instruct", "base"):
+        return {"ok": False, "error": "Must be 'instruct' or 'base'"}
+    if state.pipeline is None or not state.pipeline.loaded:
+        return {"ok": False, "error": "No model loaded."}
+    if cls == "base" and state.pipeline.base_model is None:
+        try:
+            state.progress("loading", "Loading base model for chat...")
+            await run_in_threadpool(state.pipeline.load_base)
+            state.progress("ready", "Base model loaded")
+        except Exception as e:
+            logger.exception("Failed to load base model for chat")
+            return {"ok": False, "error": f"Failed to load base model: {e}"}
+    state.pipeline.inference_class = cls
+    state.inference_class = cls  # keep state in sync
     return {"ok": True, "inference_class": cls}
 
 @app.post("/api/reset")
@@ -660,22 +673,101 @@ async def get_individual_plot(index: int, plot_key: str):
 # Chat
 # ═══════════════════════════════════════════════════════════════
 
+def _load_chat_config():
+    """Load chat config from module settings or fall back to engine defaults."""
+    config_path = _PACKAGE_DIR.parent / "chat_config.json"
+    if config_path.exists():
+        try:
+            return json.loads(config_path.read_text())
+        except Exception:
+            pass
+    return {
+        "temperature": engine_config.get("chat_temperature"),
+        "top_p": engine_config.get("chat_top_p"),
+        "max_tokens": engine_config.get("chat_max_tokens"),
+        "analyze_prompts": True,
+        "analyze_responses": False,
+        "compute_ltp": True,
+        "compute_sfd": True,
+    }
+
+@app.get("/api/chat/config")
+async def get_chat_config():
+    return {"ok": True, "config": _load_chat_config()}
+
 @app.post("/api/chat")
 async def chat(request: Request):
     from tagm.service.chat import generate_chat_response
     if state.pipeline is None or not state.pipeline.loaded:
-        raise HTTPException(status_code=409, detail="No model loaded.")
-    body = await request.json()
-    prompt = body.get("prompt") or body.get("message", "")
-    if not prompt:
-        raise HTTPException(status_code=400, detail="prompt required")
-    use_base = (state.inference_class == "base")
-    messages = body.get("messages") or [{"role": "user", "content": prompt}]
-    result = await run_in_threadpool(
-        generate_chat_response, state.pipeline, messages,
-        max_tokens=engine_config.get("chat_max_tokens"),
-        temperature=engine_config.get("chat_temperature"),
-        top_p=engine_config.get("chat_top_p"),
-        use_base=use_base,
-    )
-    return result
+        return {"ok": False, "error": "No model loaded."}
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON body."}
+    messages = body.get("messages")
+    if not messages:
+        prompt = body.get("prompt") or body.get("message", "")
+        if not prompt:
+            return {"ok": False, "error": "No message provided."}
+        messages = [{"role": "user", "content": prompt}]
+
+    cfg = _load_chat_config()
+    max_tokens = min(int(body.get("max_tokens", cfg["max_tokens"])),
+                     engine_config.get("chat_max_tokens"))
+    try:
+        result = await run_in_threadpool(
+            generate_chat_response, state.pipeline, messages,
+            max_tokens=max_tokens,
+            temperature=cfg["temperature"],
+            top_p=cfg["top_p"],
+        )
+
+        do_analyze = body.get("analyze", cfg.get("analyze_prompts", True))
+        do_analyze_resp = body.get("analyze_response", cfg.get("analyze_responses", False))
+
+        # Analyze user prompt into session if requested
+        if result.get("ok") and do_analyze:
+            prompt_text = messages[-1].get("content", "")
+            if prompt_text and state.analyzer:
+                try:
+                    category = body.get("category", "chat")
+                    compute_ltp = body.get("compute_ltp", cfg.get("compute_ltp", True))
+                    compute_sfd = body.get("compute_sfd", cfg.get("compute_sfd", True))
+                    rd = await run_in_threadpool(
+                        _analyze_chat_turn, prompt_text, category,
+                        compute_ltp, compute_sfd, "user")
+                    result["prompt_analyzed"] = True
+                except Exception as e:
+                    logger.warning(f"Chat prompt analysis failed: {e}")
+
+        # Analyze model response into session if requested
+        if result.get("ok") and do_analyze_resp:
+            response_text = result.get("response", "")
+            if response_text and state.analyzer:
+                try:
+                    rd = await run_in_threadpool(
+                        _analyze_chat_turn, response_text,
+                        "model_response", False, False, "assistant")
+                    result["response_analyzed"] = True
+                except Exception as e:
+                    logger.warning(f"Chat response analysis failed: {e}")
+
+        return result
+    except Exception as e:
+        logger.exception("Chat endpoint failed")
+        return {"ok": False, "error": str(e)}
+
+
+def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role):
+    """Analyze a chat turn and add it to the session with a role tag."""
+    from tagm.engine.result import result_to_dict
+    with _analysis_lock:
+        result = state.analyzer.analyze_prompt(
+            text, category=category,
+            compute_kl=True, compute_full_trajectory=False,
+            compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+        )
+        rd = result_to_dict(result)
+        rd["role"] = role
+        state.session.add_result(rd)
+        return rd

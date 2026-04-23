@@ -2663,10 +2663,46 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderComparativeResults(results);
   } else if (name === 'mi_instrumentation') {
     container.innerHTML = renderMIInstrumentationResults(results);
+  } else if (name === 'model_dialogue') {
+    container.innerHTML = renderModelDialogueResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
   }
+}
+
+// ─── Model Dialogue Results Renderer ────────────────────────────
+
+function renderModelDialogueResults(r) {
+  var cfg = r.config || {};
+  var h = '<div class="mod-results">';
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+  h += 'Chat Configuration';
+  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutChat()">↗ Open Chat</button>';
+  h += '</div>';
+  h += '<div class="mod-results-body">';
+  h += '<table style="font-size:12px;border-collapse:collapse;width:100%">';
+  h += '<tr><td style="padding:4px 12px;color:var(--text-2)">Temperature</td><td style="padding:4px 12px;font-weight:600">' + (cfg.temperature || 0.7) + '</td>';
+  h += '<td style="padding:4px 12px;color:var(--text-2)">Top-P</td><td style="padding:4px 12px;font-weight:600">' + (cfg.top_p || 0.9) + '</td>';
+  h += '<td style="padding:4px 12px;color:var(--text-2)">Max Tokens</td><td style="padding:4px 12px;font-weight:600">' + (cfg.max_tokens || 256) + '</td></tr>';
+  h += '<tr><td style="padding:4px 12px;color:var(--text-2)">Analyze Prompts</td><td style="padding:4px 12px;font-weight:600">' + (cfg.analyze_prompts ? '✓' : '—') + '</td>';
+  h += '<td style="padding:4px 12px;color:var(--text-2)">Analyze Responses</td><td style="padding:4px 12px;font-weight:600">' + (cfg.analyze_responses ? '✓' : '—') + '</td>';
+  h += '<td style="padding:4px 12px;color:var(--text-2)">LTP / SFD</td><td style="padding:4px 12px;font-weight:600">' + (cfg.compute_ltp ? 'LTP' : '') + (cfg.compute_ltp && cfg.compute_sfd ? ' + ' : '') + (cfg.compute_sfd ? 'SFD' : '') + '</td></tr>';
+  h += '</table>';
+  h += '<div style="margin-top:10px;padding:8px;background:var(--bg-0);border-radius:4px;font-size:11px;color:var(--text-2)">';
+  h += 'Click <strong>Open Chat</strong> to launch the dialogue window. ';
+  h += 'Each conversation turn is analyzed under the current configuration and recorded into the session. ';
+  h += 'Switch between instruct and base models using the toggle in the chat window.';
+  h += '</div>';
+  h += '</div></div>';
+  return h;
+}
+
+function popoutChat() {
+  var pw = 640, ph = 720;
+  var left = Math.round((screen.width - pw) / 2);
+  var top = Math.round((screen.height - ph) / 2);
+  window.open('/chat', '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
 }
 
 // ─── Token Variance Results Renderer ───────────────────────────
