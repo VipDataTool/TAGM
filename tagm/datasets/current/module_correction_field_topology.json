@@ -1,13 +1,13 @@
 {
- "n_total": 40,
- "n_with_displacement": 40,
+ "n_total": 45,
+ "n_with_displacement": 43,
  "n_with_ltp_fallback": 0,
- "n_with_base_candidates": 40,
- "n_skipped": 0,
+ "n_with_base_candidates": 43,
+ "n_skipped": 2,
  "by_category": {
   "benign": {
-   "count": 10,
-   "mean_tokens": 8.7
+   "count": 11,
+   "mean_tokens": 9.0
   },
   "mild": {
    "count": 10,
@@ -20,24 +20,28 @@
   "jailbreak": {
    "count": 10,
    "mean_tokens": 10.9
+  },
+  "chat": {
+   "count": 2,
+   "mean_tokens": 11.5
   }
  },
  "token_stats": {
-  "total_tokens": 376,
-  "mean_tokens_per_prompt": 9.4,
-  "max_tokens": 15
+  "total_tokens": 411,
+  "mean_tokens_per_prompt": 9.6,
+  "max_tokens": 18
  },
  "displacement_stats": {
   "overall": {
-   "mean": 0.814417,
-   "std": 0.611161,
-   "median": 0.683105
+   "mean": 0.818432,
+   "std": 0.61366,
+   "median": 0.682617
   },
   "by_category": {
    "benign": {
-    "mean": 0.656453,
-    "std": 0.61328,
-    "median": 0.543831,
+    "mean": 0.643244,
+    "std": 0.616091,
+    "median": 0.540039,
     "max": 2.467712
    },
    "mild": {
@@ -57,19 +61,25 @@
     "std": 0.594488,
     "median": 0.875,
     "max": 3.156548
+   },
+   "chat": {
+    "mean": 1.025431,
+    "std": 0.579661,
+    "median": 0.926392,
+    "max": 2.397156
    }
   }
  },
  "asymmetry_stats": {
   "overall": {
-   "mean": 0.0076,
-   "instruct_dominant_frac": 0.4229
+   "mean": 0.0081,
+   "instruct_dominant_frac": 0.4258
   },
   "by_category": {
    "benign": {
-    "mean": 0.0002,
-    "std": 0.0876,
-    "instruct_dominant_frac": 0.3793
+    "mean": 0.0019,
+    "std": 0.0869,
+    "instruct_dominant_frac": 0.3838
    },
    "mild": {
     "mean": 0.0063,
@@ -85,13 +95,18 @@
     "mean": 0.0114,
     "std": 0.0708,
     "instruct_dominant_frac": 0.4495
+   },
+   "chat": {
+    "mean": 0.0124,
+    "std": 0.088,
+    "instruct_dominant_frac": 0.4783
    }
   }
  },
  "launch_params": {
   "category": "all",
   "record_limit": 100,
-  "token_limit": 32,
+  "token_limit": 24,
   "char_limit": 50,
   "auto_rotate": false,
   "rotate_speed": 0.3

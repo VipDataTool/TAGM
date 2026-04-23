@@ -2667,6 +2667,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderModelDialogueResults(results);
     // Auto-open chat window when Run completes
     if (results && results.chat_url) popoutChat();
+  } else if (name === 'arditi_benchmarks') {
+    container.innerHTML = renderArditiBenchmarksResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -2705,6 +2707,283 @@ function popoutChat() {
   var left = Math.round((screen.width - pw) / 2);
   var top = Math.round((screen.height - ph) / 2);
   window.open('/chat', '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
+}
+
+// ─── Arditi Benchmarks Results Renderer ────────────────────────
+//
+// Renders the results of the arditi_benchmarks module: a summary banner
+// plus collapsible panels for each sub-benchmark (causal/steering/scan).
+// Follows the conventions of renderMIInstrumentationResults.
+
+function renderArditiBenchmarksResults(r) {
+  if (r && r.error) {
+    return '<div class="mod-results"><div class="mod-results-body" ' +
+           'style="padding:16px;color:var(--orange)">' +
+           escHtml(r.error) + '</div></div>';
+  }
+
+  var h = '<div class="mod-results">';
+  var sm = r.summary || {};
+
+  // ═══ TOP SUMMARY BANNER ═══
+  var bidirColor = sm.bidirectional_confirmed ? 'var(--green)' : 'var(--text-2)';
+  var bidirLabel = sm.bidirectional_confirmed ? 'Confirmed' : '—';
+  h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">';
+  h += '<div class="metrics-grid">';
+  h += mc('Train AUROC', sm.train_auroc, null,
+          function(v){ return (v||0).toFixed(4); });
+  h += mc('Hidden Dim', sm.hidden_dim, null, function(v){ return v||'—'; });
+  h += mc('Causal Ran', sm.causal_ran ? 'Yes' : 'No', null, function(v){ return v; });
+  h += mc('Steering Ran', sm.steering_ran ? 'Yes' : 'No', null, function(v){ return v; });
+  h += mc('Scan Ran', sm.alpha_scan_ran ? 'Yes' : 'No', null, function(v){ return v; });
+  h += mc('Bidirectional', bidirLabel, null,
+          function(v){ return '<span style="color:' + bidirColor + '">' + v + '</span>'; });
+  h += '</div>';
+  if (sm.combined_verdict) {
+    h += '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-0);' +
+         'border-radius:4px;font-size:12px;color:var(--text-1);line-height:1.5">' +
+         escHtml(sm.combined_verdict) + '</div>';
+  }
+  h += '</div>';
+
+  // ═══ CAUSAL (ABLATION) PANEL ═══
+  if (r.causal) {
+    h += _renderArditiCausalPanel(r.causal);
+  }
+
+  // ═══ STEERING (ADDITION) PANEL ═══
+  if (r.steering) {
+    h += _renderArditiSteeringPanel(r.steering);
+  }
+
+  // ═══ ALPHA SCAN PANEL ═══
+  if (r.alpha_scan) {
+    h += _renderArditiAlphaScanPanel(r.alpha_scan);
+  }
+
+  h += '</div>';
+  return h;
+}
+
+// ─── Causal (ablation) sub-panel ───────────────────────────────────
+function _renderArditiCausalPanel(c) {
+  var h = '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Causal Test (Ablation)</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+  h += 'Projects the refusal direction out of the residual stream on held-out harmful prompts. ';
+  h += 'A large drop in refusal rate is Arditi\'s necessity signature.</div>';
+
+  if (c.error) {
+    h += '<div style="padding:10px;color:var(--orange)">' + escHtml(c.error) + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  var s = c.summary || {};
+  var verdictCol = _arditiVerdictColor(s.verdict_tag);
+
+  h += '<div class="metrics-grid">';
+  h += mc('Baseline refusal', s.baseline_refusal_rate, null,
+          function(v){ return ((v||0)*100).toFixed(1) + '%'; });
+  h += mc('Ablated refusal', s.intervened_refusal_rate, null,
+          function(v){ return ((v||0)*100).toFixed(1) + '%'; });
+  h += mc('Δ (drop)', s.delta, null,
+          function(v){ return '<span style="color:' + verdictCol + '">' +
+                          (v>=0 ? '+' : '') + (v*100).toFixed(1) + '%</span>'; });
+  h += mc('95% CI', s.delta_ci_95, null,
+          function(v){ return v ? '['+(v[0]*100).toFixed(1)+'%, '+(v[1]*100).toFixed(1)+'%]' : '—'; });
+  h += mc('Layers', s.n_layers_intervened, null, function(v){ return v||'—'; });
+  h += mc('Alpha', s.alpha, null, function(v){ return (v||0).toFixed(2); });
+  h += mc('N held-out', s.n_held_prompts, null, function(v){ return v||'—'; });
+  h += mc('Significant', s.delta_excludes_zero ? '✓' : '—', null,
+          function(v){ return '<span style="color:' + (v==='✓' ? 'var(--green)' : 'var(--text-3)') + '">' + v + '</span>'; });
+  h += '</div>';
+
+  if (s.verdict) {
+    h += '<div style="margin-top:10px;padding:8px 10px;background:var(--bg-0);' +
+         'border-radius:4px;font-size:12px;color:' + verdictCol + ';line-height:1.5">';
+    h += '<strong>' + (s.verdict_tag||'').replace(/_/g,' ') + '</strong> &mdash; ';
+    h += escHtml(s.verdict) + '</div>';
+  }
+
+  // Per-prompt table
+  h += _renderArditiPromptTable(c.baseline, c.intervened,
+                                  'Baseline reply', 'Ablated reply');
+  h += '</div>';
+  return h;
+}
+
+// ─── Steering (addition) sub-panel ─────────────────────────────────
+function _renderArditiSteeringPanel(c) {
+  var h = '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Steering Test (Addition)</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+  h += 'Adds the refusal direction to held-out benign prompts. ';
+  h += 'A large rise in refusal rate is the sufficiency signature.</div>';
+
+  if (c.error) {
+    h += '<div style="padding:10px;color:var(--orange)">' + escHtml(c.error) + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  var s = c.summary || {};
+  var verdictCol = _arditiVerdictColor(s.verdict_tag);
+
+  h += '<div class="metrics-grid">';
+  h += mc('Baseline refusal', s.baseline_refusal_rate, null,
+          function(v){ return ((v||0)*100).toFixed(1) + '%'; });
+  h += mc('Steered refusal', s.intervened_refusal_rate, null,
+          function(v){ return ((v||0)*100).toFixed(1) + '%'; });
+  h += mc('Induction rate', s.induction_rate, null,
+          function(v){ return '<span style="color:' + verdictCol + '">' +
+                          (v>=0 ? '+' : '') + (v*100).toFixed(1) + '%</span>'; });
+  h += mc('95% CI', s.induction_ci_95, null,
+          function(v){ return v ? '['+(v[0]*100).toFixed(1)+'%, '+(v[1]*100).toFixed(1)+'%]' : '—'; });
+  h += mc('Layers', s.n_layers_intervened, null, function(v){ return v||'—'; });
+  h += mc('Alpha', s.alpha, null, function(v){ return (v||0).toFixed(2); });
+  h += mc('N held-out', s.n_held_prompts, null, function(v){ return v||'—'; });
+  h += mc('Significant', s.induction_excludes_zero ? '✓' : '—', null,
+          function(v){ return '<span style="color:' + (v==='✓' ? 'var(--green)' : 'var(--text-3)') + '">' + v + '</span>'; });
+  h += '</div>';
+
+  if (s.verdict) {
+    h += '<div style="margin-top:10px;padding:8px 10px;background:var(--bg-0);' +
+         'border-radius:4px;font-size:12px;color:' + verdictCol + ';line-height:1.5">';
+    h += '<strong>' + (s.verdict_tag||'').replace(/_/g,' ') + '</strong> &mdash; ';
+    h += escHtml(s.verdict) + '</div>';
+  }
+
+  h += _renderArditiPromptTable(c.baseline, c.intervened,
+                                  'Baseline reply', 'Steered reply');
+  h += '</div>';
+  return h;
+}
+
+// ─── Alpha scan sub-panel ──────────────────────────────────────────
+function _renderArditiAlphaScanPanel(c) {
+  var h = '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Alpha-Scan Dose Response</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px;line-height:1.5">';
+  h += 'Runs the intervention at a grid of alpha values, sharing one baseline pass. ';
+  h += 'Useful for finding the alpha at which an effect first appears and where coherence breaks.</div>';
+
+  if (c.error) {
+    h += '<div style="padding:10px;color:var(--orange)">' + escHtml(c.error) + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  var s = c.summary || {};
+  var curve = s.curve || [];
+
+  h += '<div class="metrics-grid">';
+  h += mc('Mode', s.mode, null, function(v){ return v||'—'; });
+  h += mc('Baseline refusal', s.baseline_refusal_rate, null,
+          function(v){ return ((v||0)*100).toFixed(1) + '%'; });
+  h += mc('Peak alpha', s.peak_alpha, null,
+          function(v){ return v===null||v===undefined ? '—' : v; });
+  h += mc('Peak effect', s.peak_effect, null,
+          function(v){ return v===null||v===undefined ? '—' :
+                          ((v>=0?'+':'') + (v*100).toFixed(1) + '%'); });
+  h += mc('First signif α', s.first_significant_alpha, null,
+          function(v){ return v===null||v===undefined ? '—' : v; });
+  h += mc('Monotone', s.monotone_increasing ? 'Yes' : 'No', null, function(v){ return v; });
+  h += mc('Breakdown?', s.likely_coherence_breakdown ? 'Likely' : '—', null,
+          function(v){ return '<span style="color:' + (v==='Likely' ? 'var(--orange)' : 'var(--text-3)') + '">' + v + '</span>'; });
+  h += mc('N layers', s.n_layers_intervened, null, function(v){ return v||'—'; });
+  h += '</div>';
+
+  if (s.verdict) {
+    h += '<div style="margin-top:10px;padding:8px 10px;background:var(--bg-0);' +
+         'border-radius:4px;font-size:12px;color:var(--text-1);line-height:1.5">';
+    h += escHtml(s.verdict) + '</div>';
+  }
+
+  // Dose-response bar chart
+  if (curve.length) {
+    var maxAbs = Math.max.apply(null, curve.map(function(c){ return Math.abs(c.effect); }));
+    maxAbs = Math.max(maxAbs, 0.1);  // never divide by zero
+    h += '<div style="margin-top:12px;margin-bottom:8px">';
+    curve.forEach(function(pt) {
+      var pct = pt.effect * 100;
+      var w = Math.min(100, Math.abs(pt.effect) / maxAbs * 100);
+      var sig = pt.effect_excludes_zero;
+      var col = sig
+          ? (pt.effect > 0 ? 'var(--green)' : 'var(--red)')
+          : 'var(--text-3)';
+      h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">';
+      h += '<span style="width:42px;text-align:right;font-size:11px;color:var(--text-2)">α=' + pt.alpha + '</span>';
+      h += '<div style="flex:1;height:14px;background:var(--bg-3);border-radius:2px;overflow:hidden;position:relative">';
+      h += '<div style="width:' + w + '%;height:100%;background:' + col + ';border-radius:2px"></div></div>';
+      h += '<span style="width:60px;font-size:11px;color:' + col + ';text-align:right">' +
+           (pct>=0?'+':'') + pct.toFixed(1) + '%' + (sig?' *':'') + '</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+
+  // Curve table
+  if (curve.length) {
+    h += '<table class="mod-tbl"><thead><tr>';
+    h += '<th>α</th><th class="num">Refusal rate</th><th class="num">Effect</th>';
+    h += '<th class="num">95% CI</th><th>Significant</th></tr></thead><tbody>';
+    curve.forEach(function(pt) {
+      var sig = pt.effect_excludes_zero;
+      var col = sig
+          ? (pt.effect > 0 ? 'var(--green)' : 'var(--red)')
+          : 'var(--text-3)';
+      h += '<tr><td>' + pt.alpha + '</td>';
+      h += '<td class="num">' + (pt.intervened_refusal_rate*100).toFixed(1) + '%</td>';
+      h += '<td class="num" style="color:' + col + '">' +
+           (pt.effect>=0?'+':'') + (pt.effect*100).toFixed(1) + '%</td>';
+      h += '<td class="num">[' + (pt.effect_ci_95[0]*100).toFixed(1) + '%, ' +
+           (pt.effect_ci_95[1]*100).toFixed(1) + '%]</td>';
+      h += '<td style="color:' + col + '">' + (sig ? '✓' : '—') + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
+// ─── Per-prompt side-by-side table (causal + steering share this) ──
+function _renderArditiPromptTable(baseline, intervened, baseLabel, intvLabel) {
+  if (!baseline || !intervened || !baseline.length) return '';
+  var n = Math.min(baseline.length, intervened.length);
+  var h = '<table class="mod-tbl" style="margin-top:10px"><thead><tr>';
+  h += '<th style="width:28%">Prompt</th>';
+  h += '<th style="width:33%">' + baseLabel + '</th>';
+  h += '<th style="width:33%">' + intvLabel + '</th>';
+  h += '<th>B/I</th></tr></thead><tbody>';
+  for (var i = 0; i < n; i++) {
+    var b = baseline[i], v = intervened[i];
+    var bFlag = b.refused ? '<span style="color:var(--orange)">R</span>' : '<span style="color:var(--green)">C</span>';
+    var iFlag = v.refused ? '<span style="color:var(--orange)">R</span>' : '<span style="color:var(--green)">C</span>';
+    h += '<tr>';
+    h += '<td style="vertical-align:top;font-size:11px">' + escHtml(_truncate(b.prompt, 120)) + '</td>';
+    h += '<td style="vertical-align:top;font-size:11px;color:var(--text-2)">' + escHtml(_truncate(b.reply, 180)) + '</td>';
+    h += '<td style="vertical-align:top;font-size:11px;color:var(--text-2)">' + escHtml(_truncate(v.reply, 180)) + '</td>';
+    h += '<td style="vertical-align:top;font-size:11px">' + bFlag + '/' + iFlag + '</td>';
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  h += '<div style="font-size:10px;color:var(--text-3);margin-top:4px">R = refused, C = complied (phrase-match heuristic on first 200 chars).</div>';
+  return h;
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+function _arditiVerdictColor(tag) {
+  if (tag === 'large_effect') return 'var(--green)';
+  if (tag === 'moderate_effect') return 'var(--cyan)';
+  if (tag === 'small_or_absent') return 'var(--text-3)';
+  return 'var(--text-1)';
+}
+
+function _truncate(s, n) {
+  s = s || '';
+  return s.length > n ? s.substring(0, n) + '…' : s;
 }
 
 // ─── Token Variance Results Renderer ───────────────────────────
