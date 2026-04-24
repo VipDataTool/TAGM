@@ -1099,29 +1099,35 @@ function _terrainFromPayload(payload){
     const cf=p.counterfactual_tokens||[];
     const baseCf=p.base_counterfactual_tokens||[];
 
-    // Per-prompt normalization: map the measure's natural magnitude range
-    // onto target_max so HSCALE=180 produces comparable terrain heights
-    // across measures. Scalar-only measures normalize the primary alone;
-    // bank measures normalize over bank + primary jointly.
-    let magMax=0;
+    // Per-prompt normalization with separate scale factors for the two
+    // axes of signal. The banks carry per-rank displacement values whose
+    // variation across ranks is the source of the terrain's texture; the
+    // primary (spine) carries the per-token total, which is naturally an
+    // order of magnitude larger because it aggregates across ranks.
+    // Normalizing them jointly pools two different distributions and
+    // crushes the bank variation against the floor. Instead we compute
+    // two independent scale factors so each signal maps its own maximum
+    // onto target_max.
+    let bankMax=0, primaryMax=0;
     for(let i=0;i<nT;i++){
-      if(primary[i]>magMax) magMax=primary[i];
+      if(primary[i]>primaryMax) primaryMax=primary[i];
       if(measureClass==='bank'){
         const ip=iBank[i]||[],bp=bBank[i]||[];
         for(let j=0;j<8;j++){
-          if(ip[j]>magMax) magMax=ip[j];
-          if(bp[j]>magMax) magMax=bp[j];
+          if(ip[j]>bankMax) bankMax=ip[j];
+          if(bp[j]>bankMax) bankMax=bp[j];
         }
       }
     }
-    const scale=magMax>1e-10?(targetMax/magMax):1;
+    const bankScale=bankMax>1e-10?(targetMax/bankMax):1;
+    const primaryScale=primaryMax>1e-10?(targetMax/primaryMax):1;
 
     if(!cats[cat]) cats[cat]=[];
     const rows=[];
 
     for(let i=0;i<nT;i++){
       const kl=(kls[i]!=null)?kls[i]:0;
-      const primaryScaled=(primary[i]||0)*scale;
+      const primaryScaled=(primary[i]||0)*primaryScale;
 
       let im,bm;
       // Per-rank magnitudes used by the label underline layer. For bank
@@ -1134,7 +1140,7 @@ function _terrainFromPayload(payload){
         im=[];imMag=[];
         for(let j=0;j<8;j++){
           const v=(iDisp[j]!=null?iDisp[j]:0);
-          im.push(v*scale);
+          im.push(v*bankScale);
           imMag.push(v);
         }
         const bDisp=bBank[i]||[];
@@ -1143,7 +1149,7 @@ function _terrainFromPayload(payload){
         // highest-rank-first moving outward from the spine.
         for(let j=7;j>=0;j--){
           const v=(bDisp[j]!=null?bDisp[j]:0);
-          bm.push(v*scale);
+          bm.push(v*bankScale);
           bmMag[7-j]=v;
         }
       }else{
@@ -1305,16 +1311,17 @@ function _terrainRendererCore(container, D, opts){
     var nT=toks.length,scZ=SCX;
     var zDepth=(nT-1)*scZ;
     var zOffset=zDepth/2;
+    // Magnitude pool is built from the bank values only. Pooling the
+    // spine primary here would dominate the mn/mx window (the primary
+    // is naturally an order of magnitude larger than the per-rank bank
+    // values) and flatten the bank variation that gives the terrain its
+    // texture. The transform already applies separate scale factors so
+    // the primary lands within target_max without needing to be pooled.
     var allMags=[];
     for(var ri=0;ri<rows.length;ri++){
       var rr=rows[ri];
       rr[0].forEach(function(v){allMags.push(v)});
       rr[1].forEach(function(v){allMags.push(v)});
-      // Pool the spine primary value so mn/mx cover the full terrain.
-      // Without this, a large spine value produces an unbounded vertex
-      // height because the (mag - mn) * HSCALE computation uses a range
-      // that does not include the spine.
-      if(rr[3]!=null) allMags.push(rr[3]);
     }
     var mn=Math.min.apply(null,allMags),mx=Math.max.apply(null,allMags);
     var klVals=rows.map(function(r){return r[2]});
