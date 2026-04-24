@@ -1074,97 +1074,95 @@ document.addEventListener('click',e=>{
 // ─── Alignment Terrain Viewer ──────────────────────────────────
 let _terrainState = null;
 
-function _terrainTransformData(results){
+// Transforms the uniform module payload into the renderer's internal D shape.
+// Accepts the full result object from the correction_field_topology module.
+// Each row is [bm, im, kl, primary, ctoks]. Primary replaces the old
+// replacement_ratio slot and carries the per-token primary-signal value
+// that drives the spine ridge vertex.
+function _terrainFromPayload(payload){
   const cats={};
-  const diag={total:0,hasDispProfiles:0,hasLtpFallback:0,hasBaseCf:0,missingData:0};
-  for(const r of results){
-    const cat=r.category||'unknown';
-    const ltp=r.ltp||{};
-    const rd=r.rank_displacement||{};
+  const prompts=payload.prompts||[];
+  const measureClass=payload.measure_class||'bank';
+  const targetMax=payload.target_max||1.0;
+  const accentAvailable=!!payload.accent_available;
 
-    // Prefer displacement profiles; fall back to LTP tension profiles
-    const useDisp=rd.instruct_disp_profiles&&rd.instruct_disp_profiles.length>0;
-    const useLtp=!useDisp&&ltp.profiles&&ltp.profiles.length>0;
-    if(!useDisp&&!useLtp) continue;
-
-    if(!cats[cat]) cats[cat]=[];
-    const toks=r.tokens||[];
-    const cf=ltp.counterfactual_tokens||[];
-    const baseCf=r.base_counterfactual_tokens||[];
-    const kls=r.per_token_kl||[];
+  for(const p of prompts){
+    const cat=p.category||'unknown';
+    const toks=p.tokens||[];
     const nT=toks.length;
-    const perPos=rd.per_position||[];
-    diag.total++;
+    const primary=p.primary||[];
+    const kls=p.per_token_kl||[];
+    const iBank=p.instruct_bank||[];
+    const bBank=p.base_bank||[];
+    const iStatus=p.instruct_status||[];
+    const bStatus=p.base_status||[];
+    const cf=p.counterfactual_tokens||[];
+    const baseCf=p.base_counterfactual_tokens||[];
 
-    if(useDisp) diag.hasDispProfiles++;
-    else if(useLtp) diag.hasLtpFallback++;
-    if(baseCf.length>0&&baseCf[0]&&baseCf[0].length>=1) diag.hasBaseCf++;
-
-    const rows=[];
-
-    // ── Displacement normalization ──
-    // The terrain renderer (HSCALE=180) was calibrated for LTP tension magnitudes
-    // in the range ~0.002–0.008. Displacement profiles range 0–1.0.
-    // Normalize per-prompt so the max displacement maps to ~0.008.
-    const TERRAIN_TARGET_MAX=0.008;
-    let dispMax=0;
-    if(useDisp){
-      const iProfs=rd.instruct_disp_profiles||[];
-      const bProfs=rd.base_disp_profiles||[];
-      for(let i=0;i<nT;i++){
-        const ip=iProfs[i]||[];
-        const bp=bProfs[i]||[];
+    // Per-prompt normalization: map the measure's natural magnitude range
+    // onto target_max so HSCALE=180 produces comparable terrain heights
+    // across measures. Scalar-only measures normalize the primary alone;
+    // bank measures normalize over bank + primary jointly.
+    let magMax=0;
+    for(let i=0;i<nT;i++){
+      if(primary[i]>magMax) magMax=primary[i];
+      if(measureClass==='bank'){
+        const ip=iBank[i]||[],bp=bBank[i]||[];
         for(let j=0;j<8;j++){
-          if(ip[j]>dispMax) dispMax=ip[j];
-          if(bp[j]>dispMax) dispMax=bp[j];
+          if(ip[j]>magMax) magMax=ip[j];
+          if(bp[j]>magMax) magMax=bp[j];
         }
       }
     }
-    const dispScale=dispMax>1e-10?TERRAIN_TARGET_MAX/dispMax:1;
+    const scale=magMax>1e-10?(targetMax/magMax):1;
+
+    if(!cats[cat]) cats[cat]=[];
+    const rows=[];
 
     for(let i=0;i<nT;i++){
-      const cands=cf[i]||[];
-      const baseCands=baseCf[i]||[];
       const kl=(kls[i]!=null)?kls[i]:0;
-      const posData=perPos[i]||{};
-      const replRatio=posData.replacement_ratio||0;
+      const primaryScaled=(primary[i]||0)*scale;
 
       let im,bm;
-
-      if(useDisp){
-        // ── Displacement profiles: height = probability displacement per candidate ──
-        // Scaled to match terrain renderer's expected magnitude range
-        const iDisp=rd.instruct_disp_profiles[i]||[];
-        im=[];
-        for(let j=0;j<8;j++) im.push((iDisp[j]!=null?iDisp[j]:0)*dispScale);
-
-        const bDisp=rd.base_disp_profiles[i]||[];
-        bm=[];
-        for(let j=7;j>=0;j--) bm.push((bDisp[j]!=null?bDisp[j]:0)*dispScale);
-      }else{
-        // ── Legacy fallback: LTP tension magnitudes ──
-        const prof=ltp.profiles[i]||new Array(8).fill(0.01);
-        im=[];
-        for(let j=0;j<8;j++) im.push(prof[j]!=null?prof[j]:0.01);
-
-        const baseProfiles=ltp.base_profiles||[];
-        const bprof=baseProfiles[i];
-        if(bprof&&bprof.length>=8){
-          bm=[];
-          for(let j=7;j>=0;j--) bm.push(bprof[j]!=null?bprof[j]:0.01);
-        }else{
-          bm=new Array(8).fill(0);
+      // Per-rank magnitudes used by the label underline layer. For bank
+      // measures these match the bank vertices; for scalar measures they
+      // are zero-filled, which lets the label renderer short-circuit the
+      // underline for suppressed banks.
+      let imMag,bmMag;
+      if(measureClass==='bank'){
+        const iDisp=iBank[i]||[];
+        im=[];imMag=[];
+        for(let j=0;j<8;j++){
+          const v=(iDisp[j]!=null?iDisp[j]:0);
+          im.push(v*scale);
+          imMag.push(v);
         }
+        const bDisp=bBank[i]||[];
+        bm=[];bmMag=new Array(8);
+        // Base bank is reversed so columns 9..16 in the lattice render
+        // highest-rank-first moving outward from the spine.
+        for(let j=7;j>=0;j--){
+          const v=(bDisp[j]!=null?bDisp[j]:0);
+          bm.push(v*scale);
+          bmMag[7-j]=v;
+        }
+      }else{
+        // Scalar-only measure: suppress bank terrain, show spine alone.
+        im=new Array(8).fill(0);
+        bm=new Array(8).fill(0);
+        imMag=new Array(8).fill(0);
+        bmMag=new Array(8).fill(0);
       }
 
-      // Instruct labels
+      // Counterfactual labels
+      const cands=cf[i]||[];
+      const baseCands=baseCf[i]||[];
       const ctoks=[];
       for(let j=0;j<8;j++){
         if(j<cands.length&&cands[j]){
           ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
         }else ctoks.push('');
       }
-      // Base labels
       if(baseCands.length>0){
         for(let j=7;j>=0;j--){
           if(j<baseCands.length&&baseCands[j]){
@@ -1173,31 +1171,31 @@ function _terrainTransformData(results){
           }else ctoks.push('\u00B7');
         }
       }else{
-        for(let j=0;j<8;j++) ctoks.push('\u00B7?');
+        for(let j=0;j<8;j++) ctoks.push('');
       }
-      rows.push([bm,im,Math.round(kl*1e4)/1e4,Math.round(replRatio*1e4)/1e4,ctoks]);
+
+      // Per-rank status strings, reversed on the base side to match the
+      // lattice column ordering (column 9 = base rank 0).
+      const iSt=iStatus[i]||[];
+      const bSt=bStatus[i]||[];
+      const statusRow=[];
+      for(let j=0;j<8;j++) statusRow.push(iSt[j]||'');
+      for(let j=7;j>=0;j--) statusRow.push(bSt[j]||'');
+
+      // Row layout: [bm, im, kl, primary_scaled, ctoks, status_row, per_rank_magnitudes]
+      // per_rank_magnitudes runs in the same column order as ctoks and statusRow,
+      // i.e. imMag[0..7] for the instruct bank, bmMag[0..7] for the base bank.
+      const perRankMag=[...imMag];
+      for(let j=7;j>=0;j--) perRankMag.push(bmMag[j]);
+
+      rows.push([bm,im,Math.round(kl*1e4)/1e4,primaryScaled,ctoks,statusRow,perRankMag]);
     }
-    cats[cat].push([r.prompt||'',toks,rows]);
+    cats[cat].push([p.prompt||'',toks,rows]);
   }
-  // Diagnostic dump
-  console.log('[Terrain] DATA DIAGNOSTIC:',JSON.stringify(diag));
-  if(diag.hasDispProfiles>0) console.log('[Terrain] Using displacement profiles for '+diag.hasDispProfiles+'/'+diag.total+' prompts');
-  if(diag.hasLtpFallback>0) console.log('[Terrain] Using LTP tension fallback for '+diag.hasLtpFallback+'/'+diag.total+' prompts');
-  // Dump first prompt raw data to confirm what the terrain actually renders
-  const firstCat=Object.keys(cats)[0];
-  if(firstCat&&cats[firstCat][0]){
-    const[prompt,toks,rows]=cats[firstCat][0];
-    if(rows[0]){
-      const[bm,im,kl,rr,ctoks]=rows[0];
-      console.log('[Terrain] FIRST TOKEN "'+toks[0]+'":');
-      console.log('  im (instruct disp):', JSON.stringify(im));
-      console.log('  bm (base disp):    ', JSON.stringify(bm));
-      console.log('  replacement_ratio:', rr);
-      console.log('  instruct labels:', JSON.stringify(ctoks.slice(0,8)));
-      console.log('  base labels:    ', JSON.stringify(ctoks.slice(8)));
-    }
-  }
-  console.log('[Terrain] VERSION: v4.0 — displacement profiles');
+
+  console.log('[Terrain] Payload transform: measure='+payload.measure+
+              ', class='+measureClass+', target_max='+targetMax+
+              ', prompts='+prompts.length);
   return cats;
 }
 
@@ -1224,11 +1222,29 @@ function _terrainRendererCore(container, D, opts){
 
   const isPopout=!!(opts&&opts.isPopout);
   let curCat=opts.cat||(Object.keys(D).includes('benign')?'benign':Object.keys(D)[0]);
-  let curIdx=opts.idx||0, curBase=opts.base||'dual', labelScale=opts.labelScale||2.0;
-  let renderMode='surface', dataFilter='all';
+  let curIdx=opts.idx||0, curBase=opts.base||opts.palette||'dual', labelScale=opts.labelScale||2.0;
+  let renderMode='surface';
+  let dataFilter=opts.dataFilter||'all';
   let slideshowPlaying=false, slideshowSpeed=4, slideshowTimer=null;
   const BG=[.047,.047,.07];
-  const FY=-2.2, SCX=0.55, COLS=17, HSCALE=180, X_MAX=8*SCX;
+  const FY=-2.2, SCX=0.55, COLS=17, X_MAX=8*SCX;
+  const HSCALE=(opts&&opts.heightScale)||180;
+  const KL_BOOST=(opts&&opts.klBoost!=null)?opts.klBoost:0.3;
+  const ACCENT_MODE=(opts&&opts.accentMode)||'kl_brightness';
+  const SHOW_GRID=!opts||opts.showGrid!==false;
+  const SHOW_LABELS=!opts||opts.showLabels!==false;
+  const SHOW_LEGEND=!opts||opts.showLegend!==false;
+  const SHOW_SPINE=!opts||opts.showSpine!==false;
+
+  // Accent palette for promoted/demoted/matched label styling. Desaturated
+  // greens and vermillions to avoid collision with the warm-cool bank
+  // ramps. Okabe-Ito adjacent: bluish-green for promoted, vermillion for
+  // demoted, muted cream for matched so promoted/demoted come forward.
+  const ACCENT_COLORS={
+    promoted: {underline:'rgba(0,158,115,0.85)',  text:'rgba(120,220,175,1.0)'},
+    demoted:  {underline:'rgba(213,94,0,0.85)',   text:'rgba(245,165,115,1.0)'},
+    matched:  {underline:'rgba(160,160,170,0.45)',text:'rgba(220,218,208,1.0)'},
+  };
 
   function _rampFor(colIdx){
     const profile=BASES[curBase];
@@ -1272,7 +1288,7 @@ function _terrainRendererCore(container, D, opts){
     const rampFn=_rampFor(colIdx);
     var rgb=rampFn(t);
     var r=rgb[0],g=rgb[1],b=rgb[2];
-    const klBoost=1.0+klT*0.3;
+    const klBoost=1.0+klT*KL_BOOST;
     r=Math.min(1,r*klBoost);g=Math.min(1,g*klBoost);b=Math.min(1,b*klBoost);
     const fade=Math.pow(xAbs/X_MAX,1.6);
     r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
@@ -1301,7 +1317,13 @@ function _terrainRendererCore(container, D, opts){
       vtx.push([]);
       var bm=rows[t][0],im=rows[t][1],kl=rows[t][2];
       var z=-t*scZ+zOffset,klT=(kl-klMin)/(klMax-klMin||1);
-      var spineMag=(bm.reduce(function(a,v){return a+v},0)+im.reduce(function(a,v){return a+v},0))/(bm.length+im.length);
+      // Spine vertex reads the per-token primary scalar from slot 3 of
+      // the row, which the client transform derives from the selected
+      // measure's natural per-token signal (rank-displacement total_disp,
+      // LTP tension magnitude, ASM stress, etc.). Previous versions
+      // synthesized this from the mean of the two banks, which made the
+      // spine a summary of its own context rather than a focal signal.
+      var spineMag=rows[t][3]!=null?rows[t][3]:0;
       for(var c=0;c<COLS;c++){
         var x,mag;
         if(c<8){x=(c-8)*SCX;mag=bm[c]}
@@ -1360,7 +1382,7 @@ function _terrainRendererCore(container, D, opts){
 
     // Grid lines
     var OFF=0.032;
-    if(renderMode==='surface'){
+    if(renderMode==='surface' && SHOW_GRID){
       var gridP=[],gridC=[];
       var pushSeg=function(ax,ay,az,bx,by,bz,r,g,b){gridP.push(ax,ay+OFF,az,bx,by+OFF,bz);gridC.push(r,g,b,r,g,b)};
       for(var t=0;t<nT;t++){for(var c=0;c<COLS-1;c++){var v0=vtx[t][c],v1=vtx[t][c+1];var near=(c===7||c===8)?.30:.14;pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,near*.55,near*.65,near)}}
@@ -1373,70 +1395,162 @@ function _terrainRendererCore(container, D, opts){
     }
 
     // Spine line + dots
-    var spinePts=[];
-    for(var t=0;t<nT;t++){var sv=vtx[t][8];spinePts.push(new THREE.Vector3(sv.x,sv.y+OFF+0.04,sv.z))}
-    var spineGeo=new THREE.BufferGeometry().setFromPoints(spinePts);
-    var spineLine=new THREE.Line(spineGeo,new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:0.85}));
-    sc.add(spineLine);lbs.push(spineLine);
-    var dotGeo=new THREE.SphereGeometry(0.035,6,6);
-    var dotMat=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:0.7});
-    for(var t=0;t<nT;t++){var sv=vtx[t][8];var dot=new THREE.Mesh(dotGeo,dotMat);dot.position.set(sv.x,sv.y+OFF+0.04,sv.z);sc.add(dot);lbs.push(dot)}
+    if(SHOW_SPINE){
+      var spinePts=[];
+      for(var t=0;t<nT;t++){var sv=vtx[t][8];spinePts.push(new THREE.Vector3(sv.x,sv.y+OFF+0.04,sv.z))}
+      var spineGeo=new THREE.BufferGeometry().setFromPoints(spinePts);
+      var spineLine=new THREE.Line(spineGeo,new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:0.85}));
+      sc.add(spineLine);lbs.push(spineLine);
+      var dotGeo=new THREE.SphereGeometry(0.035,6,6);
+      var dotMat=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:0.7});
+      for(var t=0;t<nT;t++){var sv=vtx[t][8];var dot=new THREE.Mesh(dotGeo,dotMat);dot.position.set(sv.x,sv.y+OFF+0.04,sv.z);sc.add(dot);lbs.push(dot)}
+    }
 
     // Labels at every vertex
-    var LW=Math.round(96*labelScale),LH=Math.round(24*labelScale);
-    var LSX=SCX*0.90*labelScale,LSY=LSX*(LH/LW);
-    var SPINE_BOOST=1.5;
-    var SLW=Math.round(LW*SPINE_BOOST),SLH=Math.round(LH*SPINE_BOOST);
-    var SLSX=LSX*SPINE_BOOST,SLSY=SLSX*(SLH/SLW);
-    var labelFontPx=Math.round(12*labelScale);
-    var spineFontPx=Math.round(12*labelScale*SPINE_BOOST);
-    var texCache={};
-    var getTexture=function(str,klT,isSpine,colIdx){
-      var bucket=Math.round(klT*8),key=str+'|'+bucket+'|'+labelScale+'|'+(isSpine?'S':'C')+'|'+colIdx;
-      if(texCache[key])return texCache[key];
-      var w=isSpine?SLW:LW, h=isSpine?SLH:LH, fpx=isSpine?spineFontPx:labelFontPx;
-      var S=2,lc=document.createElement('canvas');lc.width=w*S;lc.height=h*S;
-      var lx=lc.getContext('2d');lx.scale(S,S);
-      lx.font='700 '+fpx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
-      if(isSpine){lx.lineWidth=Math.max(3,labelScale*2.2);lx.strokeStyle='rgba(0,0,0,0.98)';lx.strokeText(str,w/2,h/2);lx.fillStyle='rgba(86,180,233,1.0)';lx.fillText(str,w/2,h/2)}
-      else{lx.lineWidth=Math.max(2,labelScale*1.5);lx.strokeStyle='rgba(0,0,0,0.95)';lx.strokeText(str,w/2,h/2);lx.fillStyle='rgba(240,237,228,1.0)';lx.fillText(str,w/2,h/2)}
-      var ulLen=Math.max(4,Math.round((w-10)*klT));
-      if(!isSpine){var rgb2=_rampFor(colIdx)(Math.max(.15,klT*.75+.18));lx.globalAlpha=.7;lx.fillStyle='rgb('+Math.round(rgb2[0]*255)+','+Math.round(rgb2[1]*255)+','+Math.round(rgb2[2]*255)+')';lx.fillRect((w-ulLen)/2,h/2+Math.round(8*labelScale),ulLen,Math.max(2,Math.round(2*labelScale)))}
-      else{lx.globalAlpha=.6;lx.fillStyle='rgba(86,180,233,0.8)';lx.fillRect((w-ulLen)/2,h/2+Math.round(10*labelScale*SPINE_BOOST),ulLen,Math.max(2,Math.round(2*labelScale)))}
-      texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
-    };
-    for(var t=0;t<nT;t++){
-      var ctoks=rows[t][4]||[];
-      var klT2=(rows[t][2]-klMin)/(klMax-klMin||1);
-      for(var c=0;c<COLS;c++){
-        var vv=vtx[t][c];
-        var isSpine=(c===8);
-        var str;
-        if(c<8)str=(ctoks[8+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        else if(isSpine)str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        if(!str)str='\u00B7';
-        var tex=getTexture(str,klT2,isSpine,c);
-        var fd=isSpine?1.0:Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
-        var sx=isSpine?SLSX:LSX, sy=isSpine?SLSY:LSY;
-        var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fd}));
-        sp.position.set(vv.x,vv.y+OFF+(isSpine?.10:.06),vv.z);sp.scale.set(sx,sy,1);
-        sc.add(sp);lbs.push(sp);
+    if(SHOW_LABELS){
+      var LW=Math.round(96*labelScale),LH=Math.round(24*labelScale);
+      var LSX=SCX*0.90*labelScale,LSY=LSX*(LH/LW);
+      var SPINE_BOOST=1.5;
+      var SLW=Math.round(LW*SPINE_BOOST),SLH=Math.round(LH*SPINE_BOOST);
+      var SLSX=LSX*SPINE_BOOST,SLSY=SLSX*(SLH/SLW);
+      var labelFontPx=Math.round(12*labelScale);
+      var spineFontPx=Math.round(12*labelScale*SPINE_BOOST);
+
+      // Find max per-rank magnitude across the prompt so underline length
+      // in promoted_demoted mode is normalized to the prompt's range
+      // rather than to whatever KL range happens to exist.
+      var magMaxThis=1e-10;
+      for(var tt=0;tt<nT;tt++){
+        var mr=rows[tt][6]||[];
+        for(var jj=0;jj<mr.length;jj++) if(mr[jj]>magMaxThis) magMaxThis=mr[jj];
+      }
+
+      var texCache={};
+      // Label texture generator. In promoted_demoted mode the underline
+      // color encodes the set-membership status of the candidate at that
+      // rank (promoted / demoted / matched) and its length encodes the
+      // candidate's per-rank magnitude. In kl_brightness mode the previous
+      // behavior is preserved: underline color is sampled from the active
+      // palette and length tracks the token's normalized KL value. In
+      // off mode no underline is drawn at all.
+      var getTexture=function(str,klT,isSpine,colIdx,status,rankMagT){
+        var accentKey=(ACCENT_MODE==='promoted_demoted'&&status)?status:(ACCENT_MODE==='off'?'none':'kl');
+        var bucket=Math.round(klT*8);
+        var magBucket=Math.round((rankMagT||0)*8);
+        var key=str+'|'+bucket+'|'+magBucket+'|'+labelScale+'|'+(isSpine?'S':'C')+'|'+colIdx+'|'+accentKey;
+        if(texCache[key]) return texCache[key];
+        var w=isSpine?SLW:LW, h=isSpine?SLH:LH, fpx=isSpine?spineFontPx:labelFontPx;
+        var S=2,lc=document.createElement('canvas');lc.width=w*S;lc.height=h*S;
+        var lx=lc.getContext('2d');lx.scale(S,S);
+        lx.font='700 '+fpx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
+
+        // Text stroke (always) plus text fill. Fill color depends on mode:
+        // promoted/demoted tints for bank tokens; matched and legacy modes
+        // stay with the existing cream; spine tokens always render blue.
+        lx.lineWidth=Math.max(isSpine?3:2,labelScale*(isSpine?2.2:1.5));
+        lx.strokeStyle=isSpine?'rgba(0,0,0,0.98)':'rgba(0,0,0,0.95)';
+        lx.strokeText(str,w/2,h/2);
+        if(isSpine){
+          lx.fillStyle='rgba(86,180,233,1.0)';
+        }else if(ACCENT_MODE==='promoted_demoted' && status && ACCENT_COLORS[status]){
+          lx.fillStyle=ACCENT_COLORS[status].text;
+        }else{
+          lx.fillStyle='rgba(240,237,228,1.0)';
+        }
+        lx.fillText(str,w/2,h/2);
+
+        // Underline layer. Off suppresses it entirely; kl_brightness uses
+        // the legacy behavior; promoted_demoted uses the status color and
+        // the per-rank magnitude for length.
+        if(ACCENT_MODE!=='off'){
+          var ulLen, ulColor, ulAlpha, ulOffset;
+          if(isSpine){
+            ulLen=Math.max(4,Math.round((w-10)*klT));
+            ulColor='rgba(86,180,233,0.8)';
+            ulAlpha=0.6;
+            ulOffset=Math.round(10*labelScale*SPINE_BOOST);
+          }else if(ACCENT_MODE==='promoted_demoted' && status && ACCENT_COLORS[status]){
+            var lenT=Math.max(0,Math.min(1,rankMagT||0));
+            ulLen=Math.max(4,Math.round((w-10)*lenT));
+            ulColor=ACCENT_COLORS[status].underline;
+            ulAlpha=0.85;
+            ulOffset=Math.round(8*labelScale);
+          }else{
+            // kl_brightness legacy path
+            ulLen=Math.max(4,Math.round((w-10)*klT));
+            var rgb2=_rampFor(colIdx)(Math.max(.15,klT*.75+.18));
+            ulColor='rgb('+Math.round(rgb2[0]*255)+','+Math.round(rgb2[1]*255)+','+Math.round(rgb2[2]*255)+')';
+            ulAlpha=0.7;
+            ulOffset=Math.round(8*labelScale);
+          }
+          lx.globalAlpha=ulAlpha;
+          lx.fillStyle=ulColor;
+          lx.fillRect((w-ulLen)/2,h/2+ulOffset,ulLen,Math.max(2,Math.round(2*labelScale)));
+        }
+
+        texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
+      };
+
+      for(var t=0;t<nT;t++){
+        var ctoks=rows[t][4]||[];
+        var statusRow=rows[t][5]||[];
+        var rankMags=rows[t][6]||[];
+        var klT2=(rows[t][2]-klMin)/(klMax-klMin||1);
+        for(var c=0;c<COLS;c++){
+          var vv=vtx[t][c];
+          var isSpine=(c===8);
+          var str;
+          if(c<8) str=(ctoks[8+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+          else if(isSpine) str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+          else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+          if(!str) str='\u00B7';
+
+          // Map lattice column to status-row index. Columns 0..7 are the
+          // base bank (reversed): column 0 = farthest from spine = base
+          // rank 7; column 7 = adjacent to spine = base rank 0. The
+          // status row from the transform lists instruct 0..7 first then
+          // base 7..0 (reversed), so column index maps directly for the
+          // instruct side (c=9..16 -> statusRow[c-9..c-16]... ).
+          var status=null, rankMag=0;
+          if(!isSpine){
+            if(c<8){
+              // Base bank. statusRow indices 8..15 hold base 7..0.
+              var baseStatusIdx=8+(7-c);
+              status=statusRow[baseStatusIdx]||null;
+              rankMag=rankMags[baseStatusIdx]||0;
+            }else{
+              // Instruct bank. statusRow indices 0..7 hold instruct 0..7.
+              var instIdx=c-9;
+              status=statusRow[instIdx]||null;
+              rankMag=rankMags[instIdx]||0;
+            }
+          }
+          var rankMagT=magMaxThis>1e-10?(rankMag/magMaxThis):0;
+
+          var tex=getTexture(str,klT2,isSpine,c,status,rankMagT);
+          var fd=isSpine?1.0:Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
+          var sx=isSpine?SLSX:LSX, sy=isSpine?SLSY:LSY;
+          var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fd}));
+          sp.position.set(vv.x,vv.y+OFF+(isSpine?.10:.06),vv.z);sp.scale.set(sx,sy,1);
+          sc.add(sp);lbs.push(sp);
+        }
       }
     }
 
     // Axis labels
-    var frontZ=vtx[0][8].z+scZ*.6;
-    var makeAx=function(txt,xp,align){
-      var ac=document.createElement('canvas');ac.width=160;ac.height=22;
-      var ax=ac.getContext('2d');ax.font='500 10px system-ui,sans-serif';
-      ax.fillStyle='rgba(110,110,130,0.55)';ax.textAlign=align||'center';
-      ax.fillText(txt,align==='right'?155:align==='left'?5:80,14);
-      var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(ac),transparent:true,depthTest:false}));
-      sp.position.set(xp,FY+.1,frontZ);sp.scale.set(1.3,.19,1);sc.add(sp);lbs.push(sp);
-    };
-    makeAx('\u2190 base',-2.2,'right');
-    makeAx('instruct \u2192',2.2,'left');
+    if(SHOW_LEGEND){
+      var frontZ=vtx[0][8].z+scZ*.6;
+      var makeAx=function(txt,xp,align){
+        var ac=document.createElement('canvas');ac.width=160;ac.height=22;
+        var ax=ac.getContext('2d');ax.font='500 10px system-ui,sans-serif';
+        ax.fillStyle='rgba(110,110,130,0.55)';ax.textAlign=align||'center';
+        ax.fillText(txt,align==='right'?155:align==='left'?5:80,14);
+        var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(ac),transparent:true,depthTest:false}));
+        sp.position.set(xp,FY+.1,frontZ);sp.scale.set(1.3,.19,1);sc.add(sp);lbs.push(sp);
+      };
+      makeAx('\u2190 base',-2.2,'right');
+      makeAx('instruct \u2192',2.2,'left');
+    }
 
     // Info
     var peakKl=Math.max.apply(null,klVals);
@@ -1592,16 +1706,34 @@ function _terrainRendererCore(container, D, opts){
 }
 
 
-function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
-    charLimit = charLimit || 50;
-    autoRotate = !!autoRotate;
-    rotateSpeed = rotateSpeed || 0.3;
+function _openTerrainWindow(D, opts){
+    opts = opts || {};
+    var charLimit = opts.charLimit || 50;
+    var autoRotate = !!opts.autoRotate;
+    var rotateSpeed = opts.rotateSpeed || 0.3;
     var pw=1200,ph=800;
     var left=Math.round((screen.width-pw)/2);
     var top=Math.round((screen.height-ph)/2);
     var w=window.open('','_blank','width='+pw+',height='+ph+',left='+left+',top='+top);
     if(!w)return;
     var dataJSON=JSON.stringify(D);
+    var optsJSON=JSON.stringify({
+      isPopout: true,
+      charLimit: charLimit,
+      autoRotate: autoRotate,
+      rotateSpeed: rotateSpeed,
+      palette: opts.palette || 'dual',
+      heightScale: opts.heightScale || 180,
+      klBoost: opts.klBoost != null ? opts.klBoost : 0.3,
+      accentMode: opts.accentMode || 'kl_brightness',
+      accentAvailable: !!opts.accentAvailable,
+      dataFilter: opts.dataFilter || 'all',
+      showGrid: opts.showGrid !== false,
+      showLabels: opts.showLabels !== false,
+      showLegend: opts.showLegend !== false,
+      showSpine: opts.showSpine !== false,
+      measureClass: opts.measureClass || 'bank',
+    });
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Correction Field Topology</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
     w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
@@ -1616,81 +1748,64 @@ function _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed){
     w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
     w.document.write('</head><body>');
     w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
-    w.document.write('<script>var D='+dataJSON+';<\/script>');
+    w.document.write('<script>var D='+dataJSON+';var OPTS='+optsJSON+';<\/script>');
     w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
-    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,{isPopout:true,charLimit:'+charLimit+',autoRotate:'+autoRotate+',rotateSpeed:'+rotateSpeed+'})});<\/script>');
+    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,OPTS)});<\/script>');
     w.document.write('</body></html>');
     w.document.close();
 }
 
 async function _lazyLoadTerrainPopout(totalCount, params){
   params = params || {};
-  var catFilter = params.category || 'all';
-  var recordLimit = params.recordLimit || DISPLAY_DEFAULTS.terrainRecordLimit || 100;
-  var tokenLimit = params.tokenLimit || DISPLAY_DEFAULTS.terrainTokenLimit || 20;
   var charLimit = params.charLimit || DISPLAY_DEFAULTS.terrainCharLimit || 50;
   var autoRotate = params.autoRotate != null ? params.autoRotate : DISPLAY_DEFAULTS.terrainAutoRotate;
   var rotateSpeed = params.rotateSpeed || DISPLAY_DEFAULTS.terrainRotateSpeed || 0.3;
 
-  var allResults=[];
-  var CHUNK=25;
-  // Estimate how many we need to fetch: if filtering by category, overshoot
-  // since we don't know the distribution. Otherwise stop at recordLimit.
-  var fetchLimit = (catFilter !== 'all') ? totalCount : recordLimit;
   try{
-    for(var start=0;start<totalCount&&allResults.length<fetchLimit;start+=CHUNK){
-      log('Loading terrain data... '+allResults.length+'/'+fetchLimit+(catFilter!=='all'?' (scanning for '+catFilter+')':''));
-      var resp=await fetch('/api/results/detail?start='+start+'&count='+CHUNK);
-      var data=await resp.json();
-      if(!data.ok)break;
-      if(catFilter !== 'all'){
-        // Filter as we go so we can stop early
-        var matching = data.results.filter(function(r){ return r.category === catFilter; });
-        allResults = allResults.concat(matching);
-        if(allResults.length >= recordLimit) break;
-      } else {
-        allResults=allResults.concat(data.results);
-      }
+    log('Fetching terrain payload from module results...');
+    var r = await fetch('/api/modules/correction_field_topology/results');
+    var d = await r.json();
+    if(!d.ok || !d.results){
+      log('No module results available. Run Correction Field Topology first.','error');
+      return;
     }
-    // Apply record limit
-    if(allResults.length > recordLimit){
-      allResults = allResults.slice(0, recordLimit);
+    var payload = d.results;
+    if(payload.error){
+      log('Module reported error: '+payload.error,'error');
+      return;
     }
-    log('Loaded '+allResults.length+' records'+(catFilter!=='all'?' ('+catFilter+')':''));
-    // Apply token limit — truncate per-prompt arrays
-    allResults.forEach(function(r){
-      if(r.tokens && r.tokens.length > tokenLimit){
-        r.tokens = r.tokens.slice(0, tokenLimit);
-        r.seq_len = tokenLimit;
-        if(r.per_token_stress) r.per_token_stress = r.per_token_stress.slice(0, tokenLimit);
-        if(r.per_token_kl) r.per_token_kl = r.per_token_kl.slice(0, tokenLimit);
-        if(r.signed_attr) r.signed_attr = r.signed_attr.slice(0, tokenLimit);
-        if(r.ltp){
-          if(r.ltp.profiles) r.ltp.profiles = r.ltp.profiles.slice(0, tokenLimit);
-          if(r.ltp.base_profiles) r.ltp.base_profiles = r.ltp.base_profiles.slice(0, tokenLimit);
-          if(r.ltp.counterfactual_tokens) r.ltp.counterfactual_tokens = r.ltp.counterfactual_tokens.slice(0, tokenLimit);
-          if(r.ltp.tension_magnitudes) r.ltp.tension_magnitudes = r.ltp.tension_magnitudes.slice(0, tokenLimit);
-        }
-        if(r.rank_displacement){
-          if(r.rank_displacement.instruct_disp_profiles) r.rank_displacement.instruct_disp_profiles = r.rank_displacement.instruct_disp_profiles.slice(0, tokenLimit);
-          if(r.rank_displacement.base_disp_profiles) r.rank_displacement.base_disp_profiles = r.rank_displacement.base_disp_profiles.slice(0, tokenLimit);
-          if(r.rank_displacement.per_position) r.rank_displacement.per_position = r.rank_displacement.per_position.slice(0, tokenLimit);
-        }
-        if(r.base_counterfactual_tokens) r.base_counterfactual_tokens = r.base_counterfactual_tokens.slice(0, tokenLimit);
-      }
-    });
+    if(!payload.prompts || payload.prompts.length === 0){
+      log('Terrain payload is empty.','error');
+      return;
+    }
 
-    var hasData=allResults.some(function(r){
-      return(r.ltp&&r.ltp.profiles&&r.ltp.profiles.length>0)||
-            (r.rank_displacement&&r.rank_displacement.instruct_disp_profiles&&r.rank_displacement.instruct_disp_profiles.length>0);
-    });
-    if(hasData){
-      var D=_terrainTransformData(allResults);
-      if(Object.keys(D).length) _openTerrainWindow(D, charLimit, autoRotate, rotateSpeed);
-      else log('No terrain profile data available.','error');
-    }else{
-      log('No terrain profile data available for this session.','error');
+    var D = _terrainFromPayload(payload);
+    if(!Object.keys(D).length){
+      log('Terrain payload produced no renderable categories.','error');
+      return;
     }
+
+    // Visual parameters captured at run time flow from payload.launch_params
+    // into the renderer via opts, keeping the renderer stateless.
+    var lp = payload.launch_params || {};
+    var viewerOpts = {
+      charLimit: lp.char_limit || charLimit,
+      autoRotate: lp.auto_rotate != null ? lp.auto_rotate : autoRotate,
+      rotateSpeed: lp.rotate_speed || rotateSpeed,
+      palette: lp.palette || 'dual',
+      heightScale: lp.height_scale || 180,
+      klBoost: lp.kl_boost != null ? lp.kl_boost : 0.3,
+      accentMode: lp.accent_mode || 'kl_brightness',
+      accentAvailable: !!payload.accent_available,
+      dataFilter: lp.data_filter || 'all',
+      showGrid: lp.show_grid !== false,
+      showLabels: lp.show_labels !== false,
+      showLegend: lp.show_legend !== false,
+      showSpine: lp.show_spine !== false,
+      measureClass: payload.measure_class || 'bank',
+    };
+
+    _openTerrainWindow(D, viewerOpts);
   }catch(e){
     console.error('Terrain lazy load error:',e);
     log('Terrain load failed: '+e.message,'error');
