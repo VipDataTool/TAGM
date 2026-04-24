@@ -1306,7 +1306,16 @@ function _terrainRendererCore(container, D, opts){
     var zDepth=(nT-1)*scZ;
     var zOffset=zDepth/2;
     var allMags=[];
-    for(var ri=0;ri<rows.length;ri++){var rr=rows[ri];rr[0].forEach(function(v){allMags.push(v)});rr[1].forEach(function(v){allMags.push(v)})}
+    for(var ri=0;ri<rows.length;ri++){
+      var rr=rows[ri];
+      rr[0].forEach(function(v){allMags.push(v)});
+      rr[1].forEach(function(v){allMags.push(v)});
+      // Pool the spine primary value so mn/mx cover the full terrain.
+      // Without this, a large spine value produces an unbounded vertex
+      // height because the (mag - mn) * HSCALE computation uses a range
+      // that does not include the spine.
+      if(rr[3]!=null) allMags.push(rr[3]);
+    }
     var mn=Math.min.apply(null,allMags),mx=Math.max.apply(null,allMags);
     var klVals=rows.map(function(r){return r[2]});
     var klMin=Math.min.apply(null,klVals),klMax=Math.max.apply(null,klVals);

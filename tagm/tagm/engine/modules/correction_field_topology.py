@@ -92,7 +92,7 @@ MEASURES = {
     "rank_displacement": {
         "display_name": "Rank Displacement",
         "class": "bank",
-        "target_max": 1.0,
+        "target_max": 0.008,
         "accent_capable": True,
         "description": "Per-token probability displacement between base "
                        "and instruct top-k candidates.",
@@ -108,7 +108,7 @@ MEASURES = {
     "asm_stress": {
         "display_name": "ASM Stress",
         "class": "scalar",
-        "target_max": 1.0,
+        "target_max": 0.008,
         "accent_capable": False,
         "description": "Per-token correction stress from ASM signal layers. "
                        "Spine ridge only.",
@@ -116,14 +116,14 @@ MEASURES = {
     "sfd_density": {
         "display_name": "SFD Density",
         "class": "scalar",
-        "target_max": 1.0,
+        "target_max": 0.008,
         "accent_capable": False,
         "description": "Spectral field density per token. Spine ridge only.",
     },
     "per_token_kl": {
         "display_name": "Per-token KL",
         "class": "scalar",
-        "target_max": 5.0,
+        "target_max": 0.008,
         "accent_capable": False,
         "description": "KL divergence between base and instruct distributions. "
                        "Spine ridge only.",
