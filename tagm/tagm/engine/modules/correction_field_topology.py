@@ -13,7 +13,6 @@ uniform shape regardless of which measure was selected:
 
     {
         "measure": "<measure_name>",            # selected measure identifier
-        "measure_class": "bank" | "scalar",     # geometry class (see below)
         "target_max": <float>,                  # per-measure calibration
         "accent_available": bool,               # promoted/demoted tags present?
         "available_measures": [<name>, ...],    # what this session supports
@@ -48,30 +47,24 @@ models' candidate distributions directly. LTP and the scalar-only
 measures emit empty status arrays and set accent_available to False;
 the client falls back to the kl_brightness accent mode in that case.
 
-─── Measure classes ──────────────────────────────────────────────
-Bank-native measures carry per-rank profiles for both banks and
-produce the full dual-bank terrain:
-    - "rank_displacement": RD magnitude, uses instruct/base_disp_profiles
-                           with per_position[t].total_disp as primary
-    - "ltp_tension":       LTP tension, uses profiles/base_profiles with
-                           tension_magnitudes as primary
+─── Supported measures ──────────────────────────────────────────
+Only measures that decompose per-rank are supported. The visualization
+is a counterfactual-plane projection: each bank vertex represents one
+candidate at one rank, so the measure must produce a separate value
+per candidate during probing. Scalar-only measures (ASM stress, SFD
+density, per-token KL, token variance) summarize or aggregate across
+ranks and do not project onto this plane; they are deliberately
+excluded rather than offered with synthesized banks.
 
-Scalar-only measures carry per-token primary values with empty bank
-arrays. The renderer draws the spine ridge alone and suppresses the
-bank terrain:
-    - "asm_stress":        per_token_stress as primary
-    - "sfd_density":       sfd.per_token_density as primary
-    - "per_token_kl":      per_token_kl as primary
+    - "rank_displacement": uses instruct/base_disp_profiles for the
+                           banks and per_position[t].total_disp as the
+                           per-token primary driving the spine ridge.
+    - "ltp_tension":       uses profiles/base_profiles for the banks
+                           and tension_magnitudes as the primary.
 
 Only the selected measure's data travels to the renderer; non-selected
 measure data stays on the server. This keeps the viewer's memory
-footprint bounded as the measure set grows.
-
-─── Absent from this module ──────────────────────────────────────
-Token Variance is a cross-prompt aggregate and does not map onto the
-per-prompt terrain payload. If future work exposes TV as a tint or
-filter layer, it belongs alongside the palette selector rather than
-in the measure enumeration.
+footprint bounded as more bank-decomposable measures are added.
 """
 
 import logging
@@ -91,42 +84,19 @@ logger = logging.getLogger("tasm")
 MEASURES = {
     "rank_displacement": {
         "display_name": "Rank Displacement",
-        "class": "bank",
         "target_max": 0.008,
         "accent_capable": True,
         "description": "Per-token probability displacement between base "
-                       "and instruct top-k candidates.",
+                       "and instruct top-k candidates. Each rank carries "
+                       "its own displacement magnitude.",
     },
     "ltp_tension": {
         "display_name": "LTP Tension",
-        "class": "bank",
         "target_max": 0.008,
         "accent_capable": False,
         "description": "Lateral tension magnitudes from counterfactual "
-                       "refinement probing.",
-    },
-    "asm_stress": {
-        "display_name": "ASM Stress",
-        "class": "scalar",
-        "target_max": 0.008,
-        "accent_capable": False,
-        "description": "Per-token correction stress from ASM signal layers. "
-                       "Spine ridge only.",
-    },
-    "sfd_density": {
-        "display_name": "SFD Density",
-        "class": "scalar",
-        "target_max": 0.008,
-        "accent_capable": False,
-        "description": "Spectral field density per token. Spine ridge only.",
-    },
-    "per_token_kl": {
-        "display_name": "Per-token KL",
-        "class": "scalar",
-        "target_max": 0.008,
-        "accent_capable": False,
-        "description": "KL divergence between base and instruct distributions. "
-                       "Spine ridge only.",
+                       "refinement probing. Each rank carries its own "
+                       "tension magnitude.",
     },
 }
 
@@ -145,28 +115,9 @@ def _has_ltp_tension(r):
     return len(profs) > 0
 
 
-def _has_asm_stress(r):
-    pts = r.get("per_token_stress")
-    return pts is not None and len(pts) > 0
-
-
-def _has_sfd_density(r):
-    sfd = r.get("sfd") or {}
-    ptd = sfd.get("per_token_density") or []
-    return len(ptd) > 0
-
-
-def _has_per_token_kl(r):
-    kl = r.get("per_token_kl")
-    return kl is not None and len(kl) > 0
-
-
 AVAILABILITY_CHECKS = {
     "rank_displacement": _has_rank_displacement,
     "ltp_tension": _has_ltp_tension,
-    "asm_stress": _has_asm_stress,
-    "sfd_density": _has_sfd_density,
-    "per_token_kl": _has_per_token_kl,
 }
 
 
@@ -311,62 +262,14 @@ def _build_ltp_prompt(r, token_limit):
     }
 
 
-def _build_scalar_prompt(r, token_limit, scalar_field_fn):
-    """Shared builder for scalar-only measures.
-
-    scalar_field_fn(r) -> list[float] or None
-    """
-    scalar = scalar_field_fn(r)
-    if scalar is None or len(scalar) == 0:
-        return None
-
-    tokens = (r.get("tokens") or [])[:token_limit]
-    n_tok = min(len(tokens), len(scalar))
-    tokens = tokens[:n_tok]
-
-    primary = [float(scalar[i]) for i in range(n_tok)]
-
-    return {
-        "prompt": r.get("prompt", ""),
-        "category": r.get("category", "unknown"),
-        "tokens": tokens,
-        "per_token_kl": _extract_kl(r, n_tok),
-        "primary": primary,
-        "instruct_bank": [],
-        "base_bank": [],
-        "instruct_status": [],
-        "base_status": [],
-        "counterfactual_tokens": [],
-        "base_counterfactual_tokens": [],
-    }
-
-
 def _extract_kl(r, n_tok):
     kl = r.get("per_token_kl") or []
     return [float(kl[i]) if i < len(kl) else 0.0 for i in range(n_tok)]
 
 
-def _build_asm_stress_prompt(r, token_limit):
-    return _build_scalar_prompt(r, token_limit, lambda rec: rec.get("per_token_stress"))
-
-
-def _build_sfd_density_prompt(r, token_limit):
-    def _get(rec):
-        sfd = rec.get("sfd") or {}
-        return sfd.get("per_token_density")
-    return _build_scalar_prompt(r, token_limit, _get)
-
-
-def _build_kl_prompt(r, token_limit):
-    return _build_scalar_prompt(r, token_limit, lambda rec: rec.get("per_token_kl"))
-
-
 PROMPT_BUILDERS = {
     "rank_displacement": _build_rd_prompt,
     "ltp_tension": _build_ltp_prompt,
-    "asm_stress": _build_asm_stress_prompt,
-    "sfd_density": _build_sfd_density_prompt,
-    "per_token_kl": _build_kl_prompt,
 }
 
 
@@ -698,7 +601,6 @@ class CorrectionFieldTopologyModule(TASMModule):
 
         result = {
             "measure": measure,
-            "measure_class": spec["class"],
             "target_max": spec["target_max"],
             "accent_available": accent_available,
             "available_measures": _detect_available_measures(session_results),

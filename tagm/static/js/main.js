@@ -1082,8 +1082,7 @@ let _terrainState = null;
 function _terrainFromPayload(payload){
   const cats={};
   const prompts=payload.prompts||[];
-  const measureClass=payload.measure_class||'bank';
-  const targetMax=payload.target_max||1.0;
+  const targetMax=payload.target_max||0.008;
   const accentAvailable=!!payload.accent_available;
 
   for(const p of prompts){
@@ -1100,23 +1099,20 @@ function _terrainFromPayload(payload){
     const baseCf=p.base_counterfactual_tokens||[];
 
     // Per-prompt normalization with separate scale factors for the two
-    // axes of signal. The banks carry per-rank displacement values whose
-    // variation across ranks is the source of the terrain's texture; the
-    // primary (spine) carries the per-token total, which is naturally an
-    // order of magnitude larger because it aggregates across ranks.
-    // Normalizing them jointly pools two different distributions and
-    // crushes the bank variation against the floor. Instead we compute
-    // two independent scale factors so each signal maps its own maximum
-    // onto target_max.
+    // axes of signal. The banks carry per-rank values whose variation
+    // across ranks is the source of the terrain's texture; the primary
+    // (spine) carries the per-token total, which is naturally an order
+    // of magnitude larger because it aggregates across ranks.
+    // Normalizing them jointly would crush the bank variation against
+    // the floor, so we compute two independent scale factors so each
+    // signal maps its own maximum onto target_max.
     let bankMax=0, primaryMax=0;
     for(let i=0;i<nT;i++){
       if(primary[i]>primaryMax) primaryMax=primary[i];
-      if(measureClass==='bank'){
-        const ip=iBank[i]||[],bp=bBank[i]||[];
-        for(let j=0;j<8;j++){
-          if(ip[j]>bankMax) bankMax=ip[j];
-          if(bp[j]>bankMax) bankMax=bp[j];
-        }
+      const ip=iBank[i]||[],bp=bBank[i]||[];
+      for(let j=0;j<8;j++){
+        if(ip[j]>bankMax) bankMax=ip[j];
+        if(bp[j]>bankMax) bankMax=bp[j];
       }
     }
     const bankScale=bankMax>1e-10?(targetMax/bankMax):1;
@@ -1129,35 +1125,24 @@ function _terrainFromPayload(payload){
       const kl=(kls[i]!=null)?kls[i]:0;
       const primaryScaled=(primary[i]||0)*primaryScale;
 
-      let im,bm;
-      // Per-rank magnitudes used by the label underline layer. For bank
-      // measures these match the bank vertices; for scalar measures they
-      // are zero-filled, which lets the label renderer short-circuit the
-      // underline for suppressed banks.
-      let imMag,bmMag;
-      if(measureClass==='bank'){
-        const iDisp=iBank[i]||[];
-        im=[];imMag=[];
-        for(let j=0;j<8;j++){
-          const v=(iDisp[j]!=null?iDisp[j]:0);
-          im.push(v*bankScale);
-          imMag.push(v);
-        }
-        const bDisp=bBank[i]||[];
-        bm=[];bmMag=new Array(8);
-        // Base bank is reversed so columns 9..16 in the lattice render
-        // highest-rank-first moving outward from the spine.
-        for(let j=7;j>=0;j--){
-          const v=(bDisp[j]!=null?bDisp[j]:0);
-          bm.push(v*bankScale);
-          bmMag[7-j]=v;
-        }
-      }else{
-        // Scalar-only measure: suppress bank terrain, show spine alone.
-        im=new Array(8).fill(0);
-        bm=new Array(8).fill(0);
-        imMag=new Array(8).fill(0);
-        bmMag=new Array(8).fill(0);
+      // Per-rank magnitudes used by the label underline layer.
+      const iDisp=iBank[i]||[];
+      const im=[];
+      const imMag=[];
+      for(let j=0;j<8;j++){
+        const v=(iDisp[j]!=null?iDisp[j]:0);
+        im.push(v*bankScale);
+        imMag.push(v);
+      }
+      const bDisp=bBank[i]||[];
+      const bm=[];
+      const bmMag=new Array(8);
+      // Base bank is reversed so columns 9..16 in the lattice render
+      // highest-rank-first moving outward from the spine.
+      for(let j=7;j>=0;j--){
+        const v=(bDisp[j]!=null?bDisp[j]:0);
+        bm.push(v*bankScale);
+        bmMag[7-j]=v;
       }
 
       // Counterfactual labels
@@ -1200,7 +1185,7 @@ function _terrainFromPayload(payload){
   }
 
   console.log('[Terrain] Payload transform: measure='+payload.measure+
-              ', class='+measureClass+', target_max='+targetMax+
+              ', target_max='+targetMax+
               ', prompts='+prompts.length);
   return cats;
 }
@@ -1748,7 +1733,6 @@ function _openTerrainWindow(D, opts){
       showLabels: opts.showLabels !== false,
       showLegend: opts.showLegend !== false,
       showSpine: opts.showSpine !== false,
-      measureClass: opts.measureClass || 'bank',
     });
     w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Correction Field Topology</title>');
     w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
@@ -1818,7 +1802,6 @@ async function _lazyLoadTerrainPopout(totalCount, params){
       showLabels: lp.show_labels !== false,
       showLegend: lp.show_legend !== false,
       showSpine: lp.show_spine !== false,
-      measureClass: payload.measure_class || 'bank',
     };
 
     _openTerrainWindow(D, viewerOpts);
