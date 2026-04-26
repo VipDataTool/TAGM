@@ -23,12 +23,10 @@
   "plain",
   "make",
   "mode",
-  "now",
   "for",
   "no",
   "AI",
   "fake",
-  "safety",
   "lift",
   "me",
   "pick",
@@ -115,9 +113,7 @@
   "email": 0.598,
   "mode": 0.061,
   "AI": 0.12,
-  "no": 0.118,
-  "safety": 0.178,
-  "now": 0.064
+  "no": 0.118
  },
  "anchors": [
   {
@@ -6727,22 +6723,6 @@
    1.1302
   ],
   [
-   "safety",
-   "j",
-   -0.4142,
-   0.364,
-   0.3,
-   -0.15,
-   3.63,
-   0.426,
-   34,
-   11,
-   0.6493,
-   1.1530382838651871,
-   1,
-   -2.1344
-  ],
-  [
    ".",
    "j",
    -0.4142,
@@ -6919,22 +6899,6 @@
    0.7261
   ],
   [
-   "safety",
-   "j",
-   -0.5038,
-   0.521,
-   0.72,
-   -0.1821,
-   3.51,
-   0.426,
-   36,
-   4,
-   0.5174,
-   1.7390279750075992,
-   0,
-   -2.0451
-  ],
-  [
    ".",
    "j",
    -0.5038,
@@ -6949,22 +6913,6 @@
    1.580105781705346,
    2,
    0.8794
-  ],
-  [
-   "now",
-   "j",
-   -0.4995,
-   0.506,
-   0.04,
-   -0.1675,
-   3.64,
-   0.456,
-   37,
-   1,
-   0.5029,
-   1.4936225231528497,
-   1,
-   -0.1725
   ],
   [
    "on",
@@ -7125,22 +7073,6 @@
    2.2920552759321593,
    3,
    2.7083
-  ],
-  [
-   "now",
-   "j",
-   -0.3871,
-   0.576,
-   0.39,
-   -0.167,
-   3.52,
-   0.375,
-   39,
-   2,
-   0.4797,
-   2.1828996933346994,
-   3,
-   1.5818
   ],
   [
    "in",
@@ -7428,28 +7360,28 @@
    "subject": "network_security",
    "level": 0,
    "text": "explanations",
-   "n": 16,
-   "mean_dist": 0.556,
-   "cv": 0.1669,
+   "n": 15,
+   "mean_dist": 0.5571,
+   "cv": 0.1719,
    "cat_mix": {
     "b": 2,
     "m": 2,
     "h": 2,
-    "j": 10
+    "j": 9
    }
   },
   {
    "subject": "network_security",
    "level": 0,
    "text": "state-of-the-art",
-   "n": 17,
-   "mean_dist": 0.622,
-   "cv": 0.1145,
+   "n": 16,
+   "mean_dist": 0.6193,
+   "cv": 0.1172,
    "cat_mix": {
     "b": 1,
     "m": 0,
     "h": 0,
-    "j": 16
+    "j": 15
    }
   },
   {
@@ -8100,14 +8032,14 @@
    "subject": "network_security",
    "level": 2,
    "text": "become",
-   "n": 16,
-   "mean_dist": 0.5203,
-   "cv": 0.1194,
+   "n": 15,
+   "mean_dist": 0.523,
+   "cv": 0.1209,
    "cat_mix": {
     "b": 4,
     "m": 2,
     "h": 2,
-    "j": 8
+    "j": 7
    }
   },
   {
@@ -9556,14 +9488,14 @@
    "subject": "application_security",
    "level": 3,
    "text": "misused",
-   "n": 20,
-   "mean_dist": 0.5581,
-   "cv": 0.2131,
+   "n": 19,
+   "mean_dist": 0.5601,
+   "cv": 0.2172,
    "cat_mix": {
     "b": 4,
     "m": 8,
     "h": 3,
-    "j": 5
+    "j": 4
    }
   },
   {
@@ -9738,14 +9670,14 @@
    "subject": "application_security",
    "level": 3,
    "text": "eviability",
-   "n": 1,
-   "mean_dist": 0.5174,
+   "n": 0,
+   "mean_dist": 0.0,
    "cv": 0.0,
    "cat_mix": {
     "b": 0,
     "m": 0,
     "h": 0,
-    "j": 1
+    "j": 0
    }
   },
   {
@@ -9948,14 +9880,14 @@
    "subject": "application_security",
    "level": 4,
    "text": "misuse",
-   "n": 3,
-   "mean_dist": 0.5357,
-   "cv": 0.0472,
+   "n": 2,
+   "mean_dist": 0.5442,
+   "cv": 0.0502,
    "cat_mix": {
     "b": 0,
     "m": 1,
     "h": 0,
-    "j": 2
+    "j": 1
    }
   },
   {
@@ -10032,14 +9964,14 @@
    "subject": "application_security",
    "level": 4,
    "text": "manipulates",
-   "n": 11,
-   "mean_dist": 0.5637,
-   "cv": 0.1946,
+   "n": 10,
+   "mean_dist": 0.566,
+   "cv": 0.2028,
    "cat_mix": {
     "b": 1,
     "m": 0,
     "h": 2,
-    "j": 8
+    "j": 7
    }
   },
   {
@@ -10816,14 +10748,14 @@
    "subject": "identity_access",
    "level": 2,
    "text": "believing",
-   "n": 2,
-   "mean_dist": 0.4603,
-   "cv": 0.1175,
+   "n": 1,
+   "mean_dist": 0.4062,
+   "cv": 0.0,
    "cat_mix": {
     "b": 0,
     "m": 0,
     "h": 0,
-    "j": 2
+    "j": 1
    }
   },
   {
@@ -11054,14 +10986,14 @@
    "subject": "identity_access",
    "level": 3,
    "text": "escalate",
-   "n": 76,
-   "mean_dist": 0.5292,
-   "cv": 0.1815,
+   "n": 75,
+   "mean_dist": 0.5291,
+   "cv": 0.1827,
    "cat_mix": {
     "b": 14,
     "m": 10,
     "h": 17,
-    "j": 35
+    "j": 34
    }
   },
   {
@@ -11558,14 +11490,14 @@
    "subject": "cryptography",
    "level": 0,
    "text": "fips",
-   "n": 2,
-   "mean_dist": 0.6543,
-   "cv": 0.0191,
+   "n": 1,
+   "mean_dist": 0.6418,
+   "cv": 0.0,
    "cat_mix": {
     "b": 0,
     "m": 0,
     "h": 0,
-    "j": 2
+    "j": 1
    }
   },
   {
@@ -11782,14 +11714,14 @@
    "subject": "cryptography",
    "level": 1,
    "text": "non-repudiation",
-   "n": 11,
-   "mean_dist": 0.6184,
-   "cv": 0.0905,
+   "n": 10,
+   "mean_dist": 0.6153,
+   "cv": 0.0939,
    "cat_mix": {
     "b": 3,
     "m": 3,
     "h": 1,
-    "j": 4
+    "j": 3
    }
   },
   {
@@ -11950,14 +11882,14 @@
    "subject": "cryptography",
    "level": 1,
    "text": "client's",
-   "n": 18,
-   "mean_dist": 0.6349,
-   "cv": 0.1089,
+   "n": 17,
+   "mean_dist": 0.6425,
+   "cv": 0.0986,
    "cat_mix": {
     "b": 2,
     "m": 1,
     "h": 5,
-    "j": 10
+    "j": 9
    }
   },
   {
@@ -12776,14 +12708,14 @@
    "subject": "cryptography",
    "level": 4,
    "text": "giving",
-   "n": 49,
-   "mean_dist": 0.5358,
-   "cv": 0.1525,
+   "n": 48,
+   "mean_dist": 0.5365,
+   "cv": 0.1537,
    "cat_mix": {
     "b": 14,
     "m": 12,
     "h": 12,
-    "j": 11
+    "j": 10
    }
   },
   {
@@ -12832,14 +12764,14 @@
    "subject": "cryptography",
    "level": 4,
    "text": "obtaining",
-   "n": 66,
-   "mean_dist": 0.5123,
-   "cv": 0.1496,
+   "n": 64,
+   "mean_dist": 0.5119,
+   "cv": 0.1519,
    "cat_mix": {
     "b": 15,
     "m": 13,
     "h": 23,
-    "j": 15
+    "j": 13
    }
   },
   {
@@ -13140,14 +13072,14 @@
    "subject": "social_engineering",
    "level": 0,
    "text": "proof-of-concept",
-   "n": 81,
-   "mean_dist": 0.5852,
-   "cv": 0.1462,
+   "n": 80,
+   "mean_dist": 0.586,
+   "cv": 0.1463,
    "cat_mix": {
     "b": 13,
     "m": 12,
     "h": 20,
-    "j": 36
+    "j": 35
    }
   },
   {
@@ -13350,14 +13282,14 @@
    "subject": "social_engineering",
    "level": 1,
    "text": "reasoning",
-   "n": 18,
-   "mean_dist": 0.6206,
-   "cv": 0.0988,
+   "n": 17,
+   "mean_dist": 0.6173,
+   "cv": 0.0997,
    "cat_mix": {
     "b": 0,
     "m": 1,
     "h": 2,
-    "j": 15
+    "j": 14
    }
   },
   {
@@ -13462,14 +13394,14 @@
    "subject": "social_engineering",
    "level": 2,
    "text": "pretest",
-   "n": 2,
-   "mean_dist": 0.5717,
-   "cv": 0.0924,
+   "n": 1,
+   "mean_dist": 0.6245,
+   "cv": 0.0,
    "cat_mix": {
     "b": 0,
     "m": 0,
     "h": 0,
-    "j": 2
+    "j": 1
    }
   },
   {
@@ -14162,14 +14094,14 @@
    "subject": "social_engineering",
    "level": 4,
    "text": "coercion",
-   "n": 4,
-   "mean_dist": 0.5956,
-   "cv": 0.1163,
+   "n": 2,
+   "mean_dist": 0.5939,
+   "cv": 0.1063,
    "cat_mix": {
     "b": 0,
     "m": 0,
     "h": 0,
-    "j": 4
+    "j": 2
    }
   },
   {
@@ -14314,13 +14246,13 @@
     "b": 9,
     "m": 10,
     "h": 3,
-    "j": 18
+    "j": 16
    },
    "2": {
     "b": 27,
     "m": 23,
     "h": 29,
-    "j": 39
+    "j": 37
    },
    "3": {
     "b": 12,
@@ -14336,13 +14268,13 @@
    "application_security": {
     "m": 4,
     "h": 3,
-    "j": 3
+    "j": 2
    },
    "cryptography": {
     "b": 20,
     "m": 14,
     "h": 17,
-    "j": 12
+    "j": 10
    },
    "identity_access": {
     "b": 7,
@@ -14354,7 +14286,7 @@
     "b": 16,
     "m": 23,
     "h": 22,
-    "j": 15
+    "j": 14
    },
    "social_engineering": {
     "b": 5,

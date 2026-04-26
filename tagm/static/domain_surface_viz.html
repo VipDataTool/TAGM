@@ -80,7 +80,9 @@ function init(){
   // Fixed layout values
   rowH=Math.max(20,fT*2);
   var labelW=Math.ceil(maxTokW+cvW+fT*2+12);
-  pd={t:fL*3+12,r:20,b:fL*3+10,l:labelW};
+  // Top padding shrunk: previously fL*3+12 to fit two-row staggered level
+  // labels. Labels removed, so just a small margin remains.
+  pd={t:fL+12,r:20,b:fL*3+10,l:labelW};
   H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
 
   function resize(){
@@ -151,11 +153,11 @@ function render(){
   for(var i=0;i<=8;i++){var v=xMin+(i/8)*(xMax-xMin);ctx.fillText(v.toFixed(2),pd.l+(i/8)*plotW,pd.t+plotH+4)}
   ctx.fillText("PC2 (domain + discourse)",pd.l+plotW/2,pd.t+plotH+fL+8);
 
-  // Level bands (vertical) — sort by mean x-position, stagger labels if close
-  var lvKeys=[];for(var l=0;l<LNAME.length;l++){if(lvM[l])lvKeys.push(l)}
-  lvKeys.sort(function(a,b){return lvM[a].mean-lvM[b].mean});
-  var prevLabelX=-Infinity;
-  for(var li=0;li<lvKeys.length;li++){var l=lvKeys[li];var lv=lvM[l];var x1=toX(lv.mn-.02),x2=toX(lv.mx+.02);ctx.fillStyle="rgba(255,255,255,0.025)";ctx.fillRect(x1,pd.t,x2-x1,plotH);var lx=toX(lv.mean);var stagger=(Math.abs(lx-prevLabelX)<60)?fL+4:0;ctx.fillStyle="#8B92A0";ctx.font="bold "+fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";ctx.fillText(LNAME[l]||l,lx,pd.t-2-stagger);prevLabelX=lx}
+  // Level-band overlays (vertical shading + top labels) intentionally
+  // omitted — the top axis was over-parameterized, producing faint vertical
+  // banding and overlapping label text. Levels are still encoded by anchor
+  // tick length at the bottom (len = 2 + a.l*1.5) and via the per-token
+  // weighted level reading in the tooltip. Retained for redesign later.
 
   // Token labels (Y axis, left)
   var cvW=window._dsCvW||40;

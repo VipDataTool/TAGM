@@ -3288,85 +3288,148 @@ function renderDomainSurfaceResults(r) {
 
   // Probe table — probe-centric view of how the session engaged each
   // probe in the active set. Replaces the prior token-CV table.
+  // Click any column header (except cat mix) to sort. Click again to
+  // reverse direction. Default: CV ascending.
   if (r.probes && r.probes.length) {
     h += '<div class="mod-section-title">Probes by Engagement</div>';
     h += '<div class="mod-results-body" style="max-height:480px">';
+    h += '<div id="dsProbeTableMount"></div>';
+    h += '</div>';
 
-    // Subject color palette mirrors the scatter popout's SCOL
-    var SCOL = ["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2",
-                "#E69F00","#F0E442","#882255","#44AA99","#AA4499"];
-    var subjList = r.subjects || [];
-    var subjIdx = {};
-    subjList.forEach(function(s, i){ subjIdx[s] = i; });
-
-    h += '<table class="mod-tbl"><thead><tr>';
-    h += '<th>Probe</th>';
-    h += '<th>Subject</th>';
-    h += '<th>Level</th>';
-    h += '<th class="num">CV</th>';
-    h += '<th class="num">n</th>';
-    h += '<th class="num">dist μ</th>';
-    h += '<th>cat mix</th>';
-    h += '</tr></thead><tbody>';
-
-    // Default sort: CV ascending (low CV = consistent engagement, mirrors
-    // the prior table's "stable on top" framing). Unengaged probes (n=0)
-    // sink to the bottom dimmed.
-    var rows = r.probes.slice().sort(function(a, b){
-      if (a.n === 0 && b.n === 0) return 0;
-      if (a.n === 0) return 1;
-      if (b.n === 0) return -1;
-      return a.cv - b.cv;
-    });
-
-    rows.forEach(function(p){
-      var dimmed = p.n === 0;
-      var rowStyle = dimmed ? 'style="opacity:0.35"' : '';
-      var swatch = SCOL[(subjIdx[p.subject] || 0) % SCOL.length];
-      var lvName = (r.level_names && r.level_names[p.level]) || ('L' + p.level);
-      var cvCol = dimmed ? 'var(--text-3)'
-                  : (p.cv < 0.35 ? 'var(--green)'
-                     : (p.cv < 0.6 ? 'var(--orange)' : 'var(--red)'));
-
-      // Stacked-bar microvis for category mix
-      var cm = p.cat_mix || {b:0,m:0,h:0,j:0};
-      var total = cm.b + cm.m + cm.h + cm.j;
-      var mix = '';
-      if (total > 0) {
-        mix += '<span style="display:inline-flex;height:10px;width:80px;border-radius:2px;overflow:hidden;background:#2D333B;vertical-align:middle">';
-        ["b","m","h","j"].forEach(function(c){
-          if (cm[c] > 0) {
-            var pct = (cm[c] / total) * 100;
-            mix += '<span title="' + c + ': ' + cm[c] + '" style="background:var(--cat-' +
-                   {b:'benign',m:'mild',h:'harmful',j:'jailbreak'}[c] +
-                   ');height:100%;width:' + pct.toFixed(2) + '%"></span>';
-          }
-        });
-        mix += '</span>';
-      } else {
-        mix = '<span style="color:var(--text-3)">—</span>';
-      }
-
-      h += '<tr ' + rowStyle + '>';
-      h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(p.text) + '</td>';
-      h += '<td><span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:' +
-           swatch + ';vertical-align:middle;margin-right:6px"></span>' +
-           escHtml(p.subject.replace(/_/g, ' ')) + '</td>';
-      h += '<td style="color:var(--text-2)">' + escHtml(lvName) + '</td>';
-      h += '<td class="num" style="color:' + cvCol + '">' + p.cv.toFixed(3) + '</td>';
-      h += '<td class="num">' + p.n + '</td>';
-      h += '<td class="num">' + p.mean_dist.toFixed(3) + '</td>';
-      h += '<td>' + mix + '</td>';
-      h += '</tr>';
-    });
-    h += '</tbody></table></div>';
+    // Cache the data and initial sort state on a module-scoped object
+    // so the click handlers can re-render without refetching results.
+    window._dsProbeState = {
+      probes: r.probes,
+      subjects: r.subjects || [],
+      level_names: r.level_names || [],
+      sortKey: 'cv',
+      sortDir: 'asc',
+    };
+    // Defer the first render to next tick so the mount node exists in DOM.
+    setTimeout(renderDsProbeTable, 0);
   }
 
   h += '</div>';
   return h;
 }
 
-// Load modules when the tab is first shown
+// ─── Sortable Probes-by-Engagement table ──────────────────────
+// State lives on window._dsProbeState, set by renderDomainSurfaceResults.
+// Header clicks toggle direction when re-clicking the active column;
+// otherwise switch to the new column with a sensible default direction.
+
+function renderDsProbeTable() {
+  var mount = document.getElementById('dsProbeTableMount');
+  if (!mount || !window._dsProbeState) return;
+  var st = window._dsProbeState;
+
+  var SCOL = ["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2",
+              "#E69F00","#F0E442","#882255","#44AA99","#AA4499"];
+  var subjIdx = {};
+  st.subjects.forEach(function(s, i){ subjIdx[s] = i; });
+
+  // Column metadata: key, label, numeric flag, getter for sort value.
+  // cat_mix has no scalar — it's omitted from the sortable set.
+  var COLS = [
+    { key:'text',      label:'Probe',    numeric:false, get:function(p){ return p.text || ''; } },
+    { key:'subject',   label:'Subject',  numeric:false, get:function(p){ return p.subject || ''; } },
+    { key:'level',     label:'Level',    numeric:true,  get:function(p){ return p.level; } },
+    { key:'cv',        label:'CV',       numeric:true,  get:function(p){ return p.cv; }, classes:'num' },
+    { key:'n',         label:'n',        numeric:true,  get:function(p){ return p.n; }, classes:'num' },
+    { key:'mean_dist', label:'dist μ',   numeric:true,  get:function(p){ return p.mean_dist; }, classes:'num' },
+  ];
+
+  // Build sorted rows. Earlier behavior was "n=0 sinks to the bottom regardless
+  // of sort key." Per discussion, that's gone — unengaged probes participate
+  // in the sort like everything else; only the dimming carries the n=0 signal.
+  var rows = st.probes.slice().sort(function(a, b){
+    var col = COLS.find(function(c){ return c.key === st.sortKey; });
+    if (!col) return 0;
+    var av = col.get(a), bv = col.get(b);
+    var cmp;
+    if (col.numeric) cmp = (av || 0) - (bv || 0);
+    else cmp = String(av).localeCompare(String(bv));
+    return st.sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  // Header
+  var h = '<table class="mod-tbl"><thead><tr>';
+  COLS.forEach(function(c){
+    var active = c.key === st.sortKey;
+    var arrow = active ? (st.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    var headerStyle = 'cursor:pointer;user-select:none' +
+                      (active ? ';color:var(--text-0);font-weight:600' : '');
+    h += '<th class="' + (c.classes || '') + '" ' +
+         'data-sort-key="' + c.key + '" ' +
+         'style="' + headerStyle + '">' +
+         escHtml(c.label) + arrow + '</th>';
+  });
+  // cat mix header — non-sortable
+  h += '<th>cat mix</th>';
+  h += '</tr></thead><tbody>';
+
+  rows.forEach(function(p){
+    var dimmed = p.n === 0;
+    var rowStyle = dimmed ? 'style="opacity:0.35"' : '';
+    var swatch = SCOL[(subjIdx[p.subject] || 0) % SCOL.length];
+    var lvName = (st.level_names && st.level_names[p.level]) || ('L' + p.level);
+    var cvCol = dimmed ? 'var(--text-3)'
+                : (p.cv < 0.35 ? 'var(--green)'
+                   : (p.cv < 0.6 ? 'var(--orange)' : 'var(--red)'));
+
+    var cm = p.cat_mix || {b:0,m:0,h:0,j:0};
+    var total = cm.b + cm.m + cm.h + cm.j;
+    var mix = '';
+    if (total > 0) {
+      mix += '<span style="display:inline-flex;height:10px;width:80px;border-radius:2px;overflow:hidden;background:#2D333B;vertical-align:middle">';
+      ["b","m","h","j"].forEach(function(c){
+        if (cm[c] > 0) {
+          var pct = (cm[c] / total) * 100;
+          mix += '<span title="' + c + ': ' + cm[c] + '" style="background:var(--cat-' +
+                 {b:'benign',m:'mild',h:'harmful',j:'jailbreak'}[c] +
+                 ');height:100%;width:' + pct.toFixed(2) + '%"></span>';
+        }
+      });
+      mix += '</span>';
+    } else {
+      mix = '<span style="color:var(--text-3)">—</span>';
+    }
+
+    h += '<tr ' + rowStyle + '>';
+    h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(p.text) + '</td>';
+    h += '<td><span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:' +
+         swatch + ';vertical-align:middle;margin-right:6px"></span>' +
+         escHtml(p.subject.replace(/_/g, ' ')) + '</td>';
+    h += '<td style="color:var(--text-2)">' + escHtml(lvName) + '</td>';
+    h += '<td class="num" style="color:' + cvCol + '">' + p.cv.toFixed(3) + '</td>';
+    h += '<td class="num">' + p.n + '</td>';
+    h += '<td class="num">' + p.mean_dist.toFixed(3) + '</td>';
+    h += '<td>' + mix + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  mount.innerHTML = h;
+
+  // Wire header clicks. Re-clicking the active column flips direction.
+  // Switching to a new column picks a default direction: ascending for
+  // text-y columns (Probe/Subject/Level) and CV (low-CV-first matches
+  // the prior framing); descending for n and dist μ (largest first is
+  // usually what you want).
+  var defaultDirs = { text:'asc', subject:'asc', level:'asc',
+                       cv:'asc', n:'desc', mean_dist:'desc' };
+  mount.querySelectorAll('th[data-sort-key]').forEach(function(th){
+    th.addEventListener('click', function(){
+      var key = th.dataset.sortKey;
+      if (key === st.sortKey) {
+        st.sortDir = (st.sortDir === 'asc') ? 'desc' : 'asc';
+      } else {
+        st.sortKey = key;
+        st.sortDir = defaultDirs[key] || 'asc';
+      }
+      renderDsProbeTable();
+    });
+  });
+}
 
 function popoutDomainSurface(){
   if(!_dsSurfaceData||!_dsSurfaceData.observations||!_dsSurfaceData.observations.length)return;
