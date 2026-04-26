@@ -64,7 +64,7 @@ tagm/core/       Model infrastructure
   deltas/        Weight delta computation from disk + spectral profiling
   cache.py       Disk cache management
 
-tagm/probes/     Probe template system + multi-depth embedding generator
+tagm/probes/     Probe CSV loading + per-depth embedding cache
 tagm/service/    Chat, plots, export
 ```
 

@@ -26,9 +26,13 @@ import numpy as np
 from collections import defaultdict
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import (_detect_level_cols, _parse_meta,
-                              _load_probe_cache, _load_probes)
-from .correction_heatmap import _get_active_probe
+from tagm.probes.io import (
+    detect_level_cols,
+    parse_meta,
+    load_probe_cache,
+    load_probes,
+    get_active_probe,
+)
 
 logger = logging.getLogger("tasm")
 
@@ -186,7 +190,7 @@ class CorrectionBackscatterModule(TASMModule):
         if not state.signal_layers:
             return False, "No signal layers configured."
 
-        if not _get_active_probe(self._project_root):
+        if not get_active_probe(self._project_root):
             return False, "No probe set active."
 
         if not any(r.get("per_token_final_emb") for r in session_results):
@@ -248,18 +252,18 @@ class CorrectionBackscatterModule(TASMModule):
             logger.info(f"[BACKSCATTER] {msg}")
 
         state = self._make_state()
-        probe_file = _get_active_probe(self._project_root)
+        probe_file = get_active_probe(self._project_root)
         aggregation = params.get("aggregation", "mean")
         primary = params.get("primary_projection", "qkv")
 
         # ── Load probe structure ──
         prog("Loading probe structure...")
         csv_path = os.path.join(self._project_root, probe_file)
-        level_cols, level_names = _detect_level_cols(csv_path)
+        level_cols, level_names = detect_level_cols(csv_path)
         if not level_cols:
             raise RuntimeError(f"No level columns in {probe_file}")
 
-        raw_probes = _load_probes(csv_path)
+        raw_probes = load_probes(csv_path)
         if not raw_probes:
             raise RuntimeError(f"No probes from {probe_file}")
 
@@ -273,7 +277,7 @@ class CorrectionBackscatterModule(TASMModule):
 
         # ── Load probe embeddings ──
         prog("Loading probe embeddings...")
-        meta = _parse_meta(csv_path)
+        meta = parse_meta(csv_path)
         if "layer_low" in meta:
             subj_frac = max(0, min(1, float(meta["layer_low"])))
         else:
@@ -298,7 +302,7 @@ class CorrectionBackscatterModule(TASMModule):
                     if fn.startswith(stem) and tag in fn
                     and fn.endswith(".json") and "_proj.json" in fn]
             for fn in non_proj + proj:
-                data = _load_probe_cache(os.path.join(cache_dir, fn))
+                data = load_probe_cache(os.path.join(cache_dir, fn))
                 if data and data.get("embeddings"):
                     embs = data["embeddings"]
                     if len(embs) == len(raw_probes):

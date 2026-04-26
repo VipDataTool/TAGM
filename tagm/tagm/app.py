@@ -48,9 +48,6 @@ from tagm.engine.app_core import (
     MODELS_FILE, CONFIG_FILE,
 )
 from tagm.engine.modules import ModuleRunner
-from tagm.probes.store import ProbeStore
-from tagm.probes.generator import EmbeddingGenerator, GenerationParams
-from tagm.probes.template import load_template, parse_template_csv
 from tagm.core.cache import Cache
 
 logger = logging.getLogger("tagm")
@@ -70,7 +67,6 @@ logging.basicConfig(
 # ─── Additional global state ────────────────────────────────────
 _module_runner = ModuleRunner()
 _cache = Cache()
-_probe_store = ProbeStore(root=_cache.layout.probes)
 
 # When a model loads, propagate the pipeline to modules that need it
 state.on_model_loaded(_module_runner.set_pipeline)
@@ -417,8 +413,8 @@ async def probe_apply(request: Request):
 
     def _embed_worker():
         try:
-            from tagm.engine.modules.domain_surface import (
-                embed_and_cache_probes, _load_probes, _detect_level_cols, _parse_meta)
+            from tagm.probes.io import (
+                embed_and_cache_probes, load_probes, detect_level_cols, parse_meta)
             from tagm.engine import config as engine_config
             import json as _json
 
@@ -431,7 +427,7 @@ async def probe_apply(request: Request):
 
             # Determine depths
             csv_path = str(dest)
-            meta = _parse_meta(csv_path)
+            meta = parse_meta(csv_path)
 
             if "layer_low" in meta and "layer_high" in meta:
                 subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
@@ -463,8 +459,8 @@ async def probe_apply(request: Request):
             config_path = _project_root / "probe_config.json"
             _json.dump({"active": [filename]}, open(config_path, "w"), indent=2)
 
-            probes = _load_probes(csv_path)
-            level_cols, level_names = _detect_level_cols(csv_path)
+            probes = load_probes(csv_path)
+            level_cols, level_names = detect_level_cols(csv_path)
             subjects = sorted(set(p["subject"] for p in probes))
 
             _probe_apply_state["result"] = {
@@ -513,8 +509,8 @@ async def probe_status():
 
     if csv_path.exists():
         try:
-            from tagm.engine.modules.domain_surface import _load_probes
-            probes = _load_probes(str(csv_path))
+            from tagm.probes.io import load_probes
+            probes = load_probes(str(csv_path))
             n_probes = len(probes)
             n_subjects = len(set(p["subject"] for p in probes))
         except Exception:

@@ -1,27 +1,42 @@
-"""Probe subsystem: template parsing, embedding generator, content-addressed store.
+"""Probe subsystem.
 
-A probe is a labeled token (or short phrase) that's been forward-passed
-through the model and its embedding recorded at one or more depths. A
-ProbeSet is a collection of probe embeddings plus their metadata, generated
-from a template file that lists rows/columns/cells of labeled tokens.
+Reads probe CSVs (input templates and Probe Generator's autoprobe outputs),
+runs them through the instruct model to produce per-depth embeddings, and
+caches results to ``<project_root>/probe_cache/``. The active probe set
+is recorded in ``<project_root>/probe_config.json``.
 
-The Embedding Generator is a core operation (not a measurement module) —
-it consumes user-submitted templates and writes to the ProbeStore. Probe-
-using measurements declare a ProbeRequirement referencing a template_id
-and capture_signature; the framework looks up the matching ProbeSet in
-the store and passes it to compute().
+Everything lives in :mod:`tagm.probes.io`. See that module for the public
+surface (``embed_and_cache_probes``, ``load_probes``, ``detect_level_cols``,
+``parse_meta``, ``load_probe_cache``, ``probe_cache_path``,
+``get_active_probe``, plus the ``PROBE_CACHE_DIR`` / ``PROBE_CONFIG`` /
+``META_TAG`` / ``FIXED_COLS`` / ``NORM_EPS`` constants).
 """
-from tagm.probes.artifact import ProbeSet, ProbeEmbedding
-from tagm.probes.store import ProbeStore
-from tagm.probes.template import ProbeTemplate, load_template, parse_template_csv
-from tagm.probes.generator import EmbeddingGenerator
+from tagm.probes.io import (
+    embed_and_cache_probes,
+    load_probes,
+    detect_level_cols,
+    parse_meta,
+    load_probe_cache,
+    probe_cache_path,
+    get_active_probe,
+    PROBE_CACHE_DIR,
+    PROBE_CONFIG,
+    META_TAG,
+    FIXED_COLS,
+    NORM_EPS,
+)
 
 __all__ = [
-    "ProbeSet",
-    "ProbeEmbedding",
-    "ProbeStore",
-    "ProbeTemplate",
-    "load_template",
-    "parse_template_csv",
-    "EmbeddingGenerator",
+    "embed_and_cache_probes",
+    "load_probes",
+    "detect_level_cols",
+    "parse_meta",
+    "load_probe_cache",
+    "probe_cache_path",
+    "get_active_probe",
+    "PROBE_CACHE_DIR",
+    "PROBE_CONFIG",
+    "META_TAG",
+    "FIXED_COLS",
+    "NORM_EPS",
 ]

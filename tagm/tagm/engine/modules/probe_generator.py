@@ -951,8 +951,8 @@ class ProbeGeneratorModule(TASMModule):
         embeds probes at both depths, caches them, and sets the file as the
         active probe set.
         """
-        from .domain_surface import (embed_and_cache_probes, _load_probes,
-                                      _detect_level_cols, _parse_meta)
+        from tagm.probes.io import (embed_and_cache_probes, load_probes,
+                                     detect_level_cols, parse_meta)
         import json as _json
 
         if self._pipeline is None or self._active_model is None:
@@ -968,7 +968,7 @@ class ProbeGeneratorModule(TASMModule):
             progress("Auto-apply: embedding probe set...")
 
         # Determine layer depths (template meta overrides global config)
-        meta = _parse_meta(csv_path)
+        meta = parse_meta(csv_path)
         try:
             from tagm.engine import config as engine_config
             use_proj = engine_config.get("probe_projection_space")
@@ -1027,8 +1027,8 @@ class ProbeGeneratorModule(TASMModule):
         if progress:
             progress(f"Auto-apply complete: {filename} embedded at {len(depths)} depth(s) and activated")
 
-        probes = _load_probes(csv_path)
-        level_cols, level_names = _detect_level_cols(csv_path)
+        probes = load_probes(csv_path)
+        level_cols, level_names = detect_level_cols(csv_path)
         subjects = sorted(set(p["subject"] for p in probes))
 
         return {

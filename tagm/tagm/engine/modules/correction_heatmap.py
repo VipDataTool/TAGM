@@ -25,28 +25,16 @@ import numpy as np
 from collections import defaultdict
 
 from .base import TASMModule, ModuleParameter
-from .domain_surface import (_detect_level_cols, _parse_meta,
-                              _load_probe_cache, _probe_cache_path,
-                              _load_probes)
+from tagm.probes.io import (
+    detect_level_cols,
+    parse_meta,
+    load_probe_cache,
+    probe_cache_path,
+    load_probes,
+    get_active_probe,
+)
 
 logger = logging.getLogger("tasm")
-
-PROBE_CONFIG = "probe_config.json"
-
-
-def _get_active_probe(project_root):
-    """Read the active probe file from probe_config.json."""
-    config_path = os.path.join(project_root, PROBE_CONFIG)
-    if os.path.exists(config_path):
-        try:
-            with open(config_path) as f:
-                data = json.load(f)
-            active = data.get("active", [])
-            if active:
-                return active[0]
-        except Exception:
-            pass
-    return None
 
 
 class CorrectionHeatmapModule(TASMModule):
@@ -94,7 +82,7 @@ class CorrectionHeatmapModule(TASMModule):
         if not ok:
             return ok, msg
 
-        probe_file = _get_active_probe(self._project_root)
+        probe_file = get_active_probe(self._project_root)
         if not probe_file:
             return False, (
                 "No probe set active. Apply a probe set in the "
@@ -110,7 +98,7 @@ class CorrectionHeatmapModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        probe_file = _get_active_probe(self._project_root)
+        probe_file = get_active_probe(self._project_root)
         proj_method = params.get("projection_method", "abs")
 
         if progress:
@@ -118,11 +106,11 @@ class CorrectionHeatmapModule(TASMModule):
 
         # ── Load probe CSV for subject × subclass structure ──
         csv_path = os.path.join(self._project_root, probe_file)
-        level_cols, level_names = _detect_level_cols(csv_path)
+        level_cols, level_names = detect_level_cols(csv_path)
         if not level_cols:
             raise RuntimeError(f"No level columns found in {probe_file}")
 
-        raw_probes = _load_probes(csv_path)
+        raw_probes = load_probes(csv_path)
         if not raw_probes:
             raise RuntimeError(f"No probes loaded from {probe_file}")
 
@@ -136,7 +124,7 @@ class CorrectionHeatmapModule(TASMModule):
         subj_idx = {s: i for i, s in enumerate(subjects)}
 
         # ── Resolve layer depths (template meta overrides global config) ──
-        meta = _parse_meta(csv_path)
+        meta = parse_meta(csv_path)
 
         try:
             from tagm.engine import config as engine_config
@@ -187,7 +175,7 @@ class CorrectionHeatmapModule(TASMModule):
                                 continue
                             if not projected and is_proj_cache:
                                 continue
-                            data = _load_probe_cache(os.path.join(cache_dir, fn))
+                            data = load_probe_cache(os.path.join(cache_dir, fn))
                             if data and data.get("embeddings"):
                                 embs = data["embeddings"]
                                 # Dimension validation: skip caches from a different model
