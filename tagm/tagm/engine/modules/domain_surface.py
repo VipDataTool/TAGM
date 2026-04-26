@@ -181,6 +181,12 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
 
     token_knn = probe_neighbors
 
+    # Per-probe engagement accumulator. Records, for each probe index appearing
+    # in any token's top-k, the distances (1 - cos_sim) and category labels of
+    # engaging token observations. Used to build the "Probes by CV" table:
+    # CV is computed over engagement distances.
+    probe_engagement = defaultdict(lambda: {"distances": [], "cats": []})
+
     for o in raw_obs:
         if o["tok"] not in top_set:
             continue
@@ -202,6 +208,16 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             top_k = np.argsort(sims)[-k:][::-1]
             top_sims = sims[top_k]
             best_dist = float(1.0 - top_sims[0])
+
+            # Record engagement: every probe in top-k counts as engaged by
+            # this observation. Distance recorded is per-probe (not the
+            # observation's best_dist), so each probe gets its own
+            # distribution.
+            for idx, sim in zip(top_k, top_sims):
+                if idx < len(probes):
+                    probe_engagement[int(idx)]["distances"].append(
+                        float(1.0 - sim))
+                    probe_engagement[int(idx)]["cats"].append(o["cat"])
 
             # Similarity-weighted position
             weights = np.exp(top_sims * knn_sharpness)
@@ -263,7 +279,43 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     if progress:
         progress(f"Built {len(obs_export)} observations for {len(ordered)} tokens")
 
-    return obs_export, ordered, token_cv
+    # Per-probe aggregates: one row per probe in the active set, including
+    # those never engaged (count=0, dimmed in the UI). Distance distribution
+    # is over (token observation, probe) pairs where the probe appeared in
+    # the token's top-k similarity ranking.
+    probe_rows = []
+    if probes is not None:
+        for pi, probe in enumerate(probes):
+            stats = probe_engagement.get(pi)
+            if stats and stats["distances"]:
+                dists = np.array(stats["distances"], dtype=np.float64)
+                cats = stats["cats"]
+                mean_d = float(dists.mean())
+                std_d = float(dists.std())
+                cv = (std_d / mean_d) if mean_d > NORM_EPS else 0.0
+                cat_mix = {
+                    "b": cats.count("b"),
+                    "m": cats.count("m"),
+                    "h": cats.count("h"),
+                    "j": cats.count("j"),
+                }
+            else:
+                mean_d = 0.0
+                cv = 0.0
+                cat_mix = {"b": 0, "m": 0, "h": 0, "j": 0}
+                dists = np.array([])
+
+            probe_rows.append({
+                "subject": probe["subject"],
+                "level": int(probe.get("level", 0)),
+                "text": probe["text"][:PROBE_TEXT_DISPLAY_LEN],
+                "n": int(len(dists)),
+                "mean_dist": round(mean_d, 4),
+                "cv": round(cv, 4),
+                "cat_mix": cat_mix,
+            })
+
+    return obs_export, ordered, token_cv, probe_rows
 
 
 def _stratification(obs, subjects):
@@ -577,7 +629,7 @@ class DomainSurfaceModule(TASMModule):
             logger.info("[DOMAIN] Token variance data not found — using frequency-only "
                         "token selection. Run Token Variance first for better subject accuracy.")
 
-        obs, ordered_tokens, token_cv = _build_observations(
+        obs, ordered_tokens, token_cv, probe_rows = _build_observations(
             session_subset, prompt_coords, anchor_pts,
             subjects, top_tokens, min_appearances, progress,
             probe_embs=probe_embs, probes=probes,
@@ -633,6 +685,11 @@ class DomainSurfaceModule(TASMModule):
                 "asm", "sfd_d", "pi", "pos",
                 "near_dist", "near_level", "near_subj_idx",
                 "near_angle",
+            ],
+            "probes": probe_rows,
+            "probe_fields": [
+                "subject", "level", "text", "n",
+                "mean_dist", "cv", "cat_mix",
             ],
             "stratification": strat,
             "probe_file": probe_file,

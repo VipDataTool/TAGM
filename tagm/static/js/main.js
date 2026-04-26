@@ -3286,32 +3286,77 @@ function renderDomainSurfaceResults(r) {
     h += '</tbody></table></div>';
   }
 
-  // Token table
-  if (r.tokens && r.tokens.length && r.observations) {
-    h += '<div class="mod-section-title">Tokens by Coefficient of Variation</div>';
-    h += '<div class="mod-results-body" style="max-height:400px">';
+  // Probe table — probe-centric view of how the session engaged each
+  // probe in the active set. Replaces the prior token-CV table.
+  if (r.probes && r.probes.length) {
+    h += '<div class="mod-section-title">Probes by Engagement</div>';
+    h += '<div class="mod-results-body" style="max-height:480px">';
+
+    // Subject color palette mirrors the scatter popout's SCOL
+    var SCOL = ["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2",
+                "#E69F00","#F0E442","#882255","#44AA99","#AA4499"];
+    var subjList = r.subjects || [];
+    var subjIdx = {};
+    subjList.forEach(function(s, i){ subjIdx[s] = i; });
+
     h += '<table class="mod-tbl"><thead><tr>';
-    h += '<th>Token</th><th class="num">CV</th><th class="num">n</th>';
-    h += '<th class="num">disp μ</th><th class="num">ASM μ</th>';
-    h += '<th class="num">SFD-e μ</th><th class="num">SFD-d μ</th>';
+    h += '<th>Probe</th>';
+    h += '<th>Subject</th>';
+    h += '<th>Level</th>';
+    h += '<th class="num">CV</th>';
+    h += '<th class="num">n</th>';
+    h += '<th class="num">dist μ</th>';
+    h += '<th>cat mix</th>';
     h += '</tr></thead><tbody>';
-    r.tokens.forEach(function(tok) {
-      var cv = (r.token_cv || {})[tok] || 0;
-      var obs = r.observations.filter(function(o) { return o[0] === tok; });
-      var n = obs.length;
-      var mDisp = n ? obs.reduce(function(s, o) { return s + o[3]; }, 0) / n : 0;
-      var mAsm = n ? obs.reduce(function(s, o) { return s + o[6]; }, 0) / n : 0;
-      var mSfdE = n ? obs.reduce(function(s, o) { return s + o[7]; }, 0) / n : 0;
-      var mSfdD = n ? obs.reduce(function(s, o) { return s + o[8]; }, 0) / n : 0;
-      var cvCol = cv < 0.35 ? 'var(--green)' : (cv < 0.6 ? 'var(--orange)' : 'var(--red)');
-      h += '<tr>';
-      h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(tok) + '</td>';
-      h += '<td class="num" style="color:' + cvCol + '">' + cv.toFixed(3) + '</td>';
-      h += '<td class="num">' + n + '</td>';
-      h += '<td class="num">' + mDisp.toFixed(3) + '</td>';
-      h += '<td class="num">' + mAsm.toFixed(2) + '</td>';
-      h += '<td class="num">' + mSfdE.toFixed(3) + '</td>';
-      h += '<td class="num">' + mSfdD.toFixed(3) + '</td>';
+
+    // Default sort: CV ascending (low CV = consistent engagement, mirrors
+    // the prior table's "stable on top" framing). Unengaged probes (n=0)
+    // sink to the bottom dimmed.
+    var rows = r.probes.slice().sort(function(a, b){
+      if (a.n === 0 && b.n === 0) return 0;
+      if (a.n === 0) return 1;
+      if (b.n === 0) return -1;
+      return a.cv - b.cv;
+    });
+
+    rows.forEach(function(p){
+      var dimmed = p.n === 0;
+      var rowStyle = dimmed ? 'style="opacity:0.35"' : '';
+      var swatch = SCOL[(subjIdx[p.subject] || 0) % SCOL.length];
+      var lvName = (r.level_names && r.level_names[p.level]) || ('L' + p.level);
+      var cvCol = dimmed ? 'var(--text-3)'
+                  : (p.cv < 0.35 ? 'var(--green)'
+                     : (p.cv < 0.6 ? 'var(--orange)' : 'var(--red)'));
+
+      // Stacked-bar microvis for category mix
+      var cm = p.cat_mix || {b:0,m:0,h:0,j:0};
+      var total = cm.b + cm.m + cm.h + cm.j;
+      var mix = '';
+      if (total > 0) {
+        mix += '<span style="display:inline-flex;height:10px;width:80px;border-radius:2px;overflow:hidden;background:#2D333B;vertical-align:middle">';
+        ["b","m","h","j"].forEach(function(c){
+          if (cm[c] > 0) {
+            var pct = (cm[c] / total) * 100;
+            mix += '<span title="' + c + ': ' + cm[c] + '" style="background:var(--cat-' +
+                   {b:'benign',m:'mild',h:'harmful',j:'jailbreak'}[c] +
+                   ');height:100%;width:' + pct.toFixed(2) + '%"></span>';
+          }
+        });
+        mix += '</span>';
+      } else {
+        mix = '<span style="color:var(--text-3)">—</span>';
+      }
+
+      h += '<tr ' + rowStyle + '>';
+      h += '<td style="color:var(--cyan);font-weight:500">' + escHtml(p.text) + '</td>';
+      h += '<td><span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:' +
+           swatch + ';vertical-align:middle;margin-right:6px"></span>' +
+           escHtml(p.subject.replace(/_/g, ' ')) + '</td>';
+      h += '<td style="color:var(--text-2)">' + escHtml(lvName) + '</td>';
+      h += '<td class="num" style="color:' + cvCol + '">' + p.cv.toFixed(3) + '</td>';
+      h += '<td class="num">' + p.n + '</td>';
+      h += '<td class="num">' + p.mean_dist.toFixed(3) + '</td>';
+      h += '<td>' + mix + '</td>';
       h += '</tr>';
     });
     h += '</tbody></table></div>';
