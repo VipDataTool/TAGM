@@ -2521,6 +2521,11 @@ function renderModuleCard(m) {
   h += '<div class="mod-actions">';
   h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="event.stopPropagation();runModule(\'' + m.name + '\')">Run</button>';
   h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" title="Clear results and restore all parameters to defaults" onclick="event.stopPropagation();resetModule(\'' + m.name + '\')">Reset Defaults</button>';
+  // Probe Generator: diagnostic popout, available without requiring a fresh run.
+  // Operates on whatever probe set is on disk (active set by default).
+  if (m.name === 'probe_generator') {
+    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutProbeDiagnostic()" title="Inspect lattice properties of the active probe set">↗ Probe Diagnostics</button>';
+  }
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
@@ -3501,10 +3506,8 @@ function renderProbeGeneratorResults(r) {
   var h = '<div class="mod-results">';
   var outputFile = r.output_file || '';
 
-  // Summary header with Probe Diagnostics popout (mirrors DSE's Scatter Plot button)
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary';
-  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutProbeDiagnostic(' + JSON.stringify(outputFile) + ')">↗ Probe Diagnostics</button>';
-  h += '</div>';
+  // Summary
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
   h += '<div class="mod-results-body"><div class="mod-summary">';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_raw_tokens + '</span><span class="mod-stat-label">Raw Tokens</span></div>';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_shared_removed + '</span><span class="mod-stat-label">Shared (removed)</span></div>';
@@ -3515,7 +3518,9 @@ function renderProbeGeneratorResults(r) {
   if (r.catalog_file) h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.catalog_file) + '</span><span class="mod-stat-label">Catalog File</span></div>';
   h += '</div></div>';
 
-  // Embed action row — explicit, decoupled from generation
+  // Embed action row — operates on the file just produced by this run.
+  // (Generic probe-set apply lives in the Configuration tab; this is a
+  // shortcut to embed/activate the freshly-generated set without re-uploading.)
   if (outputFile) {
     h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:#22272E">';
     h += '<button id="pgEmbedBtn" onclick="embedActiveProbes(' + JSON.stringify(outputFile) + ')" style="padding:6px 14px;border:1px solid var(--cyan);color:var(--cyan);background:transparent;border-radius:3px;cursor:pointer;font-family:inherit;font-size:12px">Embed Probe Set</button>';
