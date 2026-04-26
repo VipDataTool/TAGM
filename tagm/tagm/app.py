@@ -10,6 +10,7 @@ import io as _io
 import json
 import logging
 import math
+import os
 import time
 import threading
 from pathlib import Path
@@ -99,7 +100,8 @@ async def favicon():
     raise HTTPException(status_code=404)
 
 for _viz in ("chat", "domain_surface_viz", "correction_manifold_viz",
-             "correction_heatmap_viz", "correction_backscatter_viz"):
+             "correction_heatmap_viz", "correction_backscatter_viz",
+             "probe_diagnostic_viz"):
     def _make_viz_route(name):
         async def handler():
             p = _static_dir / f"{name}.html"
@@ -387,6 +389,7 @@ async def download_module_log(module_name: str):
 # ═══════════════════════════════════════════════════════════════
 
 _probe_apply_state = {"active": False, "error": None, "progress": None, "result": None}
+_pg_embed_state = {"active": False, "error": None, "progress": None, "result": None}
 
 @app.post("/api/probe_set/apply")
 async def probe_apply(request: Request):
@@ -413,65 +416,34 @@ async def probe_apply(request: Request):
 
     def _embed_worker():
         try:
-            from tagm.probes.io import (
-                embed_and_cache_probes, load_probes, detect_level_cols, parse_meta)
-            from tagm.engine import config as engine_config
-            import json as _json
+            from tagm.probes.io import embed_and_activate_probe_set
 
-            pipeline = state.pipeline
-            model = pipeline.instruct_model
-            tokenizer = pipeline.tokenizer
-            adapter = pipeline.adapter
-            model_id = pipeline.instruct_model_id
-            project_root = str(_project_root)
+            def _progress(msg):
+                _probe_apply_state["progress"] = msg
 
-            # Determine depths
-            csv_path = str(dest)
-            meta = parse_meta(csv_path)
+            result = embed_and_activate_probe_set(
+                state.pipeline, str(_project_root), filename,
+                progress=_progress)
 
-            if "layer_low" in meta and "layer_high" in meta:
-                subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
-                esc_frac = max(0.0, min(1.0, float(meta["layer_high"])))
-            else:
-                subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
-                esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
-
-            depths = sorted(set([subj_frac, esc_frac]))
-            n_layers = adapter.n_layers(model)
-
-            for frac in depths:
-                tag = f"L{int(frac * 100)}"
-                _probe_apply_state["progress"] = f"Embedding at {tag}..."
-
-                use_proj = engine_config.get("probe_projection_space")
-                delta = None
-                if use_proj:
-                    target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
-                    delta = pipeline.delta_store.o_delta_or_none(target_layer)
-
-                embed_and_cache_probes(
-                    model, tokenizer, adapter,
-                    project_root, filename, model_id,
-                    layer_frac=frac,
-                    delta_matrix=delta if use_proj else None)
-
-            # Activate
-            config_path = _project_root / "probe_config.json"
-            _json.dump({"active": [filename]}, open(config_path, "w"), indent=2)
-
-            probes = load_probes(csv_path)
-            level_cols, level_names = detect_level_cols(csv_path)
-            subjects = sorted(set(p["subject"] for p in probes))
+            if not result.get("applied"):
+                _probe_apply_state["error"] = result.get(
+                    "error", "Probe apply failed")
+                return
 
             _probe_apply_state["result"] = {
-                "filename": filename,
-                "n_probes": len(probes),
-                "n_subjects": len(subjects),
-                "n_levels": len(level_cols),
-                "layer_L50": int(depths[0] * 100) if depths else 50,
-                "layer_L75": int(depths[-1] * 100) if len(depths) > 1 else int(depths[0] * 100),
+                "filename": result["filename"],
+                "n_probes": result["n_probes"],
+                "n_subjects": result["n_subjects"],
+                "n_levels": result["n_levels"],
+                "layer_L50": result["depths"][0] if result["depths"] else 50,
+                "layer_L75": (result["depths"][-1]
+                              if len(result["depths"]) > 1
+                              else result["depths"][0] if result["depths"] else 50),
             }
-            state.progress("done", f"Probe set applied: {filename} ({len(probes)} probes)")
+            state.progress(
+                "done",
+                f"Probe set applied: {result['filename']} "
+                f"({result['n_probes']} probes)")
 
         except Exception as e:
             logger.exception("Probe apply failed")
@@ -538,6 +510,271 @@ async def probe_clear_caches():
             f.unlink()
             cleared += 1
     return {"ok": True, "message": f"Cleared {cleared} cache files."}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Probe Generator: explicit embed action
+# ═══════════════════════════════════════════════════════════════
+#
+# Runs against a probe CSV the user has already generated (or any CSV
+# in the project root). Decoupled from generation; user inspects via
+# Probe Diagnostic popout, then triggers this when ready to embed.
+# Background-thread + polling pattern, identical to /api/probe_set/apply.
+
+@app.post("/api/modules/probe_generator/embed_active")
+async def pg_embed_active(request: Request):
+    """Embed and activate a probe CSV that already exists in project root."""
+    body = await request.json()
+    filename = (body.get("filename") or "").strip()
+    if not filename:
+        return {"ok": False, "error": "No filename provided."}
+    if state.pipeline is None or not state.pipeline.loaded:
+        return {"ok": False, "error": "No model loaded."}
+
+    _project_root = _PACKAGE_DIR.parent
+    csv_path = _project_root / filename
+    if not csv_path.exists():
+        return {"ok": False, "error": f"Probe file not found: {filename}"}
+
+    if _pg_embed_state["active"]:
+        return {"ok": False, "error": "Embed already in progress."}
+
+    _pg_embed_state["active"] = True
+    _pg_embed_state["error"] = None
+    _pg_embed_state["progress"] = "Starting probe embedding..."
+    _pg_embed_state["result"] = None
+
+    def _embed_worker():
+        try:
+            from tagm.probes.io import embed_and_activate_probe_set
+
+            def _progress(msg):
+                _pg_embed_state["progress"] = msg
+
+            result = embed_and_activate_probe_set(
+                state.pipeline, str(_project_root), filename,
+                progress=_progress)
+
+            if not result.get("applied"):
+                _pg_embed_state["error"] = result.get("error", "Embed failed")
+                return
+
+            _pg_embed_state["result"] = result
+            state.progress(
+                "done",
+                f"Probe set applied: {result['filename']} "
+                f"({result['n_probes']} probes)")
+
+        except Exception as e:
+            logger.exception("PG embed failed")
+            _pg_embed_state["error"] = str(e)
+        finally:
+            _pg_embed_state["active"] = False
+
+    import threading
+    threading.Thread(target=_embed_worker, daemon=True).start()
+    return {"ok": True}
+
+
+@app.get("/api/modules/probe_generator/embed_active_status")
+async def pg_embed_active_status():
+    return {"ok": True, **_pg_embed_state}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Probe Diagnostic
+# ═══════════════════════════════════════════════════════════════
+#
+# Reads from disk (active probe set or named file). Independent of
+# any module's last-run output. Returns lattice properties: cell
+# coverage, sample terms per cell, cross-class/cross-level
+# collisions. Embedding-tier metrics added when probe cache exists
+# for the active model.
+
+@app.get("/api/probe_diagnostic")
+async def probe_diagnostic(file: Optional[str] = None):
+    """Compute lattice properties of a probe set on disk.
+
+    Query params:
+        file: optional CSV filename. If omitted, uses the active
+              probe set from probe_config.json.
+    """
+    from tagm.probes.io import (
+        get_active_probe, load_probes, detect_level_cols, parse_meta,
+        probe_cache_path, load_probe_cache)
+    from collections import Counter, defaultdict
+
+    _project_root = str(_PACKAGE_DIR.parent)
+
+    filename = file or get_active_probe(_project_root)
+    if not filename:
+        return {"ok": False, "error": "No active probe set."}
+
+    csv_path = os.path.join(_project_root, filename)
+    if not os.path.exists(csv_path):
+        return {"ok": False, "error": f"Probe file not found: {filename}"}
+
+    probes = load_probes(csv_path)
+    if not probes:
+        return {"ok": False, "error": "No probes loaded from CSV."}
+
+    level_cols, level_names = detect_level_cols(csv_path)
+    meta = parse_meta(csv_path)
+
+    subjects = sorted(set(p["subject"] for p in probes))
+    n_levels = len(level_names) if level_names else max(
+        (p["level"] for p in probes), default=-1) + 1
+
+    # ── Cell coverage: (subject, level) → list of probe texts ──
+    cells = defaultdict(list)
+    for p in probes:
+        cells[(p["subject"], p["level"])].append(p["text"])
+
+    cell_grid = []
+    for s in subjects:
+        row = []
+        for l in range(n_levels):
+            terms = cells.get((s, l), [])
+            row.append({"count": len(terms), "sample": terms[:8]})
+        cell_grid.append(row)
+
+    counts_flat = [c["count"] for row in cell_grid for c in row]
+    n_populated = sum(1 for c in counts_flat if c > 0)
+    n_empty = sum(1 for c in counts_flat if c == 0)
+
+    # ── Cross-class collisions: term appears in multiple subjects ──
+    term_subjects = defaultdict(set)
+    term_levels_per_subject = defaultdict(lambda: defaultdict(set))
+    for p in probes:
+        term_subjects[p["text"]].add(p["subject"])
+        term_levels_per_subject[p["subject"]][p["text"]].add(p["level"])
+
+    cross_class = []
+    for term, subjs in term_subjects.items():
+        if len(subjs) > 1:
+            cross_class.append({
+                "term": term,
+                "subjects": sorted(subjs),
+            })
+    cross_class.sort(key=lambda r: (-len(r["subjects"]), r["term"]))
+
+    # ── Cross-level collisions: term appears in multiple levels of same subject ──
+    cross_level = []
+    for s, term_lvls in term_levels_per_subject.items():
+        for term, lvls in term_lvls.items():
+            if len(lvls) > 1:
+                cross_level.append({
+                    "term": term,
+                    "subject": s,
+                    "levels": sorted(lvls),
+                    "level_names": [level_names[l] for l in sorted(lvls)
+                                    if l < len(level_names)],
+                })
+    cross_level.sort(key=lambda r: (-len(r["levels"]), r["subject"], r["term"]))
+
+    # ── Embedding tier (best-effort): load cache for active model if present ──
+    embedding_tier = None
+    if state.pipeline is not None and state.pipeline.loaded:
+        model_id = state.pipeline.instruct_model_id
+        # Look for a cache at the subject-layer depth from CSV meta or default 0.50
+        if "layer_low" in meta:
+            try:
+                frac = max(0.0, min(1.0, float(meta["layer_low"])))
+            except Exception:
+                frac = 0.50
+        else:
+            try:
+                from tagm.engine import config as engine_config
+                frac = max(0.0, min(1.0, float(engine_config.get(
+                    "domain_embedding_layer_frac") or 0.50)))
+            except Exception:
+                frac = 0.50
+
+        cache_path = probe_cache_path(_project_root, filename, model_id,
+                                       frac, projected=False)
+        cache = load_probe_cache(cache_path)
+        if cache and cache.get("embeddings"):
+            import numpy as np
+            embs = np.array(cache["embeddings"], dtype=np.float32)
+            # Index alignment: cache embeddings parallel the load_probes() order
+            if len(embs) == len(probes):
+                # Group embeddings by cell
+                cell_embs = defaultdict(list)
+                for i, p in enumerate(probes):
+                    cell_embs[(p["subject"], p["level"])].append(embs[i])
+
+                # Intra-cell cosine spread: 1 - mean pairwise cosine similarity
+                # within each cell
+                intra_grid = []
+                centroids = {}
+                for s in subjects:
+                    row = []
+                    for l in range(n_levels):
+                        vecs = cell_embs.get((s, l), [])
+                        if len(vecs) >= 2:
+                            M = np.stack(vecs)
+                            sims = M @ M.T
+                            n = sims.shape[0]
+                            mask = ~np.eye(n, dtype=bool)
+                            mean_sim = float(sims[mask].mean())
+                            spread = 1.0 - mean_sim
+                            cent = M.mean(axis=0)
+                            cent_norm = np.linalg.norm(cent)
+                            if cent_norm > 1e-12:
+                                centroids[(s, l)] = cent / cent_norm
+                            row.append(round(spread, 4))
+                        elif len(vecs) == 1:
+                            centroids[(s, l)] = vecs[0]
+                            row.append(None)
+                        else:
+                            row.append(None)
+                    intra_grid.append(row)
+
+                # Inter-cell separation: mean cosine distance between centroids
+                cell_keys = list(centroids.keys())
+                if len(cell_keys) >= 2:
+                    C = np.stack([centroids[k] for k in cell_keys])
+                    cs = C @ C.T
+                    n = cs.shape[0]
+                    mask = ~np.eye(n, dtype=bool)
+                    inter_mean = 1.0 - float(cs[mask].mean())
+                    inter_min = 1.0 - float(cs[mask].max())  # tightest pair
+                else:
+                    inter_mean = None
+                    inter_min = None
+
+                embedding_tier = {
+                    "model_id": model_id,
+                    "layer_frac": frac,
+                    "intra_cell_spread": intra_grid,
+                    "inter_cell_mean_distance": (
+                        round(inter_mean, 4) if inter_mean is not None else None),
+                    "inter_cell_min_distance": (
+                        round(inter_min, 4) if inter_min is not None else None),
+                    "n_cells_with_centroid": len(cell_keys),
+                }
+
+    return {
+        "ok": True,
+        "filename": filename,
+        "n_probes": len(probes),
+        "n_subjects": len(subjects),
+        "n_levels": n_levels,
+        "subjects": subjects,
+        "level_names": level_names,
+        "cell_grid": cell_grid,
+        "summary": {
+            "populated_cells": n_populated,
+            "empty_cells": n_empty,
+            "min_count": min(counts_flat) if counts_flat else 0,
+            "max_count": max(counts_flat) if counts_flat else 0,
+            "mean_count": (round(sum(counts_flat) / len(counts_flat), 1)
+                           if counts_flat else 0),
+        },
+        "cross_class_collisions": cross_class,
+        "cross_level_collisions": cross_level,
+        "embedding_tier": embedding_tier,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════

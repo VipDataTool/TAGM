@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Probe Diagnostic — TAGM</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --text:#E8ECEF; --text2:#6B7280; --text3:#8B92A0; --border:#444C56; --green:#009E73; --orange:#E69F00; --red:#D55E00; --cyan:#56B4E9; --magenta:#CC79A7; --yellow:#F0E442; }
+body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; padding:16px; margin:0; font-size:var(--font-legend); }
+h2 { font-size:var(--font-desc); font-weight:700; margin:0 0 4px 0; }
+.subtitle { color:var(--text2); margin-bottom:14px; font-size:var(--font-legend); }
+.section { margin-bottom:22px; }
+.section-title { font-size:var(--font-desc); font-weight:600; color:var(--text); margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; }
+.stat { background:#22272E; border:1px solid var(--border); border-radius:6px; padding:10px 12px; }
+.stat-val { font-size:18px; font-weight:600; color:var(--text); }
+.stat-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
+table { border-collapse:collapse; font-size:var(--font-table); }
+th, td { padding:4px 8px; text-align:left; }
+th { color:var(--text2); font-weight:500; border-bottom:1px solid var(--border); }
+.heatmap { display:inline-table; }
+.heatmap th { color:var(--text3); font-size:11px; padding:3px 6px; }
+.heatmap td.cell { width:60px; height:38px; text-align:center; vertical-align:middle; border:1px solid #2D333B; cursor:default; position:relative; }
+.heatmap td.subj { color:var(--cyan); font-weight:500; padding-right:10px; white-space:nowrap; }
+.heatmap td.cell:hover { outline:2px solid var(--text); outline-offset:-2px; z-index:2; }
+.cell-empty { background:#3A1F1F; color:#7A4A4A; }
+.cell-thin { background:#3A2F1A; color:#9A7A4A; }
+.cell-num { font-weight:600; }
+.collisions { max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; }
+.collisions table { width:100%; }
+.collisions th { position:sticky; top:0; background:var(--bg); padding:6px 10px; }
+.collisions td { padding:5px 10px; border-top:1px solid #2D333B; }
+.term { color:var(--cyan); font-weight:500; }
+.subj-list { color:var(--text2); }
+.tag { display:inline-block; padding:1px 6px; border-radius:3px; background:#2D333B; color:var(--text2); font-size:10px; margin-right:3px; }
+#err { color:var(--red); padding:10px; white-space:pre-wrap; font-size:var(--font-desc); }
+.muted { color:var(--text3); font-style:italic; padding:8px 0; }
+.tip { display:none; position:fixed; background:#2D333B; border:1px solid var(--cyan); border-radius:6px; padding:8px 10px; pointer-events:none; max-width:340px; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,.5); font-size:var(--font-table); }
+.tip-title { font-weight:600; color:var(--text); margin-bottom:4px; }
+.tip-terms { color:var(--text2); line-height:1.5; }
+.embedding-note { padding:10px 14px; background:#22272E; border-left:3px solid var(--orange); border-radius:3px; color:var(--text2); font-size:var(--font-legend); margin-bottom:10px; }
+.embedding-stats { display:flex; gap:18px; margin-bottom:10px; flex-wrap:wrap; }
+.embedding-stats .stat-pair { display:flex; flex-direction:column; }
+.embedding-stats .label { color:var(--text2); font-size:11px; }
+.embedding-stats .value { color:var(--text); font-weight:600; font-size:14px; }
+</style>
+</head>
+<body>
+<h2>Probe Diagnostic</h2>
+<div class="subtitle" id="subtitle">Loading...</div>
+<div id="err"></div>
+<div id="content" style="display:none">
+  <div class="section">
+    <div class="section-title">Summary</div>
+    <div class="summary-grid" id="summary"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Cell Coverage</div>
+    <div id="heatmapWrap"></div>
+  </div>
+  <div class="section" id="embeddingSection" style="display:none">
+    <div class="section-title">Embedding Geometry</div>
+    <div id="embeddingBody"></div>
+  </div>
+  <div class="section">
+    <div class="section-title" id="ccTitle">Cross-Class Collisions</div>
+    <div id="ccBody"></div>
+  </div>
+  <div class="section">
+    <div class="section-title" id="clTitle">Cross-Level Collisions</div>
+    <div id="clBody"></div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+(function(){try{
+// Inherit fonts from opener if available
+try{if(window.opener){['--font-desc','--font-legend','--font-table'].forEach(function(p){var v=window.opener.getComputedStyle(window.opener.document.documentElement).getPropertyValue(p);if(v)document.documentElement.style.setProperty(p,v)})}}catch(e){}
+
+function esc(s){return String(s).replace(/[&<>"']/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+
+// Read optional ?file= query param
+var qs = new URLSearchParams(window.location.search);
+var fileParam = qs.get("file");
+var url = "/api/probe_diagnostic" + (fileParam ? "?file=" + encodeURIComponent(fileParam) : "");
+
+fetch(url).then(function(r){return r.json()}).then(function(resp){
+  if (!resp.ok) {
+    document.getElementById("err").textContent = "Failed to load: " + (resp.error || "Unknown error");
+    document.getElementById("subtitle").textContent = "—";
+    return;
+  }
+  render(resp);
+}).catch(function(e){
+  document.getElementById("err").textContent = "Failed to load: " + e.message;
+  document.getElementById("subtitle").textContent = "—";
+});
+
+function render(d) {
+  document.getElementById("subtitle").textContent =
+    d.filename + " — " + d.n_probes + " probes across "
+    + d.n_subjects + " subjects × " + d.n_levels + " levels";
+  document.getElementById("content").style.display = "block";
+
+  // Summary
+  var s = d.summary;
+  var summaryHtml = "";
+  function stat(val, label) {
+    return '<div class="stat"><div class="stat-val">' + esc(val) + '</div>'
+         + '<div class="stat-label">' + esc(label) + '</div></div>';
+  }
+  summaryHtml += stat(s.populated_cells + " / " + (s.populated_cells + s.empty_cells), "Populated cells");
+  summaryHtml += stat(s.empty_cells, "Empty cells");
+  summaryHtml += stat(s.min_count + " – " + s.max_count, "Probes per cell (range)");
+  summaryHtml += stat(s.mean_count, "Probes per cell (mean)");
+  summaryHtml += stat(d.cross_class_collisions.length, "Cross-class shared");
+  summaryHtml += stat(d.cross_level_collisions.length, "Cross-level shared");
+  document.getElementById("summary").innerHTML = summaryHtml;
+
+  // Heatmap
+  renderHeatmap(d);
+
+  // Embedding tier
+  if (d.embedding_tier) renderEmbedding(d);
+
+  // Collisions
+  renderCrossClass(d);
+  renderCrossLevel(d);
+}
+
+function renderHeatmap(d) {
+  // Determine min/max for color scaling (over populated cells)
+  var maxC = 1;
+  d.cell_grid.forEach(function(row){
+    row.forEach(function(c){ if (c.count > maxC) maxC = c.count; });
+  });
+
+  var html = '<table class="heatmap"><thead><tr><th></th>';
+  d.level_names.forEach(function(ln){
+    html += '<th>' + esc(ln) + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  d.cell_grid.forEach(function(row, si){
+    var subj = d.subjects[si];
+    html += '<tr><td class="subj">' + esc(subj.replace(/_/g, ' ')) + '</td>';
+    row.forEach(function(c, li){
+      var cls = "cell-num";
+      var bg = "";
+      if (c.count === 0) cls = "cell-empty";
+      else {
+        // green ramp: pale → saturated as count grows
+        var t = c.count / maxC;
+        var g = Math.round(40 + t * 90);
+        bg = "background:rgb(20," + g + ",40);";
+      }
+      var sample = c.sample.slice(0, 5).map(esc).join(", ");
+      var more = c.count > 5 ? " +" + (c.count - 5) + " more" : "";
+      html += '<td class="cell ' + cls + '" style="' + bg + '"';
+      html += ' data-subj="' + esc(subj) + '"';
+      html += ' data-level="' + esc(d.level_names[li] || li) + '"';
+      html += ' data-count="' + c.count + '"';
+      html += ' data-sample="' + esc(sample + more) + '">';
+      html += c.count;
+      html += '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById("heatmapWrap").innerHTML = html;
+
+  // Hover tooltips
+  var tip = document.getElementById("tip");
+  document.querySelectorAll(".heatmap td.cell").forEach(function(td){
+    td.addEventListener("mouseenter", function(e){
+      var n = parseInt(td.dataset.count);
+      var samp = td.dataset.sample;
+      tip.innerHTML = '<div class="tip-title">'
+        + esc(td.dataset.subj.replace(/_/g, ' ')) + ' × '
+        + esc(td.dataset.level)
+        + ' <span style="color:var(--text3);font-weight:400">('
+        + n + (n === 1 ? ' probe' : ' probes') + ')</span></div>'
+        + (samp ? '<div class="tip-terms">' + samp + '</div>' : '<div class="tip-terms">(empty)</div>');
+      tip.style.display = "block";
+    });
+    td.addEventListener("mousemove", function(e){
+      tip.style.left = (e.clientX + 14) + "px";
+      tip.style.top = (e.clientY + 14) + "px";
+    });
+    td.addEventListener("mouseleave", function(){ tip.style.display = "none"; });
+  });
+}
+
+function renderEmbedding(d) {
+  var et = d.embedding_tier;
+  document.getElementById("embeddingSection").style.display = "block";
+
+  var html = '<div class="embedding-stats">';
+  function pair(label, value) {
+    return '<div class="stat-pair"><div class="label">' + esc(label)
+         + '</div><div class="value">' + esc(value) + '</div></div>';
+  }
+  html += pair("Model", et.model_id);
+  html += pair("Layer", "L" + Math.round(et.layer_frac * 100));
+  html += pair("Cells with centroid", et.n_cells_with_centroid);
+  if (et.inter_cell_mean_distance !== null) {
+    html += pair("Inter-cell mean distance", et.inter_cell_mean_distance.toFixed(4));
+  }
+  if (et.inter_cell_min_distance !== null) {
+    html += pair("Inter-cell min distance", et.inter_cell_min_distance.toFixed(4));
+  }
+  html += '</div>';
+
+  // Intra-cell spread heatmap (re-uses heatmap shape)
+  html += '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">';
+  html += 'Intra-cell spread (1 − mean pairwise cosine similarity within cell). Lower = tighter cluster.';
+  html += '</div>';
+
+  html += '<table class="heatmap"><thead><tr><th></th>';
+  d.level_names.forEach(function(ln){ html += '<th>' + esc(ln) + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  // Find spread range for color scaling
+  var minS = 1, maxS = 0;
+  et.intra_cell_spread.forEach(function(row){
+    row.forEach(function(v){ if (v !== null) { if (v < minS) minS = v; if (v > maxS) maxS = v; }});
+  });
+  if (maxS <= minS) maxS = minS + 0.001;
+
+  et.intra_cell_spread.forEach(function(row, si){
+    var subj = d.subjects[si];
+    html += '<tr><td class="subj">' + esc(subj.replace(/_/g, ' ')) + '</td>';
+    row.forEach(function(v, li){
+      if (v === null) {
+        html += '<td class="cell" style="background:#2D333B;color:var(--text3)">—</td>';
+      } else {
+        var t = (v - minS) / (maxS - minS);
+        // amber ramp: dark amber (low spread) → bright amber (high spread)
+        var r = Math.round(40 + t * 180);
+        var g = Math.round(30 + t * 120);
+        html += '<td class="cell" style="background:rgb(' + r + ',' + g + ',30)">';
+        html += v.toFixed(3);
+        html += '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById("embeddingBody").innerHTML = html;
+}
+
+function renderCrossClass(d) {
+  var rows = d.cross_class_collisions;
+  document.getElementById("ccTitle").textContent =
+    "Cross-Class Collisions (" + rows.length + ")";
+
+  if (rows.length === 0) {
+    document.getElementById("ccBody").innerHTML =
+      '<div class="muted">No terms appear in more than one subject. Discriminative dedup is clean.</div>';
+    return;
+  }
+
+  var html = '<div class="collisions"><table>';
+  html += '<thead><tr><th>Term</th><th>Subjects</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    html += '<tr><td class="term">' + esc(r.term) + '</td>';
+    html += '<td class="subj-list">';
+    r.subjects.forEach(function(s){
+      html += '<span class="tag">' + esc(s.replace(/_/g, ' ')) + '</span>';
+    });
+    html += '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById("ccBody").innerHTML = html;
+}
+
+function renderCrossLevel(d) {
+  var rows = d.cross_level_collisions;
+  document.getElementById("clTitle").textContent =
+    "Cross-Level Collisions (" + rows.length + ")";
+
+  if (rows.length === 0) {
+    document.getElementById("clBody").innerHTML =
+      '<div class="muted">No terms appear in more than one level within the same subject.</div>';
+    return;
+  }
+
+  var html = '<div class="collisions"><table>';
+  html += '<thead><tr><th>Term</th><th>Subject</th><th>Levels</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    html += '<tr><td class="term">' + esc(r.term) + '</td>';
+    html += '<td class="subj-list">' + esc(r.subject.replace(/_/g, ' ')) + '</td>';
+    html += '<td>';
+    (r.level_names || r.levels).forEach(function(l){
+      html += '<span class="tag">' + esc(l) + '</span>';
+    });
+    html += '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById("clBody").innerHTML = html;
+}
+
+}catch(e){document.getElementById("err").textContent="Viz error: "+e.message+"\n"+e.stack}})();
+</script>
+</body>
+</html>

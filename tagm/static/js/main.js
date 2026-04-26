@@ -3499,9 +3499,12 @@ function renderCorrectionHeatmapResults(r) {
 
 function renderProbeGeneratorResults(r) {
   var h = '<div class="mod-results">';
+  var outputFile = r.output_file || '';
 
-  // Summary
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
+  // Summary header with Probe Diagnostics popout (mirrors DSE's Scatter Plot button)
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary';
+  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutProbeDiagnostic(' + JSON.stringify(outputFile) + ')">↗ Probe Diagnostics</button>';
+  h += '</div>';
   h += '<div class="mod-results-body"><div class="mod-summary">';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_raw_tokens + '</span><span class="mod-stat-label">Raw Tokens</span></div>';
   h += '<div class="mod-stat"><span class="mod-stat-val">' + r.total_shared_removed + '</span><span class="mod-stat-label">Shared (removed)</span></div>';
@@ -3511,6 +3514,14 @@ function renderProbeGeneratorResults(r) {
   h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.output_file) + '</span><span class="mod-stat-label">Output File</span></div>';
   if (r.catalog_file) h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.catalog_file) + '</span><span class="mod-stat-label">Catalog File</span></div>';
   h += '</div></div>';
+
+  // Embed action row — explicit, decoupled from generation
+  if (outputFile) {
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:#22272E">';
+    h += '<button id="pgEmbedBtn" onclick="embedActiveProbes(' + JSON.stringify(outputFile) + ')" style="padding:6px 14px;border:1px solid var(--cyan);color:var(--cyan);background:transparent;border-radius:3px;cursor:pointer;font-family:inherit;font-size:12px">Embed Probe Set</button>';
+    h += '<span id="pgEmbedStatus" style="color:var(--text-2);font-size:11px;flex:1"></span>';
+    h += '</div>';
+  }
 
   // Per-subject table
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Breakdown</div>';
@@ -3592,6 +3603,66 @@ function popoutCorrectionHeatmap(){
 function popoutCorrectionBackscatter(){
   var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_backscatter_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+function popoutProbeDiagnostic(file){
+  var pw=1100,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  var url = '/probe_diagnostic_viz';
+  if (file) url += '?file=' + encodeURIComponent(file);
+  window.open(url,'_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+}
+
+async function embedActiveProbes(filename){
+  if (!filename) return;
+  var btn = document.getElementById('pgEmbedBtn');
+  var status = document.getElementById('pgEmbedStatus');
+  if (!btn || !status) return;
+  btn.disabled = true;
+  btn.textContent = 'Embedding...';
+  status.textContent = 'Submitting embed request...';
+  status.style.color = 'var(--text-2)';
+  try {
+    var r = await(await fetch('/api/modules/probe_generator/embed_active', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({filename: filename}),
+    })).json();
+    if (!r.ok) {
+      status.textContent = 'Error: ' + (r.error || 'Unknown');
+      status.style.color = 'var(--red)';
+      btn.disabled = false;
+      btn.textContent = 'Embed Probe Set';
+      return;
+    }
+    var poll = setInterval(async function(){
+      try {
+        var s = await(await fetch('/api/modules/probe_generator/embed_active_status')).json();
+        if (s.progress) status.textContent = s.progress;
+        if (!s.active) {
+          clearInterval(poll);
+          btn.disabled = false;
+          btn.textContent = 'Embed Probe Set';
+          if (s.error) {
+            status.innerHTML = '<span style="color:var(--red)">✗ ' + escHtml(s.error) + '</span>';
+          } else if (s.result) {
+            var res = s.result;
+            status.innerHTML = '<span style="color:var(--green)">✓ Embedded and activated</span>'
+              + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' levels'
+              + ' — depths L' + (res.depths || []).join(', L');
+            log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
+            // Refresh the global probe-status indicator if present
+            if (typeof loadProbeFiles === 'function') loadProbeFiles();
+            if (typeof playChime === 'function') playChime();
+          }
+        }
+      } catch(e) {}
+    }, 1000);
+  } catch(e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
+    btn.disabled = false;
+    btn.textContent = 'Embed Probe Set';
+  }
 }
 
 function renderCorrectionBackscatterResults(r) {

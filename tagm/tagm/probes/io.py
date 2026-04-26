@@ -400,3 +400,120 @@ def get_active_probe(project_root):
         except Exception:
             pass
     return None
+
+
+def set_active_probe(project_root, filename):
+    """Write filename as the active probe set in probe_config.json."""
+    config_path = os.path.join(project_root, PROBE_CONFIG)
+    with open(config_path, "w") as f:
+        json.dump({"active": [filename]}, f, indent=2)
+
+
+# ─── High-level: embed + activate ──────────────────────────────
+
+def embed_and_activate_probe_set(pipeline, project_root, filename, progress=None):
+    """Embed a probe CSV at both depths and activate it.
+
+    Single entry point for "make this probe file the active one." Used by
+    /api/probe_set/apply (Configuration tab) and /api/modules/probe_generator/
+    embed_active (Probe Generator card). Caller supplies a loaded Pipeline.
+
+    Reads layer depths from CSV meta (layer_low/layer_high keys) if present,
+    otherwise from engine config (domain_embedding_layer_frac / domain_
+    escalation_layer_frac), with hard fallbacks of 0.50 / 0.75. Honors the
+    probe_projection_space engine-config flag for o_delta projection.
+
+    Returns a dict on success:
+        {applied, filename, n_probes, n_subjects, n_levels, levels, depths}
+
+    Returns {"applied": False, "error": "..."} on any failure. Never raises.
+    """
+    if pipeline is None or not getattr(pipeline, "loaded", False):
+        return {"applied": False, "error": "No model loaded"}
+
+    csv_path = os.path.join(project_root, filename)
+    if not os.path.exists(csv_path):
+        return {"applied": False, "error": f"Probe file not found: {filename}"}
+
+    model = pipeline.instruct_model
+    tokenizer = pipeline.tokenizer
+    adapter = pipeline.adapter
+    model_id = pipeline.instruct_model_id
+
+    if progress:
+        progress("Embedding probe set...")
+
+    # Resolve depths: CSV meta overrides engine config overrides hard defaults
+    meta = parse_meta(csv_path)
+    try:
+        from tagm.engine import config as engine_config
+        use_proj = engine_config.get("probe_projection_space")
+    except Exception:
+        use_proj = False
+        engine_config = None
+
+    if "layer_low" in meta and "layer_high" in meta:
+        subj_frac = max(0.0, min(1.0, float(meta["layer_low"])))
+        esc_frac = max(0.0, min(1.0, float(meta["layer_high"])))
+    elif engine_config is not None:
+        try:
+            subj_frac = max(0.0, min(1.0, float(engine_config.get(
+                "domain_embedding_layer_frac") or 0.50)))
+            esc_frac = max(0.0, min(1.0, float(engine_config.get(
+                "domain_escalation_layer_frac") or 0.75)))
+        except Exception:
+            subj_frac, esc_frac = 0.50, 0.75
+    else:
+        subj_frac, esc_frac = 0.50, 0.75
+
+    depths = sorted(set([subj_frac, esc_frac]))
+    n_layers = adapter.n_layers(model)
+    embedded = 0
+
+    for frac in depths:
+        if progress:
+            progress(f"Embedding at L{int(frac * 100)}...")
+
+        delta = None
+        if use_proj:
+            target_layer = max(0, min(n_layers - 1, int(frac * n_layers)))
+            delta = pipeline.delta_store.o_delta_or_none(target_layer)
+
+        try:
+            embed_and_cache_probes(
+                model, tokenizer, adapter,
+                project_root, filename, model_id,
+                layer_frac=frac,
+                progress=(lambda stage, msg, _f=frac: progress(
+                    f"L{int(_f * 100)}: {msg}") if progress else None),
+                delta_matrix=delta if use_proj else None)
+            embedded += 1
+        except Exception as e:
+            logger.warning(f"[PROBES] Embed failed at L{int(frac * 100)}: {e}")
+
+    if embedded == 0:
+        return {"applied": False, "error": "Failed to embed probes at any depth"}
+
+    try:
+        set_active_probe(project_root, filename)
+    except Exception as e:
+        return {"applied": False,
+                "error": f"Embedded but failed to activate: {e}"}
+
+    if progress:
+        progress(f"Complete: {filename} embedded at {len(depths)} "
+                 f"depth(s) and activated")
+
+    probes = load_probes(csv_path)
+    level_cols, level_names = detect_level_cols(csv_path)
+    subjects = sorted(set(p["subject"] for p in probes))
+
+    return {
+        "applied": True,
+        "filename": filename,
+        "n_probes": len(probes),
+        "n_subjects": len(subjects),
+        "n_levels": len(level_cols),
+        "levels": level_names,
+        "depths": [int(f * 100) for f in depths],
+    }
