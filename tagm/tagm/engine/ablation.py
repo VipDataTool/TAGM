@@ -588,15 +588,21 @@ class AblationRunner:
         return out
 
     def _one_generation(self, model, tokenizer, prompt: str) -> str:
+        device = next(model.parameters()).device
         messages = [{"role": "user", "content": prompt}]
         try:
+            # return_dict=True is forced so we always get a BatchEncoding
+            # with attention_mask (rather than depending on the transformers
+            # version's default, which has changed across releases).
             inputs = tokenizer.apply_chat_template(
                 messages, return_tensors="pt", add_generation_prompt=True,
-            ).to(next(model.parameters()).device)
+                return_dict=True,
+            )
         except Exception:
             # Tokenizer lacks chat template — fall back to plain.
-            inputs = tokenizer(prompt, return_tensors="pt").input_ids.to(
-                next(model.parameters()).device)
+            inputs = tokenizer(prompt, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        prompt_len = inputs["input_ids"].shape[1]
 
         with torch.no_grad():
             gen_kwargs = dict(
@@ -612,9 +618,9 @@ class AblationRunner:
             else:
                 gen_kwargs["do_sample"] = False
 
-            out = model.generate(inputs, **gen_kwargs)
+            out = model.generate(**inputs, **gen_kwargs)
 
-        reply = tokenizer.decode(out[0, inputs.shape[1]:],
+        reply = tokenizer.decode(out[0, prompt_len:],
                                   skip_special_tokens=True)
         return reply.strip()
 
