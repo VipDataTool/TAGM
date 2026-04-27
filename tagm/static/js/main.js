@@ -5,6 +5,21 @@ var _promptTotal=0;
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
 function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
 function clearLog(){$('progressLog').innerHTML=''}
+async function downloadLog(){
+  // Server returns the file with Content-Disposition, so navigating to the
+  // URL triggers a save dialog rather than rendering. Using location.href
+  // keeps the user on the page; the browser intercepts the response.
+  try {
+    const r = await fetch('/api/log/download', {method:'HEAD'});
+    if (!r.ok) {
+      log('Log file not available on disk yet.', 'error');
+      return;
+    }
+    window.location.href = '/api/log/download';
+  } catch(e) {
+    log('Download failed: ' + e.message, 'error');
+  }
+}
 function setLoading(b,l){b.disabled=l;if(l)b.dataset.orig=b.textContent;b.textContent=l?'Processing...':(b.dataset.orig||b.textContent)}
 function pillClass(c){return({'benign':'pill-benign','baseline':'pill-benign','mild':'pill-mild','harmful':'pill-harmful','jailbreak':'pill-jailbreak','adversarial':'pill-adversarial','dual-use':'pill-dual-use'})[c]||''}
 function toggleFeature(el){
@@ -474,7 +489,7 @@ async function analyzePrompt(){
 
 async function analyzeBatch(){
   const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
-  const btn=$('batchBtn');setLoading(btn,true);clearLog();log('Starting batch...');
+  const btn=$('batchBtn');setLoading(btn,true);log('Starting batch...');
   const fd=_buildAnalysisFormData();
   fd.append('file',file);fd.append('compute_trajectory',false);
   try{
@@ -2441,6 +2456,7 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
 
 var _moduleData = {};  // cached module metadata
 var _modulePollers = {};  // active polling intervals
+var _moduleStartTimes = {};  // wall-clock start time per module (fallback for elapsed)
 
 async function loadModules() {
   try {
@@ -2641,6 +2657,8 @@ async function runModule(name) {
   var oldLog = $('mod-log-' + name);
   if (oldLog) oldLog.remove();
 
+  log('Module ' + name + ': starting');
+
   var params = getModuleParams(name);
 
   // Upload any file params first
@@ -2663,7 +2681,7 @@ async function runModule(name) {
     prog.textContent = '';
     btn.disabled = false;
     btn.textContent = 'Run';
-    alert('Upload error: ' + e.message);
+    log('Module ' + name + ': upload error — ' + e.message, 'error');
     return;
   }
 
@@ -2679,16 +2697,20 @@ async function runModule(name) {
       btn.disabled = false;
       btn.textContent = 'Run';
       updateModuleStatus(name, 'error');
-      alert(d.error || 'Module failed to start');
+      log('Module ' + name + ': failed to start — ' + (d.error || 'unknown'), 'error');
       return;
     }
     updateModuleStatus(name, 'running');
+    // Stash start time on poller dict for elapsed-time computation on completion.
+    // (The backend also reports elapsed; this is a fallback for when
+    // started_at/completed_at are missing.)
+    _moduleStartTimes[name] = Date.now();
     startModulePoll(name);
   } catch(e) {
     prog.textContent = '';
     btn.disabled = false;
     btn.textContent = 'Run';
-    alert('Error: ' + e.message);
+    log('Module ' + name + ': error — ' + e.message, 'error');
   }
 }
 
@@ -2711,10 +2733,17 @@ async function pollModule(name) {
       playChime();
       var btn = $('mod-run-' + name);
       if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
-      if (prog) {
-        var elapsed = d.completed_at && d.started_at ? (d.completed_at - d.started_at).toFixed(1) : '?';
-        prog.textContent = 'Completed in ' + elapsed + 's';
+      var elapsedStr;
+      if (d.completed_at && d.started_at) {
+        elapsedStr = (d.completed_at - d.started_at).toFixed(1) + 's';
+      } else if (_moduleStartTimes[name]) {
+        elapsedStr = ((Date.now() - _moduleStartTimes[name]) / 1000).toFixed(1) + 's';
+      } else {
+        elapsedStr = '?';
       }
+      delete _moduleStartTimes[name];
+      if (prog) prog.textContent = 'Completed in ' + elapsedStr;
+      log('Module ' + name + ': completed in ' + elapsedStr, 'done');
       // Show download log button
       if (d.has_log) {
         var existing = $('mod-log-' + name);
@@ -2732,10 +2761,13 @@ async function pollModule(name) {
     } else if (d.status === 'error') {
       clearInterval(_modulePollers[name]);
       delete _modulePollers[name];
+      delete _moduleStartTimes[name];
       updateModuleStatus(name, 'error');
       var btn2 = $('mod-run-' + name);
       if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
-      if (prog) prog.textContent = 'Error: ' + (d.error || 'unknown');
+      var errMsg = d.error || 'unknown';
+      if (prog) prog.textContent = 'Error: ' + errMsg;
+      log('Module ' + name + ': error — ' + errMsg, 'error');
     }
   } catch(e) { /* silent retry */ }
 }

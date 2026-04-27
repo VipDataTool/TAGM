@@ -215,6 +215,23 @@ async def progress():
 async def log_alias(since: float = 0):
     return api_progress_handler()
 
+@app.get("/api/log/download")
+async def log_download():
+    """Download the full backend log file (tagm.log).
+
+    This is the unfiltered application log written by Python's logging
+    framework — a strict superset of the in-memory progress buffer that
+    drives the sidebar widget. Returned with Content-Disposition so the
+    browser saves it instead of rendering inline.
+    """
+    if not LOG_FILE.exists():
+        raise HTTPException(status_code=404, detail="No log file on disk yet.")
+    return FileResponse(
+        str(LOG_FILE),
+        media_type="text/plain",
+        filename="tagm.log",
+    )
+
 @app.post("/api/session/restore")
 async def restore():
     return api_session_restore_handler()
