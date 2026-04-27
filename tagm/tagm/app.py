@@ -54,16 +54,13 @@ from tagm.core.cache import Cache
 logger = logging.getLogger("tagm")
 
 _PACKAGE_DIR = Path(__file__).parent
-LOG_FILE = _PACKAGE_DIR.parent / "tagm.log"
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
+# LOG_FILE is set by tagm/__main__.py before uvicorn imports this module,
+# via the TAGM_LOG_FILE env var. The actual logging configuration lives in
+# __main__._build_log_config and is handed to uvicorn at startup — uvicorn
+# owns logging configuration, not us. We only read the path here so the
+# /api/log/download endpoint knows what file to serve.
+LOG_FILE = Path(os.environ.get("TAGM_LOG_FILE",
+                                _PACKAGE_DIR.parent / "tagm.log"))
 
 # ─── Additional global state ────────────────────────────────────
 _module_runner = ModuleRunner()
