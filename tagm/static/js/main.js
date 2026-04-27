@@ -3290,22 +3290,36 @@ function renderDomainSurfaceResults(r) {
   // probe in the active set. Replaces the prior token-CV table.
   // Click any column header (except cat mix) to sort. Click again to
   // reverse direction. Default: CV ascending.
+  // Filter row above the table hides probes below the engagement
+  // threshold (signal-clearing, not data-pruning — the underlying
+  // probe set is preserved on the state object).
   if (r.probes && r.probes.length) {
     h += '<div class="mod-section-title">Probes by Engagement</div>';
-    h += '<div class="mod-results-body" style="max-height:480px">';
+    h += '<div class="mod-results-body" style="max-height:520px">';
+    h += '<div id="dsProbeFilterRow" style="display:flex;align-items:center;gap:8px;padding:6px 0 10px 0;font-size:11px;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:8px">';
+    h +=   '<span>Show:</span>';
+    h +=   '<button data-filter="all"       class="ds-pf-btn">all</button>';
+    h +=   '<button data-filter="threshold" class="ds-pf-btn">n ≥</button>';
+    h +=   '<input id="dsProbeFilterK" type="number" min="1" max="999" value="1" ';
+    h +=     'style="width:48px;background:#22272E;border:1px solid var(--border);color:var(--text-0);';
+    h +=     'border-radius:3px;padding:2px 4px;font-family:inherit;font-size:11px">';
+    h +=   '<span id="dsProbeFilterCount" style="margin-left:auto;color:var(--text-3)"></span>';
+    h += '</div>';
     h += '<div id="dsProbeTableMount"></div>';
     h += '</div>';
 
-    // Cache the data and initial sort state on a module-scoped object
-    // so the click handlers can re-render without refetching results.
+    // Cache the data and initial sort/filter state on a module-scoped
+    // object so re-renders don't refetch.
     window._dsProbeState = {
       probes: r.probes,
       subjects: r.subjects || [],
       level_names: r.level_names || [],
       sortKey: 'cv',
       sortDir: 'asc',
+      filterMode: 'threshold',  // 'all' | 'threshold'
+      filterK: 1,
     };
-    // Defer the first render to next tick so the mount node exists in DOM.
+    // Defer the first render to next tick so mount nodes exist in DOM.
     setTimeout(renderDsProbeTable, 0);
   }
 
@@ -3339,10 +3353,21 @@ function renderDsProbeTable() {
     { key:'mean_dist', label:'dist μ',   numeric:true,  get:function(p){ return p.mean_dist; }, classes:'num' },
   ];
 
-  // Build sorted rows. Earlier behavior was "n=0 sinks to the bottom regardless
-  // of sort key." Per discussion, that's gone — unengaged probes participate
-  // in the sort like everything else; only the dimming carries the n=0 signal.
-  var rows = st.probes.slice().sort(function(a, b){
+  // Filter step: apply current filter mode before sorting. The full
+  // probe set is preserved on st.probes — we only narrow the rendered
+  // rows. Threshold uses st.filterK; "all" passes everything through.
+  var filtered;
+  if (st.filterMode === 'threshold') {
+    var k = Math.max(1, parseInt(st.filterK, 10) || 1);
+    filtered = st.probes.filter(function(p){ return (p.n || 0) >= k; });
+  } else {
+    filtered = st.probes.slice();
+  }
+
+  // Build sorted rows. Unengaged probes (n=0) participate in the sort
+  // like everything else when the filter is "all"; only the dimming
+  // carries the n=0 signal.
+  var rows = filtered.sort(function(a, b){
     var col = COLS.find(function(c){ return c.key === st.sortKey; });
     if (!col) return 0;
     var av = col.get(a), bv = col.get(b);
@@ -3429,6 +3454,45 @@ function renderDsProbeTable() {
       renderDsProbeTable();
     });
   });
+
+  // Filter UI: paint active button, update count, sync K input value,
+  // wire handlers (idempotent — handlers are re-bound each render).
+  var filterRow = document.getElementById('dsProbeFilterRow');
+  var kInput = document.getElementById('dsProbeFilterK');
+  var countEl = document.getElementById('dsProbeFilterCount');
+  if (filterRow) {
+    var btns = filterRow.querySelectorAll('.ds-pf-btn');
+    btns.forEach(function(b){
+      var active = (b.dataset.filter === st.filterMode);
+      b.style.cssText =
+        'border:1px solid ' + (active ? 'var(--cyan)' : 'var(--border)') + ';' +
+        'background:' + (active ? 'rgba(86,180,233,0.12)' : 'transparent') + ';' +
+        'color:' + (active ? 'var(--cyan)' : 'var(--text-2)') + ';' +
+        'border-radius:3px;padding:2px 8px;cursor:pointer;font-family:inherit;font-size:11px';
+      b.onclick = function(){
+        st.filterMode = b.dataset.filter;
+        renderDsProbeTable();
+      };
+    });
+  }
+  if (kInput) {
+    kInput.value = st.filterK;
+    kInput.style.opacity = (st.filterMode === 'threshold') ? '1' : '0.45';
+    kInput.oninput = function(){
+      var v = parseInt(kInput.value, 10);
+      st.filterK = (isFinite(v) && v >= 1) ? v : 1;
+      // Editing K implies the user wants the threshold filter active.
+      if (st.filterMode !== 'threshold') st.filterMode = 'threshold';
+      renderDsProbeTable();
+    };
+  }
+  if (countEl) {
+    var totalProbes = st.probes.length;
+    var shown = rows.length;
+    countEl.textContent = shown === totalProbes
+      ? (totalProbes + ' probes')
+      : (shown + ' of ' + totalProbes + ' probes');
+  }
 }
 
 function popoutDomainSurface(){
