@@ -24,29 +24,30 @@ def _build_log_config(log_file: Path, level: str) -> dict:
     logger by the time the app is imported. The correct integration point is
     here: hand uvicorn a config dict that includes our FileHandler alongside
     its own console handlers, and let it apply the whole thing at startup.
+
+    Note on formatter naming: uvicorn looks for formatters named "default"
+    and "access" and tries to inject a `use_colors` key into them, which is
+    only valid on uvicorn's own formatter classes. To avoid that mutation,
+    we name our formatters "tagm" and use plain logging.Formatter.
     """
     level = level.upper()
     return {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
-            "default": {
+            "tagm": {
                 "format": "%(asctime)s [%(levelname)s] %(message)s",
-            },
-            "access": {
-                "format": '%(asctime)s [ACCESS] %(client_addr)s '
-                          '"%(request_line)s" %(status_code)s',
             },
         },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
-                "formatter": "default",
+                "formatter": "tagm",
                 "stream": "ext://sys.stderr",
             },
             "file": {
                 "class": "logging.FileHandler",
-                "formatter": "default",
+                "formatter": "tagm",
                 "filename": str(log_file),
                 "encoding": "utf-8",
             },
@@ -54,8 +55,8 @@ def _build_log_config(log_file: Path, level: str) -> dict:
         "loggers": {
             # Root: app + uvicorn server messages → both console and file.
             "": {"handlers": ["console", "file"], "level": level},
-            # Uvicorn loggers: silence the duplicate by routing them through
-            # the root logger instead of their own handlers.
+            # Uvicorn loggers: route through root rather than their own
+            # handlers. propagate=True is the default but explicit here.
             "uvicorn":       {"handlers": [], "level": level, "propagate": True},
             "uvicorn.error": {"handlers": [], "level": level, "propagate": True},
             "uvicorn.access":{"handlers": [], "level": level, "propagate": True},
