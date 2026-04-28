@@ -31,7 +31,7 @@ from tagm.probes.io import (
     load_probe_cache,
     probe_cache_path,
     load_probes,
-    get_active_probe,
+    get_active_probe_set,
 )
 
 logger = logging.getLogger("tasm")
@@ -56,9 +56,15 @@ class CorrectionHeatmapModule(TASMModule):
     def __init__(self):
         super().__init__()
         self._project_root = None
+        self._pipeline = None
 
     def set_project_root(self, root):
         self._project_root = root
+
+    def set_pipeline(self, pipeline):
+        """Receive the pipeline reference so validate() can confirm the
+        active probe set was applied for the currently loaded model."""
+        self._pipeline = pipeline
 
     @property
     def parameters(self):
@@ -82,12 +88,15 @@ class CorrectionHeatmapModule(TASMModule):
         if not ok:
             return ok, msg
 
-        probe_file = get_active_probe(self._project_root)
-        if not probe_file:
+        active = get_active_probe_set(self._project_root)
+        if active is None:
             return False, (
                 "No probe set active. Apply a probe set in the "
                 "Configuration tab first."
             )
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            return False, msg
 
         has_final = any(r.get("per_token_final_emb") for r in session_results)
         if not has_final:
@@ -98,7 +107,14 @@ class CorrectionHeatmapModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
-        probe_file = get_active_probe(self._project_root)
+        active = get_active_probe_set(self._project_root)
+        if active is None:
+            raise RuntimeError("No probe set active. Apply one in "
+                               "Configuration → Probe Set.")
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            raise RuntimeError(msg)
+        probe_file = active.probe_file
         proj_method = params.get("projection_method", "abs")
 
         if progress:
@@ -123,94 +139,44 @@ class CorrectionHeatmapModule(TASMModule):
         n_levels = len(level_cols)
         subj_idx = {s: i for i, s in enumerate(subjects)}
 
-        # ── Resolve layer depths (template meta overrides global config) ──
-        meta = parse_meta(csv_path)
-
-        try:
-            from tagm.engine import config as engine_config
-            use_proj = engine_config.get("probe_projection_space")
-        except Exception:
-            use_proj = False
-
-        if "layer_low" in meta and "layer_high" in meta:
-            subj_frac = max(0, min(1, float(meta["layer_low"])))
-            esc_frac = max(0, min(1, float(meta["layer_high"])))
-            logger.info(f"[HEATMAP] Using template depths: "
-                        f"L{int(subj_frac*100)}, L{int(esc_frac*100)}")
-        else:
-            try:
-                subj_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
-                esc_frac = max(0, min(1, engine_config.get("domain_escalation_layer_frac") or 0.75))
-            except Exception:
-                subj_frac = 0.50
-                esc_frac = 0.75
+        # ── Layer depths come from the active probe set ──
+        # The depths recorded in probe_config.json are what was actually
+        # embedded at apply time; that's the authoritative source. CSV
+        # meta and engine config are used at apply time, not at run time.
+        subj_frac = active.subject_layer_frac()
+        esc_frac = active.escalation_layer_frac()
+        logger.info(f"[HEATMAP] Active depths: "
+                    f"L{int(subj_frac*100)}, L{int(esc_frac*100)} "
+                    f"(projected={active.projected})")
 
         if progress:
-            progress(f"Loading probe embeddings at L{int(subj_frac*100)} and L{int(esc_frac*100)}...")
+            progress(f"Loading probe embeddings at L{int(subj_frac*100)} "
+                     f"and L{int(esc_frac*100)}...")
 
-        projected = use_proj
+        # ── Load both depths via the active-set resolver ──
+        # No directory scan; cache_path() composes the exact filename from
+        # (probe_file, model_id, depth, projected). If the file isn't
+        # there, the active record is stale relative to disk and the user
+        # is told to re-Apply.
+        def _load_at(frac):
+            cache_path = active.cache_path(self._project_root, frac)
+            data = load_probe_cache(cache_path)
+            if not data or not data.get("embeddings"):
+                raise RuntimeError(
+                    f"Probe cache not found at {cache_path} "
+                    f"(L{int(frac*100)}). Re-Apply the probe set in "
+                    f"Configuration → Probe Set to regenerate it.")
+            embs = data["embeddings"]
+            if len(embs) != len(raw_probes):
+                raise RuntimeError(
+                    f"Probe count mismatch in {os.path.basename(cache_path)}: "
+                    f"cache has {len(embs)}, CSV has {len(raw_probes)}. "
+                    f"Re-Apply the probe set to refresh.")
+            logger.info(f"[HEATMAP] Using cache: {os.path.basename(cache_path)}")
+            return embs
 
-        # Find probe caches
-        cache_dir = os.path.join(self._project_root, "probe_cache")
-        stem = os.path.splitext(probe_file)[0]
-
-        # Determine session embedding dimension for cache validation
-        session_dim = None
-        for r in session_results:
-            fe = r.get("per_token_final_emb")
-            if fe and len(fe) > 0:
-                session_dim = len(fe[0])
-                break
-
-        def _find_cache(frac):
-            """Find a matching probe cache file with dimension and projection validation."""
-            if hasattr(session_results[0], 'get'):
-                if os.path.isdir(cache_dir):
-                    tag = f"__L{int(frac * 100)}"
-                    for fn in sorted(os.listdir(cache_dir)):
-                        if fn.startswith(stem) and tag in fn and fn.endswith(".json"):
-                            # Projection mode filter: match cache to current setting
-                            is_proj_cache = "_proj.json" in fn
-                            if projected and not is_proj_cache:
-                                continue
-                            if not projected and is_proj_cache:
-                                continue
-                            data = load_probe_cache(os.path.join(cache_dir, fn))
-                            if data and data.get("embeddings"):
-                                embs = data["embeddings"]
-                                # Dimension validation: skip caches from a different model
-                                if session_dim is not None and len(embs) > 0:
-                                    cache_dim = len(embs[0])
-                                    if cache_dim != session_dim:
-                                        cache_model = data.get("model_id", "unknown")
-                                        logger.warning(
-                                            f"[HEATMAP] Probe cache dimension mismatch: "
-                                            f"cache={cache_dim} (model={cache_model}), "
-                                            f"session={session_dim}. Skipping {fn}.")
-                                        continue
-                                logger.info(f"[HEATMAP] Using cache: {fn}")
-                                return embs
-            return None
-
-        embs_L50 = _find_cache(subj_frac)
-        embs_L75 = _find_cache(esc_frac)
-
-        if embs_L50 is None:
-            raise RuntimeError(
-                f"No probe cache at L{int(subj_frac*100)} matches the current model "
-                f"(hidden_dim={session_dim}). Apply the probe set with the current "
-                f"model loaded to regenerate caches.")
-        if embs_L75 is None:
-            raise RuntimeError(
-                f"No probe cache at L{int(esc_frac*100)} matches the current model "
-                f"(hidden_dim={session_dim}). Apply the probe set with the current "
-                f"model loaded to regenerate caches.")
-
-        if len(embs_L50) != len(raw_probes) or len(embs_L75) != len(raw_probes):
-            raise RuntimeError(
-                f"Probe count mismatch: CSV={len(raw_probes)}, "
-                f"L50={len(embs_L50)}, L75={len(embs_L75)}. "
-                "Regenerate caches.")
+        embs_L50 = _load_at(subj_frac)
+        embs_L75 = _load_at(esc_frac)
 
         # ── Compute probe deltas ──
         if progress:

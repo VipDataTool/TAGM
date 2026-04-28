@@ -10,7 +10,11 @@ The probe-set apply flow:
    ``pre_attn_norm`` at the requested depth, and writes a JSON cache
    to ``<project_root>/probe_cache/<stem>__<safe_model>__L<frac>.json``.
 3. The active probe set is recorded in
-   ``<project_root>/probe_config.json`` (``{"active": [filename]}``).
+   ``<project_root>/probe_config.json`` as a v2 record holding the
+   ``(probe_file, model_id, depths, n_probes)`` tuple. This record IS
+   the resolver: every consumer module asks for it and reads back an
+   ``ActiveProbeSet`` object that knows exactly which cache file to
+   load. No filename heuristics, no directory scans.
 
 Cross-module callers (``engine/modules/{domain_surface,
 correction_heatmap, correction_manifold, correction_backscatter,
@@ -34,16 +38,22 @@ Embedding cache (path-addressed JSON):
     embed_and_cache_probes(model, tokenizer, adapter, project_root, probe_file,
                            model_id, layer_frac, progress, delta_matrix) -> str | None
 
-Active-set pointer:
-    get_active_probe(project_root) -> str | None
+Active-set state (single source of truth):
+    ActiveProbeSet                                              # dataclass
+    get_active_probe_set(project_root) -> ActiveProbeSet | None
+    get_active_probe(project_root) -> str | None                # legacy: filename only
+    set_active_probe(project_root, probe_file, model_id, depths, n_probes) -> None
 """
 from __future__ import annotations
 
 import csv
+import datetime as _dt
 import json
 import logging
 import os
+from dataclasses import dataclass, field
 from glob import glob
+from typing import Optional
 
 import numpy as np
 
@@ -385,28 +395,207 @@ def embed_and_cache_probes(model, tokenizer, adapter, project_root, probe_file,
     return cache_path
 
 
-# ─── Active-set pointer ────────────────────────────────────────
+# ─── Active-set state ──────────────────────────────────────────
+#
+# The active probe set is the single binding "this probe lattice belongs to
+# this model at these depths." It is persisted in probe_config.json (v2)
+# and is the authoritative resolver for every module that needs to load
+# probe embeddings: modules ask for ActiveProbeSet, then call .cache_path()
+# and .validate_against(pipeline). Filename heuristics and directory scans
+# are forbidden — caches are only located via the recorded model_id.
+#
+# Schema (v2):
+#   {
+#     "version": 2,
+#     "active": {
+#       "probe_file":  "<csv filename>",
+#       "model_id":    "<HF model id used to embed>",
+#       "depths":      [<float>, ...],
+#       "n_probes":    <int>,
+#       "applied_at":  "<ISO 8601 UTC>"
+#     }
+#   }
+#
+# Schema (v1, legacy, read-only):
+#   {"active": ["<csv filename>"]}
+#
+# A v1 record loads as an ActiveProbeSet with model_id=None and depths=(),
+# which forces validate_against() to fail with "re-Apply"; this lets users
+# upgrading from earlier TAGM see a clear remediation instead of silent
+# wrong-cache use.
 
-def get_active_probe(project_root):
-    """Read the active probe file from probe_config.json."""
+
+@dataclass(frozen=True)
+class ActiveProbeSet:
+    """The currently-applied (probe_file, model_id, depths, projected)
+    binding.
+
+    All consumers of probe embeddings must go through this object. It owns
+    cache-path resolution (so no module reinvents the filename pattern)
+    and validation against the loaded pipeline.
+
+    The ``projected`` flag records whether embeddings were projected
+    through the layer's o_proj delta at apply time (controlled by the
+    engine's ``probe_projection_space`` setting). It's part of the cache
+    identity: a projected and an unprojected cache are different artifacts
+    even for the same (probe_file, model_id, depth) triple.
+    """
+    probe_file: str
+    model_id: Optional[str]                # None for legacy v1 records
+    depths: tuple = ()                     # tuple of layer fracs (e.g. (0.5, 0.75))
+    n_probes: int = 0
+    projected: bool = False
+    applied_at: str = ""
+
+    def is_legacy(self) -> bool:
+        """True if this record came from a v1 probe_config.json that
+        didn't store the model_id. Such records cannot resolve a cache
+        unambiguously and require a re-Apply."""
+        return not self.model_id
+
+    def subject_layer_frac(self) -> float:
+        """Lowest recorded depth (the "subject" / L_low embedding).
+        Falls back to 0.50 if no depths are recorded."""
+        return float(min(self.depths)) if self.depths else 0.50
+
+    def escalation_layer_frac(self) -> float:
+        """Highest recorded depth (the "escalation" / L_high embedding).
+        Falls back to 0.75 if no depths are recorded."""
+        return float(max(self.depths)) if self.depths else 0.75
+
+    def cache_path(self, project_root: str, layer_frac: float,
+                   projected: Optional[bool] = None) -> str:
+        """Exact cache file path for this (probe, model, depth, projected)
+        tuple. Uses the recorded ``projected`` flag from the active record
+        unless the caller passes an explicit override. Raises if the active
+        set is legacy (no model_id known)."""
+        if self.is_legacy():
+            raise RuntimeError(
+                "Active probe set has no recorded model_id "
+                "(legacy probe_config.json). Re-Apply the probe set "
+                "in the Configuration → Probe Set panel.")
+        eff_proj = self.projected if projected is None else bool(projected)
+        return probe_cache_path(project_root, self.probe_file,
+                                 self.model_id, layer_frac, eff_proj)
+
+    def validate_against(self, pipeline) -> tuple:
+        """Confirm this active set is compatible with the loaded pipeline.
+
+        Returns (ok: bool, message: str). Modules should call this BEFORE
+        any cache lookup and surface the message verbatim — it tells the
+        user exactly what to do."""
+        if pipeline is None or not getattr(pipeline, "loaded", False):
+            return False, "No model loaded."
+        if self.is_legacy():
+            return False, (
+                f"Active probe set {self.probe_file!r} was applied under "
+                f"an older TAGM version that did not record the model. "
+                f"Re-Apply it in Configuration → Probe Set so this run "
+                f"can resolve the correct cache.")
+        cur = getattr(pipeline, "instruct_model_id", None)
+        if cur and cur != self.model_id:
+            return False, (
+                f"Active probe set {self.probe_file!r} was applied for "
+                f"{self.model_id!r}, but {cur!r} is currently loaded. "
+                f"Re-Apply the probe set in Configuration → Probe Set "
+                f"to embed it against the current model.")
+        return True, "OK"
+
+    def to_status_dict(self) -> dict:
+        """Public-facing dict for the /api/probe_set/status endpoint."""
+        return {
+            "probe_file": self.probe_file,
+            "model_id": self.model_id,
+            "depths": list(self.depths),
+            "n_probes": self.n_probes,
+            "projected": self.projected,
+            "applied_at": self.applied_at,
+            "legacy": self.is_legacy(),
+        }
+
+
+def get_active_probe_set(project_root) -> Optional[ActiveProbeSet]:
+    """Read the active probe set from probe_config.json.
+
+    Returns an ActiveProbeSet for v2 records (full binding) or v1 records
+    (filename-only, marked legacy via model_id=None). Returns None if no
+    record exists or the file is malformed.
+    """
     config_path = os.path.join(project_root, PROBE_CONFIG)
-    if os.path.exists(config_path):
+    if not os.path.exists(config_path):
+        return None
+    try:
+        with open(config_path) as f:
+            data = json.load(f)
+    except Exception as e:
+        logger.warning(f"[PROBES] Failed to read {PROBE_CONFIG}: {e}")
+        return None
+
+    active = data.get("active")
+    if not active:
+        return None
+
+    # v2 — active is a dict with the full binding.
+    if isinstance(active, dict):
+        probe_file = active.get("probe_file") or active.get("filename")
+        if not probe_file:
+            return None
+        depths_raw = active.get("depths") or []
         try:
-            with open(config_path) as f:
-                data = json.load(f)
-            active = data.get("active", [])
-            if active:
-                return active[0]
-        except Exception:
-            pass
+            depths = tuple(float(d) for d in depths_raw)
+        except (TypeError, ValueError):
+            depths = ()
+        return ActiveProbeSet(
+            probe_file=str(probe_file),
+            model_id=active.get("model_id") or None,
+            depths=depths,
+            n_probes=int(active.get("n_probes") or 0),
+            projected=bool(active.get("projected", False)),
+            applied_at=str(active.get("applied_at") or ""),
+        )
+
+    # v1 — active is a list of filenames; only the first is honored. Treat
+    # as legacy: no model_id recorded → forces re-Apply.
+    if isinstance(active, list) and active:
+        return ActiveProbeSet(probe_file=str(active[0]), model_id=None)
+
     return None
 
 
-def set_active_probe(project_root, filename):
-    """Write filename as the active probe set in probe_config.json."""
+def get_active_probe(project_root) -> Optional[str]:
+    """Return just the active probe CSV filename, or None.
+
+    Compatibility shim for callers that only need the filename (e.g. the
+    /api/data/export endpoint) and do not consume embeddings. New code
+    should prefer ``get_active_probe_set`` to obtain the full binding.
+    """
+    aps = get_active_probe_set(project_root)
+    return aps.probe_file if aps else None
+
+
+def set_active_probe(project_root, probe_file, model_id=None,
+                     depths=None, n_probes=0, projected=False):
+    """Write the active probe set as a v2 record.
+
+    All consumers (``embed_and_activate_probe_set`` is the only intended
+    caller in production) must supply at minimum ``probe_file`` and
+    ``model_id``; depths, n_probes, and projected round out the binding for
+    module-side cache lookup. ``model_id=None`` is permitted only to
+    satisfy unusual test scenarios — it produces a record that
+    ``validate_against`` will reject.
+    """
     config_path = os.path.join(project_root, PROBE_CONFIG)
+    record = {
+        "probe_file": probe_file,
+        "model_id": model_id,
+        "depths": [float(d) for d in (depths or [])],
+        "n_probes": int(n_probes),
+        "projected": bool(projected),
+        "applied_at": _dt.datetime.now(_dt.timezone.utc)
+                          .strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
     with open(config_path, "w") as f:
-        json.dump({"active": [filename]}, f, indent=2)
+        json.dump({"version": 2, "active": record}, f, indent=2)
 
 
 # ─── High-level: embed + activate ──────────────────────────────
@@ -494,8 +683,15 @@ def embed_and_activate_probe_set(pipeline, project_root, filename, progress=None
     if embedded == 0:
         return {"applied": False, "error": "Failed to embed probes at any depth"}
 
+    probes = load_probes(csv_path)
+    level_cols, level_names = detect_level_cols(csv_path)
+    subjects = sorted(set(p["subject"] for p in probes))
+
     try:
-        set_active_probe(project_root, filename)
+        set_active_probe(project_root, filename,
+                         model_id=model_id, depths=depths,
+                         n_probes=len(probes),
+                         projected=bool(use_proj))
     except Exception as e:
         return {"applied": False,
                 "error": f"Embedded but failed to activate: {e}"}
@@ -503,10 +699,6 @@ def embed_and_activate_probe_set(pipeline, project_root, filename, progress=None
     if progress:
         progress(f"Complete: {filename} embedded at {len(depths)} "
                  f"depth(s) and activated")
-
-    probes = load_probes(csv_path)
-    level_cols, level_names = detect_level_cols(csv_path)
-    subjects = sorted(set(p["subject"] for p in probes))
 
     return {
         "applied": True,
@@ -516,4 +708,5 @@ def embed_and_activate_probe_set(pipeline, project_root, filename, progress=None
         "n_levels": len(level_cols),
         "levels": level_names,
         "depths": [int(f * 100) for f in depths],
+        "model_id": model_id,
     }

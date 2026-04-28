@@ -2101,9 +2101,41 @@ async function loadProbeFiles(){
   try {
     var r = await(await fetch('/api/probe_set/status')).json();
     if(r.ok && r.active){
-      status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(r.filename) + '</span>'
-        + ' — ' + r.n_probes + ' probes, ' + r.n_subjects + ' subjects'
-        + (r.cached ? ' — <span style="color:var(--green)">cached</span>' : ' — <span style="color:var(--text-3)">not cached</span>');
+      // Top line: filename + probe count + cache presence.
+      var h = '<span style="color:var(--green)">✓ ' + escHtml(r.filename) + '</span>'
+            + ' — ' + r.n_probes + ' probes, ' + r.n_subjects + ' subjects'
+            + (r.cached ? ' — <span style="color:var(--green)">cached</span>'
+                        : ' — <span style="color:var(--text-3)">not cached</span>');
+
+      // Second line: the binding — which model this set was applied for,
+      // and whether it matches the currently loaded model. This is the
+      // user-visible signal that "Apply" recorded a model-bound cache.
+      if (r.legacy) {
+        h += '<br><span style="color:var(--orange);font-size:11px">'
+           + '⚠ Legacy probe_config.json record (no model recorded). '
+           + 'Re-Apply to bind this probe set to the current model.</span>';
+      } else if (r.model_id) {
+        var depthsStr = (r.depths || [])
+          .map(function(d){ return 'L' + Math.round(d * 100); }).join(', ');
+        var bindLine = '<span style="color:var(--text-2);font-size:11px">'
+          + 'Applied for <span style="color:var(--text-1)">'
+          + escHtml(r.model_id) + '</span>'
+          + (depthsStr ? ' at ' + depthsStr : '')
+          + (r.projected ? ' (projected)' : '')
+          + '</span>';
+
+        if (r.stale_for_loaded_model && r.loaded_model_id) {
+          bindLine = '<span style="color:var(--orange);font-size:11px">'
+            + '⚠ Applied for <span style="color:var(--text-1)">'
+            + escHtml(r.model_id) + '</span>, but '
+            + '<span style="color:var(--text-1)">'
+            + escHtml(r.loaded_model_id) + '</span> is currently loaded. '
+            + 'Re-Apply to embed for the current model.</span>';
+        }
+        h += '<br>' + bindLine;
+      }
+
+      status.innerHTML = h;
     } else {
       status.innerHTML = '<span style="color:var(--text-3)">No probe set active.</span>';
     }

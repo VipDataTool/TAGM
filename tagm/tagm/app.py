@@ -479,42 +479,74 @@ async def probe_apply_status():
 @app.get("/api/probe_set/status")
 async def probe_status():
     _project_root = _PACKAGE_DIR.parent
-    config_path = _project_root / "probe_config.json"
-    active = []
-    if config_path.exists():
-        try:
-            active = json.loads(config_path.read_text()).get("active", [])
-        except Exception:
-            pass
+    from tagm.probes.io import get_active_probe_set, load_probes
 
-    if not active:
+    active = get_active_probe_set(str(_project_root))
+    if active is None:
         return {"ok": True, "active": None}
 
-    filename = active[0]
-    csv_path = _project_root / filename
-    n_probes = 0
+    csv_path = _project_root / active.probe_file
+    n_probes = active.n_probes
     n_subjects = 0
-    cached = False
 
     if csv_path.exists():
         try:
-            from tagm.probes.io import load_probes
             probes = load_probes(str(csv_path))
+            # Re-derive from the live CSV — the active-record's count is
+            # what was on disk at apply time; if the file has changed we
+            # show the current count (and if it differs, the user can see
+            # the drift in the status line).
             n_probes = len(probes)
             n_subjects = len(set(p["subject"] for p in probes))
         except Exception:
             pass
 
-    cache_dir = _project_root / "probe_cache"
-    if cache_dir.exists():
-        stem = csv_path.stem
-        cached = any(f.name.startswith(stem) and f.suffix == ".json"
-                     for f in cache_dir.iterdir())
+    # Cache presence: check that the exact cache file the active record
+    # points at actually exists on disk. This is a tighter check than
+    # "any matching stem" — it confirms the binding is fulfilled.
+    cached = False
+    if not active.is_legacy() and active.depths:
+        try:
+            cache_path = active.cache_path(
+                str(_project_root), active.subject_layer_frac())
+            cached = os.path.exists(cache_path)
+        except Exception:
+            cached = False
 
-    return {
-        "ok": True, "active": True, "filename": filename,
-        "n_probes": n_probes, "n_subjects": n_subjects, "cached": cached,
+    payload = {
+        "ok": True,
+        "active": True,
+        # Core fields (kept for any older client code that still reads them).
+        "filename": active.probe_file,
+        "n_probes": n_probes,
+        "n_subjects": n_subjects,
+        "cached": cached,
+        # Rich record for the new status line.
+        "model_id": active.model_id,
+        "depths": list(active.depths),
+        "projected": active.projected,
+        "applied_at": active.applied_at,
+        "legacy": active.is_legacy(),
     }
+
+    # If the active record was applied for a model other than the one
+    # currently loaded, surface that as a structured warning the UI can
+    # render alongside the green ✓.
+    pipe = state.pipeline
+    if pipe is not None and getattr(pipe, "loaded", False):
+        payload["loaded_model_id"] = pipe.instruct_model_id
+        if (active.model_id and
+                active.model_id != pipe.instruct_model_id):
+            payload["stale_for_loaded_model"] = True
+        elif active.is_legacy():
+            payload["stale_for_loaded_model"] = True
+        else:
+            payload["stale_for_loaded_model"] = False
+    else:
+        payload["loaded_model_id"] = None
+        payload["stale_for_loaded_model"] = active.is_legacy()
+
+    return payload
 
 @app.post("/api/probe_set/clear_caches")
 async def probe_clear_caches():

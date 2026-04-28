@@ -31,7 +31,7 @@ from tagm.probes.io import (
     parse_meta,
     load_probe_cache,
     load_probes,
-    get_active_probe,
+    get_active_probe_set,
 )
 
 logger = logging.getLogger("tasm")
@@ -190,8 +190,13 @@ class CorrectionBackscatterModule(TASMModule):
         if not state.signal_layers:
             return False, "No signal layers configured."
 
-        if not get_active_probe(self._project_root):
-            return False, "No probe set active."
+        active = get_active_probe_set(self._project_root)
+        if active is None:
+            return False, ("No probe set active. Apply one in "
+                           "Configuration → Probe Set.")
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            return False, msg
 
         if not any(r.get("per_token_final_emb") for r in session_results):
             return False, "No final-layer token embeddings in session."
@@ -252,7 +257,14 @@ class CorrectionBackscatterModule(TASMModule):
             logger.info(f"[BACKSCATTER] {msg}")
 
         state = self._make_state()
-        probe_file = get_active_probe(self._project_root)
+        active = get_active_probe_set(self._project_root)
+        if active is None:
+            raise RuntimeError("No probe set active. Apply one in "
+                               "Configuration → Probe Set.")
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            raise RuntimeError(msg)
+        probe_file = active.probe_file
         aggregation = params.get("aggregation", "mean")
         primary = params.get("primary_projection", "qkv")
 
@@ -275,44 +287,28 @@ class CorrectionBackscatterModule(TASMModule):
         n_levels = len(level_cols)
         subj_idx = {s: i for i, s in enumerate(subjects)}
 
-        # ── Load probe embeddings ──
-        prog("Loading probe embeddings...")
-        meta = parse_meta(csv_path)
-        if "layer_low" in meta:
-            subj_frac = max(0, min(1, float(meta["layer_low"])))
-        else:
-            try:
-                from tagm.engine import config as engine_config
-                subj_frac = max(0, min(1,
-                    engine_config.get("domain_embedding_layer_frac") or 0.50))
-            except Exception:
-                subj_frac = 0.50
-
-        cache_dir = os.path.join(self._project_root, "probe_cache")
-        stem = os.path.splitext(probe_file)[0]
-
-        probe_embs_raw = None
-        if os.path.isdir(cache_dir):
-            tag = f"__L{int(subj_frac * 100)}"
-            candidates = sorted(os.listdir(cache_dir))
-            non_proj = [fn for fn in candidates
-                        if fn.startswith(stem) and tag in fn
-                        and fn.endswith(".json") and "_proj.json" not in fn]
-            proj = [fn for fn in candidates
-                    if fn.startswith(stem) and tag in fn
-                    and fn.endswith(".json") and "_proj.json" in fn]
-            for fn in non_proj + proj:
-                data = load_probe_cache(os.path.join(cache_dir, fn))
-                if data and data.get("embeddings"):
-                    embs = data["embeddings"]
-                    if len(embs) == len(raw_probes):
-                        logger.info(f"[BACKSCATTER] Using cache: {fn}")
-                        probe_embs_raw = embs
-                        break
-
-        if probe_embs_raw is None:
+        # ── Load probe embeddings via the active-set resolver ──
+        # subject_layer_frac() is whatever depth was actually embedded at
+        # apply time — recorded in probe_config.json. The cache path is
+        # exact; no directory scan, no alphabetical first-match. If the
+        # cache is missing or stale the resolver tells the user to
+        # re-Apply.
+        subj_frac = active.subject_layer_frac()
+        prog(f"Loading probe embeddings at L{int(subj_frac * 100)}...")
+        cache_path = active.cache_path(self._project_root, subj_frac)
+        data = load_probe_cache(cache_path)
+        if not data or not data.get("embeddings"):
             raise RuntimeError(
-                f"No probe cache for {probe_file} with {len(raw_probes)} probes.")
+                f"Probe cache not found at {cache_path}. The active probe "
+                f"set claims it should exist; re-Apply the probe set in "
+                f"Configuration → Probe Set to regenerate it.")
+        probe_embs_raw = data["embeddings"]
+        if len(probe_embs_raw) != len(raw_probes):
+            raise RuntimeError(
+                f"Probe count mismatch in {cache_path}: cache has "
+                f"{len(probe_embs_raw)}, CSV has {len(raw_probes)}. "
+                f"Re-Apply the probe set to refresh.")
+        logger.info(f"[BACKSCATTER] Using cache: {os.path.basename(cache_path)}")
 
         probe_mat = np.array(probe_embs_raw, dtype=np.float32)
         n_probes = probe_mat.shape[0]
@@ -687,6 +683,13 @@ class CorrectionBackscatterModule(TASMModule):
                                          if pk in decomposition],
                 "global_probe_mean": round(global_probe_mean, 6),
                 "global_probe_std": round(global_probe_std, 6),
+                # Active-set provenance: record exactly which cache was
+                # consumed and which model the resolver bound to. Useful
+                # in module-log JSON for after-the-fact debugging when a
+                # user looks at last week's run and asks "wait, which
+                # probe cache did this come from?"
+                "probe_cache_used": os.path.basename(cache_path),
+                "active_probe_model_id": active.model_id,
             },
         }
 

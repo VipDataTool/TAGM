@@ -33,7 +33,7 @@ from tagm.probes.io import (
     probe_cache_path,
     load_probe_cache,
     embed_and_cache_probes,
-    get_active_probe,
+    get_active_probe_set,
 )
 
 logger = logging.getLogger("tasm")
@@ -362,10 +362,16 @@ class DomainSurfaceModule(TASMModule):
     def __init__(self):
         super().__init__()
         self._project_root = None
+        self._pipeline = None
 
     def set_project_root(self, root):
         """Set project root."""
         self._project_root = root
+
+    def set_pipeline(self, pipeline):
+        """Receive the pipeline reference so validate() can confirm the
+        active probe set was applied for the currently loaded model."""
+        self._pipeline = pipeline
 
     @property
     def parameters(self):
@@ -463,22 +469,31 @@ class DomainSurfaceModule(TASMModule):
                 "Re-run analysis to capture domain embeddings."
             )
 
-        # Check active probe
-        probe_file = get_active_probe(self._project_root)
-        if not probe_file:
+        active = get_active_probe_set(self._project_root)
+        if active is None:
             return False, (
                 "No probe set active. Apply a probe set in the "
                 "Configuration tab first."
             )
-        path = os.path.join(self._project_root, probe_file)
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            return False, msg
+        path = os.path.join(self._project_root, active.probe_file)
         if not os.path.exists(path):
-            return False, f"Active probe file not found: {probe_file}"
+            return False, f"Active probe file not found: {active.probe_file}"
 
         return True, "OK"
 
     def run(self, session_results, params, progress=None):
         """Execute domain surface analysis using pre-computed embeddings."""
-        probe_file = get_active_probe(self._project_root)
+        active = get_active_probe_set(self._project_root)
+        if active is None:
+            raise RuntimeError("No probe set active. Apply one in "
+                               "Configuration → Probe Set.")
+        ok, msg = active.validate_against(self._pipeline)
+        if not ok:
+            raise RuntimeError(msg)
+        probe_file = active.probe_file
         top_tokens = params.get("top_tokens", 30)
         min_appearances = params.get("min_appearances", 2)
         pca_components = params.get("pca_components", 2)
@@ -526,41 +541,35 @@ class DomainSurfaceModule(TASMModule):
         # so observations reference correct prompts
         session_subset = [session_results[i] for i in valid_indices]
 
-        # Load cached probe embeddings
+        # ── Cached probe embeddings via the active-set resolver ──
         if progress:
             progress("Loading cached probe embeddings...")
-        probe_embs = self._load_probe_embeddings(probe_file, session_results)
+        probe_embs = self._load_probe_embeddings(active)
         if probe_embs is None:
             raise RuntimeError(
-                "Probe embeddings not found. Either enable "
-                "'precompute_probe_caches' in config and reload the model, "
-                "or click 'Regenerate Caches' in the module panel."
+                f"Probe cache missing for {active.probe_file!r} at "
+                f"L{int(active.subject_layer_frac()*100)}. Re-Apply the "
+                f"probe set in Configuration → Probe Set to regenerate it."
             )
 
         if len(probe_embs) != len(probes):
             raise RuntimeError(
                 f"Probe embedding count ({len(probe_embs)}) does not match "
                 f"probe count ({len(probes)}). Cache may be stale — "
-                f"reload the model to regenerate."
+                f"Re-Apply the probe set to regenerate."
             )
 
         probe_embs = np.array(probe_embs)
 
         # Load escalation-layer probe embeddings (for split-depth ring assignment)
-        try:
-            from tagm.engine import config as _ec
-            esc_frac = _ec.get("domain_escalation_layer_frac") or 0.75
-            subj_frac = _ec.get("domain_embedding_layer_frac") or 0.50
-        except Exception:
-            esc_frac = 0.75
-            subj_frac = 0.50
+        subj_frac = active.subject_layer_frac()
+        esc_frac = active.escalation_layer_frac()
 
         esc_probe_embs = None
         if esc_frac != subj_frac:
             if progress:
                 progress("Loading escalation-layer probe embeddings...")
-            esc_raw = self._load_probe_embeddings(
-                probe_file, session_results, layer_frac=esc_frac)
+            esc_raw = self._load_probe_embeddings(active, layer_frac=esc_frac)
             if esc_raw is not None and len(esc_raw) == len(probes):
                 esc_probe_embs = np.array(esc_raw)
                 logger.info(f"[DOMAIN] Split-depth: escalation probes from "
@@ -703,83 +712,41 @@ class DomainSurfaceModule(TASMModule):
 
         return output
 
-    def _load_probe_embeddings(self, probe_file, session_results,
-                               layer_frac=None):
-        """Load cached probe embeddings matching the current model and layer config.
+    def _load_probe_embeddings(self, active, layer_frac=None):
+        """Load cached probe embeddings via the active-set resolver.
 
-        Scans the probe cache directory for matching files. Prefers caches
-        that match the specified layer_frac (defaults to domain_embedding_layer_frac).
-        Validates embedding dimensions against session data to prevent
-        crosstalk when switching between models of different sizes.
-        Tries all candidates until one passes validation.
+        Resolves the cache path exactly from (probe_file, model_id,
+        layer_frac, projected) — no directory scanning. The active-set
+        encodes the binding established at apply time, so this is the
+        only sound way to find the right cache.
 
         Args:
-            layer_frac: Override which layer depth to match. If None, uses
-                domain_embedding_layer_frac from engine config.
+            active: ActiveProbeSet from get_active_probe_set().
+            layer_frac: Layer depth to load. Defaults to the active
+                set's subject depth.
+
+        Returns the embeddings list, or None if the cache file is
+        missing on disk.
         """
-        if not self._project_root:
+        if active is None:
             return None
-
-        cache_dir = os.path.join(self._project_root, PROBE_CACHE_DIR)
-        if not os.path.isdir(cache_dir):
-            return None
-
-        stem = os.path.splitext(probe_file)[0]
-        candidates = sorted(glob(os.path.join(cache_dir, f"{stem}__*.json")))
-        if not candidates:
-            return None
-
-        # Determine target layer frac
         if layer_frac is None:
-            try:
-                from tagm.engine import config as engine_config
-                layer_frac = max(0, min(1, engine_config.get("domain_embedding_layer_frac") or 0.50))
-            except Exception:
-                layer_frac = 0.50
+            layer_frac = active.subject_layer_frac()
 
-        # Check projection mode
-        try:
-            from tagm.engine import config as _ec
-            use_proj = _ec.get("probe_projection_space")
-        except Exception:
-            use_proj = False
-        proj_tag = "_proj" if use_proj else ""
-        layer_tag = f"__L{int(layer_frac * 100)}{proj_tag}.json"
+        cache_path = active.cache_path(self._project_root, layer_frac)
+        cache = load_probe_cache(cache_path)
+        if cache is None:
+            logger.warning(
+                f"[DOMAIN] Probe cache missing at {cache_path}. "
+                f"Re-Apply the probe set to regenerate it.")
+            return None
 
-        # Order: layer-matched candidates first, then others
-        matched = [c for c in candidates if layer_tag in c]
-        unmatched = [c for c in candidates if layer_tag not in c]
-        ordered = matched + unmatched
+        embs = cache.get("embeddings", [])
+        if not embs:
+            return None
 
-        # Determine session embedding dimension for validation
-        session_dim = None
-        for r in session_results:
-            de = r.get("domain_embedding")
-            if de and len(de) > 0:
-                session_dim = len(de)
-                break
-
-        # Try each candidate until one passes dimension validation
-        for cache_path in ordered:
-            cache = load_probe_cache(cache_path)
-            if cache is None:
-                continue
-
-            probe_embs = cache.get("embeddings", [])
-            if probe_embs and session_dim is not None:
-                probe_dim = len(probe_embs[0])
-                if probe_dim != session_dim:
-                    logger.warning(f"[DOMAIN] Probe cache dimension mismatch: "
-                                   f"cache={probe_dim}, session={session_dim}. "
-                                   f"Skipping {os.path.basename(cache_path)}.")
-                    continue
-
-            logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
-                         f"(model={cache.get('model_id', '?')}, "
-                         f"layer={cache.get('layer', '?')}, "
-                         f"frac={cache.get('layer_frac', '?')})")
-            return probe_embs
-
-        logger.warning(f"[DOMAIN] No valid probe cache found for dimension {session_dim}. "
-                       f"Re-run with the current model to regenerate.")
-        return None
+        logger.info(f"[DOMAIN] Using probe cache: {os.path.basename(cache_path)} "
+                    f"(model={cache.get('model_id', '?')}, "
+                    f"layer={cache.get('layer', '?')}, "
+                    f"frac={cache.get('layer_frac', '?')})")
+        return embs
