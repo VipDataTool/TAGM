@@ -2838,6 +2838,8 @@ function renderModuleResults(name, results) {
     container.innerHTML = renderCorrectionHeatmapResults(results);
   } else if (name === 'correction_backscatter') {
     container.innerHTML = renderCorrectionBackscatterResults(results);
+  } else if (name === 'correction_prism') {
+    container.innerHTML = renderCorrectionPrismResults(results);
   } else if (name === 'mechanistic_interpretability') {
     container.innerHTML = renderMIResults(results);
   } else if (name === 'correction_field_topology') {
@@ -4038,6 +4040,313 @@ function renderCorrectionBackscatterResults(r) {
 
   h += '</div>';
   return h;
+}
+
+// ─── Correction Prism Results Renderer ──────────────────────────
+//
+// Renders the signed heatmap from correction_prism. Each cell carries
+// a signed scalar (sum of per-probe responses by default); positive =
+// the correction excites the probes in that cell, negative = it opposes
+// them. Diverging blue↔white↔red colormap with autoscale ±vmax so
+// white sits at exactly zero.
+//
+// The per-cell composition panel exposes the dispersion that the cell
+// scalar hides — n_excited / n_opposed / n_neutral counts and the
+// individual probe responses, sortable.
+
+function renderCorrectionPrismResults(r) {
+  var h = '<div class="mod-results">';
+  var subjects = r.subjects || [];
+  var levels = r.levels || [];
+  var subjShort = r.subj_short || subjects;
+  var agg = r.aggregate || [];
+  var variance = r.variance || [];
+  var cellDetails = r.cell_details || {};
+  var cfg = r.config || {};
+  var decomp = r.decomposition || {};
+  var circOrder = r.circuit_order || [];
+  var circLabels = r.circuit_labels || {};
+  var diag = r.diagnostic || {ok: true};
+  var primary = r.primary_circuit || cfg.circuit || 'full';
+
+  // Failure banner.
+  if (diag.ok === false) {
+    h += '<div style="margin:8px 12px;padding:12px 14px;border:1px solid #D55E00;border-radius:6px;background:rgba(213,94,0,0.08);color:var(--text-0);font-size:12px;line-height:1.5">';
+    h += '<div style="font-weight:600;color:#E69F00;margin-bottom:4px">⚠ Prism failed to compute</div>';
+    h += '<div>' + escHtml(diag.message || '') + '</div>';
+    h += '</div>';
+  }
+
+  // Symmetric scale around zero so white = exactly 0.
+  function divergingScale(grid) {
+    var vmax = 0;
+    for (var si = 0; si < grid.length; si++) {
+      var row = grid[si] || [];
+      for (var li = 0; li < row.length; li++) {
+        var a = Math.abs(row[li] || 0);
+        if (a > vmax) vmax = a;
+      }
+    }
+    if (vmax < 1e-10) vmax = 1e-10;
+    return {vmax: vmax};
+  }
+
+  // Blue (negative) ↔ neutral (zero) ↔ red (positive).
+  // RGB stops chosen to match the existing dark-themed UI palette.
+  function divergingColor(val, sc) {
+    var t = Math.max(-1, Math.min(1, val / sc.vmax));
+    if (t > 0) {
+      // 0 → near-bg, 1 → saturated red
+      var r1 = Math.round(30 + t * 200);
+      var g1 = Math.round(30 + t * 30);
+      var b1 = Math.round(36 + t * 20);
+      return 'rgb(' + r1 + ',' + g1 + ',' + b1 + ')';
+    }
+    if (t < 0) {
+      // 0 → near-bg, -1 → saturated blue
+      var s = -t;
+      var r2 = Math.round(30 + s * 30);
+      var g2 = Math.round(30 + s * 80);
+      var b2 = Math.round(36 + s * 200);
+      return 'rgb(' + r2 + ',' + g2 + ',' + b2 + ')';
+    }
+    return 'rgb(30,30,36)';
+  }
+
+  function divergingTextColor(val, sc) {
+    var t = Math.abs(val) / sc.vmax;
+    return t > 0.45 ? '#fff' : 'var(--text-2)';
+  }
+
+  // Render one signed heatmap. Cells are clickable and emit a JS call
+  // to popDetail(si, li) — defined later — so the user can drill in.
+  function renderHeatmap(grid, sc, digits, makeCellId) {
+    var th = '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+    th += '<tr><th style="padding:3px 6px"></th>';
+    for (var li = 0; li < levels.length; li++) {
+      th += '<th style="padding:3px 5px;color:var(--text-2);font-weight:500;text-align:center;font-size:9px">'
+          + escHtml(levels[li]) + '</th>';
+    }
+    th += '</tr>';
+    for (var si = 0; si < subjects.length; si++) {
+      th += '<tr>';
+      th += '<td style="padding:3px 6px;color:var(--text-1);font-weight:600;text-align:left;font-size:9px;white-space:nowrap">'
+          + escHtml(subjShort[si]) + '</td>';
+      for (var li = 0; li < levels.length; li++) {
+        var val = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
+        var bg = divergingColor(val, sc);
+        var tc = divergingTextColor(val, sc);
+        var cellId = makeCellId ? makeCellId(si, li) : '';
+        var clickable = cellId
+          ? ' onclick="prismShowCell(\'' + cellId + '\')" style="cursor:pointer;'
+          : ' style="';
+        th += '<td' + clickable
+            + 'padding:3px 5px;text-align:center;background:' + bg
+            + ';color:' + tc + ';font-size:9px">'
+            + (val >= 0 ? '+' : '') + val.toFixed(digits) + '</td>';
+      }
+      th += '</tr>';
+    }
+    th += '</table>';
+    return th;
+  }
+
+  // Color legend strip showing the diverging scale.
+  function renderLegend(sc) {
+    var stops = '';
+    var n = 11;
+    for (var i = 0; i < n; i++) {
+      var v = -sc.vmax + (2 * sc.vmax * i / (n - 1));
+      stops += '<div style="flex:1;height:8px;background:'
+            + divergingColor(v, sc) + '"></div>';
+    }
+    var leg = '<div style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--text-2);font-family:var(--mono);margin-top:4px;max-width:240px">';
+    leg += '<div style="display:flex">' + stops + '</div>';
+    leg += '<div style="display:flex;justify-content:space-between">';
+    leg += '<span>−' + sc.vmax.toFixed(3) + ' (opposed)</span>';
+    leg += '<span>0</span>';
+    leg += '<span>+' + sc.vmax.toFixed(3) + ' (excited)</span>';
+    leg += '</div></div>';
+    return leg;
+  }
+
+  // ── Top header: primary heatmap ──
+  var primaryAgg = (decomp[primary] && decomp[primary].aggregate) || agg;
+  var primarySc = divergingScale(primaryAgg);
+
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+  h += 'Prism Heatmap — ' + escHtml(circLabels[primary] || primary);
+  h += '</div>';
+  h += '<div class="mod-results-body">';
+  h += '<div style="padding:10px;display:flex;flex-direction:column;gap:8px">';
+  h += '<div style="font-size:11px;color:var(--text-2);line-height:1.5">';
+  h += 'Each cell is the <b>' + escHtml(cfg.cell_aggregation || 'sum') + '</b> of '
+     + 'signed probe responses in that (subject, level). ';
+  h += '<span style="color:#ff6060">Red</span> = correction excites the cell\'s probes; ';
+  h += '<span style="color:#6090ff">blue</span> = correction opposes them. ';
+  h += 'Click a cell to see its probe composition.';
+  h += '</div>';
+  h += renderHeatmap(primaryAgg, primarySc, 3,
+      function(si, li){ return si + '_' + li; });
+  h += renderLegend(primarySc);
+  h += '</div></div>';
+
+  // ── Decomposition: all circuits side by side ──
+  if (circOrder.length > 1) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+    h += 'Circuit Decomposition (' + circOrder.length + ' circuits)';
+    h += '</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
+    circOrder.forEach(function(ck) {
+      var d = decomp[ck];
+      if (!d) return;
+      var dAgg = d.aggregate || [];
+      var sc = divergingScale(dAgg);
+      var label = circLabels[ck] || ck;
+      var isBaseline = (ck === '_baseline');
+      h += '<div style="min-width:200px">';
+      h += '<div style="font-size:11px;font-weight:600;color:'
+         + (isBaseline ? 'var(--text-2)' : 'var(--cyan)')
+         + ';margin-bottom:4px">'
+         + escHtml(isBaseline ? 'Baseline (ΔW = I)' : label) + '</div>';
+      h += renderHeatmap(dAgg, sc, 3, null);
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  // ── Cell detail panel (populated dynamically when a cell is clicked) ──
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Cell Composition</div>';
+  h += '<div class="mod-results-body" id="prism-cell-panel">';
+  h += '<div style="padding:10px;color:var(--text-3);font-size:11px;font-style:italic">'
+     + 'Click any cell in the heatmap above to inspect its probes.</div>';
+  h += '</div>';
+
+  // Stash cell details on window so prismShowCell can find them.
+  // JSON-encoded once at render time; small enough to inline.
+  h += '<script>window.__prismCells = '
+     + JSON.stringify(cellDetails).replace(/</g, '\\u003c')
+     + ';window.__prismSubjects = ' + JSON.stringify(subjects)
+     + ';window.__prismLevels = ' + JSON.stringify(levels)
+     + ';</script>';
+
+  // ── Per-subject summary ──
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
+  h += '<div class="mod-results-body">';
+  h += '<table class="data-table" style="width:100%;font-size:11px">';
+  h += '<tr><th style="text-align:left">Subject</th>'
+     + '<th>Mean (signed)</th><th>Mean |val|</th><th>Max |val|</th>'
+     + '<th style="color:#ff6060">N excited</th>'
+     + '<th style="color:#6090ff">N opposed</th></tr>';
+  var ps = r.per_subject || {};
+  subjects.forEach(function(subj) {
+    var s = ps[subj] || {};
+    var meanS = s.mean_signed || 0;
+    h += '<tr>';
+    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">'
+       + escHtml(subj.replace(/_/g, ' ')) + '</td>';
+    h += '<td style="color:'
+       + (meanS > 0.05 ? '#ff8060' : meanS < -0.05 ? '#6090ff' : 'var(--text-2)')
+       + '">' + (meanS >= 0 ? '+' : '') + meanS.toFixed(4) + '</td>';
+    h += '<td>' + (s.mean_abs || 0).toFixed(4) + '</td>';
+    h += '<td>' + (s.max_abs || 0).toFixed(4) + '</td>';
+    h += '<td style="color:#ff6060">' + (s.n_excited || 0) + '</td>';
+    h += '<td style="color:#6090ff">' + (s.n_opposed || 0) + '</td>';
+    h += '</tr>';
+  });
+  h += '</table></div>';
+
+  // ── Configuration ──
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Configuration</div>';
+  h += '<div class="mod-results-body collapsed">';
+  h += '<div style="padding:10px;font-size:10px;color:var(--text-2);line-height:1.8;font-family:var(--mono)">';
+  h += 'Circuit: <span style="color:var(--text-1)">' + escHtml(cfg.circuit || primary) + '</span> · ';
+  h += 'Beam reduction: <span style="color:var(--text-1)">' + escHtml(cfg.beam_reduction || 'mean') + '</span> · ';
+  h += 'Prism metric: <span style="color:var(--text-1)">' + escHtml(cfg.prism_metric || 'signed_cosine') + '</span> · ';
+  h += 'Cell agg: <span style="color:var(--text-1)">' + escHtml(cfg.cell_aggregation || 'sum') + '</span> · ';
+  h += 'Prompt agg: <span style="color:var(--text-1)">' + escHtml(cfg.prompt_aggregation || 'mean') + '</span><br>';
+  h += 'L_low: <span style="color:var(--text-1)">' + ((cfg.L_low || 0.5) * 100).toFixed(0) + '%</span> · ';
+  h += 'L_high: <span style="color:var(--text-1)">' + ((cfg.L_high || 0.75) * 100).toFixed(0) + '%</span> · ';
+  h += 'Layers: <span style="color:var(--text-1)">' + (cfg.n_signal_layers || 0) + '</span> · ';
+  h += 'd_model: <span style="color:var(--text-1)">' + (cfg.model_dim || 0) + '</span> · ';
+  h += 'Degenerate probes: <span style="color:var(--text-1)">' + (cfg.n_probes_degenerate || 0) + '</span><br>';
+  if (cfg.probe_cache_used) {
+    h += 'Caches: <span style="color:var(--text-1)">'
+       + escHtml(cfg.probe_cache_used.L_low || '?') + ', '
+       + escHtml(cfg.probe_cache_used.L_high || '?') + '</span>';
+  }
+  if (cfg.active_probe_model_id) {
+    h += '<br>Model: <span style="color:var(--text-1)">'
+       + escHtml(cfg.active_probe_model_id) + '</span>';
+  }
+  h += '</div></div>';
+
+  h += '</div>';
+  return h;
+}
+
+// Click-handler for prism cells. Fills the Cell Composition panel with
+// the probes of the clicked cell, sorted by |response|.
+function prismShowCell(cellKey) {
+  var panel = document.getElementById('prism-cell-panel');
+  if (!panel) return;
+  var cells = window.__prismCells || {};
+  var cell = cells[cellKey];
+  if (!cell) {
+    panel.innerHTML = '<div style="padding:10px;color:var(--text-3)">No data for cell ' + cellKey + '.</div>';
+    return;
+  }
+
+  var parts = cellKey.split('_');
+  var si = parseInt(parts[0], 10);
+  var li = parseInt(parts[1], 10);
+  var subj = (window.__prismSubjects || [])[si] || ('subject ' + si);
+  var lvl = (window.__prismLevels || [])[li] || ('level ' + li);
+
+  var probes = (cell.probes || []).slice().sort(function(a, b) {
+    return Math.abs(b.response || 0) - Math.abs(a.response || 0);
+  });
+
+  var v = cell.cell_value || 0;
+  var html = '<div style="padding:10px;font-size:11px">';
+  html += '<div style="margin-bottom:6px">';
+  html += '<b>' + escHtml(subj.replace(/_/g, ' ')) + ' / ' + escHtml(lvl) + '</b> · ';
+  html += 'cell value <span style="color:'
+       + (v > 0 ? '#ff8060' : v < 0 ? '#6090ff' : 'var(--text-2)')
+       + ';font-family:var(--mono)">' + (v >= 0 ? '+' : '') + v.toFixed(4) + '</span>';
+  html += '</div>';
+
+  html += '<div style="font-size:10px;color:var(--text-2);margin-bottom:6px;line-height:1.5">';
+  html += 'Probes: ' + (cell.n_probes || 0) + ' active';
+  if (cell.n_probes_degenerate) html += ' (' + cell.n_probes_degenerate + ' degenerate filtered)';
+  html += ' · <span style="color:#ff6060">' + (cell.n_excited || 0) + ' excited</span>';
+  html += ' · <span style="color:#6090ff">' + (cell.n_opposed || 0) + ' opposed</span>';
+  html += ' · <span style="color:var(--text-3)">' + (cell.n_neutral || 0) + ' neutral</span>';
+  html += '<br>response range [' + (cell.probe_response_min || 0).toFixed(4)
+       +  ', ' + (cell.probe_response_max || 0).toFixed(4) + ']';
+  html += ' · median ' + (cell.probe_response_median || 0).toFixed(4);
+  html += ' · variance ' + (cell.cell_variance || 0).toFixed(6);
+  html += '</div>';
+
+  html += '<table class="data-table" style="width:100%;font-size:10px;font-family:var(--mono)">';
+  html += '<tr><th style="text-align:left">Probe</th><th>Response</th><th>Direction</th></tr>';
+  probes.forEach(function(p) {
+    var resp = p.response || 0;
+    var color = (p.direction === 'excited') ? '#ff6060'
+              : (p.direction === 'opposed') ? '#6090ff'
+              : 'var(--text-3)';
+    html += '<tr>';
+    html += '<td style="text-align:left;color:var(--text-1)">' + escHtml(p.text || ('#' + p.probe_idx)) + '</td>';
+    html += '<td style="color:' + color + '">' + (resp >= 0 ? '+' : '') + resp.toFixed(4) + '</td>';
+    html += '<td style="color:' + color + '">' + escHtml(p.direction || '—') + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div>';
+
+  panel.innerHTML = html;
+  // Make sure the panel is open.
+  panel.classList.remove('collapsed');
 }
 
 // ─── Comparative Analysis Results Renderer ──────────────────────
