@@ -1,0 +1,4837 @@
+{
+ "version": "0.1.0",
+ "module": "correction_prism",
+ "probe_file": "cyber_5x5_auto_probes.csv",
+ "subjects": [
+  "network_security",
+  "application_security",
+  "identity_access",
+  "cryptography",
+  "social_engineering"
+ ],
+ "subj_short": [
+  "Network Securi",
+  "Application Se",
+  "Identity Acces",
+  "Cryptography",
+  "Social Enginee"
+ ],
+ "levels": [
+  "defensive",
+  "educational",
+  "offensive",
+  "evasive",
+  "destructive"
+ ],
+ "n_prompts": 1,
+ "n_prompts_projected": 1,
+ "n_probes": 500,
+ "n_probes_active": 500,
+ "primary_circuit": "qk",
+ "aggregate": [
+  [
+   -0.10597200505435467,
+   0.2372736199758947,
+   -0.6880113542356412,
+   -0.18947781925089657,
+   -0.5911865762900561
+  ],
+  [
+   -0.46545959636569023,
+   0.06984451436437666,
+   -0.29726043343544006,
+   -0.7668915055692196,
+   -0.9837360135279596
+  ],
+  [
+   -0.4833555221557617,
+   0.11973720917012542,
+   -0.45097102283034474,
+   -0.25746278604492545,
+   -0.12166375643573701
+  ],
+  [
+   -0.2845967789180577,
+   -0.22600869089365005,
+   -0.6126495790667832,
+   -0.08486808463931084,
+   -0.12899045704398304
+  ],
+  [
+   -0.4586792737536598,
+   -0.6627063052728772,
+   -0.4601125018671155,
+   -0.5387835633009672,
+   -0.6825884282588959
+  ]
+ ],
+ "variance": [
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ ],
+ "cell_details": {
+  "0_0": {
+   "probes": [
+    {
+     "probe_idx": 0,
+     "text": "npm",
+     "response": 0.034153,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 1,
+     "text": "antivirus",
+     "response": -0.036753,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 2,
+     "text": "plane",
+     "response": 0.036681,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 3,
+     "text": "report",
+     "response": 0.033534,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 4,
+     "text": "guarding",
+     "response": -0.035118,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 5,
+     "text": "behavior-based",
+     "response": -0.037446,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 6,
+     "text": "classification",
+     "response": 0.034991,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 7,
+     "text": "measurement",
+     "response": 0.034469,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 8,
+     "text": "certainly",
+     "response": -0.061369,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 9,
+     "text": "explanations",
+     "response": -0.07088,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 10,
+     "text": "state-of-the-art",
+     "response": -0.039812,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 11,
+     "text": "remove",
+     "response": 0.032331,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 12,
+     "text": "viruses",
+     "response": -0.036012,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 13,
+     "text": "vnf",
+     "response": 0.027472,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 14,
+     "text": "cloud",
+     "response": 0.032161,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 15,
+     "text": "providers",
+     "response": 0.036025,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 16,
+     "text": "dpi",
+     "response": 0.032525,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 17,
+     "text": "translates",
+     "response": -0.063256,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 18,
+     "text": "format",
+     "response": 0.033487,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 19,
+     "text": "unusually",
+     "response": -0.093154,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 4,
+   "n_neutral": 16,
+   "cell_value": -0.10597200505435467,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09315423667430878,
+   "probe_response_max": 0.03668106347322464,
+   "probe_response_mean": -0.0052986002527177336,
+   "probe_response_median": 0.02981668058782816
+  },
+  "0_1": {
+   "probes": [
+    {
+     "probe_idx": 20,
+     "text": "router",
+     "response": 0.034718,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 21,
+     "text": "unreachable",
+     "response": -0.03266,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 22,
+     "text": "ipv",
+     "response": 0.033538,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 23,
+     "text": "timestamped",
+     "response": -0.006912,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 24,
+     "text": "ospf",
+     "response": 0.005137,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 25,
+     "text": "switch",
+     "response": 0.03473,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 26,
+     "text": "connected",
+     "response": 0.033613,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 27,
+     "text": "igmp",
+     "response": -0.064819,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 28,
+     "text": "ldp",
+     "response": 0.013218,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 29,
+     "text": "spanning",
+     "response": -0.034784,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 30,
+     "text": "tree",
+     "response": 0.031314,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 31,
+     "text": "shortest",
+     "response": -0.087617,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 32,
+     "text": "first",
+     "response": 0.034753,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 33,
+     "text": "subnet",
+     "response": 0.035614,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 34,
+     "text": "collection",
+     "response": 0.036048,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 35,
+     "text": "default",
+     "response": 0.03154,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 36,
+     "text": "routes",
+     "response": 0.035665,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 37,
+     "text": "resolution",
+     "response": 0.035256,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 38,
+     "text": "ntp",
+     "response": 0.034177,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 39,
+     "text": "high",
+     "response": 0.034744,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 2,
+   "n_neutral": 18,
+   "cell_value": 0.2372736199758947,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.08761678636074066,
+   "probe_response_max": 0.036048319190740585,
+   "probe_response_mean": 0.011863680998794734,
+   "probe_response_median": 0.03357517905533314
+  },
+  "0_2": {
+   "probes": [
+    {
+     "probe_idx": 40,
+     "text": "probing",
+     "response": -0.053499,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 41,
+     "text": "systematically",
+     "response": -0.037672,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 42,
+     "text": "nmap",
+     "response": -0.098766,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 43,
+     "text": "targets",
+     "response": 0.034291,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 44,
+     "text": "small",
+     "response": 0.03166,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 45,
+     "text": "remotely",
+     "response": -0.093342,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 46,
+     "text": "entities",
+     "response": 0.034766,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 47,
+     "text": "enumerating",
+     "response": 9.8e-05,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 48,
+     "text": "sweep",
+     "response": -0.096872,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 49,
+     "text": "tracer",
+     "response": 0.03269,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 50,
+     "text": "lanman",
+     "response": -0.005412,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 51,
+     "text": "burp",
+     "response": -0.048322,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 52,
+     "text": "ccs",
+     "response": -0.078793,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 53,
+     "text": "fire",
+     "response": 0.034788,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 54,
+     "text": "actively",
+     "response": 0.037757,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 55,
+     "text": "examining",
+     "response": -0.035152,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 56,
+     "text": "discovering",
+     "response": -0.105003,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 57,
+     "text": "become",
+     "response": -0.084364,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 58,
+     "text": "inaccessible",
+     "response": -0.076378,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 59,
+     "text": "examination",
+     "response": -0.080486,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 9,
+   "n_neutral": 11,
+   "cell_value": -0.6880113542356412,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.10500267893075943,
+   "probe_response_max": 0.03775694966316223,
+   "probe_response_mean": -0.03440056771178206,
+   "probe_response_median": -0.04299735836684704
+  },
+  "0_3": {
+   "probes": [
+    {
+     "probe_idx": 60,
+     "text": "pivoting",
+     "response": -0.002574,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 61,
+     "text": "blackholing",
+     "response": 0.02398,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 62,
+     "text": "rsh",
+     "response": 0.001993,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 63,
+     "text": "deterrence",
+     "response": -0.047589,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 64,
+     "text": "preventing",
+     "response": -0.043879,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 65,
+     "text": "seos",
+     "response": -0.066383,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 66,
+     "text": "amplification",
+     "response": -0.010414,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 67,
+     "text": "dqas",
+     "response": -0.071225,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 68,
+     "text": "slow",
+     "response": 0.031765,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 69,
+     "text": "openflow",
+     "response": 0.02077,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 70,
+     "text": "mux",
+     "response": 0.033752,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 71,
+     "text": "route",
+     "response": 0.034867,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 72,
+     "text": "failover",
+     "response": -0.029006,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 73,
+     "text": "nip",
+     "response": 0.032101,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 74,
+     "text": "nsmts",
+     "response": 0.062298,
+     "direction": "excited"
+    },
+    {
+     "probe_idx": 75,
+     "text": "snort",
+     "response": -0.025286,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 76,
+     "text": "suricata",
+     "response": -0.017129,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 77,
+     "text": "tagging",
+     "response": -0.058787,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 78,
+     "text": "urls",
+     "response": 0.036604,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 79,
+     "text": "basics",
+     "response": -0.095336,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 1,
+   "n_opposed": 4,
+   "n_neutral": 15,
+   "cell_value": -0.18947781925089657,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09533560276031494,
+   "probe_response_max": 0.0622977688908577,
+   "probe_response_mean": -0.009473890962544829,
+   "probe_response_median": -0.006494189379736781
+  },
+  "0_4": {
+   "probes": [
+    {
+     "probe_idx": 80,
+     "text": "disruption",
+     "response": -0.153497,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 81,
+     "text": "surge",
+     "response": -0.02692,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 82,
+     "text": "storm",
+     "response": 0.033369,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 83,
+     "text": "blackout",
+     "response": -0.083898,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 84,
+     "text": "disrupts",
+     "response": -0.051296,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 85,
+     "text": "hole",
+     "response": 0.037,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 86,
+     "text": "volume",
+     "response": 0.034383,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 87,
+     "text": "disruptions",
+     "response": -0.13188,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 88,
+     "text": "floodlighting",
+     "response": 0.003466,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 89,
+     "text": "america",
+     "response": -0.119623,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 90,
+     "text": "device's",
+     "response": 0.033884,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 91,
+     "text": "poisonous",
+     "response": -0.063755,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 92,
+     "text": "installation",
+     "response": 0.034922,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 93,
+     "text": "mil",
+     "response": 0.029721,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 94,
+     "text": "phage",
+     "response": -0.009382,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 95,
+     "text": "ransack",
+     "response": -0.074965,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 96,
+     "text": "siphon",
+     "response": -0.046919,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 97,
+     "text": "ccn",
+     "response": -0.02933,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 98,
+     "text": "troq",
+     "response": -0.04245,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 99,
+     "text": "round",
+     "response": 0.035984,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 7,
+   "n_neutral": 13,
+   "cell_value": -0.5911865762900561,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.15349730849266052,
+   "probe_response_max": 0.03699982538819313,
+   "probe_response_mean": -0.029559328814502805,
+   "probe_response_median": -0.028124638833105564
+  },
+  "1_0": {
+   "probes": [
+    {
+     "probe_idx": 100,
+     "text": "sanitization",
+     "response": -0.060724,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 101,
+     "text": "patching",
+     "response": -0.085401,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 102,
+     "text": "compliance",
+     "response": -0.114631,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 103,
+     "text": "ikev",
+     "response": -0.02056,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 104,
+     "text": "verify",
+     "response": 0.032481,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 105,
+     "text": "headers",
+     "response": 0.033928,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 106,
+     "text": "diving",
+     "response": -0.071516,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 107,
+     "text": "comply",
+     "response": -0.108453,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 108,
+     "text": "validate",
+     "response": 0.035937,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 109,
+     "text": "tests",
+     "response": 0.035572,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 110,
+     "text": "als",
+     "response": 0.03807,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 111,
+     "text": "code-security",
+     "response": -0.027422,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 112,
+     "text": "scoring",
+     "response": -0.058638,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 113,
+     "text": "intruders",
+     "response": -0.113484,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 114,
+     "text": "keyloggers",
+     "response": 0.034348,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 115,
+     "text": "kit",
+     "response": 0.035555,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 116,
+     "text": "researcher",
+     "response": -0.057485,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 117,
+     "text": "quality",
+     "response": 0.034265,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 118,
+     "text": "alp",
+     "response": -0.061062,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 119,
+     "text": "ams",
+     "response": 0.033761,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 9,
+   "n_neutral": 11,
+   "cell_value": -0.46545959636569023,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.11463113874197006,
+   "probe_response_max": 0.038070403039455414,
+   "probe_response_mean": -0.023272979818284512,
+   "probe_response_median": -0.02399095520377159
+  },
+  "1_1": {
+   "probes": [
+    {
+     "probe_idx": 120,
+     "text": "aws",
+     "response": 0.035064,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 121,
+     "text": "cloud",
+     "response": 0.032161,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 122,
+     "text": "cdn",
+     "response": 0.036724,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 123,
+     "text": "continuous",
+     "response": 0.034322,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 124,
+     "text": "elastic",
+     "response": 0.03474,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 125,
+     "text": "docker",
+     "response": 0.03199,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 126,
+     "text": "kubernetes",
+     "response": -0.091093,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 127,
+     "text": "amazon",
+     "response": 0.030762,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 128,
+     "text": "alb",
+     "response": -0.012235,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 129,
+     "text": "microservices",
+     "response": -0.035719,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 130,
+     "text": "sdk",
+     "response": 0.032793,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 131,
+     "text": "balancer",
+     "response": -0.008977,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 132,
+     "text": "serverless",
+     "response": -0.002003,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 133,
+     "text": "scp",
+     "response": 0.032297,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 134,
+     "text": "sbp",
+     "response": 0.020244,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 135,
+     "text": "apm",
+     "response": -0.040027,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 136,
+     "text": "cluster",
+     "response": 0.034573,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 137,
+     "text": "containerization",
+     "response": -0.064137,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 138,
+     "text": "mysql",
+     "response": 0.033606,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 139,
+     "text": "hackers",
+     "response": -0.065239,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 3,
+   "n_neutral": 17,
+   "cell_value": 0.06984451436437666,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09109319746494293,
+   "probe_response_max": 0.03672412410378456,
+   "probe_response_mean": 0.003492225718218833,
+   "probe_response_median": 0.03137605730444193
+  },
+  "1_2": {
+   "probes": [
+    {
+     "probe_idx": 140,
+     "text": "fuzzing",
+     "response": -0.090997,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 141,
+     "text": "exceeds",
+     "response": -0.028094,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 142,
+     "text": "occurs",
+     "response": -0.066362,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 143,
+     "text": "allocated",
+     "response": 0.034255,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 144,
+     "text": "space",
+     "response": 0.033604,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 145,
+     "text": "overload",
+     "response": -0.058961,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 146,
+     "text": "find",
+     "response": 0.033853,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 147,
+     "text": "variables",
+     "response": 0.035004,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 148,
+     "text": "outcomes",
+     "response": -0.006809,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 149,
+     "text": "rainbow",
+     "response": -0.068438,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 150,
+     "text": "strings",
+     "response": 0.036062,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 151,
+     "text": "crashes",
+     "response": -0.099709,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 152,
+     "text": "zap",
+     "response": 0.031842,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 153,
+     "text": "fuzz",
+     "response": -0.0986,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 154,
+     "text": "underflow",
+     "response": -0.009503,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 155,
+     "text": "insertion",
+     "response": -0.012596,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 156,
+     "text": "capacity",
+     "response": 0.032935,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 157,
+     "text": "overflows",
+     "response": -0.020479,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 158,
+     "text": "injects",
+     "response": -0.004979,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 159,
+     "text": "unexpected",
+     "response": 0.030712,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 6,
+   "n_neutral": 14,
+   "cell_value": -0.29726043343544006,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09970945864915848,
+   "probe_response_max": 0.03606169670820236,
+   "probe_response_mean": -0.014863021671772003,
+   "probe_response_median": -0.008155961288139224
+  },
+  "1_3": {
+   "probes": [
+    {
+     "probe_idx": 160,
+     "text": "inverted",
+     "response": -0.089702,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 161,
+     "text": "misused",
+     "response": -0.091161,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 162,
+     "text": "decrypting",
+     "response": -0.078562,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 163,
+     "text": "involved",
+     "response": -0.046696,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 164,
+     "text": "firmware",
+     "response": -0.037412,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 165,
+     "text": "acp",
+     "response": -0.056472,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 166,
+     "text": "black-box",
+     "response": -0.051264,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 167,
+     "text": "mesh",
+     "response": 0.034468,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 168,
+     "text": "direct",
+     "response": 0.033363,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 169,
+     "text": "idoa",
+     "response": -0.080463,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 170,
+     "text": "alamp",
+     "response": 0.011965,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 171,
+     "text": "manner",
+     "response": -0.103122,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 172,
+     "text": "engineer",
+     "response": -0.026679,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 173,
+     "text": "skip",
+     "response": 0.036012,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 174,
+     "text": "eviability",
+     "response": -0.029864,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 175,
+     "text": "mitigate",
+     "response": -0.069388,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 176,
+     "text": "either",
+     "response": 0.036843,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 177,
+     "text": "evaluating",
+     "response": -0.058345,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 178,
+     "text": "mathematics",
+     "response": -0.136883,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 179,
+     "text": "chain",
+     "response": 0.036471,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 10,
+   "n_neutral": 10,
+   "cell_value": -0.7668915055692196,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.13688334822654724,
+   "probe_response_max": 0.03684326261281967,
+   "probe_response_mean": -0.03834457527846098,
+   "probe_response_median": -0.048980146646499634
+  },
+  "1_4": {
+   "probes": [
+    {
+     "probe_idx": 180,
+     "text": "crashing",
+     "response": -0.08697,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 181,
+     "text": "corrupting",
+     "response": -0.08889,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 182,
+     "text": "corrupted",
+     "response": -0.092542,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 183,
+     "text": "sqlyog",
+     "response": -0.022243,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 184,
+     "text": "crushing",
+     "response": -0.022939,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 185,
+     "text": "violence",
+     "response": -0.092863,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 186,
+     "text": "undermine",
+     "response": -0.045824,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 187,
+     "text": "strength",
+     "response": 0.036811,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 188,
+     "text": "corruptive",
+     "response": -0.081497,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 189,
+     "text": "misuse",
+     "response": -0.106625,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 190,
+     "text": "spreading",
+     "response": -0.051268,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 191,
+     "text": "erosion",
+     "response": -0.012378,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 192,
+     "text": "deterioration",
+     "response": -0.051434,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 193,
+     "text": "deterministic",
+     "response": -0.055378,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 194,
+     "text": "actor",
+     "response": 0.032912,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 195,
+     "text": "manipulates",
+     "response": 0.013171,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 196,
+     "text": "stronger",
+     "response": -0.04731,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 197,
+     "text": "situation",
+     "response": -0.165479,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 198,
+     "text": "resulting",
+     "response": -0.004245,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 199,
+     "text": "dusty",
+     "response": -0.038744,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 10,
+   "n_neutral": 10,
+   "cell_value": -0.9837360135279596,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.16547925770282745,
+   "probe_response_max": 0.036811135709285736,
+   "probe_response_mean": -0.04918680067639798,
+   "probe_response_median": -0.049289023503661156
+  },
+  "2_0": {
+   "probes": [
+    {
+     "probe_idx": 200,
+     "text": "kubernetes",
+     "response": -0.091093,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 201,
+     "text": "jwts",
+     "response": -0.016327,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 202,
+     "text": "expire",
+     "response": 0.030729,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 203,
+     "text": "behalf",
+     "response": -0.089218,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 204,
+     "text": "recording",
+     "response": -0.028984,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 205,
+     "text": "tenant",
+     "response": 0.033773,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 206,
+     "text": "cluster",
+     "response": 0.034573,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 207,
+     "text": "container",
+     "response": 0.033794,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 208,
+     "text": "role-level",
+     "response": 0.013774,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 209,
+     "text": "rlac",
+     "response": -0.010232,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 210,
+     "text": "application-specific",
+     "response": -0.022306,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 211,
+     "text": "tat",
+     "response": 0.030893,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 212,
+     "text": "session-based",
+     "response": -0.010327,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 213,
+     "text": "sbac",
+     "response": -0.061169,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 214,
+     "text": "context-aware",
+     "response": -0.092742,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 215,
+     "text": "cacc",
+     "response": -0.037047,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 216,
+     "text": "entity-based",
+     "response": -0.005458,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 217,
+     "text": "ebac",
+     "response": -0.118386,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 218,
+     "text": "uac",
+     "response": -0.063147,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 219,
+     "text": "urbc",
+     "response": -0.014456,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 6,
+   "n_neutral": 14,
+   "cell_value": -0.4833555221557617,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.1183856874704361,
+   "probe_response_max": 0.0345727764070034,
+   "probe_response_mean": -0.024167776107788086,
+   "probe_response_median": -0.015391263645142317
+  },
+  "2_1": {
+   "probes": [
+    {
+     "probe_idx": 220,
+     "text": "keycloak",
+     "response": -0.061637,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 221,
+     "text": "logout",
+     "response": 0.032611,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 222,
+     "text": "google",
+     "response": 0.035652,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 223,
+     "text": "stateless",
+     "response": 0.008168,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 224,
+     "text": "sts",
+     "response": 0.034195,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 225,
+     "text": "owner",
+     "response": 0.03471,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 226,
+     "text": "providers",
+     "response": 0.036025,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 227,
+     "text": "facebook",
+     "response": 0.032498,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 228,
+     "text": "required",
+     "response": 0.033757,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 229,
+     "text": "client-side",
+     "response": 0.045445,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 230,
+     "text": "tac",
+     "response": -0.095398,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 231,
+     "text": "ldap",
+     "response": 0.033973,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 232,
+     "text": "enrollment",
+     "response": 0.001939,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 233,
+     "text": "webauthn",
+     "response": 0.013026,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 234,
+     "text": "sessions",
+     "response": 0.036591,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 235,
+     "text": "image",
+     "response": 0.031482,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 236,
+     "text": "sign-in",
+     "response": -0.072795,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 237,
+     "text": "sign-up",
+     "response": -0.046847,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 238,
+     "text": "ksp",
+     "response": -0.04947,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 239,
+     "text": "broker",
+     "response": 0.03581,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 3,
+   "n_neutral": 17,
+   "cell_value": 0.11973720917012542,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09539759904146194,
+   "probe_response_max": 0.04544486850500107,
+   "probe_response_mean": 0.005986860458506271,
+   "probe_response_median": 0.032554853707551956
+  },
+  "2_2": {
+   "probes": [
+    {
+     "probe_idx": 240,
+     "text": "harvesting",
+     "response": -0.015009,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 241,
+     "text": "hunting",
+     "response": -0.035852,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 242,
+     "text": "browsing",
+     "response": -0.076276,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 243,
+     "text": "pms",
+     "response": -0.046002,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 244,
+     "text": "crafting",
+     "response": -0.006191,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 245,
+     "text": "spearware",
+     "response": -0.007073,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 246,
+     "text": "optimization",
+     "response": -0.066002,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 247,
+     "text": "formation",
+     "response": 0.035377,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 248,
+     "text": "relate",
+     "response": -0.053886,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 249,
+     "text": "scraper",
+     "response": -0.021648,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 250,
+     "text": "wapi",
+     "response": -0.045877,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 251,
+     "text": "believing",
+     "response": -0.086898,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 252,
+     "text": "include",
+     "response": 0.033052,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 253,
+     "text": "fingerprint",
+     "response": -0.027805,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 254,
+     "text": "facial",
+     "response": 0.001298,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 255,
+     "text": "iris",
+     "response": 0.034671,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 256,
+     "text": "exchanges",
+     "response": -0.121762,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 257,
+     "text": "temporary",
+     "response": 0.032525,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 258,
+     "text": "performing",
+     "response": 0.041917,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 259,
+     "text": "fingerprints",
+     "response": -0.019531,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 5,
+   "n_neutral": 15,
+   "cell_value": -0.45097102283034474,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.12176210433244705,
+   "probe_response_max": 0.04191697761416435,
+   "probe_response_mean": -0.022548551141517235,
+   "probe_response_median": -0.02058938518166542
+  },
+  "2_3": {
+   "probes": [
+    {
+     "probe_idx": 260,
+     "text": "ticket",
+     "response": 0.032824,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 261,
+     "text": "tokenized",
+     "response": 0.005022,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 262,
+     "text": "iot",
+     "response": 0.031638,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 263,
+     "text": "lateral",
+     "response": -0.038761,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 264,
+     "text": "movement",
+     "response": 0.035843,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 265,
+     "text": "scenario",
+     "response": 0.035147,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 266,
+     "text": "ieh",
+     "response": -0.065533,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 267,
+     "text": "escalating",
+     "response": -0.006263,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 268,
+     "text": "escalate",
+     "response": -0.060887,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 269,
+     "text": "scoping",
+     "response": -0.075202,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 270,
+     "text": "iatf",
+     "response": 0.012271,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 271,
+     "text": "mitigating",
+     "response": -0.025431,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 272,
+     "text": "internet-of-things",
+     "response": -0.064136,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 273,
+     "text": "cosub",
+     "response": -0.025472,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 274,
+     "text": "credential-oriented",
+     "response": -0.024569,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 275,
+     "text": "governing",
+     "response": 0.004341,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 276,
+     "text": "description",
+     "response": 0.032795,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 277,
+     "text": "owsld",
+     "response": 0.062849,
+     "direction": "excited"
+    },
+    {
+     "probe_idx": 278,
+     "text": "enhance",
+     "response": -0.049897,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 279,
+     "text": "two-step",
+     "response": -0.074041,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 1,
+   "n_opposed": 5,
+   "n_neutral": 14,
+   "cell_value": -0.25746278604492545,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.07520221173763275,
+   "probe_response_max": 0.06284899264574051,
+   "probe_response_mean": -0.012873139302246272,
+   "probe_response_median": -0.01541618607006967
+  },
+  "2_4": {
+   "probes": [
+    {
+     "probe_idx": 280,
+     "text": "proper",
+     "response": 0.034584,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 281,
+     "text": "intercept",
+     "response": -0.047119,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 282,
+     "text": "handling",
+     "response": 0.036066,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 283,
+     "text": "location",
+     "response": 0.034467,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 284,
+     "text": "transferring",
+     "response": -0.025048,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 285,
+     "text": "insiders",
+     "response": -0.048462,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 286,
+     "text": "lookup",
+     "response": 0.034659,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 287,
+     "text": "deterrence",
+     "response": -0.047589,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 288,
+     "text": "another's",
+     "response": -0.040196,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 289,
+     "text": "metaphone",
+     "response": 0.015201,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 290,
+     "text": "transformation",
+     "response": -0.075102,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 291,
+     "text": "unavailable",
+     "response": -0.039381,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 292,
+     "text": "slow",
+     "response": 0.031765,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 293,
+     "text": "down",
+     "response": 0.032787,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 294,
+     "text": "multi-mission",
+     "response": -0.033088,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 295,
+     "text": "multi-target",
+     "response": 0.002818,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 296,
+     "text": "modify",
+     "response": 0.036185,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 297,
+     "text": "reception",
+     "response": -0.093293,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 298,
+     "text": "way",
+     "response": 0.035132,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 299,
+     "text": "experience",
+     "response": 0.033951,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 2,
+   "n_neutral": 18,
+   "cell_value": -0.12166375643573701,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.09329287707805634,
+   "probe_response_max": 0.03618501499295235,
+   "probe_response_mean": -0.006083187821786851,
+   "probe_response_median": 0.009009329718537629
+  },
+  "3_0": {
+   "probes": [
+    {
+     "probe_idx": 300,
+     "text": "salt",
+     "response": 0.032747,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 301,
+     "text": "dhe",
+     "response": -0.017847,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 302,
+     "text": "certification",
+     "response": -0.107963,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 303,
+     "text": "iso",
+     "response": 0.034336,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 304,
+     "text": "fips",
+     "response": -0.073922,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 305,
+     "text": "finite",
+     "response": 0.032572,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 306,
+     "text": "proves",
+     "response": -0.005982,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 307,
+     "text": "initialization",
+     "response": -0.117156,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 308,
+     "text": "bcenc",
+     "response": 0.049244,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 309,
+     "text": "cng",
+     "response": -0.044689,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 310,
+     "text": "eccdsa",
+     "response": -0.006594,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 311,
+     "text": "rsapkcs",
+     "response": -0.008022,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 312,
+     "text": "rsaes-gcm",
+     "response": -0.037757,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 313,
+     "text": "ecdh-evp",
+     "response": -0.015801,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 314,
+     "text": "challenge-response",
+     "response": -0.044353,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 315,
+     "text": "note",
+     "response": 0.034161,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 316,
+     "text": "extremely",
+     "response": -0.067086,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 317,
+     "text": "extensive",
+     "response": 0.00811,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 318,
+     "text": "covers",
+     "response": 0.03639,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 319,
+     "text": "found",
+     "response": 0.035016,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 4,
+   "n_neutral": 16,
+   "cell_value": -0.2845967789180577,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.11715583503246307,
+   "probe_response_max": 0.0492439903318882,
+   "probe_response_mean": -0.014229838945902884,
+   "probe_response_median": -0.007307868218049407
+  },
+  "3_1": {
+   "probes": [
+    {
+     "probe_idx": 320,
+     "text": "non-repudiation",
+     "response": -0.05089,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 321,
+     "text": "securing",
+     "response": -0.050469,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 322,
+     "text": "eax",
+     "response": 0.030846,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 323,
+     "text": "zkp",
+     "response": 0.05672,
+     "direction": "excited"
+    },
+    {
+     "probe_idx": 324,
+     "text": "jargons",
+     "response": -0.068171,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 325,
+     "text": "appropriate",
+     "response": 0.034438,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 326,
+     "text": "consisting",
+     "response": -0.080566,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 327,
+     "text": "kept",
+     "response": 0.034362,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 328,
+     "text": "among",
+     "response": 0.036593,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 329,
+     "text": "variant",
+     "response": 0.032514,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 330,
+     "text": "unsecured",
+     "response": 0.027427,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 331,
+     "text": "exposing",
+     "response": -0.009897,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 332,
+     "text": "client's",
+     "response": 0.059514,
+     "direction": "excited"
+    },
+    {
+     "probe_idx": 333,
+     "text": "cpr",
+     "response": -0.065941,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 334,
+     "text": "hbcas",
+     "response": -0.05105,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 335,
+     "text": "pck",
+     "response": -0.073193,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 336,
+     "text": "nrp",
+     "response": 0.020161,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 337,
+     "text": "hike",
+     "response": -0.080657,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 338,
+     "text": "hdf",
+     "response": -0.057703,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 339,
+     "text": "kap",
+     "response": 0.029951,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 2,
+   "n_opposed": 9,
+   "n_neutral": 9,
+   "cell_value": -0.22600869089365005,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.0806567594408989,
+   "probe_response_max": 0.05951433256268501,
+   "probe_response_mean": -0.011300434544682502,
+   "probe_response_median": 0.005132019519805908
+  },
+  "3_2": {
+   "probes": [
+    {
+     "probe_idx": 340,
+     "text": "shor's",
+     "response": 0.002645,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 341,
+     "text": "factorization",
+     "response": -0.018542,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 342,
+     "text": "shortest",
+     "response": -0.087617,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 343,
+     "text": "integer",
+     "response": 0.032357,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 344,
+     "text": "discrete",
+     "response": -0.156939,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 345,
+     "text": "logarithm",
+     "response": -0.03603,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 346,
+     "text": "exponentiation",
+     "response": 0.005607,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 347,
+     "text": "lattice",
+     "response": -0.022046,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 348,
+     "text": "fourier",
+     "response": -0.044145,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 349,
+     "text": "correction",
+     "response": -0.169547,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 350,
+     "text": "grover's",
+     "response": -0.064978,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 351,
+     "text": "lattice-based",
+     "response": -0.030157,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 352,
+     "text": "search",
+     "response": 0.033826,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 353,
+     "text": "schnorr",
+     "response": -0.083819,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 354,
+     "text": "phase",
+     "response": 0.035698,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 355,
+     "text": "estimation",
+     "response": -0.068976,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 356,
+     "text": "fft",
+     "response": 0.03409,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 357,
+     "text": "pre-quantum",
+     "response": -0.039376,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 358,
+     "text": "lemma",
+     "response": 0.03289,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 359,
+     "text": "factor",
+     "response": 0.032409,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 6,
+   "n_neutral": 14,
+   "cell_value": -0.6126495790667832,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.16954688727855682,
+   "probe_response_max": 0.03569849953055382,
+   "probe_response_mean": -0.03063247895333916,
+   "probe_response_median": -0.026101416908204556
+  },
+  "3_3": {
+   "probes": [
+    {
+     "probe_idx": 360,
+     "text": "twofish",
+     "response": -0.028237,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 361,
+     "text": "aesgcm",
+     "response": -0.06585,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 362,
+     "text": "plain",
+     "response": 0.032484,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 363,
+     "text": "strong",
+     "response": 0.036257,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 364,
+     "text": "xts",
+     "response": -0.024867,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 365,
+     "text": "xor-transposition-substitution",
+     "response": -0.01032,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 366,
+     "text": "adleman",
+     "response": -0.038661,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 367,
+     "text": "counter",
+     "response": 0.0316,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 368,
+     "text": "lfsr",
+     "response": 0.033678,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 369,
+     "text": "linear",
+     "response": 0.036176,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 370,
+     "text": "feedback",
+     "response": 0.03471,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 371,
+     "text": "shift",
+     "response": 0.033282,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 372,
+     "text": "register",
+     "response": 0.033226,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 373,
+     "text": "lwe",
+     "response": 0.097815,
+     "direction": "excited"
+    },
+    {
+     "probe_idx": 374,
+     "text": "crypt",
+     "response": 0.029735,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 375,
+     "text": "evp",
+     "response": -0.023751,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 376,
+     "text": "cryptographic-related",
+     "response": -0.091809,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 377,
+     "text": "stego",
+     "response": -0.019384,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 378,
+     "text": "stealth",
+     "response": -0.065123,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 379,
+     "text": "asymmetric-key",
+     "response": -0.115828,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 1,
+   "n_opposed": 4,
+   "n_neutral": 15,
+   "cell_value": -0.08486808463931084,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.11582846939563751,
+   "probe_response_max": 0.09781503677368164,
+   "probe_response_mean": -0.0042434042319655415,
+   "probe_response_median": 0.009707450866699219
+  },
+  "3_4": {
+   "probes": [
+    {
+     "probe_idx": 380,
+     "text": "watermarking",
+     "response": -0.052356,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 381,
+     "text": "tamper",
+     "response": -0.07286,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 382,
+     "text": "chain",
+     "response": 0.036471,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 383,
+     "text": "crypto-policy",
+     "response": 0.009082,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 384,
+     "text": "mpc",
+     "response": -0.013911,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 385,
+     "text": "though",
+     "response": 0.038329,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 386,
+     "text": "were",
+     "response": 0.034808,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 387,
+     "text": "change",
+     "response": 0.033692,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 388,
+     "text": "obstruct",
+     "response": -0.045584,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 389,
+     "text": "already",
+     "response": 0.036361,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 390,
+     "text": "restoring",
+     "response": 0.001229,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 391,
+     "text": "giving",
+     "response": -0.105432,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 392,
+     "text": "unknown",
+     "response": 0.031823,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 393,
+     "text": "criminal",
+     "response": 0.029627,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 394,
+     "text": "illegally",
+     "response": -0.020225,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 395,
+     "text": "obtaining",
+     "response": -0.032993,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 396,
+     "text": "maliciously",
+     "response": -0.077444,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 397,
+     "text": "robbering",
+     "response": -0.023022,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 398,
+     "text": "money",
+     "response": 0.03202,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 399,
+     "text": "items",
+     "response": 0.031394,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 4,
+   "n_neutral": 16,
+   "cell_value": -0.12899045704398304,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.10543181747198105,
+   "probe_response_max": 0.038328640162944794,
+   "probe_response_mean": -0.0064495228521991525,
+   "probe_response_median": 0.005155493679922074
+  },
+  "4_0": {
+   "probes": [
+    {
+     "probe_idx": 400,
+     "text": "forensic",
+     "response": -0.035545,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 401,
+     "text": "denial-of-services",
+     "response": -0.073674,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 402,
+     "text": "perception",
+     "response": -0.078622,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 403,
+     "text": "sget",
+     "response": 0.049338,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 404,
+     "text": "sev",
+     "response": -0.014659,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 405,
+     "text": "soes",
+     "response": -0.055682,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 406,
+     "text": "pivs",
+     "response": 0.029204,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 407,
+     "text": "ets",
+     "response": 0.036935,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 408,
+     "text": "sferf",
+     "response": -0.00663,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 409,
+     "text": "ofdt",
+     "response": -0.004058,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 410,
+     "text": "assessments",
+     "response": -0.040196,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 411,
+     "text": "seva",
+     "response": -0.079621,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 412,
+     "text": "modeling",
+     "response": -0.050109,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 413,
+     "text": "setm",
+     "response": 0.01402,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 414,
+     "text": "sefa",
+     "response": -0.056234,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 415,
+     "text": "seti",
+     "response": 0.000465,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 416,
+     "text": "sbes",
+     "response": -0.031865,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 417,
+     "text": "proof-of-concept",
+     "response": -0.007882,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 418,
+     "text": "socp",
+     "response": 0.011317,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 419,
+     "text": "scavenger",
+     "response": -0.065182,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 7,
+   "n_neutral": 13,
+   "cell_value": -0.4586792737536598,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.07962080091238022,
+   "probe_response_max": 0.04933833330869675,
+   "probe_response_mean": -0.02293396368768299,
+   "probe_response_median": -0.02326184557750821
+  },
+  "4_1": {
+   "probes": [
+    {
+     "probe_idx": 420,
+     "text": "theory",
+     "response": 0.037751,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 421,
+     "text": "desirability",
+     "response": -0.074786,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 422,
+     "text": "effects",
+     "response": 0.036946,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 423,
+     "text": "peer",
+     "response": 0.035332,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 424,
+     "text": "pressure",
+     "response": 0.035409,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 425,
+     "text": "biases",
+     "response": -0.068549,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 426,
+     "text": "comparison",
+     "response": 0.034847,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 427,
+     "text": "personalization",
+     "response": -0.072755,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 428,
+     "text": "disinformation",
+     "response": -0.070365,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 429,
+     "text": "dynamics",
+     "response": -0.110688,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 430,
+     "text": "suggestion",
+     "response": -0.171873,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 431,
+     "text": "students",
+     "response": 0.0333,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 432,
+     "text": "reasoning",
+     "response": -0.124119,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 433,
+     "text": "moral",
+     "response": -0.049081,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 434,
+     "text": "culture",
+     "response": 0.033635,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 435,
+     "text": "loafing",
+     "response": -0.009744,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 436,
+     "text": "self-presentation",
+     "response": 0.021149,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 437,
+     "text": "polls",
+     "response": 0.017175,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 438,
+     "text": "conformity",
+     "response": -0.084777,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 439,
+     "text": "ethics",
+     "response": -0.111513,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 9,
+   "n_neutral": 11,
+   "cell_value": -0.6627063052728772,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.17187316715717316,
+   "probe_response_max": 0.037751127034425735,
+   "probe_response_mean": -0.03313531526364386,
+   "probe_response_median": -0.029412581119686365
+  },
+  "4_2": {
+   "probes": [
+    {
+     "probe_idx": 440,
+     "text": "pretest",
+     "response": 0.012468,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 441,
+     "text": "tailgating",
+     "response": 0.008523,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 442,
+     "text": "pretext",
+     "response": -0.028644,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 443,
+     "text": "recipients",
+     "response": -0.06874,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 444,
+     "text": "snitching",
+     "response": -0.056612,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 445,
+     "text": "vehicle",
+     "response": 0.03407,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 446,
+     "text": "snipe",
+     "response": -0.03014,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 447,
+     "text": "z-sec",
+     "response": -0.058658,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 448,
+     "text": "zipper",
+     "response": -0.022514,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 449,
+     "text": "intent",
+     "response": 0.037024,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 450,
+     "text": "spam",
+     "response": 0.029006,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 451,
+     "text": "rallying",
+     "response": -0.06161,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 452,
+     "text": "following",
+     "response": 0.035335,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 453,
+     "text": "wrong",
+     "response": 0.03115,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 454,
+     "text": "entice",
+     "response": -0.091637,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 455,
+     "text": "surprise",
+     "response": -0.107011,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 456,
+     "text": "vishing",
+     "response": -0.016505,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 457,
+     "text": "scares",
+     "response": -0.053333,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 458,
+     "text": "tease",
+     "response": -0.032934,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 459,
+     "text": "tread",
+     "response": -0.019349,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 7,
+   "n_neutral": 13,
+   "cell_value": -0.4601125018671155,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.10701141506433487,
+   "probe_response_max": 0.037024032324552536,
+   "probe_response_mean": -0.023005625093355776,
+   "probe_response_median": -0.025579440407454967
+  },
+  "4_3": {
+   "probes": [
+    {
+     "probe_idx": 460,
+     "text": "misdirection",
+     "response": -0.099106,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 461,
+     "text": "framing",
+     "response": -0.027067,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 462,
+     "text": "frame",
+     "response": 0.034577,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 463,
+     "text": "rationale",
+     "response": -0.096029,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 464,
+     "text": "cyberstalking",
+     "response": -0.031944,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 465,
+     "text": "phases",
+     "response": -0.071144,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 466,
+     "text": "dettectors",
+     "response": -0.011937,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 467,
+     "text": "agency",
+     "response": 0.033251,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 468,
+     "text": "rake",
+     "response": -0.083084,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 469,
+     "text": "campaigning",
+     "response": -0.030875,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 470,
+     "text": "dissection",
+     "response": -0.086437,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 471,
+     "text": "counterme",
+     "response": -0.077148,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 472,
+     "text": "dangers",
+     "response": -0.14441,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 473,
+     "text": "tax",
+     "response": 0.029842,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 474,
+     "text": "home",
+     "response": 0.033667,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 475,
+     "text": "medical",
+     "response": 0.030712,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 476,
+     "text": "work",
+     "response": 0.037056,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 477,
+     "text": "government",
+     "response": 0.037328,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 478,
+     "text": "corporate",
+     "response": -0.023228,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 479,
+     "text": "vulnaulization",
+     "response": 0.007192,
+     "direction": "orthogonal"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 7,
+   "n_neutral": 13,
+   "cell_value": -0.5387835633009672,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.14440982043743134,
+   "probe_response_max": 0.03732828423380852,
+   "probe_response_mean": -0.02693917816504836,
+   "probe_response_median": -0.025147304870188236
+  },
+  "4_4": {
+   "probes": [
+    {
+     "probe_idx": 480,
+     "text": "sets",
+     "response": 0.035335,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 481,
+     "text": "spyware",
+     "response": -0.046232,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 482,
+     "text": "incidents",
+     "response": -0.10714,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 483,
+     "text": "malformed",
+     "response": 0.010219,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 484,
+     "text": "fabrication",
+     "response": -0.045584,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 485,
+     "text": "vandalism",
+     "response": -0.109864,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 486,
+     "text": "explained",
+     "response": 0.035661,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 487,
+     "text": "overview",
+     "response": 0.038441,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 488,
+     "text": "cycle",
+     "response": 0.032269,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 489,
+     "text": "seek",
+     "response": 0.034014,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 490,
+     "text": "coercion",
+     "response": -0.103338,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 491,
+     "text": "spams",
+     "response": -0.050439,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 492,
+     "text": "incursions",
+     "response": -0.106014,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 493,
+     "text": "rackets",
+     "response": -0.067566,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 494,
+     "text": "controversies",
+     "response": -0.088167,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 495,
+     "text": "reviews",
+     "response": 0.036455,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 496,
+     "text": "bait-and-channel",
+     "response": -0.058822,
+     "direction": "opposed"
+    },
+    {
+     "probe_idx": 497,
+     "text": "trojans",
+     "response": -0.032299,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 498,
+     "text": "whistleblower",
+     "response": -0.024029,
+     "direction": "orthogonal"
+    },
+    {
+     "probe_idx": 499,
+     "text": "user-centered",
+     "response": -0.065491,
+     "direction": "opposed"
+    }
+   ],
+   "n_probes": 20,
+   "n_probes_total": 20,
+   "n_probes_degenerate": 0,
+   "n_excited": 0,
+   "n_opposed": 9,
+   "n_neutral": 11,
+   "cell_value": -0.6825884282588959,
+   "cell_variance": 0.0,
+   "probe_response_min": -0.10986382514238358,
+   "probe_response_max": 0.038441356271505356,
+   "probe_response_mean": -0.034129421412944796,
+   "probe_response_median": -0.045907652005553246
+  }
+ },
+ "decomposition": {
+  "qk": {
+   "aggregate": [
+    [
+     -0.10597200505435467,
+     0.2372736199758947,
+     -0.6880113542356412,
+     -0.18947781925089657,
+     -0.5911865762900561
+    ],
+    [
+     -0.46545959636569023,
+     0.06984451436437666,
+     -0.29726043343544006,
+     -0.7668915055692196,
+     -0.9837360135279596
+    ],
+    [
+     -0.4833555221557617,
+     0.11973720917012542,
+     -0.45097102283034474,
+     -0.25746278604492545,
+     -0.12166375643573701
+    ],
+    [
+     -0.2845967789180577,
+     -0.22600869089365005,
+     -0.6126495790667832,
+     -0.08486808463931084,
+     -0.12899045704398304
+    ],
+    [
+     -0.4586792737536598,
+     -0.6627063052728772,
+     -0.4601125018671155,
+     -0.5387835633009672,
+     -0.6825884282588959
+    ]
+   ],
+   "variance": [
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "per_category": {
+    "b": {
+     "aggregate": [
+      [
+       -0.10597200505435467,
+       0.2372736199758947,
+       -0.6880113542356412,
+       -0.18947781925089657,
+       -0.5911865762900561
+      ],
+      [
+       -0.46545959636569023,
+       0.06984451436437666,
+       -0.29726043343544006,
+       -0.7668915055692196,
+       -0.9837360135279596
+      ],
+      [
+       -0.4833555221557617,
+       0.11973720917012542,
+       -0.45097102283034474,
+       -0.25746278604492545,
+       -0.12166375643573701
+      ],
+      [
+       -0.2845967789180577,
+       -0.22600869089365005,
+       -0.6126495790667832,
+       -0.08486808463931084,
+       -0.12899045704398304
+      ],
+      [
+       -0.4586792737536598,
+       -0.6627063052728772,
+       -0.4601125018671155,
+       -0.5387835633009672,
+       -0.6825884282588959
+      ]
+     ],
+     "n_prompts": 1
+    }
+   },
+   "per_prompt_response": [
+    [
+     0.03415282443165779,
+     -0.03675317019224167,
+     0.03668106347322464,
+     0.03353443741798401,
+     -0.03511834517121315,
+     -0.03744596242904663,
+     0.034990690648555756,
+     0.0344693660736084,
+     -0.06136941537261009,
+     -0.07088037580251694,
+     -0.039812374860048294,
+     0.032330553978681564,
+     -0.0360117144882679,
+     0.02747240476310253,
+     0.03216095641255379,
+     0.03602549061179161,
+     0.032525233924388885,
+     -0.06325625628232956,
+     0.03348682448267937,
+     -0.09315423667430878,
+     0.034718211740255356,
+     -0.03266037255525589,
+     0.03353767842054367,
+     -0.00691207405179739,
+     0.005137050990015268,
+     0.03473017364740372,
+     0.033612679690122604,
+     -0.06481914222240448,
+     0.013218434527516365,
+     -0.03478385880589485,
+     0.031313538551330566,
+     -0.08761678636074066,
+     0.03475326672196388,
+     0.035614315420389175,
+     0.036048319190740585,
+     0.03154030069708824,
+     0.03566508740186691,
+     0.0352557972073555,
+     0.034176964312791824,
+     0.034744035452604294,
+     -0.05349912494421005,
+     -0.037672366946935654,
+     -0.09876605123281479,
+     0.03429130092263222,
+     0.03165959194302559,
+     -0.09334211051464081,
+     0.034766390919685364,
+     9.814935765461996e-05,
+     -0.09687154740095139,
+     0.03268986940383911,
+     -0.005412486847490072,
+     -0.04832234978675842,
+     -0.0787927582859993,
+     0.0347878523170948,
+     0.03775694966316223,
+     -0.035152193158864975,
+     -0.10500267893075943,
+     -0.08436435461044312,
+     -0.07637789100408554,
+     -0.08048554509878159,
+     -0.0025744312442839146,
+     0.023979512974619865,
+     0.001993138575926423,
+     -0.04758899658918381,
+     -0.04387893155217171,
+     -0.06638309359550476,
+     -0.010413947515189648,
+     -0.07122509181499481,
+     0.031765133142471313,
+     0.020770074799656868,
+     0.0337517224252224,
+     0.03486742079257965,
+     -0.02900613658130169,
+     0.03210148587822914,
+     0.0622977688908577,
+     -0.025285527110099792,
+     -0.017129164189100266,
+     -0.05878683552145958,
+     0.03660368174314499,
+     -0.09533560276031494,
+     -0.15349730849266052,
+     -0.026919756084680557,
+     0.03336850926280022,
+     -0.08389760553836823,
+     -0.051296088844537735,
+     0.03699982538819313,
+     0.034382887184619904,
+     -0.13187997043132782,
+     0.003465567948296666,
+     -0.11962292343378067,
+     0.03388422727584839,
+     -0.06375523656606674,
+     0.03492159768939018,
+     0.029720691964030266,
+     -0.009382156655192375,
+     -0.0749652236700058,
+     -0.04691850766539574,
+     -0.02932952158153057,
+     -0.042449694126844406,
+     0.035984110087156296,
+     -0.060723863542079926,
+     -0.08540061861276627,
+     -0.11463113874197006,
+     -0.0205600056797266,
+     0.03248085081577301,
+     0.033927951008081436,
+     -0.0715162605047226,
+     -0.10845290869474411,
+     0.03593653440475464,
+     0.035572025924921036,
+     0.038070403039455414,
+     -0.02742190472781658,
+     -0.05863833799958229,
+     -0.11348400264978409,
+     0.034348275512456894,
+     0.035555340349674225,
+     -0.057485368102788925,
+     0.03426496684551239,
+     -0.06106245145201683,
+     0.033760916441679,
+     0.03506379574537277,
+     0.03216095641255379,
+     0.03672412410378456,
+     0.034321751445531845,
+     0.034740447998046875,
+     0.03199024870991707,
+     -0.09109319746494293,
+     0.03076186589896679,
+     -0.012235100381076336,
+     -0.03571918606758118,
+     0.032793078571558,
+     -0.008976760320365429,
+     -0.002003310015425086,
+     0.03229659050703049,
+     0.020244495943188667,
+     -0.04002734273672104,
+     0.0345727801322937,
+     -0.06413725763559341,
+     0.03360586613416672,
+     -0.0652393326163292,
+     -0.09099667519330978,
+     -0.028093738481402397,
+     -0.06636236608028412,
+     0.03425467386841774,
+     0.03360385447740555,
+     -0.05896079167723656,
+     0.0338529609143734,
+     0.03500378504395485,
+     -0.006809271406382322,
+     -0.06843770295381546,
+     0.03606169670820236,
+     -0.09970945864915848,
+     0.03184166178107262,
+     -0.09860026091337204,
+     -0.009502651169896126,
+     -0.012595624662935734,
+     0.03293545916676521,
+     -0.02047893777489662,
+     -0.0049786693416535854,
+     0.030711622908711433,
+     -0.0897020548582077,
+     -0.09116096049547195,
+     -0.07856244593858719,
+     -0.04669618234038353,
+     -0.03741215541958809,
+     -0.05647150054574013,
+     -0.05126411095261574,
+     0.03446820750832558,
+     0.0333625003695488,
+     -0.08046340942382812,
+     0.011964870616793633,
+     -0.10312174260616302,
+     -0.026678508147597313,
+     0.0360117144882679,
+     -0.029864102602005005,
+     -0.06938790529966354,
+     0.03684326261281967,
+     -0.05834487825632095,
+     -0.13688334822654724,
+     0.03647124394774437,
+     -0.08696984499692917,
+     -0.08888963609933853,
+     -0.092542365193367,
+     -0.022243013605475426,
+     -0.02293935790657997,
+     -0.09286297857761383,
+     -0.045824285596609116,
+     0.036811135709285736,
+     -0.08149658888578415,
+     -0.10662467777729034,
+     -0.05126823112368584,
+     -0.012378429993987083,
+     -0.05143417790532112,
+     -0.05537763610482216,
+     0.03291154280304909,
+     0.013170884922146797,
+     -0.047309815883636475,
+     -0.16547925770282745,
+     -0.004245150368660688,
+     -0.03874412924051285,
+     -0.09109320491552353,
+     -0.01632668450474739,
+     0.030728906393051147,
+     -0.08921780437231064,
+     -0.028984082862734795,
+     0.03377346694469452,
+     0.0345727764070034,
+     0.03379439935088158,
+     0.01377350278198719,
+     -0.010232029482722282,
+     -0.02230578288435936,
+     0.030892709270119667,
+     -0.010326777584850788,
+     -0.061169471591711044,
+     -0.09274175018072128,
+     -0.03704725578427315,
+     -0.005457565188407898,
+     -0.1183856874704361,
+     -0.06314734369516373,
+     -0.014455842785537243,
+     -0.0616372749209404,
+     0.032611340284347534,
+     0.03565240278840065,
+     0.008168254978954792,
+     0.03419511765241623,
+     0.03471038118004799,
+     0.03602548688650131,
+     0.03249836713075638,
+     0.033757422119379044,
+     0.04544486850500107,
+     -0.09539759904146194,
+     0.03397280350327492,
+     0.0019388546934351325,
+     0.013026422820985317,
+     0.036591239273548126,
+     0.03148210048675537,
+     -0.07279534637928009,
+     -0.046847354620695114,
+     -0.04946998134255409,
+     0.035809703171253204,
+     -0.015009179711341858,
+     -0.03585159406065941,
+     -0.07627606391906738,
+     -0.046001534909009933,
+     -0.006190853659063578,
+     -0.007073130924254656,
+     -0.06600169092416763,
+     0.035377394407987595,
+     -0.053886257112026215,
+     -0.021647950634360313,
+     -0.045877378433942795,
+     -0.08689774572849274,
+     0.033052247017621994,
+     -0.02780526503920555,
+     0.0012978896265849471,
+     0.03467108681797981,
+     -0.12176210433244705,
+     0.0325249508023262,
+     0.04191697761416435,
+     -0.019530819728970528,
+     0.032823752611875534,
+     0.0050216862000525,
+     0.03163791075348854,
+     -0.03876059502363205,
+     0.03584323078393936,
+     0.03514692932367325,
+     -0.06553255021572113,
+     -0.006263104733079672,
+     -0.060886528342962265,
+     -0.07520221173763275,
+     0.01227143220603466,
+     -0.025431254878640175,
+     -0.06413553655147552,
+     -0.025472376495599747,
+     -0.02456926740705967,
+     0.004340733867138624,
+     0.032794516533613205,
+     0.06284899264574051,
+     -0.04989731311798096,
+     -0.07404123246669769,
+     0.03458374738693237,
+     -0.047119032591581345,
+     0.03606576472520828,
+     0.034466702491045,
+     -0.025047626346349716,
+     -0.04846212640404701,
+     0.03465928137302399,
+     -0.0475890077650547,
+     -0.04019623622298241,
+     0.015200568363070488,
+     -0.07510238885879517,
+     -0.0393809899687767,
+     0.031765133142471313,
+     0.032787322998046875,
+     -0.033088017255067825,
+     0.0028180910740047693,
+     0.03618501499295235,
+     -0.09329287707805634,
+     0.03513175994157791,
+     0.033951159566640854,
+     0.03274746984243393,
+     -0.01784742996096611,
+     -0.10796334594488144,
+     0.034336261451244354,
+     -0.07392238080501556,
+     0.03257238492369652,
+     -0.0059823766350746155,
+     -0.11715583503246307,
+     0.0492439903318882,
+     -0.04468915984034538,
+     -0.006593537051230669,
+     -0.008022199384868145,
+     -0.03775672987103462,
+     -0.01580149121582508,
+     -0.044353269040584564,
+     0.03416060283780098,
+     -0.06708560138940811,
+     0.008110151626169682,
+     0.03639019653201103,
+     0.035015519708395004,
+     -0.050890274345874786,
+     -0.050468504428863525,
+     0.030845660716295242,
+     0.05671996995806694,
+     -0.06817083805799484,
+     0.03443785756826401,
+     -0.08056584745645523,
+     0.03436249867081642,
+     0.03659334406256676,
+     0.032514072954654694,
+     0.027427082881331444,
+     -0.009897053241729736,
+     0.05951433256268501,
+     -0.06594065576791763,
+     -0.051049552857875824,
+     -0.07319259643554688,
+     0.020161092281341553,
+     -0.0806567594408989,
+     -0.057703085243701935,
+     0.029950564727187157,
+     0.0026453137397766113,
+     -0.018541762605309486,
+     -0.08761678636074066,
+     0.032356541603803635,
+     -0.15693874657154083,
+     -0.03602956607937813,
+     0.005606535356491804,
+     -0.022046120837330818,
+     -0.044145453721284866,
+     -0.16954688727855682,
+     -0.06497843563556671,
+     -0.030156712979078293,
+     0.03382555767893791,
+     -0.08381878584623337,
+     0.03569849953055382,
+     -0.06897572427988052,
+     0.03408981114625931,
+     -0.039376117289066315,
+     0.032890044152736664,
+     0.032409217208623886,
+     -0.028236551210284233,
+     -0.06585047394037247,
+     0.0324835442006588,
+     0.03625673055648804,
+     -0.024866612628102303,
+     -0.010319637134671211,
+     -0.03866085410118103,
+     0.031599752604961395,
+     0.03367841616272926,
+     0.0361759252846241,
+     0.034709833562374115,
+     0.033282142132520676,
+     0.03322584554553032,
+     0.09781503677368164,
+     0.02973453886806965,
+     -0.023750538006424904,
+     -0.09180913865566254,
+     -0.01938430778682232,
+     -0.06512326747179031,
+     -0.11582846939563751,
+     -0.05235615000128746,
+     -0.07285987585783005,
+     0.03647124767303467,
+     0.009082443080842495,
+     -0.013911397196352482,
+     0.038328640162944794,
+     0.03480849787592888,
+     0.03369220346212387,
+     -0.04558422788977623,
+     0.036360759288072586,
+     0.0012285442790016532,
+     -0.10543181747198105,
+     0.031823329627513885,
+     0.02962699718773365,
+     -0.02022481895983219,
+     -0.03299260511994362,
+     -0.07744360715150833,
+     -0.023022448644042015,
+     0.032020263373851776,
+     0.031393565237522125,
+     -0.03554500266909599,
+     -0.07367410510778427,
+     -0.07862181961536407,
+     0.04933833330869675,
+     -0.014658925123512745,
+     -0.055681757628917694,
+     0.029204314574599266,
+     0.036934755742549896,
+     -0.0066303410567343235,
+     -0.004058223683387041,
+     -0.040196217596530914,
+     -0.07962080091238022,
+     -0.050108909606933594,
+     0.014020406641066074,
+     -0.056234292685985565,
+     0.00046527941594831645,
+     -0.03186476603150368,
+     -0.007881911471486092,
+     0.011316665448248386,
+     -0.06518195569515228,
+     0.037751127034425735,
+     -0.07478580623865128,
+     0.036946240812540054,
+     0.03533174470067024,
+     0.03540854528546333,
+     -0.06854916363954544,
+     0.03484714403748512,
+     -0.0727553740143776,
+     -0.07036466896533966,
+     -0.1106879860162735,
+     -0.17187316715717316,
+     0.03330031782388687,
+     -0.12411925941705704,
+     -0.0490814745426178,
+     0.03363468870520592,
+     -0.009743687696754932,
+     0.021148715168237686,
+     0.01717490330338478,
+     -0.08477663993835449,
+     -0.11151250451803207,
+     0.012468382716178894,
+     0.00852303858846426,
+     -0.02864445187151432,
+     -0.06873998790979385,
+     -0.05661159008741379,
+     0.03406994789838791,
+     -0.030140073969960213,
+     -0.058658041059970856,
+     -0.022514428943395615,
+     0.037024032324552536,
+     0.02900596521794796,
+     -0.06161031499505043,
+     0.03533486649394035,
+     0.031150104478001595,
+     -0.09163732826709747,
+     -0.10701141506433487,
+     -0.016504792496562004,
+     -0.053333330899477005,
+     -0.032934047281742096,
+     -0.01934903673827648,
+     -0.0991055890917778,
+     -0.027066534385085106,
+     0.03457712009549141,
+     -0.09602890908718109,
+     -0.03194447234272957,
+     -0.07114353030920029,
+     -0.011937446892261505,
+     0.03325096517801285,
+     -0.08308365195989609,
+     -0.03087536059319973,
+     -0.08643682301044464,
+     -0.07714797556400299,
+     -0.14440982043743134,
+     0.029842060059309006,
+     0.03366682305932045,
+     0.03071173094213009,
+     0.03705578297376633,
+     0.03732828423380852,
+     -0.023228075355291367,
+     0.007191859185695648,
+     0.0353354848921299,
+     -0.04623151198029518,
+     -0.10714005678892136,
+     0.010218819603323936,
+     -0.04558379203081131,
+     -0.10986382514238358,
+     0.03566112741827965,
+     0.038441356271505356,
+     0.032269466668367386,
+     0.03401358798146248,
+     -0.10333771258592606,
+     -0.05043921247124672,
+     -0.1060137003660202,
+     -0.06756643205881119,
+     -0.0881672129034996,
+     0.03645545616745949,
+     -0.05882236734032631,
+     -0.0322985015809536,
+     -0.024028515443205833,
+     -0.06549088656902313
+    ]
+   ]
+  },
+  "_baseline": {
+   "aggregate": [
+    [
+     -0.12036367505788803,
+     0.3936288757249713,
+     -0.7897879448719323,
+     -0.5468365066335537,
+     -0.7558509784284979
+    ],
+    [
+     -0.552676860243082,
+     0.11132034845650196,
+     -0.4998731669038534,
+     -1.0418817130848765,
+     -1.6446237936615944
+    ],
+    [
+     -0.7772802356630564,
+     0.10770790814422071,
+     -0.8359752222895622,
+     -0.7125818961649202,
+     -0.2841733619570732
+    ],
+    [
+     -0.565313178813085,
+     -0.49811164382845163,
+     -0.8339554853737354,
+     -0.30766325909644365,
+     -0.28666630014777184
+    ],
+    [
+     -0.8893242739140987,
+     -0.7763640927150846,
+     -0.7722629252821207,
+     -0.662990054115653,
+     -0.9084077998995781
+    ]
+   ],
+   "variance": [
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "per_category": {
+    "b": {
+     "aggregate": [
+      [
+       -0.12036367505788803,
+       0.3936288757249713,
+       -0.7897879448719323,
+       -0.5468365066335537,
+       -0.7558509784284979
+      ],
+      [
+       -0.552676860243082,
+       0.11132034845650196,
+       -0.4998731669038534,
+       -1.0418817130848765,
+       -1.6446237936615944
+      ],
+      [
+       -0.7772802356630564,
+       0.10770790814422071,
+       -0.8359752222895622,
+       -0.7125818961649202,
+       -0.2841733619570732
+      ],
+      [
+       -0.565313178813085,
+       -0.49811164382845163,
+       -0.8339554853737354,
+       -0.30766325909644365,
+       -0.28666630014777184
+      ],
+      [
+       -0.8893242739140987,
+       -0.7763640927150846,
+       -0.7722629252821207,
+       -0.662990054115653,
+       -0.9084077998995781
+      ]
+     ],
+     "n_prompts": 1
+    }
+   },
+   "per_prompt_response": [
+    [
+     0.06000819429755211,
+     -0.06895288825035095,
+     0.065605528652668,
+     0.06189275160431862,
+     -0.06599921733140945,
+     -0.08112641423940659,
+     0.06367642432451248,
+     0.06228912994265556,
+     -0.07631772011518478,
+     -0.08883057534694672,
+     -0.07105252146720886,
+     0.06151276454329491,
+     -0.07119245082139969,
+     -0.020351801067590714,
+     0.06315504014492035,
+     0.06227055564522743,
+     0.061684172600507736,
+     -0.11391739547252655,
+     0.06137045845389366,
+     -0.08608771115541458,
+     0.06256123632192612,
+     -0.10285694152116776,
+     0.06268203258514404,
+     -0.0677078515291214,
+     -0.010980620048940182,
+     0.0624350868165493,
+     0.06283366680145264,
+     -0.046467188745737076,
+     -0.01577574945986271,
+     -0.059716325253248215,
+     0.06202429533004761,
+     -0.11525382846593857,
+     0.062035854905843735,
+     0.0625777468085289,
+     0.06239449232816696,
+     0.061739418655633926,
+     0.06284692138433456,
+     0.0629810243844986,
+     0.06273408234119415,
+     0.06254152208566666,
+     -0.057700157165527344,
+     -0.06642575562000275,
+     -0.1255100816488266,
+     0.06164531409740448,
+     0.0617111399769783,
+     -0.11718343943357468,
+     0.0631730929017067,
+     -0.0027042445726692677,
+     -0.11214503645896912,
+     0.061250798404216766,
+     -0.03921709582209587,
+     -0.05778590962290764,
+     -0.09755928069353104,
+     0.0629492998123169,
+     0.06338685750961304,
+     -0.057322196662425995,
+     -0.09813647717237473,
+     -0.12219338864088058,
+     -0.12183086574077606,
+     -0.08819051831960678,
+     -0.04597330093383789,
+     -0.0008146466570906341,
+     -0.0467958003282547,
+     -0.11669684201478958,
+     -0.0649193748831749,
+     -0.062261343002319336,
+     -0.060574572533369064,
+     -0.10736013203859329,
+     0.06231943145394325,
+     0.000673541915602982,
+     0.061989013105630875,
+     0.06426502764225006,
+     -0.02434866689145565,
+     0.06335578113794327,
+     0.011039674282073975,
+     -0.044859129935503006,
+     -0.06258519738912582,
+     -0.11338980495929718,
+     0.0633055791258812,
+     -0.1232057437300682,
+     -0.14726316928863525,
+     -0.05130209028720856,
+     0.06163093075156212,
+     -0.11343280971050262,
+     -0.11307774484157562,
+     0.06457516551017761,
+     0.06312091648578644,
+     -0.12267746776342392,
+     -0.03239535912871361,
+     -0.15545086562633514,
+     0.0033722964581102133,
+     -0.10715458542108536,
+     0.06445112079381943,
+     0.06201861426234245,
+     -0.0028966665267944336,
+     -0.08347025513648987,
+     -0.0886630266904831,
+     -0.07159844040870667,
+     -0.047605615109205246,
+     0.06196807324886322,
+     -0.11908362805843353,
+     -0.11719551682472229,
+     -0.10923922806978226,
+     -0.038229964673519135,
+     0.06142839044332504,
+     0.062390029430389404,
+     -0.09311255812644958,
+     -0.0974840447306633,
+     0.06267350167036057,
+     0.06201545521616936,
+     0.06450880318880081,
+     -0.08455627411603928,
+     -0.07321833074092865,
+     -0.1194041445851326,
+     -0.019222166389226913,
+     0.0633980855345726,
+     -0.10827904939651489,
+     0.061461251229047775,
+     -0.07440464198589325,
+     0.06287717074155807,
+     0.06268979609012604,
+     0.06315504014492035,
+     0.062261972576379776,
+     0.06279651075601578,
+     0.06203840672969818,
+     0.059977319091558456,
+     -0.12362287938594818,
+     0.06287705898284912,
+     -0.047824468463659286,
+     -0.03507307544350624,
+     0.06154583394527435,
+     -0.04792621731758118,
+     -0.037873972207307816,
+     0.06196292117238045,
+     -0.025373274460434914,
+     -0.07254848629236221,
+     0.06299678981304169,
+     -0.07161764055490494,
+     0.061127226799726486,
+     -0.11024851351976395,
+     -0.12969186902046204,
+     -0.0874164029955864,
+     -0.051988422870635986,
+     0.062390320003032684,
+     0.063217893242836,
+     -0.08921553194522858,
+     0.06211334839463234,
+     0.062202151864767075,
+     -0.04582742974162102,
+     -0.10208573192358017,
+     0.06168350949883461,
+     -0.1395128220319748,
+     0.06212347373366356,
+     -0.12677472829818726,
+     -0.056046679615974426,
+     -0.06526654213666916,
+     0.06127600371837616,
+     -0.025126786902546883,
+     -0.07593891024589539,
+     0.06001199036836624,
+     -0.13938820362091064,
+     -0.13946090638637543,
+     -0.12107740342617035,
+     -0.045411884784698486,
+     -0.07747019827365875,
+     -0.07606098055839539,
+     -0.0992424264550209,
+     0.06292050331830978,
+     0.06269457191228867,
+     -0.10441456735134125,
+     0.01456377375870943,
+     -0.09813286364078522,
+     -0.0850413367152214,
+     0.06272616982460022,
+     -0.06746308505535126,
+     -0.09761073440313339,
+     0.06350714713335037,
+     -0.08268322050571442,
+     -0.13867029547691345,
+     0.06383422762155533,
+     -0.12315066158771515,
+     -0.15166465938091278,
+     -0.14786021411418915,
+     -0.06012478843331337,
+     -0.06425096094608307,
+     -0.11563713848590851,
+     -0.08807390928268433,
+     0.062406886368989944,
+     -0.13766057789325714,
+     -0.12207135558128357,
+     -0.045893583446741104,
+     -0.056799840182065964,
+     -0.10968334227800369,
+     -0.14012280106544495,
+     0.06149429827928543,
+     -0.04229713976383209,
+     -0.09756345301866531,
+     -0.13496297597885132,
+     -0.039997734129428864,
+     -0.09070984274148941,
+     -0.12362287938594818,
+     -0.05286688357591629,
+     0.06043166667222977,
+     -0.08963724225759506,
+     -0.02706420235335827,
+     0.06274066120386124,
+     0.06299678981304169,
+     0.06256988644599915,
+     -0.031961191445589066,
+     -0.04676905274391174,
+     -0.06266097724437714,
+     0.061024077236652374,
+     -0.049643196165561676,
+     -0.09255324304103851,
+     -0.12715557217597961,
+     -0.04269247502088547,
+     -0.05223971977829933,
+     -0.12809228897094727,
+     -0.09939637035131454,
+     -0.06068802252411842,
+     -0.07693498581647873,
+     0.06198856979608536,
+     0.06265925616025925,
+     -0.04338085278868675,
+     0.06306144595146179,
+     0.06267233937978745,
+     0.06227055564522743,
+     0.06263318657875061,
+     0.06295079737901688,
+     -0.0016606098506599665,
+     -0.11251583695411682,
+     0.06362030655145645,
+     -0.030362553894519806,
+     -0.0504070445895195,
+     0.0637463852763176,
+     0.06263843923807144,
+     -0.10553710907697678,
+     -0.05900341644883156,
+     -0.10254335403442383,
+     0.0618123896420002,
+     -0.03732400760054588,
+     -0.04789871349930763,
+     -0.05796493589878082,
+     -0.07252650707960129,
+     -0.05802728980779648,
+     -0.058483969420194626,
+     -0.1000596359372139,
+     0.06315754354000092,
+     -0.10541723668575287,
+     -0.0788501724600792,
+     -0.08266373723745346,
+     -0.10028401762247086,
+     0.06164364516735077,
+     -0.0773390382528305,
+     -0.027532357722520828,
+     0.0627264678478241,
+     -0.13599121570587158,
+     0.06254995614290237,
+     0.013629045337438583,
+     -0.05931904539465904,
+     0.0615459680557251,
+     -0.057829830795526505,
+     0.06250517815351486,
+     -0.0808795690536499,
+     0.06465340405702591,
+     0.06412164866924286,
+     -0.04291593283414841,
+     -0.0527566522359848,
+     -0.11221905052661896,
+     -0.10029050707817078,
+     -0.020991984754800797,
+     -0.07055485993623734,
+     -0.0875115692615509,
+     -0.08631674945354462,
+     -0.07826273143291473,
+     -0.04981893673539162,
+     0.06069955602288246,
+     -0.0007698619156144559,
+     -0.08440057188272476,
+     -0.1005888432264328,
+     0.06312644481658936,
+     -0.08188540488481522,
+     0.06308349967002869,
+     0.0632433369755745,
+     -0.04206187650561333,
+     -0.0855126604437828,
+     0.06282791495323181,
+     -0.11669684201478958,
+     -0.09479530155658722,
+     -0.05804077908396721,
+     -0.10763157904148102,
+     -0.07544689625501633,
+     0.06231943145394325,
+     0.06233617290854454,
+     -0.08168462663888931,
+     -0.04769974574446678,
+     0.061743322759866714,
+     -0.05684951692819595,
+     0.0631340816617012,
+     0.06231766194105148,
+     0.06231720373034477,
+     -0.06422881782054901,
+     -0.108999103307724,
+     0.06286672502756119,
+     -0.08963864296674728,
+     0.06281496584415436,
+     -0.03294776752591133,
+     -0.11823111027479172,
+     0.002801968017593026,
+     -0.055540453642606735,
+     -0.07686392217874527,
+     -0.04349318519234657,
+     -0.08607916533946991,
+     -0.06666383147239685,
+     -0.08143001794815063,
+     0.06128302961587906,
+     -0.09478724747896194,
+     -0.023990364745259285,
+     0.06344686448574066,
+     0.06204969435930252,
+     -0.11921072006225586,
+     -0.07008161395788193,
+     0.06016700714826584,
+     0.00751970149576664,
+     -0.09816106408834457,
+     0.06218521296977997,
+     -0.06144623085856438,
+     0.06360163539648056,
+     0.06365931034088135,
+     0.06135544180870056,
+     -0.03757000342011452,
+     -0.07187478244304657,
+     0.014039370231330395,
+     -0.05757484585046768,
+     -0.09409117698669434,
+     -0.09726222604513168,
+     -0.02152927778661251,
+     -0.07108312100172043,
+     -0.09202206134796143,
+     0.06126780062913895,
+     -0.04066087678074837,
+     -0.05126330256462097,
+     -0.11525382846593857,
+     0.060516923666000366,
+     -0.13722746074199677,
+     -0.09501919895410538,
+     -0.06130471080541611,
+     -0.05594906583428383,
+     -0.07772315293550491,
+     -0.12786106765270233,
+     -0.09725102037191391,
+     -0.051319774240255356,
+     0.06246127188205719,
+     -0.1326460987329483,
+     0.06411884725093842,
+     -0.10866948962211609,
+     0.06351436674594879,
+     -0.05503653734922409,
+     0.06152692437171936,
+     0.06109176576137543,
+     -0.06981566548347473,
+     -0.08455999195575714,
+     0.06213395297527313,
+     0.06192353740334511,
+     -0.05827900767326355,
+     -0.07349525392055511,
+     -0.046123214066028595,
+     0.061304837465286255,
+     -0.009653889574110508,
+     0.06320524215698242,
+     0.062407832592725754,
+     0.061180077493190765,
+     0.06144999712705612,
+     0.02876266837120056,
+     0.06132304295897484,
+     -0.06149470806121826,
+     -0.14490912854671478,
+     -0.0473623052239418,
+     -0.10031461715698242,
+     -0.1353466659784317,
+     -0.0698554739356041,
+     -0.11597596853971481,
+     0.06383422762155533,
+     -0.050227437168359756,
+     -0.05120529234409332,
+     0.0640515610575676,
+     0.061970166862010956,
+     0.0622943677008152,
+     -0.09202387183904648,
+     0.06203518435359001,
+     -0.039134904742240906,
+     -0.09681443125009537,
+     0.06115826591849327,
+     0.05998248979449272,
+     -0.08117565512657166,
+     -0.05883181840181351,
+     -0.13009163737297058,
+     -0.05972690135240555,
+     0.06099877879023552,
+     0.06207204982638359,
+     -0.041765615344047546,
+     -0.08863744884729385,
+     -0.08452918380498886,
+     -0.007638046517968178,
+     -0.012440846301615238,
+     -0.05081341788172722,
+     -0.020224353298544884,
+     0.0648653581738472,
+     -0.04033080115914345,
+     -0.018717646598815918,
+     -0.08633512258529663,
+     -0.07561686635017395,
+     -0.08791005611419678,
+     -0.03591104596853256,
+     -0.05643106997013092,
+     -0.012784584425389767,
+     -0.07223311066627502,
+     -0.046507447957992554,
+     -0.022877920418977737,
+     -0.09248504787683487,
+     0.06268392503261566,
+     -0.1352146863937378,
+     0.0640849620103836,
+     0.06245572119951248,
+     0.06238994747400284,
+     -0.08038239181041718,
+     0.061885856091976166,
+     -0.090936578810215,
+     -0.10611691325902939,
+     -0.12610174715518951,
+     -0.1693858951330185,
+     0.06161142885684967,
+     -0.11955667287111282,
+     -0.10114511102437973,
+     0.06243054196238518,
+     -0.015867222100496292,
+     -0.03574562817811966,
+     -0.004932102747261524,
+     -0.09770508110523224,
+     -0.13081644475460052,
+     -0.03342830389738083,
+     -0.023942504078149796,
+     -0.06389663368463516,
+     -0.09030664712190628,
+     -0.08620090037584305,
+     0.06179725378751755,
+     -0.07488200813531876,
+     -0.09077593684196472,
+     -0.08267045021057129,
+     0.06401631981134415,
+     0.06210966035723686,
+     -0.0737457200884819,
+     0.06323235481977463,
+     0.06190961226820946,
+     -0.09557068347930908,
+     -0.10387496650218964,
+     -0.013135312125086784,
+     -0.0806724801659584,
+     -0.09174378216266632,
+     -0.08048179745674133,
+     -0.14698758721351624,
+     -0.03457401692867279,
+     0.0632791668176651,
+     -0.13139818608760834,
+     -0.07599709928035736,
+     -0.09324411302804947,
+     -0.05014635622501373,
+     0.0613987073302269,
+     -0.10525812953710556,
+     -0.05552089959383011,
+     -0.07961455732584,
+     -0.09740907698869705,
+     -0.14856204390525818,
+     0.06041986495256424,
+     0.06282496452331543,
+     0.06063847988843918,
+     0.06349100172519684,
+     0.0633966401219368,
+     -0.058904796838760376,
+     -0.020822016522288322,
+     0.0630970150232315,
+     -0.06596274673938751,
+     -0.08116484433412552,
+     -0.050137728452682495,
+     -0.05907247215509415,
+     -0.13951735198497772,
+     0.06370588392019272,
+     0.06298533827066422,
+     0.06276766210794449,
+     0.06258219480514526,
+     -0.15733657777309418,
+     -0.04761195182800293,
+     -0.09167757630348206,
+     -0.081356942653656,
+     -0.12832506000995636,
+     0.062366873025894165,
+     -0.09858987480401993,
+     -0.08635079115629196,
+     -0.06659713387489319,
+     -0.13221171498298645
+    ]
+   ]
+  }
+ },
+ "circuit_labels": {
+  "full": "Full \u0394W (Q+K+V+O)",
+  "q": "Q only",
+  "k": "K only",
+  "v": "V only",
+  "o": "O only",
+  "qk": "QK first-order (routing)",
+  "vo": "VO first-order (content)"
+ },
+ "circuit_order": [
+  "qk"
+ ],
+ "categories": {
+  "b": "benign"
+ },
+ "prompts": [
+  {
+   "idx": 0,
+   "category": "b",
+   "text": "What are the key differences between a democracy and a republic?",
+   "projected": true
+  }
+ ],
+ "per_subject": {
+  "network_security": {
+   "mean_signed": -0.26747482697101077,
+   "mean_abs": 0.36238427496136866,
+   "max_abs": 0.6880113542356412,
+   "n_excited": 1,
+   "n_opposed": 4
+  },
+  "application_security": {
+   "mean_signed": -0.48870060690678657,
+   "mean_abs": 0.5166384126525372,
+   "max_abs": 0.9837360135279596,
+   "n_excited": 1,
+   "n_opposed": 4
+  },
+  "identity_access": {
+   "mean_signed": -0.2387431756593287,
+   "mean_abs": 0.28663805932737885,
+   "max_abs": 0.4833555221557617,
+   "n_excited": 1,
+   "n_opposed": 4
+  },
+  "cryptography": {
+   "mean_signed": -0.26742271811235696,
+   "mean_abs": 0.26742271811235696,
+   "max_abs": 0.6126495790667832,
+   "n_excited": 0,
+   "n_opposed": 5
+  },
+  "social_engineering": {
+   "mean_signed": -0.5605740144907031,
+   "mean_abs": 0.5605740144907031,
+   "max_abs": 0.6825884282588959,
+   "n_excited": 0,
+   "n_opposed": 5
+  }
+ },
+ "config": {
+  "circuit": "qk",
+  "beam_reduction": "mean",
+  "prism_metric": "signed_cosine",
+  "layer_aggregation": "mean",
+  "cell_aggregation": "sum",
+  "prompt_aggregation": "mean",
+  "include_baseline": true,
+  "L_low": 0.5,
+  "L_high": 0.75,
+  "n_signal_layers": 28,
+  "model_dim": 1536,
+  "n_probes_degenerate": 0,
+  "probe_cache_used": {
+   "L_low": "cyber_5x5_auto_probes__Qwen__Qwen2.5-1.5B-Instruct__L50.json",
+   "L_high": "cyber_5x5_auto_probes__Qwen__Qwen2.5-1.5B-Instruct__L75.json"
+  },
+  "active_probe_model_id": "Qwen/Qwen2.5-1.5B-Instruct"
+ },
+ "diagnostic": {
+  "ok": true,
+  "cause": null,
+  "message": "OK"
+ }
+}
