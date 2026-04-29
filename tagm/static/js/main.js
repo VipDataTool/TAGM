@@ -4069,6 +4069,14 @@ function renderCorrectionPrismResults(r) {
   var diag = r.diagnostic || {ok: true};
   var primary = r.primary_circuit || cfg.circuit || 'full';
 
+  // Stash cell details + subject/level lookups on window so prismShowCell
+  // can find them. Setting them here (synchronously, before innerHTML
+  // injection) is necessary because <script> tags concatenated into an
+  // innerHTML string do NOT execute — that's a browser security behavior.
+  window.__prismCells = cellDetails;
+  window.__prismSubjects = subjects;
+  window.__prismLevels = levels;
+
   // Failure banner.
   if (diag.ok === false) {
     h += '<div style="margin:8px 12px;padding:12px 14px;border:1px solid #D55E00;border-radius:6px;background:rgba(213,94,0,0.08);color:var(--text-0);font-size:12px;line-height:1.5">';
@@ -4222,14 +4230,6 @@ function renderCorrectionPrismResults(r) {
   h += '<div style="padding:10px;color:var(--text-3);font-size:11px;font-style:italic">'
      + 'Click any cell in the heatmap above to inspect its probes.</div>';
   h += '</div>';
-
-  // Stash cell details on window so prismShowCell can find them.
-  // JSON-encoded once at render time; small enough to inline.
-  h += '<script>window.__prismCells = '
-     + JSON.stringify(cellDetails).replace(/</g, '\\u003c')
-     + ';window.__prismSubjects = ' + JSON.stringify(subjects)
-     + ';window.__prismLevels = ' + JSON.stringify(levels)
-     + ';</script>';
 
   // ── Per-subject summary ──
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
