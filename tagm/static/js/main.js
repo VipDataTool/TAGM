@@ -4178,25 +4178,84 @@ function renderCorrectionPrismResults(r) {
     return leg;
   }
 
-  // ── Top header: primary heatmap ──
-  var primaryAgg = (decomp[primary] && decomp[primary].aggregate) || agg;
+  // ── Top header: primary heatmap with view toggle ──
+  // Three views, all sharing the same diverging colormap & cell click:
+  //   primary   = the chosen circuit's heatmap (correction lens on)
+  //   baseline  = the same prompt's response with ΔW = I (no correction)
+  //   diff      = primary − baseline, isolating the correction-induced
+  //               response
+  // The baseline + diff views are only available if include_baseline ran.
+  var hasBaseline = !!(decomp._baseline && decomp._baseline.aggregate);
+
+  function gridSubtract(a, b) {
+    var out = [];
+    for (var si = 0; si < a.length; si++) {
+      var row = [];
+      for (var li = 0; li < (a[si]||[]).length; li++) {
+        row.push((a[si][li] || 0) - ((b[si]||[])[li] || 0));
+      }
+      out.push(row);
+    }
+    return out;
+  }
+  function gridForView(view) {
+    var p = (decomp[primary] && decomp[primary].aggregate) || agg;
+    if (view === 'baseline' && hasBaseline) return decomp._baseline.aggregate;
+    if (view === 'diff' && hasBaseline) {
+      return gridSubtract(p, decomp._baseline.aggregate);
+    }
+    return p;
+  }
+
+  // Stash on window so the toggle handler can recompute without
+  // re-running anything. Mirrors the cell-details stashing pattern.
+  window.__prismDecomp = decomp;
+  window.__prismPrimary = primary;
+  window.__prismLevels = levels;
+  window.__prismSubjects = subjects;
+  window.__prismSubjShort = subjShort;
+  window.__prismCircLabels = circLabels;
+  window.__prismHasBaseline = hasBaseline;
+
+  var primaryAgg = gridForView('primary');
   var primarySc = divergingScale(primaryAgg);
 
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
   h += 'Prism Heatmap — ' + escHtml(circLabels[primary] || primary);
   h += '</div>';
   h += '<div class="mod-results-body">';
-  h += '<div style="padding:10px;display:flex;flex-direction:column;gap:8px">';
-  h += '<div style="font-size:11px;color:var(--text-2);line-height:1.5">';
+  h += '<div style="padding:10px;display:flex;flex-direction:column;gap:8px" id="prism-primary-wrap">';
+
+  // View toggle (only meaningful if baseline was computed)
+  if (hasBaseline) {
+    h += '<div style="display:flex;gap:6px;font-family:var(--mono);font-size:10px">';
+    h += '<button class="prism-view-btn active" data-view="primary" onclick="prismSwitchView(\'primary\',this)" '
+       + 'style="padding:3px 10px;background:var(--cyan);color:#000;border:none;border-radius:3px;cursor:pointer">'
+       + 'Correction'
+       + '</button>';
+    h += '<button class="prism-view-btn" data-view="baseline" onclick="prismSwitchView(\'baseline\',this)" '
+       + 'style="padding:3px 10px;background:var(--bg-2);color:var(--text-1);border:1px solid var(--border);border-radius:3px;cursor:pointer">'
+       + 'Baseline (ΔW = I)'
+       + '</button>';
+    h += '<button class="prism-view-btn" data-view="diff" onclick="prismSwitchView(\'diff\',this)" '
+       + 'style="padding:3px 10px;background:var(--bg-2);color:var(--text-1);border:1px solid var(--border);border-radius:3px;cursor:pointer">'
+       + 'Correction − Baseline'
+       + '</button>';
+    h += '</div>';
+  }
+
+  h += '<div style="font-size:11px;color:var(--text-2);line-height:1.5" id="prism-primary-caption">';
   h += 'Each cell is the <b>' + escHtml(cfg.cell_aggregation || 'sum') + '</b> of '
      + 'signed probe responses in that (subject, level). ';
   h += '<span style="color:#ff6060">Red</span> = correction excites the cell\'s probes; ';
   h += '<span style="color:#6090ff">blue</span> = correction opposes them. ';
   h += 'Click a cell to see its probe composition.';
   h += '</div>';
+  h += '<div id="prism-primary-heatmap">';
   h += renderHeatmap(primaryAgg, primarySc, 3,
       function(si, li){ return si + '_' + li; });
-  h += renderLegend(primarySc);
+  h += '</div>';
+  h += '<div id="prism-primary-legend">' + renderLegend(primarySc) + '</div>';
   h += '</div></div>';
 
   // ── Decomposition: all circuits side by side ──
@@ -4347,6 +4406,147 @@ function prismShowCell(cellKey) {
   panel.innerHTML = html;
   // Make sure the panel is open.
   panel.classList.remove('collapsed');
+}
+
+// View toggle for the primary heatmap. Re-renders the heatmap and legend
+// (and rewrites the caption) without re-running the module. Reads from
+// window.__prism* state stashed by renderCorrectionPrismResults.
+function prismSwitchView(view, btn) {
+  var decomp = window.__prismDecomp || {};
+  var primary = window.__prismPrimary;
+  var levels = window.__prismLevels || [];
+  var subjects = window.__prismSubjects || [];
+  var subjShort = window.__prismSubjShort || subjects;
+  var hasBaseline = !!window.__prismHasBaseline;
+
+  // Resolve the grid to display.
+  var primaryAgg = (decomp[primary] && decomp[primary].aggregate) || [];
+  var grid;
+  var captionExtra = '';
+  if (view === 'baseline' && hasBaseline) {
+    grid = decomp._baseline.aggregate;
+    captionExtra = ' (showing baseline: ΔW = I, no correction lens applied — '
+                 + 'this is the prompt\'s field decomposed against the probe '
+                 + 'lattice with the correction switched off)';
+  } else if (view === 'diff' && hasBaseline) {
+    var b = decomp._baseline.aggregate;
+    grid = [];
+    for (var si = 0; si < primaryAgg.length; si++) {
+      var row = [];
+      for (var li = 0; li < (primaryAgg[si]||[]).length; li++) {
+        row.push((primaryAgg[si][li] || 0) - ((b[si]||[])[li] || 0));
+      }
+      grid.push(row);
+    }
+    captionExtra = ' (showing correction − baseline: this isolates the '
+                 + 'cell-by-cell response that is uniquely attributable to '
+                 + 'fine-tuning, with the prompt\'s pre-existing geometry '
+                 + 'subtracted out)';
+  } else {
+    grid = primaryAgg;
+  }
+
+  // Self-contained color/scale helpers (mirror the closure-scoped ones in
+  // renderCorrectionPrismResults so the toggle doesn't depend on its closure).
+  function _scale(g) {
+    var vmax = 0;
+    for (var si = 0; si < g.length; si++) {
+      var r = g[si] || [];
+      for (var li = 0; li < r.length; li++) {
+        var a = Math.abs(r[li] || 0);
+        if (a > vmax) vmax = a;
+      }
+    }
+    if (vmax < 1e-10) vmax = 1e-10;
+    return {vmax: vmax};
+  }
+  function _color(val, sc) {
+    var t = Math.max(-1, Math.min(1, val / sc.vmax));
+    if (t > 0) return 'rgb(' + Math.round(30 + t * 200) + ','
+                       + Math.round(30 + t * 30) + ','
+                       + Math.round(36 + t * 20) + ')';
+    if (t < 0) {
+      var s = -t;
+      return 'rgb(' + Math.round(30 + s * 30) + ','
+                    + Math.round(30 + s * 80) + ','
+                    + Math.round(36 + s * 200) + ')';
+    }
+    return 'rgb(30,30,36)';
+  }
+  function _textColor(val, sc) {
+    return (Math.abs(val) / sc.vmax) > 0.45 ? '#fff' : 'var(--text-2)';
+  }
+
+  var sc = _scale(grid);
+
+  // Heatmap HTML. Cells stay clickable so cell-composition still works
+  // in any view (it's keyed off the underlying probe responses, not the
+  // display grid).
+  var th = '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
+  th += '<tr><th style="padding:3px 6px"></th>';
+  for (var li = 0; li < levels.length; li++) {
+    th += '<th style="padding:3px 5px;color:var(--text-2);font-weight:500;text-align:center;font-size:9px">'
+        + escHtml(levels[li]) + '</th>';
+  }
+  th += '</tr>';
+  for (var si = 0; si < subjects.length; si++) {
+    th += '<tr>';
+    th += '<td style="padding:3px 6px;color:var(--text-1);font-weight:600;text-align:left;font-size:9px;white-space:nowrap">'
+        + escHtml(subjShort[si]) + '</td>';
+    for (var li = 0; li < levels.length; li++) {
+      var val = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
+      th += '<td onclick="prismShowCell(\'' + si + '_' + li + '\')" '
+          + 'style="cursor:pointer;padding:3px 5px;text-align:center;background:'
+          + _color(val, sc) + ';color:' + _textColor(val, sc)
+          + ';font-size:9px">'
+          + (val >= 0 ? '+' : '') + val.toFixed(3) + '</td>';
+    }
+    th += '</tr>';
+  }
+  th += '</table>';
+  document.getElementById('prism-primary-heatmap').innerHTML = th;
+
+  // Legend
+  var stops = '';
+  for (var i = 0; i < 11; i++) {
+    var v = -sc.vmax + (2 * sc.vmax * i / 10);
+    stops += '<div style="flex:1;height:8px;background:' + _color(v, sc) + '"></div>';
+  }
+  var legHtml = '<div style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--text-2);font-family:var(--mono);margin-top:4px;max-width:240px">';
+  legHtml += '<div style="display:flex">' + stops + '</div>';
+  legHtml += '<div style="display:flex;justify-content:space-between">';
+  legHtml += '<span>−' + sc.vmax.toFixed(3) + '</span>';
+  legHtml += '<span>0</span>';
+  legHtml += '<span>+' + sc.vmax.toFixed(3) + '</span>';
+  legHtml += '</div></div>';
+  document.getElementById('prism-primary-legend').innerHTML = legHtml;
+
+  // Caption tail — append the explanation for non-primary views.
+  var caption = document.getElementById('prism-primary-caption');
+  if (caption) {
+    var base = 'Each cell is a signed scalar — '
+             + '<span style="color:#ff6060">red</span> = excited; '
+             + '<span style="color:#6090ff">blue</span> = opposed. '
+             + 'Click a cell to see its probe composition.';
+    caption.innerHTML = base + (captionExtra
+      ? '<br><span style="color:var(--text-3)">' + captionExtra + '</span>'
+      : '');
+  }
+
+  // Button active-state
+  var btns = document.querySelectorAll('.prism-view-btn');
+  for (var bi = 0; bi < btns.length; bi++) {
+    var b = btns[bi];
+    if (b === btn) {
+      b.style.background = 'var(--cyan)';
+      b.style.color = '#000';
+      b.style.border = 'none';
+    } else {
+      b.style.background = 'var(--bg-2)';
+      b.style.color = 'var(--text-1)';
+      b.style.border = '1px solid var(--border)';
+    }
+  }
 }
 
 // ─── Comparative Analysis Results Renderer ──────────────────────
