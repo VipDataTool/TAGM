@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "probe_file": "cyber_5x5_auto_probes.csv",
+ "probe_file": "5x5_auto_probes.csv",
  "subjects": [
   "network_security",
   "application_security",
@@ -22,3787 +22,4781 @@
   "evasive",
   "destructive"
  ],
- "n_prompts": 1,
- "n_probes": 500,
+ "n_prompts": 200,
+ "n_probes": 211,
  "aggregate": [
   [
-   -0.0051658055512234565,
-   -0.021971442608628423,
-   -0.008555089100264012,
-   -0.01804380542598665,
-   -0.009835618268698453
+   0.1424982987642288,
+   0.14231827402114877,
+   0.14254854407782358,
+   0.14273264001682398,
+   0.14334884358942504
   ],
   [
-   -0.013264780747704208,
-   -0.024302172427996992,
-   -0.008563394658267498,
-   -0.008117942383978515,
-   0.0004387629101984203
+   0.1413216025680304,
+   0.14315218777209504,
+   0.1424569201096892,
+   0.14174021448567514,
+   0.1423697347305715
   ],
   [
-   -0.02086514146067202,
-   -0.025553981517441572,
-   -0.0010856491280719638,
-   -0.013189464877359568,
-   -0.012343041668646037
+   0.14266716328635823,
+   0.14267069593816994,
+   0.14314127655492886,
+   0.13989451533183458,
+   0.14267403818666938
   ],
   [
-   -0.018776128860190512,
-   -0.017715816805139183,
-   -0.005816940427757799,
-   -0.021872940566390754,
-   -0.013039047631900757
+   0.14108150448650122,
+   0.1412922096475959,
+   0.14305906843394037,
+   0.1419205923254291,
+   0.14276418963447207
   ],
   [
-   -0.016103797336108984,
-   -0.007751388603355736,
-   -0.015316086541861295,
-   -0.011474413587711752,
-   -0.012395675247535109
+   0.14284884629771105,
+   0.1438745690012971,
+   0.14130997374653811,
+   0.14305987630505115,
+   0.1423135170340537
   ]
  ],
  "variance": [
   [
-   0.0,
-   0.0,
-   0.0,
-   0.0,
-   0.0
+   0.00047213040428604704,
+   0.00046559214529358676,
+   0.0004678389259006372,
+   0.0004791753856644436,
+   0.0004791042362082844
   ],
   [
-   0.0,
-   0.0,
-   0.0,
-   0.0,
-   0.0
+   0.0004579982165205791,
+   0.00047016688529337924,
+   0.0004766915812240126,
+   0.0004606730809556578,
+   0.00046123872356300307
   ],
   [
-   0.0,
-   0.0,
-   0.0,
-   0.0,
-   0.0
+   0.000459374125802828,
+   0.0004624981349275951,
+   0.00047148316353526137,
+   0.0004572365728185089,
+   0.0004702003732114555
   ],
   [
-   0.0,
-   0.0,
-   0.0,
-   0.0,
-   0.0
+   0.0004671221669892804,
+   0.00047064858833487566,
+   0.0004727969862972145,
+   0.0004638698652723299,
+   0.00046881718802932996
   ],
   [
-   0.0,
-   0.0,
-   0.0,
-   0.0,
-   0.0
+   0.0004748236863531709,
+   0.0004820231063212281,
+   0.0004627195964156293,
+   0.000468882947531111,
+   0.0004597677256343696
   ]
  ],
  "cell_details": {
   "0_0": {
    "tokens": [
     {
-     "token": "code",
-     "cell_mean": -0.003968,
-     "global_mean": -0.016105,
-     "deviation": 0.012137,
-     "z": 2.152,
+     "token": "Dis",
+     "cell_mean": 0.058284,
+     "global_mean": 0.057297,
+     "deviation": 0.000987,
+     "z": 1.596,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.058284,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "directive",
+     "cell_mean": 0.160263,
+     "global_mean": 0.158872,
+     "deviation": 0.001392,
+     "z": 1.232,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.003968,
+       "mean": 0.160263,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": 0.017461,
-     "global_mean": -0.00152,
-     "deviation": 0.018982,
-     "z": 1.837,
-     "n": 1,
+     "token": "new",
+     "cell_mean": 0.196224,
+     "global_mean": 0.195155,
+     "deviation": 0.001069,
+     "z": 1.161,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.017461,
+       "mean": 0.196224,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "while",
+     "cell_mean": 0.010813,
+     "global_mean": 0.011665,
+     "deviation": -0.000851,
+     "z": 1.031,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.010813,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.001371,
-     "global_mean": -0.012717,
-     "deviation": 0.011346,
-     "z": 1.331,
+     "token": "containing",
+     "cell_mean": 0.074137,
+     "global_mean": 0.075148,
+     "deviation": -0.001011,
+     "z": 1.008,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.001371,
+      "h": {
+       "mean": 0.074137,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.014581,
-     "global_mean": 0.006022,
-     "deviation": 0.00856,
-     "z": 1.066,
+     "token": "should",
+     "cell_mean": 0.138792,
+     "global_mean": 0.13797,
+     "deviation": 0.000821,
+     "z": 0.985,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.014581,
+      "b": {
+       "mean": 0.138792,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.015883,
-     "global_mean": -0.021559,
-     "deviation": 0.005676,
-     "z": 0.928,
+     "token": "demonstrate",
+     "cell_mean": 0.144767,
+     "global_mean": 0.143658,
+     "deviation": 0.001108,
+     "z": 0.951,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.015883,
+      "m": {
+       "mean": 0.144767,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.015754,
-     "global_mean": -0.019929,
-     "deviation": 0.004176,
-     "z": 0.539,
-     "n": 1,
+     "token": "content",
+     "cell_mean": 0.158919,
+     "global_mean": 0.1581,
+     "deviation": 0.000819,
+     "z": 0.949,
+     "n": 3,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.015754,
+      "a": {
+       "mean": 0.179709,
        "n": 1
+      },
+      "j": {
+       "mean": 0.148524,
+       "n": 2
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.015778,
-     "global_mean": -0.020401,
-     "deviation": 0.004622,
-     "z": 0.484,
-     "n": 1,
+     "token": "Override",
+     "cell_mean": 0.154523,
+     "global_mean": 0.153605,
+     "deviation": 0.000919,
+     "z": 0.949,
+     "n": 5,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.015778,
-       "n": 1
+       "mean": 0.154523,
+       "n": 5
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.020614,
-     "global_mean": -0.019607,
-     "deviation": -0.001007,
-     "z": 0.117,
-     "n": 1,
+     "token": "previous",
+     "cell_mean": 0.168746,
+     "global_mean": 0.167904,
+     "deviation": 0.000843,
+     "z": 0.923,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "a": {
+       "mean": 0.15742,
+       "n": 1
+      },
       "j": {
-       "mean": -0.020614,
+       "mean": 0.180073,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "npm",
-    "antivirus",
-    "plane",
-    "report",
-    "guarding",
-    "behavior-based",
-    "classification",
-    "measurement",
-    "certainly",
-    "explanations",
-    "state-of-the-art",
-    "remove",
-    "viruses",
-    "vnf",
-    "cloud",
-    "providers",
-    "dpi",
-    "translates",
-    "format",
-    "unusually"
+    "anti",
+    "nid",
+    "plan",
+    "event",
+    "program",
+    "operations",
+    "rules",
+    "ida",
+    "center",
+    "filter"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "0_1": {
    "tokens": [
     {
-     "token": "me",
-     "cell_mean": -0.041199,
-     "global_mean": -0.019607,
-     "deviation": -0.021591,
-     "z": 2.504,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.041199,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.036744,
-     "global_mean": -0.019929,
-     "deviation": -0.016814,
-     "z": 2.171,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.036744,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.033875,
-     "global_mean": -0.021559,
-     "deviation": -0.012315,
-     "z": 2.013,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.033875,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.037397,
-     "global_mean": -0.020401,
-     "deviation": -0.016997,
-     "z": 1.78,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.037397,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": -0.001269,
-     "global_mean": 0.006022,
-     "deviation": -0.007291,
-     "z": 0.908,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.001269,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.007773,
-     "global_mean": -0.00152,
-     "deviation": 0.009293,
-     "z": 0.899,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.007773,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.019205,
-     "global_mean": -0.012717,
-     "deviation": -0.006488,
-     "z": 0.761,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019205,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.013856,
-     "global_mean": -0.016105,
-     "deviation": 0.002249,
-     "z": 0.399,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.013856,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "router",
-    "unreachable",
-    "ipv",
-    "timestamped",
-    "ospf",
-    "switch",
-    "connected",
-    "igmp",
-    "ldp",
-    "spanning",
-    "tree",
-    "shortest",
-    "first",
-    "subnet",
-    "collection",
-    "default",
-    "routes",
-    "resolution",
-    "ntp",
-    "high"
-   ],
-   "n_unique_tokens": 8
-  },
-  "0_2": {
-   "tokens": [
-    {
-     "token": "Ignore",
-     "cell_mean": -0.003123,
-     "global_mean": -0.012717,
-     "deviation": 0.009594,
-     "z": 1.126,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.003123,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.013299,
-     "global_mean": -0.020401,
-     "deviation": 0.007102,
-     "z": 0.744,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.013299,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.011405,
-     "global_mean": 0.006022,
-     "deviation": 0.005384,
-     "z": 0.671,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.011405,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.012724,
-     "global_mean": -0.016105,
-     "deviation": 0.003382,
-     "z": 0.599,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.012724,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.004616,
-     "global_mean": -0.00152,
-     "deviation": 0.006136,
-     "z": 0.594,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.004616,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.016843,
-     "global_mean": -0.019929,
-     "deviation": 0.003086,
-     "z": 0.398,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.016843,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.01964,
-     "global_mean": -0.021559,
-     "deviation": 0.001919,
-     "z": 0.314,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.01964,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.018833,
-     "global_mean": -0.019607,
-     "deviation": 0.000774,
-     "z": 0.09,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018833,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "probing",
-    "systematically",
-    "nmap",
-    "targets",
-    "small",
-    "remotely",
-    "entities",
-    "enumerating",
-    "sweep",
-    "tracer",
-    "lanman",
-    "burp",
-    "ccs",
-    "fire",
-    "actively",
-    "examining",
-    "discovering",
-    "become",
-    "inaccessible",
-    "examination"
-   ],
-   "n_unique_tokens": 8
-  },
-  "0_3": {
-   "tokens": [
-    {
-     "token": "alignment",
-     "cell_mean": -0.011924,
-     "global_mean": -0.00152,
-     "deviation": -0.010404,
-     "z": 1.007,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.011924,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.021354,
-     "global_mean": -0.016105,
-     "deviation": -0.005249,
-     "z": 0.931,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.021354,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.019428,
-     "global_mean": -0.012717,
-     "deviation": -0.006711,
-     "z": 0.788,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019428,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": -0.000195,
-     "global_mean": 0.006022,
-     "deviation": -0.006216,
-     "z": 0.774,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.000195,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.024739,
-     "global_mean": -0.020401,
-     "deviation": -0.004338,
-     "z": 0.454,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.024739,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.023287,
-     "global_mean": -0.019929,
-     "deviation": -0.003358,
-     "z": 0.434,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.023287,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.024038,
-     "global_mean": -0.021559,
-     "deviation": -0.002479,
-     "z": 0.405,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.024038,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.019385,
-     "global_mean": -0.019607,
-     "deviation": 0.000222,
-     "z": 0.026,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019385,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "pivoting",
-    "blackholing",
-    "rsh",
-    "deterrence",
-    "preventing",
-    "seos",
-    "amplification",
-    "dqas",
-    "slow",
-    "openflow",
-    "mux",
-    "route",
-    "failover",
-    "nip",
-    "nsmts",
-    "snort",
-    "suricata",
-    "tagging",
-    "urls",
-    "basics"
-   ],
-   "n_unique_tokens": 8
-  },
-  "0_4": {
-   "tokens": [
-    {
-     "token": "Write",
-     "cell_mean": -0.011366,
-     "global_mean": -0.019929,
-     "deviation": 0.008563,
-     "z": 1.106,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.011366,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.012351,
-     "global_mean": -0.019607,
-     "deviation": 0.007256,
-     "z": 0.841,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.012351,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.018452,
-     "global_mean": -0.021559,
-     "deviation": 0.003108,
-     "z": 0.508,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018452,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.015788,
-     "global_mean": -0.020401,
-     "deviation": 0.004613,
-     "z": 0.483,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.015788,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.008285,
-     "global_mean": 0.006022,
-     "deviation": 0.002263,
-     "z": 0.282,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.008285,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.010551,
-     "global_mean": -0.012717,
-     "deviation": 0.002165,
-     "z": 0.254,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.010551,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": -0.002741,
-     "global_mean": -0.00152,
-     "deviation": -0.001221,
-     "z": 0.118,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.002741,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.01572,
-     "global_mean": -0.016105,
-     "deviation": 0.000385,
-     "z": 0.068,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.01572,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "disruption",
-    "surge",
-    "storm",
-    "blackout",
-    "disrupts",
-    "hole",
-    "volume",
-    "disruptions",
-    "floodlighting",
-    "america",
-    "device's",
-    "poisonous",
-    "installation",
-    "mil",
-    "phage",
-    "ransack",
-    "siphon",
-    "ccn",
-    "troq",
-    "round"
-   ],
-   "n_unique_tokens": 8
-  },
-  "1_0": {
-   "tokens": [
-    {
-     "token": "your",
-     "cell_mean": 0.010269,
-     "global_mean": 0.006022,
-     "deviation": 0.004248,
-     "z": 0.529,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.010269,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.015069,
-     "global_mean": -0.012717,
-     "deviation": -0.002353,
-     "z": 0.276,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.015069,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.014754,
-     "global_mean": -0.016105,
-     "deviation": 0.001352,
-     "z": 0.24,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.014754,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.022316,
-     "global_mean": -0.020401,
-     "deviation": -0.001916,
-     "z": 0.201,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.022316,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.021186,
-     "global_mean": -0.019929,
-     "deviation": -0.001256,
-     "z": 0.162,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.021186,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": -0.002931,
-     "global_mean": -0.00152,
-     "deviation": -0.001411,
-     "z": 0.136,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.002931,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.02087,
-     "global_mean": -0.021559,
-     "deviation": 0.00069,
-     "z": 0.113,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.02087,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.019262,
-     "global_mean": -0.019607,
-     "deviation": 0.000345,
-     "z": 0.04,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019262,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "sanitization",
-    "patching",
-    "compliance",
-    "ikev",
-    "verify",
-    "headers",
-    "diving",
-    "comply",
-    "validate",
-    "tests",
-    "als",
-    "code-security",
-    "scoring",
-    "intruders",
-    "keyloggers",
-    "kit",
-    "researcher",
-    "quality",
-    "alp",
-    "ams"
-   ],
-   "n_unique_tokens": 8
-  },
-  "1_1": {
-   "tokens": [
-    {
-     "token": ".",
-     "cell_mean": -0.038434,
-     "global_mean": -0.020401,
-     "deviation": -0.018034,
-     "z": 1.888,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.038434,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.034522,
-     "global_mean": -0.019929,
-     "deviation": -0.014593,
-     "z": 1.884,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.034522,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.033889,
-     "global_mean": -0.019607,
-     "deviation": -0.014282,
-     "z": 1.656,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.033889,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.026818,
-     "global_mean": -0.012717,
-     "deviation": -0.014101,
-     "z": 1.655,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.026818,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": -0.007148,
-     "global_mean": 0.006022,
-     "deviation": -0.01317,
-     "z": 1.641,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.007148,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.030507,
-     "global_mean": -0.021559,
-     "deviation": -0.008947,
-     "z": 1.463,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.030507,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.018883,
-     "global_mean": -0.016105,
-     "deviation": -0.002777,
-     "z": 0.492,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018883,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": -0.004217,
-     "global_mean": -0.00152,
-     "deviation": -0.002697,
-     "z": 0.261,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.004217,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "aws",
-    "cloud",
-    "cdn",
-    "continuous",
-    "elastic",
-    "docker",
-    "kubernetes",
-    "amazon",
-    "alb",
-    "microservices",
-    "sdk",
-    "balancer",
-    "serverless",
-    "scp",
-    "sbp",
-    "apm",
-    "cluster",
-    "containerization",
-    "mysql",
-    "hackers"
-   ],
-   "n_unique_tokens": 8
-  },
-  "1_2": {
-   "tokens": [
-    {
-     "token": "code",
-     "cell_mean": -0.009306,
-     "global_mean": -0.016105,
-     "deviation": 0.006799,
-     "z": 1.205,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.009306,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.014135,
-     "global_mean": 0.006022,
-     "deviation": 0.008114,
-     "z": 1.011,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.014135,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.007374,
-     "global_mean": -0.00152,
-     "deviation": 0.008895,
-     "z": 0.861,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.007374,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.008187,
-     "global_mean": -0.012717,
-     "deviation": 0.00453,
-     "z": 0.532,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.008187,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.016103,
-     "global_mean": -0.020401,
-     "deviation": 0.004298,
-     "z": 0.45,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.016103,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.019242,
-     "global_mean": -0.021559,
-     "deviation": 0.002317,
-     "z": 0.379,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019242,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.018396,
-     "global_mean": -0.019929,
-     "deviation": 0.001534,
-     "z": 0.198,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018396,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.018783,
-     "global_mean": -0.019607,
-     "deviation": 0.000825,
-     "z": 0.096,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.018783,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "fuzzing",
-    "exceeds",
-    "occurs",
-    "allocated",
-    "space",
-    "overload",
-    "find",
-    "variables",
-    "outcomes",
-    "rainbow",
-    "strings",
-    "crashes",
-    "zap",
-    "fuzz",
-    "underflow",
-    "insertion",
-    "capacity",
-    "overflows",
-    "injects",
-    "unexpected"
-   ],
-   "n_unique_tokens": 8
-  },
-  "1_3": {
-   "tokens": [
-    {
-     "token": "Ignore",
-     "cell_mean": -0.002971,
-     "global_mean": -0.012717,
-     "deviation": 0.009746,
-     "z": 1.144,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.002971,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.010344,
-     "global_mean": -0.020401,
-     "deviation": 0.010057,
-     "z": 1.053,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.010344,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.016839,
-     "global_mean": -0.021559,
-     "deviation": 0.00472,
-     "z": 0.772,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.016839,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.014021,
-     "global_mean": -0.019929,
-     "deviation": 0.005909,
-     "z": 0.763,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.014021,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.01023,
-     "global_mean": 0.006022,
-     "deviation": 0.004208,
-     "z": 0.524,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.01023,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.015861,
-     "global_mean": -0.019607,
-     "deviation": 0.003747,
-     "z": 0.435,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.015861,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.000971,
-     "global_mean": -0.00152,
-     "deviation": 0.002491,
-     "z": 0.241,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.000971,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.016108,
-     "global_mean": -0.016105,
-     "deviation": -3e-06,
-     "z": 0.0,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.016108,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "inverted",
-    "misused",
-    "decrypting",
-    "involved",
-    "firmware",
-    "acp",
-    "black-box",
-    "mesh",
-    "direct",
-    "idoa",
-    "alamp",
-    "manner",
-    "engineer",
-    "skip",
-    "eviability",
-    "mitigate",
-    "either",
-    "evaluating",
-    "mathematics",
-    "chain"
-   ],
-   "n_unique_tokens": 8
-  },
-  "1_4": {
-   "tokens": [
-    {
-     "token": "Ignore",
-     "cell_mean": 0.005156,
-     "global_mean": -0.012717,
-     "deviation": 0.017873,
-     "z": 2.097,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.005156,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.000581,
-     "global_mean": -0.020401,
-     "deviation": 0.01982,
-     "z": 2.075,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.000581,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.021026,
-     "global_mean": 0.006022,
-     "deviation": 0.015004,
-     "z": 1.869,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.021026,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.003621,
-     "global_mean": -0.019607,
-     "deviation": 0.015986,
-     "z": 1.854,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.003621,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.006031,
-     "global_mean": -0.019929,
-     "deviation": 0.013899,
-     "z": 1.795,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.006031,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.010879,
-     "global_mean": -0.021559,
-     "deviation": 0.01068,
-     "z": 1.746,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.010879,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.009183,
-     "global_mean": -0.016105,
-     "deviation": 0.006923,
-     "z": 1.227,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.009183,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.007622,
-     "global_mean": -0.00152,
-     "deviation": 0.009143,
-     "z": 0.885,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.007622,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "crashing",
-    "corrupting",
-    "corrupted",
-    "sqlyog",
-    "crushing",
-    "violence",
-    "undermine",
-    "strength",
-    "corruptive",
-    "misuse",
-    "spreading",
-    "erosion",
-    "deterioration",
-    "deterministic",
-    "actor",
-    "manipulates",
-    "stronger",
-    "situation",
-    "resulting",
-    "dusty"
-   ],
-   "n_unique_tokens": 8
-  },
-  "2_0": {
-   "tokens": [
-    {
-     "token": "alignment",
-     "cell_mean": -0.022181,
-     "global_mean": -0.00152,
-     "deviation": -0.020661,
-     "z": 1.999,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.022181,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.026993,
-     "global_mean": -0.016105,
-     "deviation": -0.010888,
-     "z": 1.93,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.026993,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.023657,
-     "global_mean": -0.012717,
-     "deviation": -0.01094,
-     "z": 1.284,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.023657,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": -0.004209,
-     "global_mean": 0.006022,
-     "deviation": -0.010231,
+     "token": "method",
+     "cell_mean": 0.099386,
+     "global_mean": 0.10064,
+     "deviation": -0.001253,
      "z": 1.275,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.004209,
+      "m": {
+       "mean": 0.099386,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.028115,
-     "global_mean": -0.020401,
-     "deviation": -0.007714,
-     "z": 0.808,
+     "token": "might",
+     "cell_mean": 0.135794,
+     "global_mean": 0.136801,
+     "deviation": -0.001008,
+     "z": 1.244,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.028115,
+      "m": {
+       "mean": 0.135794,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.01564,
-     "global_mean": -0.019607,
-     "deviation": 0.003968,
-     "z": 0.46,
-     "n": 1,
+     "token": "been",
+     "cell_mean": 0.130197,
+     "global_mean": 0.129202,
+     "deviation": 0.000995,
+     "z": 1.24,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "m": {
+       "mean": 0.127379,
+       "n": 1
+      },
       "j": {
-       "mean": -0.01564,
+       "mean": 0.133015,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.024022,
-     "global_mean": -0.021559,
-     "deviation": -0.002463,
-     "z": 0.403,
+     "token": "bug",
+     "cell_mean": 0.147156,
+     "global_mean": 0.14628,
+     "deviation": 0.000876,
+     "z": 1.145,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.024022,
+      "m": {
+       "mean": 0.147156,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.022104,
-     "global_mean": -0.019929,
-     "deviation": -0.002174,
-     "z": 0.281,
+     "token": "password",
+     "cell_mean": 0.09546,
+     "global_mean": 0.094382,
+     "deviation": 0.001077,
+     "z": 1.12,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.022104,
+      "m": {
+       "mean": 0.09546,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "P",
+     "cell_mean": 0.106947,
+     "global_mean": 0.107649,
+     "deviation": -0.000702,
+     "z": 1.035,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.106947,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "normal",
+     "cell_mean": 0.174875,
+     "global_mean": 0.174016,
+     "deviation": 0.000859,
+     "z": 1.03,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.174875,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "my",
+     "cell_mean": 0.135565,
+     "global_mean": 0.134666,
+     "deviation": 0.000899,
+     "z": 0.996,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.135565,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "logs",
+     "cell_mean": 0.129211,
+     "global_mean": 0.130188,
+     "deviation": -0.000977,
+     "z": 0.973,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.136466,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.121956,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "activity",
+     "cell_mean": 0.132115,
+     "global_mean": 0.133052,
+     "deviation": -0.000938,
+     "z": 0.97,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.132115,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "kubernetes",
-    "jwts",
-    "expire",
-    "behalf",
-    "recording",
-    "tenant",
-    "cluster",
-    "container",
-    "role-level",
-    "rlac",
-    "application-specific",
-    "tat",
-    "session-based",
-    "sbac",
-    "context-aware",
-    "cacc",
-    "entity-based",
-    "ebac",
-    "uac",
-    "urbc"
+    "vlan",
+    "ike",
+    "gre",
+    "loss",
+    "area",
+    "relay",
+    "flow",
+    "header",
+    "performance",
+    "ntp"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "2_1": {
+  "0_2": {
    "tokens": [
     {
-     "token": "Write",
-     "cell_mean": -0.037626,
-     "global_mean": -0.019929,
-     "deviation": -0.017696,
-     "z": 2.285,
+     "token": "incoming",
+     "cell_mean": 0.111483,
+     "global_mean": 0.109577,
+     "deviation": 0.001906,
+     "z": 2.42,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.037626,
+      "b": {
+       "mean": 0.111483,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.039267,
-     "global_mean": -0.020401,
-     "deviation": -0.018867,
-     "z": 1.975,
+     "token": "preventing",
+     "cell_mean": 0.073241,
+     "global_mean": 0.075515,
+     "deviation": -0.002273,
+     "z": 2.113,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.039267,
+      "b": {
+       "mean": 0.073241,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.033434,
-     "global_mean": -0.021559,
-     "deviation": -0.011875,
-     "z": 1.941,
+     "token": "P",
+     "cell_mean": 0.109005,
+     "global_mean": 0.107649,
+     "deviation": 0.001355,
+     "z": 1.998,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.109005,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "should",
+     "cell_mean": 0.139568,
+     "global_mean": 0.13797,
+     "deviation": 0.001597,
+     "z": 1.915,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.033434,
+      "b": {
+       "mean": 0.139568,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.034918,
-     "global_mean": -0.019607,
-     "deviation": -0.015311,
-     "z": 1.776,
+     "token": "over",
+     "cell_mean": 0.057781,
+     "global_mean": 0.056406,
+     "deviation": 0.001375,
+     "z": 1.872,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.034918,
+      "d": {
+       "mean": 0.057781,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.026284,
-     "global_mean": -0.012717,
-     "deviation": -0.013567,
-     "z": 1.592,
+     "token": "detecting",
+     "cell_mean": 0.17225,
+     "global_mean": 0.170523,
+     "deviation": 0.001727,
+     "z": 1.827,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.026284,
+      "b": {
+       "mean": 0.17225,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": -0.004147,
-     "global_mean": 0.006022,
-     "deviation": -0.010169,
-     "z": 1.267,
+     "token": "servers",
+     "cell_mean": 0.140109,
+     "global_mean": 0.138217,
+     "deviation": 0.001892,
+     "z": 1.71,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.004147,
+      "b": {
+       "mean": 0.140109,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.02266,
-     "global_mean": -0.016105,
-     "deviation": -0.006554,
-     "z": 1.162,
+     "token": "walls",
+     "cell_mean": 0.045356,
+     "global_mean": 0.044015,
+     "deviation": 0.001341,
+     "z": 1.539,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.02266,
+      "b": {
+       "mean": 0.045356,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": -0.006095,
-     "global_mean": -0.00152,
-     "deviation": -0.004575,
-     "z": 0.443,
+     "token": "investigate",
+     "cell_mean": 0.142712,
+     "global_mean": 0.141337,
+     "deviation": 0.001375,
+     "z": 1.527,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.006095,
+      "m": {
+       "mean": 0.142712,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "certification",
+     "cell_mean": 0.165882,
+     "global_mean": 0.164524,
+     "deviation": 0.001358,
+     "z": 1.485,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.165882,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "keycloak",
-    "logout",
-    "google",
-    "stateless",
-    "sts",
-    "owner",
-    "providers",
-    "facebook",
-    "required",
-    "client-side",
-    "tac",
-    "ldap",
-    "enrollment",
-    "webauthn",
-    "sessions",
-    "image",
-    "sign-in",
-    "sign-up",
-    "ksp",
-    "broker"
+    "apt",
+    "worm",
+    "line",
+    "interface",
+    "cli",
+    "mil"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "2_2": {
+  "0_3": {
    "tokens": [
     {
-     "token": ".",
-     "cell_mean": -0.003268,
-     "global_mean": -0.020401,
-     "deviation": 0.017132,
-     "z": 1.794,
+     "token": "should",
+     "cell_mean": 0.136353,
+     "global_mean": 0.13797,
+     "deviation": -0.001617,
+     "z": 1.939,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.003268,
+      "b": {
+       "mean": 0.136353,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.01097,
-     "global_mean": -0.021559,
-     "deviation": 0.01059,
-     "z": 1.731,
+     "token": "decrypt",
+     "cell_mean": 0.078116,
+     "global_mean": 0.079433,
+     "deviation": -0.001317,
+     "z": 1.858,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.01097,
+      "h": {
+       "mean": 0.078116,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": 0.001305,
-     "global_mean": -0.012717,
-     "deviation": 0.014022,
-     "z": 1.646,
+     "token": "assistant",
+     "cell_mean": 0.082443,
+     "global_mean": 0.080903,
+     "deviation": 0.00154,
+     "z": 1.818,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.001305,
+       "mean": 0.082443,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.019233,
-     "global_mean": 0.006022,
-     "deviation": 0.013212,
-     "z": 1.646,
+     "token": "let",
+     "cell_mean": 0.084301,
+     "global_mean": 0.085953,
+     "deviation": -0.001651,
+     "z": 1.803,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.019233,
+      "m": {
+       "mean": 0.084301,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.00867,
-     "global_mean": -0.019929,
-     "deviation": 0.011259,
-     "z": 1.454,
+     "token": "exist",
+     "cell_mean": 0.2192,
+     "global_mean": 0.21656,
+     "deviation": 0.00264,
+     "z": 1.782,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.00867,
+      "a": {
+       "mean": 0.2192,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.007995,
-     "global_mean": -0.019607,
-     "deviation": 0.011612,
-     "z": 1.347,
+     "token": "ret",
+     "cell_mean": 0.213611,
+     "global_mean": 0.210927,
+     "deviation": 0.002683,
+     "z": 1.747,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.213611,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "Respond",
+     "cell_mean": 0.204419,
+     "global_mean": 0.202025,
+     "deviation": 0.002394,
+     "z": 1.681,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.204419,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "tokens",
+     "cell_mean": 0.144705,
+     "global_mean": 0.142347,
+     "deviation": 0.002358,
+     "z": 1.66,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.007995,
+      "d": {
+       "mean": 0.144705,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.008829,
-     "global_mean": -0.016105,
-     "deviation": 0.007276,
-     "z": 1.29,
+     "token": "evidence",
+     "cell_mean": 0.222586,
+     "global_mean": 0.219903,
+     "deviation": 0.002683,
+     "z": 1.648,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.008829,
+      "b": {
+       "mean": 0.222586,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": 0.010508,
-     "global_mean": -0.00152,
-     "deviation": 0.012029,
-     "z": 1.164,
+     "token": "memory",
+     "cell_mean": 0.129815,
+     "global_mean": 0.127906,
+     "deviation": 0.001909,
+     "z": 1.634,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.010508,
+      "d": {
+       "mean": 0.129815,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "harvesting",
-    "hunting",
-    "browsing",
-    "pms",
-    "crafting",
-    "spearware",
-    "optimization",
-    "formation",
-    "relate",
-    "scraper",
-    "wapi",
-    "believing",
-    "include",
-    "fingerprint",
-    "facial",
-    "iris",
-    "exchanges",
-    "temporary",
-    "performing",
-    "fingerprints"
+    "reply",
+    "redirect",
+    "destination",
+    "such",
+    "they",
+    "could",
+    "when",
+    "other",
+    "radius",
+    "hole"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "2_3": {
+  "0_4": {
    "tokens": [
     {
-     "token": "alignment",
-     "cell_mean": -0.007677,
-     "global_mean": -0.00152,
-     "deviation": -0.006157,
-     "z": 0.596,
+     "token": "As",
+     "cell_mean": 0.142295,
+     "global_mean": 0.138167,
+     "deviation": 0.004128,
+     "z": 2.853,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.007677,
+      "a": {
+       "mean": 0.142295,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.016562,
-     "global_mean": -0.019929,
-     "deviation": 0.003367,
-     "z": 0.435,
+     "token": "fore",
+     "cell_mean": 0.005894,
+     "global_mean": 0.008395,
+     "deviation": -0.002501,
+     "z": 2.83,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.016562,
+      "m": {
+       "mean": 0.005894,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.017428,
-     "global_mean": -0.020401,
+     "token": "while",
+     "cell_mean": 0.009328,
+     "global_mean": 0.011665,
+     "deviation": -0.002337,
+     "z": 2.829,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.009328,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "answer",
+     "cell_mean": 0.083636,
+     "global_mean": 0.079972,
+     "deviation": 0.003664,
+     "z": 2.751,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.083636,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "disabled",
+     "cell_mean": 0.177549,
+     "global_mean": 0.174578,
      "deviation": 0.002972,
-     "z": 0.311,
-     "n": 1,
+     "z": 2.672,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "a": {
+       "mean": 0.165274,
+       "n": 1
+      },
       "j": {
-       "mean": -0.017428,
+       "mean": 0.189825,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.017781,
-     "global_mean": -0.019607,
-     "deviation": 0.001826,
-     "z": 0.212,
+     "token": "practices",
+     "cell_mean": 0.141938,
+     "global_mean": 0.138632,
+     "deviation": 0.003306,
+     "z": 2.627,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.017781,
+      "b": {
+       "mean": 0.141938,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.004533,
-     "global_mean": 0.006022,
-     "deviation": -0.001489,
-     "z": 0.185,
+     "token": "requests",
+     "cell_mean": 0.206075,
+     "global_mean": 0.203029,
+     "deviation": 0.003046,
+     "z": 2.603,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.004533,
+       "mean": 0.206075,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.017147,
-     "global_mean": -0.016105,
-     "deviation": -0.001042,
-     "z": 0.185,
+     "token": "removed",
+     "cell_mean": 0.181698,
+     "global_mean": 0.178918,
+     "deviation": 0.002779,
+     "z": 2.587,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.017147,
+       "mean": 0.181698,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.011776,
-     "global_mean": -0.012717,
-     "deviation": 0.00094,
-     "z": 0.11,
+     "token": "suspended",
+     "cell_mean": 0.208106,
+     "global_mean": 0.204977,
+     "deviation": 0.003129,
+     "z": 2.563,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.011776,
+      "a": {
+       "mean": 0.208106,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.021676,
-     "global_mean": -0.021559,
-     "deviation": -0.000117,
-     "z": 0.019,
-     "n": 1,
+     "token": "filters",
+     "cell_mean": 0.175753,
+     "global_mean": 0.172887,
+     "deviation": 0.002866,
+     "z": 2.533,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "a": {
+       "mean": 0.148911,
+       "n": 1
+      },
       "j": {
-       "mean": -0.021676,
+       "mean": 0.202596,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "ticket",
-    "tokenized",
-    "iot",
-    "lateral",
-    "movement",
-    "scenario",
-    "ieh",
-    "escalating",
-    "escalate",
-    "scoping",
-    "iatf",
-    "mitigating",
-    "internet-of-things",
-    "cosub",
-    "credential-oriented",
-    "governing",
-    "description",
-    "owsld",
-    "enhance",
-    "two-step"
-   ],
-   "n_unique_tokens": 8
-  },
-  "2_4": {
-   "tokens": [
-    {
-     "token": "alignment",
-     "cell_mean": 0.010206,
-     "global_mean": -0.00152,
-     "deviation": 0.011726,
-     "z": 1.135,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.010206,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.028309,
-     "global_mean": -0.019607,
-     "deviation": -0.008701,
-     "z": 1.009,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.028309,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.011732,
-     "global_mean": -0.016105,
-     "deviation": 0.004374,
-     "z": 0.775,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.011732,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.025177,
-     "global_mean": -0.021559,
-     "deviation": -0.003618,
-     "z": 0.591,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.025177,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.008546,
-     "global_mean": -0.012717,
-     "deviation": 0.004171,
-     "z": 0.49,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.008546,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.02324,
-     "global_mean": -0.019929,
-     "deviation": -0.003311,
-     "z": 0.428,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.02324,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": 0.008923,
-     "global_mean": 0.006022,
-     "deviation": 0.002901,
-     "z": 0.361,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.008923,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.020869,
-     "global_mean": -0.020401,
-     "deviation": -0.000469,
-     "z": 0.049,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.020869,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "proper",
-    "intercept",
-    "handling",
-    "location",
-    "transferring",
-    "insiders",
-    "lookup",
-    "deterrence",
-    "another's",
-    "metaphone",
-    "transformation",
-    "unavailable",
-    "slow",
-    "down",
-    "multi-mission",
-    "multi-target",
-    "modify",
-    "reception",
-    "way",
-    "experience"
-   ],
-   "n_unique_tokens": 8
-  },
-  "3_0": {
-   "tokens": [
-    {
-     "token": "alignment",
-     "cell_mean": -0.015023,
-     "global_mean": -0.00152,
-     "deviation": -0.013502,
-     "z": 1.306,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.015023,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "your",
-     "cell_mean": -0.003413,
-     "global_mean": 0.006022,
-     "deviation": -0.009435,
-     "z": 1.175,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.003413,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.020595,
-     "global_mean": -0.016105,
-     "deviation": -0.004489,
-     "z": 0.796,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.020595,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Ignore",
-     "cell_mean": -0.019253,
-     "global_mean": -0.012717,
-     "deviation": -0.006536,
-     "z": 0.767,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.019253,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": ".",
-     "cell_mean": -0.025065,
-     "global_mean": -0.020401,
-     "deviation": -0.004664,
-     "z": 0.488,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.025065,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "malware",
-     "cell_mean": -0.02426,
-     "global_mean": -0.021559,
-     "deviation": -0.002701,
-     "z": 0.442,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.02426,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.022101,
-     "global_mean": -0.019929,
-     "deviation": -0.002172,
-     "z": 0.28,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.022101,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.020499,
-     "global_mean": -0.019607,
-     "deviation": -0.000891,
-     "z": 0.103,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.020499,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "salt",
-    "dhe",
-    "certification",
-    "iso",
-    "fips",
-    "finite",
-    "proves",
-    "initialization",
-    "bcenc",
-    "cng",
-    "eccdsa",
-    "rsapkcs",
-    "rsaes-gcm",
-    "ecdh-evp",
-    "challenge-response",
+    "deny",
+    "you",
+    "your",
+    "please",
     "note",
-    "extremely",
-    "extensive",
-    "covers",
-    "found"
+    "may",
+    "not",
+    "own",
+    "this",
+    "water"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "3_1": {
+  "1_0": {
    "tokens": [
     {
-     "token": "code",
-     "cell_mean": -0.022825,
-     "global_mean": -0.016105,
-     "deviation": -0.00672,
-     "z": 1.191,
+     "token": "DAN",
+     "cell_mean": 0.138769,
+     "global_mean": 0.140814,
+     "deviation": -0.002045,
+     "z": 2.014,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.022825,
+      "a": {
+       "mean": 0.138769,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": -0.001965,
-     "global_mean": 0.006022,
-     "deviation": -0.007987,
-     "z": 0.995,
-     "n": 1,
+     "token": "mode",
+     "cell_mean": 0.127569,
+     "global_mean": 0.129138,
+     "deviation": -0.001569,
+     "z": 1.795,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "a": {
+       "mean": 0.115267,
+       "n": 1
+      },
       "j": {
-       "mean": -0.001965,
+       "mean": 0.139871,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.025617,
-     "global_mean": -0.021559,
-     "deviation": -0.004058,
-     "z": 0.663,
+     "token": "directive",
+     "cell_mean": 0.156955,
+     "global_mean": 0.158872,
+     "deviation": -0.001916,
+     "z": 1.696,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.025617,
+       "mean": 0.156955,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": -0.008332,
-     "global_mean": -0.00152,
-     "deviation": -0.006812,
-     "z": 0.659,
+     "token": "re",
+     "cell_mean": -0.028413,
+     "global_mean": -0.026933,
+     "deviation": -0.00148,
+     "z": 1.679,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.008332,
+      "h": {
+       "mean": -0.028413,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.016057,
-     "global_mean": -0.012717,
-     "deviation": -0.00334,
-     "z": 0.392,
+     "token": "research",
+     "cell_mean": 0.195563,
+     "global_mean": 0.19751,
+     "deviation": -0.001947,
+     "z": 1.652,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.016057,
+      "a": {
+       "mean": 0.195563,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.023826,
-     "global_mean": -0.020401,
-     "deviation": -0.003426,
-     "z": 0.359,
-     "n": 1,
+     "token": "completely",
+     "cell_mean": 0.165042,
+     "global_mean": 0.166682,
+     "deviation": -0.001639,
+     "z": 1.65,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.023826,
+       "mean": 0.165042,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "guidelines",
+     "cell_mean": 0.184969,
+     "global_mean": 0.186589,
+     "deviation": -0.00162,
+     "z": 1.639,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.171217,
+       "n": 2
+      },
+      "j": {
+       "mean": 0.198721,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "training",
+     "cell_mean": 0.197308,
+     "global_mean": 0.199401,
+     "deviation": -0.002093,
+     "z": 1.635,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.197308,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.110862,
+     "global_mean": 0.112348,
+     "deviation": -0.001486,
+     "z": 1.623,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.110862,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.021679,
-     "global_mean": -0.019607,
-     "deviation": -0.002071,
-     "z": 0.24,
+     "token": "broken",
+     "cell_mean": 0.166741,
+     "global_mean": 0.168656,
+     "deviation": -0.001916,
+     "z": 1.616,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.021679,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.021425,
-     "global_mean": -0.019929,
-     "deviation": -0.001495,
-     "z": 0.193,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.021425,
+       "mean": 0.166741,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "non-repudiation",
-    "securing",
-    "eax",
-    "zkp",
-    "jargons",
-    "appropriate",
-    "consisting",
-    "kept",
-    "among",
-    "variant",
-    "unsecured",
-    "exposing",
-    "client's",
-    "cpr",
-    "hbcas",
-    "pck",
-    "nrp",
-    "hike",
-    "hdf",
-    "kap"
+    "gateway",
+    "least",
+    "load",
+    "storage",
+    "xml",
+    "performance",
+    "validation",
+    "clean",
+    "loss",
+    "definitions"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "3_2": {
+  "1_1": {
    "tokens": [
     {
-     "token": "malware",
-     "cell_mean": -0.01314,
-     "global_mean": -0.021559,
-     "deviation": 0.008419,
-     "z": 1.376,
+     "token": "monitoring",
+     "cell_mean": 0.099859,
+     "global_mean": 0.098196,
+     "deviation": 0.001663,
+     "z": 1.814,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.01314,
+      "b": {
+       "mean": 0.099859,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.008602,
-     "global_mean": -0.020401,
-     "deviation": 0.011799,
-     "z": 1.235,
+     "token": "fails",
+     "cell_mean": 0.109113,
+     "global_mean": 0.107902,
+     "deviation": 0.001211,
+     "z": 1.701,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.008602,
+      "a": {
+       "mean": 0.109113,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.015055,
-     "global_mean": 0.006022,
-     "deviation": 0.009033,
-     "z": 1.125,
+     "token": "during",
+     "cell_mean": 0.107354,
+     "global_mean": 0.105922,
+     "deviation": 0.001432,
+     "z": 1.693,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.095795,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.118913,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "persists",
+     "cell_mean": 0.095342,
+     "global_mean": 0.093796,
+     "deviation": 0.001546,
+     "z": 1.64,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.015055,
+      "h": {
+       "mean": 0.095342,
        "n": 1
+      }
+     }
+    },
+    {
+     "token": "executing",
+     "cell_mean": 0.127633,
+     "global_mean": 0.126281,
+     "deviation": 0.001352,
+     "z": 1.56,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.127633,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "from",
+     "cell_mean": 0.097926,
+     "global_mean": 0.096902,
+     "deviation": 0.001024,
+     "z": 1.516,
+     "n": 27,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.143379,
+       "n": 3
+      },
+      "m": {
+       "mean": 0.100434,
+       "n": 5
+      },
+      "d": {
+       "mean": 0.109126,
+       "n": 4
+      },
+      "h": {
+       "mean": 0.092427,
+       "n": 7
+      },
+      "a": {
+       "mean": 0.086455,
+       "n": 4
+      },
+      "j": {
+       "mean": 0.070595,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "deploy",
+     "cell_mean": 0.181476,
+     "global_mean": 0.180041,
+     "deviation": 0.001435,
+     "z": 1.515,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.18077,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.182181,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "used",
+     "cell_mean": 0.113928,
+     "global_mean": 0.11254,
+     "deviation": 0.001389,
+     "z": 1.508,
+     "n": 11,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.117142,
+       "n": 2
+      },
+      "m": {
+       "mean": 0.114995,
+       "n": 3
+      },
+      "d": {
+       "mean": 0.112324,
+       "n": 6
       }
      }
     },
     {
      "token": "Write",
-     "cell_mean": -0.012233,
-     "global_mean": -0.019929,
-     "deviation": 0.007696,
-     "z": 0.994,
-     "n": 1,
+     "cell_mean": 0.126494,
+     "global_mean": 0.12532,
+     "deviation": 0.001173,
+     "z": 1.49,
+     "n": 26,
      "n_cells": 25,
      "cats": {
+      "h": {
+       "mean": 0.108909,
+       "n": 10
+      },
+      "a": {
+       "mean": 0.139609,
+       "n": 5
+      },
       "j": {
-       "mean": -0.012233,
-       "n": 1
+       "mean": 0.136518,
+       "n": 11
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.004334,
-     "global_mean": -0.012717,
-     "deviation": 0.008383,
-     "z": 0.984,
-     "n": 1,
+     "token": "using",
+     "cell_mean": 0.113899,
+     "global_mean": 0.112601,
+     "deviation": 0.001298,
+     "z": 1.484,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.004334,
+      "m": {
+       "mean": 0.106413,
        "n": 1
-      }
-     }
-    },
-    {
-     "token": "me",
-     "cell_mean": -0.012252,
-     "global_mean": -0.019607,
-     "deviation": 0.007356,
-     "z": 0.853,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
+      },
       "j": {
-       "mean": -0.012252,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "alignment",
-     "cell_mean": 0.003123,
-     "global_mean": -0.00152,
-     "deviation": 0.004643,
-     "z": 0.449,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.003123,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "code",
-     "cell_mean": -0.014151,
-     "global_mean": -0.016105,
-     "deviation": 0.001954,
-     "z": 0.346,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": -0.014151,
+       "mean": 0.121385,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "shor's",
-    "factorization",
-    "shortest",
-    "integer",
-    "discrete",
-    "logarithm",
-    "exponentiation",
-    "lattice",
-    "fourier",
-    "correction",
-    "grover's",
-    "lattice-based",
-    "search",
-    "schnorr",
-    "phase",
-    "estimation",
-    "fft",
-    "pre-quantum",
-    "lemma",
-    "factor"
+    "best",
+    "practice",
+    "coding",
+    "continuous",
+    "delivery",
+    "open",
+    "docker",
+    "source",
+    "operations",
+    "ten"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
-  "3_3": {
+  "1_2": {
    "tokens": [
     {
-     "token": "your",
-     "cell_mean": -0.006265,
-     "global_mean": 0.006022,
-     "deviation": -0.012286,
-     "z": 1.531,
+     "token": "persistent",
+     "cell_mean": 0.124031,
+     "global_mean": 0.125392,
+     "deviation": -0.001361,
+     "z": 1.952,
+     "n": 6,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.174335,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.069063,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.140118,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.145804,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "door",
+     "cell_mean": 0.167441,
+     "global_mean": 0.169274,
+     "deviation": -0.001833,
+     "z": 1.948,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.006265,
+      "h": {
+       "mean": 0.167441,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.024391,
-     "global_mean": -0.012717,
-     "deviation": -0.011674,
+     "token": "assistant",
+     "cell_mean": 0.082539,
+     "global_mean": 0.080903,
+     "deviation": 0.001636,
+     "z": 1.932,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.082539,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "transmitted",
+     "cell_mean": 0.085171,
+     "global_mean": 0.087072,
+     "deviation": -0.001901,
+     "z": 1.9,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.085171,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "shell",
+     "cell_mean": 0.083326,
+     "global_mean": 0.08499,
+     "deviation": -0.001663,
+     "z": 1.88,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.083326,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "password",
+     "cell_mean": 0.092603,
+     "global_mean": 0.094382,
+     "deviation": -0.001779,
+     "z": 1.85,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.092603,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bug",
+     "cell_mean": 0.144893,
+     "global_mean": 0.14628,
+     "deviation": -0.001386,
+     "z": 1.81,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.144893,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "potential",
+     "cell_mean": 0.165925,
+     "global_mean": 0.167859,
+     "deviation": -0.001935,
+     "z": 1.733,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.165925,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fore",
+     "cell_mean": 0.006888,
+     "global_mean": 0.008395,
+     "deviation": -0.001506,
+     "z": 1.704,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006888,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "blocking",
+     "cell_mean": 0.080839,
+     "global_mean": 0.08237,
+     "deviation": -0.00153,
+     "z": 1.673,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.080839,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "tool",
+    "where",
+    "program",
+    "language",
+    "about",
+    "applications",
+    "which",
+    "your",
+    "not",
+    "size"
+   ],
+   "n_unique_tokens": 428
+  },
+  "1_3": {
+   "tokens": [
+    {
+     "token": "protected",
+     "cell_mean": 0.150568,
+     "global_mean": 0.152172,
+     "deviation": -0.001604,
+     "z": 1.812,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.150568,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "preventing",
+     "cell_mean": 0.073715,
+     "global_mean": 0.075515,
+     "deviation": -0.001799,
+     "z": 1.672,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.073715,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "breached",
+     "cell_mean": 0.166795,
+     "global_mean": 0.168184,
+     "deviation": -0.001389,
+     "z": 1.616,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.176352,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.147681,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "commands",
+     "cell_mean": 0.138117,
+     "global_mean": 0.139559,
+     "deviation": -0.001442,
+     "z": 1.498,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.138117,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploited",
+     "cell_mean": 0.127063,
+     "global_mean": 0.128426,
+     "deviation": -0.001364,
+     "z": 1.487,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.127063,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bug",
+     "cell_mean": 0.145203,
+     "global_mean": 0.14628,
+     "deviation": -0.001076,
+     "z": 1.406,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.145203,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "removed",
+     "cell_mean": 0.177454,
+     "global_mean": 0.178918,
+     "deviation": -0.001464,
+     "z": 1.363,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.177454,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "authorized",
+     "cell_mean": 0.1508,
+     "global_mean": 0.152232,
+     "deviation": -0.001431,
+     "z": 1.355,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.136873,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.164728,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "its",
+     "cell_mean": 0.132458,
+     "global_mean": 0.133738,
+     "deviation": -0.001279,
+     "z": 1.354,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.142542,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.124598,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.099604,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.163089,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "potential",
+     "cell_mean": 0.166354,
+     "global_mean": 0.167859,
+     "deviation": -0.001505,
+     "z": 1.348,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.166354,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "purpose",
+    "box",
+    "encoding",
+    "examples",
+    "mime",
+    "using",
+    "stack",
+    "base",
+    "make",
+    "use"
+   ],
+   "n_unique_tokens": 428
+  },
+  "1_4": {
+   "tokens": [
+    {
+     "token": "shell",
+     "cell_mean": 0.086253,
+     "global_mean": 0.08499,
+     "deviation": 0.001264,
+     "z": 1.428,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.086253,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuring",
+     "cell_mean": 0.029009,
+     "global_mean": 0.027616,
+     "deviation": 0.001392,
+     "z": 1.424,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.029009,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "blocking",
+     "cell_mean": 0.083623,
+     "global_mean": 0.08237,
+     "deviation": 0.001253,
      "z": 1.37,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.024391,
+      "m": {
+       "mean": 0.083623,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.028778,
-     "global_mean": -0.021559,
-     "deviation": -0.007219,
-     "z": 1.18,
-     "n": 1,
+     "token": "ex",
+     "cell_mean": 0.013349,
+     "global_mean": 0.012507,
+     "deviation": 0.000842,
+     "z": 1.274,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.028778,
+      "d": {
+       "mean": 0.008589,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.01811,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.030447,
-     "global_mean": -0.020401,
-     "deviation": -0.010047,
-     "z": 1.052,
+     "token": "persistent",
+     "cell_mean": 0.126246,
+     "global_mean": 0.125392,
+     "deviation": 0.000853,
+     "z": 1.223,
+     "n": 6,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.177141,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.071152,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.142438,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.147795,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "configuration",
+     "cell_mean": 0.132269,
+     "global_mean": 0.131214,
+     "deviation": 0.001054,
+     "z": 1.211,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.030447,
+      "h": {
+       "mean": 0.132269,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.021701,
-     "global_mean": -0.016105,
-     "deviation": -0.005595,
-     "z": 0.992,
+     "token": "fails",
+     "cell_mean": 0.108699,
+     "global_mean": 0.107902,
+     "deviation": 0.000797,
+     "z": 1.12,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.021701,
+      "a": {
+       "mean": 0.108699,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": -0.010687,
-     "global_mean": -0.00152,
-     "deviation": -0.009167,
-     "z": 0.887,
+     "token": "Linux",
+     "cell_mean": 0.110954,
+     "global_mean": 0.10978,
+     "deviation": 0.001173,
+     "z": 1.106,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.010687,
+      "d": {
+       "mean": 0.110954,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.026607,
-     "global_mean": -0.019929,
-     "deviation": -0.006678,
-     "z": 0.862,
+     "token": "local",
+     "cell_mean": 0.108862,
+     "global_mean": 0.107959,
+     "deviation": 0.000903,
+     "z": 1.09,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.026607,
+      "m": {
+       "mean": 0.108862,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.026107,
-     "global_mean": -0.019607,
-     "deviation": -0.0065,
-     "z": 0.754,
+     "token": "while",
+     "cell_mean": 0.012558,
+     "global_mean": 0.011665,
+     "deviation": 0.000893,
+     "z": 1.081,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.026107,
+      "d": {
+       "mean": 0.012558,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "twofish",
-    "aesgcm",
-    "plain",
-    "strong",
-    "xts",
-    "xor-transposition-substitution",
-    "adleman",
-    "counter",
-    "lfsr",
-    "linear",
-    "feedback",
-    "shift",
-    "register",
-    "lwe",
-    "crypt",
-    "evp",
-    "cryptographic-related",
-    "stego",
-    "stealth",
-    "asymmetric-key"
+    "script",
+    "apt",
+    "common",
+    "queries",
+    "attempt",
+    "sandbox",
+    "kit",
+    "ethical",
+    "connection",
+    "environment"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
+  },
+  "2_0": {
+   "tokens": [
+    {
+     "token": "authenticate",
+     "cell_mean": 0.068026,
+     "global_mean": 0.06607,
+     "deviation": 0.001956,
+     "z": 2.087,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.068026,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "storing",
+     "cell_mean": 0.126285,
+     "global_mean": 0.124645,
+     "deviation": 0.00164,
+     "z": 1.979,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.126285,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "being",
+     "cell_mean": 0.173628,
+     "global_mean": 0.171918,
+     "deviation": 0.001709,
+     "z": 1.966,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.173628,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "normal",
+     "cell_mean": 0.175582,
+     "global_mean": 0.174016,
+     "deviation": 0.001566,
+     "z": 1.879,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.175582,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuring",
+     "cell_mean": 0.02939,
+     "global_mean": 0.027616,
+     "deviation": 0.001773,
+     "z": 1.814,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.02939,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "connected",
+     "cell_mean": 0.091169,
+     "global_mean": 0.089542,
+     "deviation": 0.001627,
+     "z": 1.811,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.091169,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuration",
+     "cell_mean": 0.132726,
+     "global_mean": 0.131214,
+     "deviation": 0.001512,
+     "z": 1.735,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.132726,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Linux",
+     "cell_mean": 0.111615,
+     "global_mean": 0.10978,
+     "deviation": 0.001834,
+     "z": 1.728,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.111615,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "blocking",
+     "cell_mean": 0.083947,
+     "global_mean": 0.08237,
+     "deviation": 0.001577,
+     "z": 1.725,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.083947,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "which",
+     "cell_mean": 0.121284,
+     "global_mean": 0.119646,
+     "deviation": 0.001638,
+     "z": 1.714,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.121284,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "controls",
+    "claims",
+    "refresh",
+    "ldap",
+    "azure",
+    "model",
+    "windows",
+    "logout",
+    "trail",
+    "profile"
+   ],
+   "n_unique_tokens": 428
+  },
+  "2_1": {
+   "tokens": [
+    {
+     "token": "Extract",
+     "cell_mean": 0.092599,
+     "global_mean": 0.090612,
+     "deviation": 0.001987,
+     "z": 1.989,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.092599,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "capture",
+     "cell_mean": 0.136333,
+     "global_mean": 0.134737,
+     "deviation": 0.001597,
+     "z": 1.803,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.137817,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.134849,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "extracting",
+     "cell_mean": 0.091445,
+     "global_mean": 0.08965,
+     "deviation": 0.001794,
+     "z": 1.751,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.091445,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "entire",
+     "cell_mean": 0.074925,
+     "global_mean": 0.073423,
+     "deviation": 0.001502,
+     "z": 1.653,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.074925,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "transmitted",
+     "cell_mean": 0.088712,
+     "global_mean": 0.087072,
+     "deviation": 0.001641,
+     "z": 1.64,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.088712,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "stored",
+     "cell_mean": 0.098817,
+     "global_mean": 0.097512,
+     "deviation": 0.001305,
+     "z": 1.579,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.090956,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.120812,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.088192,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.095308,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compatibility",
+     "cell_mean": 0.118002,
+     "global_mean": 0.116488,
+     "deviation": 0.001514,
+     "z": 1.572,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.118002,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": 0.113772,
+     "global_mean": 0.112348,
+     "deviation": 0.001424,
+     "z": 1.556,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.113772,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "valid",
+     "cell_mean": 0.136129,
+     "global_mean": 0.134825,
+     "deviation": 0.001304,
+     "z": 1.533,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.136129,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "weak",
+     "cell_mean": 0.104256,
+     "global_mean": 0.102867,
+     "deviation": 0.001389,
+     "z": 1.525,
+     "n": 6,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.07697,
+       "n": 2
+      },
+      "h": {
+       "mean": 0.113106,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.106652,
+       "n": 2
+      },
+      "j": {
+       "mean": 0.145184,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "provider",
+    "username",
+    "assignment",
+    "grant",
+    "personal",
+    "roles",
+    "otp",
+    "markup",
+    "language",
+    "applications"
+   ],
+   "n_unique_tokens": 428
+  },
+  "2_2": {
+   "tokens": [
+    {
+     "token": "through",
+     "cell_mean": 0.116488,
+     "global_mean": 0.11498,
+     "deviation": 0.001509,
+     "z": 2.214,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.116488,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "might",
+     "cell_mean": 0.138516,
+     "global_mean": 0.136801,
+     "deviation": 0.001715,
+     "z": 2.117,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.138516,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "should",
+     "cell_mean": 0.139603,
+     "global_mean": 0.13797,
+     "deviation": 0.001633,
+     "z": 1.958,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.139603,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "story",
+     "cell_mean": 0.139166,
+     "global_mean": 0.136788,
+     "deviation": 0.002379,
+     "z": 1.929,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.139166,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "users",
+     "cell_mean": 0.111092,
+     "global_mean": 0.109199,
+     "deviation": 0.001893,
+     "z": 1.866,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.111092,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "what",
+     "cell_mean": 0.166319,
+     "global_mean": 0.164023,
+     "deviation": 0.002296,
+     "z": 1.812,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.166319,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "application",
+     "cell_mean": 0.115935,
+     "global_mean": 0.114558,
+     "deviation": 0.001377,
+     "z": 1.787,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.088074,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.143796,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuration",
+     "cell_mean": 0.132716,
+     "global_mean": 0.131214,
+     "deviation": 0.001502,
+     "z": 1.724,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.132716,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "needed",
+     "cell_mean": 0.076823,
+     "global_mean": 0.075497,
+     "deviation": 0.001326,
+     "z": 1.72,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.076823,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploits",
+     "cell_mean": 0.127484,
+     "global_mean": 0.126227,
+     "deviation": 0.001257,
+     "z": 1.679,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.11697,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.138962,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.127002,
+       "n": 2
+      }
+     }
+    }
+   ],
+   "probes": [
+    "javascript",
+    "via",
+    "discord",
+    "php",
+    "using",
+    "channel",
+    "movement",
+    "hunt",
+    "slack"
+   ],
+   "n_unique_tokens": 428
+  },
+  "2_3": {
+   "tokens": [
+    {
+     "token": "protect",
+     "cell_mean": 0.148071,
+     "global_mean": 0.151034,
+     "deviation": -0.002963,
+     "z": 3.519,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.148071,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "outside",
+     "cell_mean": 0.120199,
+     "global_mean": 0.124746,
+     "deviation": -0.004547,
+     "z": 3.306,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.120199,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "from",
+     "cell_mean": 0.094677,
+     "global_mean": 0.096902,
+     "deviation": -0.002225,
+     "z": 3.293,
+     "n": 27,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.139789,
+       "n": 3
+      },
+      "m": {
+       "mean": 0.097187,
+       "n": 5
+      },
+      "d": {
+       "mean": 0.106044,
+       "n": 4
+      },
+      "h": {
+       "mean": 0.088951,
+       "n": 7
+      },
+      "a": {
+       "mean": 0.083263,
+       "n": 4
+      },
+      "j": {
+       "mean": 0.067772,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "hacking",
+     "cell_mean": 0.181994,
+     "global_mean": 0.185519,
+     "deviation": -0.003525,
+     "z": 3.227,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.181994,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "accessing",
+     "cell_mean": 0.073436,
+     "global_mean": 0.076282,
+     "deviation": -0.002846,
+     "z": 3.205,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.101104,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.045768,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "against",
+     "cell_mean": 0.131617,
+     "global_mean": 0.134185,
+     "deviation": -0.002568,
+     "z": 3.188,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.104463,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.145194,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "in",
+     "cell_mean": 0.127439,
+     "global_mean": 0.130265,
+     "deviation": -0.002826,
+     "z": 3.183,
+     "n": 22,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.11102,
+       "n": 8
+      },
+      "m": {
+       "mean": 0.121115,
+       "n": 4
+      },
+      "d": {
+       "mean": 0.114411,
+       "n": 2
+      },
+      "h": {
+       "mean": 0.129431,
+       "n": 3
+      },
+      "a": {
+       "mean": 0.15109,
+       "n": 4
+      },
+      "j": {
+       "mean": 0.209571,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploit",
+     "cell_mean": 0.14727,
+     "global_mean": 0.150068,
+     "deviation": -0.002799,
+     "z": 3.168,
+     "n": 25,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.130096,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.122248,
+       "n": 6
+      },
+      "h": {
+       "mean": 0.129852,
+       "n": 5
+      },
+      "a": {
+       "mean": 0.170055,
+       "n": 6
+      },
+      "j": {
+       "mean": 0.164081,
+       "n": 7
+      }
+     }
+    },
+    {
+     "token": "scan",
+     "cell_mean": 0.124555,
+     "global_mean": 0.127081,
+     "deviation": -0.002526,
+     "z": 3.134,
+     "n": 18,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.154611,
+       "n": 2
+      },
+      "m": {
+       "mean": 0.126343,
+       "n": 6
+      },
+      "d": {
+       "mean": 0.121334,
+       "n": 3
+      },
+      "h": {
+       "mean": 0.141292,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.123894,
+       "n": 3
+      },
+      "j": {
+       "mean": 0.078223,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "on",
+     "cell_mean": 0.136021,
+     "global_mean": 0.138804,
+     "deviation": -0.002784,
+     "z": 3.118,
+     "n": 49,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.105403,
+       "n": 4
+      },
+      "m": {
+       "mean": 0.147568,
+       "n": 7
+      },
+      "d": {
+       "mean": 0.132691,
+       "n": 9
+      },
+      "h": {
+       "mean": 0.126271,
+       "n": 8
+      },
+      "a": {
+       "mean": 0.136203,
+       "n": 11
+      },
+      "j": {
+       "mean": 0.15078,
+       "n": 10
+      }
+     }
+    }
+   ],
+   "probes": [
+    "deny",
+    "attempt",
+    "header",
+    "override",
+    "rotation",
+    "requests"
+   ],
+   "n_unique_tokens": 428
+  },
+  "2_4": {
+   "tokens": [
+    {
+     "token": "indicators",
+     "cell_mean": 0.113599,
+     "global_mean": 0.112788,
+     "deviation": 0.000812,
+     "z": 1.282,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.113599,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bug",
+     "cell_mean": 0.147116,
+     "global_mean": 0.14628,
+     "deviation": 0.000836,
+     "z": 1.092,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.147116,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "signs",
+     "cell_mean": 0.135456,
+     "global_mean": 0.134392,
+     "deviation": 0.001064,
+     "z": 1.09,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.135456,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "protects",
+     "cell_mean": 0.15157,
+     "global_mean": 0.15053,
+     "deviation": 0.00104,
+     "z": 1.043,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.15157,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "across",
+     "cell_mean": 0.020266,
+     "global_mean": 0.019434,
+     "deviation": 0.000832,
+     "z": 1.038,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.020266,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "re",
+     "cell_mean": -0.026035,
+     "global_mean": -0.026933,
+     "deviation": 0.000898,
+     "z": 1.019,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.026035,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploited",
+     "cell_mean": 0.129351,
+     "global_mean": 0.128426,
+     "deviation": 0.000925,
+     "z": 1.008,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.129351,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "preventing",
+     "cell_mean": 0.076561,
+     "global_mean": 0.075515,
+     "deviation": 0.001046,
+     "z": 0.972,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.076561,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "local",
+     "cell_mean": 0.108761,
+     "global_mean": 0.107959,
+     "deviation": 0.000802,
+     "z": 0.967,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.108761,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuring",
+     "cell_mean": 0.028548,
+     "global_mean": 0.027616,
+     "deviation": 0.000932,
+     "z": 0.953,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.028548,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "tool",
+    "hack",
+    "line",
+    "machine",
+    "ten",
+    "privacy",
+    "reset",
+    "examples",
+    "approximately"
+   ],
+   "n_unique_tokens": 428
+  },
+  "3_0": {
+   "tokens": [
+    {
+     "token": "re",
+     "cell_mean": -0.029587,
+     "global_mean": -0.026933,
+     "deviation": -0.002654,
+     "z": 3.01,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.029587,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "outgoing",
+     "cell_mean": 0.042718,
+     "global_mean": 0.045064,
+     "deviation": -0.002347,
+     "z": 2.671,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.042718,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "monitoring",
+     "cell_mean": 0.09587,
+     "global_mean": 0.098196,
+     "deviation": -0.002326,
+     "z": 2.537,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.09587,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "breached",
+     "cell_mean": 0.166034,
+     "global_mean": 0.168184,
+     "deviation": -0.00215,
+     "z": 2.501,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.17537,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.147361,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "intercepted",
+     "cell_mean": 0.141255,
+     "global_mean": 0.143466,
+     "deviation": -0.00221,
+     "z": 2.466,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.152742,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.129768,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploited",
+     "cell_mean": 0.126214,
+     "global_mean": 0.128426,
+     "deviation": -0.002212,
+     "z": 2.412,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.126214,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bug",
+     "cell_mean": 0.144489,
+     "global_mean": 0.14628,
+     "deviation": -0.00179,
+     "z": 2.338,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.144489,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "firewall",
+     "cell_mean": 0.120555,
+     "global_mean": 0.122018,
+     "deviation": -0.001463,
+     "z": 2.285,
+     "n": 15,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.088894,
+       "n": 2
+      },
+      "m": {
+       "mean": 0.127988,
+       "n": 2
+      },
+      "d": {
+       "mean": 0.112672,
+       "n": 2
+      },
+      "h": {
+       "mean": 0.103073,
+       "n": 3
+      },
+      "a": {
+       "mean": 0.142072,
+       "n": 3
+      },
+      "j": {
+       "mean": 0.137928,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "network",
+     "cell_mean": 0.114971,
+     "global_mean": 0.116698,
+     "deviation": -0.001728,
+     "z": 2.183,
+     "n": 27,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.108319,
+       "n": 5
+      },
+      "m": {
+       "mean": 0.128045,
+       "n": 6
+      },
+      "d": {
+       "mean": 0.122703,
+       "n": 5
+      },
+      "h": {
+       "mean": 0.103285,
+       "n": 6
+      },
+      "a": {
+       "mean": 0.118032,
+       "n": 3
+      },
+      "j": {
+       "mean": 0.103512,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "incoming",
+     "cell_mean": 0.107861,
+     "global_mean": 0.109577,
+     "deviation": -0.001716,
+     "z": 2.179,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.107861,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "hashed",
+    "bits",
+    "eax",
+    "nist",
+    "padding",
+    "extension",
+    "strong",
+    "weak"
+   ],
+   "n_unique_tokens": 428
+  },
+  "3_1": {
+   "tokens": [
+    {
+     "token": "before",
+     "cell_mean": 0.141174,
+     "global_mean": 0.1435,
+     "deviation": -0.002326,
+     "z": 2.4,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.141174,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "properly",
+     "cell_mean": 0.083352,
+     "global_mean": 0.085241,
+     "deviation": -0.001889,
+     "z": 2.206,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.117893,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.048811,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "stored",
+     "cell_mean": 0.095777,
+     "global_mean": 0.097512,
+     "deviation": -0.001735,
+     "z": 2.099,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.089386,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.117265,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.084751,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.091706,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "breaches",
+     "cell_mean": 0.08298,
+     "global_mean": 0.085364,
+     "deviation": -0.002384,
+     "z": 2.097,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.08298,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "filtr",
+     "cell_mean": 0.116785,
+     "global_mean": 0.118609,
+     "deviation": -0.001824,
+     "z": 2.093,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.129226,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.104344,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "blocks",
+     "cell_mean": 0.091779,
+     "global_mean": 0.093759,
+     "deviation": -0.00198,
+     "z": 2.054,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.091779,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "forge",
+     "cell_mean": 0.095439,
+     "global_mean": 0.09722,
+     "deviation": -0.001782,
+     "z": 2.035,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.092368,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.098509,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "remote",
+     "cell_mean": 0.092792,
+     "global_mean": 0.094585,
+     "deviation": -0.001793,
+     "z": 2.012,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.096227,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.089358,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "SQL",
+     "cell_mean": 0.083931,
+     "global_mean": 0.085634,
+     "deviation": -0.001703,
+     "z": 2.002,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.083931,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "un",
+     "cell_mean": 0.053434,
+     "global_mean": 0.055399,
+     "deviation": -0.001965,
+     "z": 1.998,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.053434,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "bit",
+    "group",
+    "non",
+    "interactive",
+    "number",
+    "errors",
+    "problem",
+    "ring",
+    "counter",
+    "error"
+   ],
+   "n_unique_tokens": 428
+  },
+  "3_2": {
+   "tokens": [
+    {
+     "token": "hypothetical",
+     "cell_mean": 0.137899,
+     "global_mean": 0.13356,
+     "deviation": 0.00434,
+     "z": 2.871,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.137899,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuration",
+     "cell_mean": 0.12897,
+     "global_mean": 0.131214,
+     "deviation": -0.002244,
+     "z": 2.576,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.12897,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "filter",
+     "cell_mean": 0.064678,
+     "global_mean": 0.062428,
+     "deviation": 0.00225,
+     "z": 2.405,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.064678,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "s",
+     "cell_mean": 0.141652,
+     "global_mean": 0.139164,
+     "deviation": 0.002487,
+     "z": 2.396,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.096174,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.18713,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Dis",
+     "cell_mean": 0.05585,
+     "global_mean": 0.057297,
+     "deviation": -0.001447,
+     "z": 2.341,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.05585,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "fails",
+     "cell_mean": 0.106382,
+     "global_mean": 0.107902,
+     "deviation": -0.00152,
+     "z": 2.136,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.106382,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "should",
+     "cell_mean": 0.136191,
+     "global_mean": 0.13797,
+     "deviation": -0.00178,
+     "z": 2.134,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.136191,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "decode",
+     "cell_mean": 0.118955,
+     "global_mean": 0.1171,
+     "deviation": 0.001855,
+     "z": 2.098,
+     "n": 7,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.172341,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.114854,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.09363,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.123993,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.077512,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.126362,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "across",
+     "cell_mean": 0.021106,
+     "global_mean": 0.019434,
+     "deviation": 0.001673,
+     "z": 2.088,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.021106,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "safest",
+     "cell_mean": 0.145332,
+     "global_mean": 0.143519,
+     "deviation": 0.001813,
+     "z": 2.065,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.145332,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "family",
+    "chain",
+    "compression",
+    "poly",
+    "breaking"
+   ],
+   "n_unique_tokens": 428
+  },
+  "3_3": {
+   "tokens": [
+    {
+     "token": "P",
+     "cell_mean": 0.106248,
+     "global_mean": 0.107649,
+     "deviation": -0.001402,
+     "z": 2.067,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.106248,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "Dis",
+     "cell_mean": 0.056243,
+     "global_mean": 0.057297,
+     "deviation": -0.001054,
+     "z": 1.705,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.056243,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "way",
+     "cell_mean": 0.092773,
+     "global_mean": 0.094063,
+     "deviation": -0.001289,
+     "z": 1.703,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.092773,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "character",
+     "cell_mean": 0.179748,
+     "global_mean": 0.181378,
+     "deviation": -0.001629,
+     "z": 1.682,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.179748,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "bug",
+     "cell_mean": 0.145038,
+     "global_mean": 0.14628,
+     "deviation": -0.001241,
+     "z": 1.621,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.145038,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "will",
+     "cell_mean": 0.135449,
+     "global_mean": 0.136993,
+     "deviation": -0.001544,
+     "z": 1.585,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.135449,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "new",
+     "cell_mean": 0.193735,
+     "global_mean": 0.195155,
+     "deviation": -0.00142,
+     "z": 1.542,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.193735,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "Act",
+     "cell_mean": 0.253619,
+     "global_mean": 0.255218,
+     "deviation": -0.0016,
+     "z": 1.533,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.253619,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "how",
+     "cell_mean": 0.109069,
+     "global_mean": 0.110199,
+     "deviation": -0.00113,
+     "z": 1.451,
+     "n": 48,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.12595,
+       "n": 6
+      },
+      "d": {
+       "mean": 0.124364,
+       "n": 6
+      },
+      "h": {
+       "mean": 0.065062,
+       "n": 8
+      },
+      "a": {
+       "mean": 0.119623,
+       "n": 18
+      },
+      "j": {
+       "mean": 0.105974,
+       "n": 10
+      }
+     }
+    },
+    {
+     "token": "content",
+     "cell_mean": 0.156859,
+     "global_mean": 0.1581,
+     "deviation": -0.00124,
+     "z": 1.436,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.17743,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.146574,
+       "n": 2
+      }
+     }
+    }
+   ],
+   "probes": [
+    "language",
+    "channel",
+    "linux",
+    "natural",
+    "way",
+    "blind"
+   ],
+   "n_unique_tokens": 428
   },
   "3_4": {
    "tokens": [
     {
-     "token": "alignment",
-     "cell_mean": 0.009214,
-     "global_mean": -0.00152,
-     "deviation": 0.010734,
-     "z": 1.039,
+     "token": "while",
+     "cell_mean": 0.012794,
+     "global_mean": 0.011665,
+     "deviation": 0.001129,
+     "z": 1.366,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.009214,
+      "d": {
+       "mean": 0.012794,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.027502,
-     "global_mean": -0.019607,
-     "deviation": -0.007894,
-     "z": 0.916,
-     "n": 1,
+     "token": "ex",
+     "cell_mean": 0.013314,
+     "global_mean": 0.012507,
+     "deviation": 0.000807,
+     "z": 1.221,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.027502,
+      "d": {
+       "mean": 0.008377,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.018251,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.026153,
-     "global_mean": -0.021559,
-     "deviation": -0.004593,
-     "z": 0.751,
+     "token": "easiest",
+     "cell_mean": 0.130274,
+     "global_mean": 0.12941,
+     "deviation": 0.000864,
+     "z": 1.139,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.026153,
+      "m": {
+       "mean": 0.130274,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.011991,
-     "global_mean": -0.016105,
-     "deviation": 0.004114,
-     "z": 0.729,
+     "token": "captures",
+     "cell_mean": 0.054097,
+     "global_mean": 0.05321,
+     "deviation": 0.000887,
+     "z": 1.114,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.011991,
+      "h": {
+       "mean": 0.054097,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.023712,
-     "global_mean": -0.019929,
-     "deviation": -0.003782,
-     "z": 0.488,
+     "token": "over",
+     "cell_mean": 0.057203,
+     "global_mean": 0.056406,
+     "deviation": 0.000797,
+     "z": 1.085,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.023712,
+      "d": {
+       "mean": 0.057203,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.008834,
-     "global_mean": -0.012717,
-     "deviation": 0.003883,
-     "z": 0.456,
+     "token": "decrypt",
+     "cell_mean": 0.080152,
+     "global_mean": 0.079433,
+     "deviation": 0.000719,
+     "z": 1.015,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.008834,
+      "h": {
+       "mean": 0.080152,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.022234,
-     "global_mean": -0.020401,
-     "deviation": -0.001833,
-     "z": 0.192,
+     "token": "password",
+     "cell_mean": 0.095342,
+     "global_mean": 0.094382,
+     "deviation": 0.00096,
+     "z": 0.998,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.022234,
+      "m": {
+       "mean": 0.095342,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.006898,
-     "global_mean": 0.006022,
-     "deviation": 0.000877,
-     "z": 0.109,
+     "token": "let",
+     "cell_mean": 0.086856,
+     "global_mean": 0.085953,
+     "deviation": 0.000903,
+     "z": 0.986,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.006898,
+      "m": {
+       "mean": 0.086856,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "commands",
+     "cell_mean": 0.140498,
+     "global_mean": 0.139559,
+     "deviation": 0.00094,
+     "z": 0.976,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.140498,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "exploited",
+     "cell_mean": 0.129313,
+     "global_mean": 0.128426,
+     "deviation": 0.000886,
+     "z": 0.966,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.129313,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "watermarking",
-    "tamper",
-    "chain",
-    "crypto-policy",
-    "mpc",
-    "though",
-    "were",
-    "change",
-    "obstruct",
-    "already",
-    "restoring",
-    "giving",
-    "unknown",
-    "criminal",
-    "illegally",
-    "obtaining",
-    "maliciously",
-    "robbering",
-    "money",
-    "items"
+    "fully",
+    "random",
+    "mail",
+    "extensions",
+    "smtp",
+    "xor",
+    "technical",
+    "pre",
+    "image",
+    "modes"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "4_0": {
    "tokens": [
     {
-     "token": "alignment",
-     "cell_mean": -0.024724,
-     "global_mean": -0.00152,
-     "deviation": -0.023204,
-     "z": 2.245,
-     "n": 1,
+     "token": "ex",
+     "cell_mean": 0.010945,
+     "global_mean": 0.012507,
+     "deviation": -0.001562,
+     "z": 2.363,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.024724,
+      "d": {
+       "mean": 0.00565,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.01624,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.025767,
-     "global_mean": -0.016105,
-     "deviation": -0.009662,
-     "z": 1.713,
+     "token": "used",
+     "cell_mean": 0.114078,
+     "global_mean": 0.11254,
+     "deviation": 0.001538,
+     "z": 1.67,
+     "n": 11,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.117201,
+       "n": 2
+      },
+      "m": {
+       "mean": 0.115131,
+       "n": 3
+      },
+      "d": {
+       "mean": 0.11251,
+       "n": 6
+      }
+     }
+    },
+    {
+     "token": "method",
+     "cell_mean": 0.102217,
+     "global_mean": 0.10064,
+     "deviation": 0.001577,
+     "z": 1.604,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.025767,
+      "m": {
+       "mean": 0.102217,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.005916,
-     "global_mean": -0.019607,
-     "deviation": 0.013692,
-     "z": 1.588,
+     "token": "demonstrate",
+     "cell_mean": 0.145516,
+     "global_mean": 0.143658,
+     "deviation": 0.001858,
+     "z": 1.594,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.005916,
+      "m": {
+       "mean": 0.145516,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.019793,
-     "global_mean": -0.012717,
-     "deviation": -0.007076,
-     "z": 0.83,
+     "token": "indicators",
+     "cell_mean": 0.113736,
+     "global_mean": 0.112788,
+     "deviation": 0.000948,
+     "z": 1.497,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.019793,
+      "b": {
+       "mean": 0.113736,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.017543,
-     "global_mean": -0.021559,
-     "deviation": 0.004016,
-     "z": 0.656,
+     "token": "connected",
+     "cell_mean": 0.088231,
+     "global_mean": 0.089542,
+     "deviation": -0.00131,
+     "z": 1.458,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.017543,
+      "m": {
+       "mean": 0.088231,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.000884,
-     "global_mean": 0.006022,
-     "deviation": -0.005138,
-     "z": 0.64,
+     "token": "networks",
+     "cell_mean": 0.139288,
+     "global_mean": 0.137661,
+     "deviation": 0.001627,
+     "z": 1.408,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.000884,
+      "b": {
+       "mean": 0.139288,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.016817,
-     "global_mean": -0.019929,
-     "deviation": 0.003113,
-     "z": 0.402,
+     "token": "assistant",
+     "cell_mean": 0.079727,
+     "global_mean": 0.080903,
+     "deviation": -0.001176,
+     "z": 1.389,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.016817,
+       "mean": 0.079727,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.019154,
-     "global_mean": -0.020401,
-     "deviation": 0.001247,
-     "z": 0.131,
+     "token": "way",
+     "cell_mean": 0.09511,
+     "global_mean": 0.094063,
+     "deviation": 0.001047,
+     "z": 1.383,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.09511,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "let",
+     "cell_mean": 0.087215,
+     "global_mean": 0.085953,
+     "deviation": 0.001262,
+     "z": 1.378,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.019154,
+      "m": {
+       "mean": 0.087215,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "forensic",
-    "denial-of-services",
-    "perception",
-    "sget",
-    "sev",
-    "soes",
-    "pivs",
-    "ets",
-    "sferf",
-    "ofdt",
-    "assessments",
-    "seva",
-    "modeling",
-    "setm",
-    "sefa",
-    "seti",
-    "sbes",
-    "proof-of-concept",
-    "socp",
-    "scavenger"
+    "ser",
+    "reset",
+    "best",
+    "php",
+    "risk",
+    "privacy"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "4_1": {
    "tokens": [
     {
-     "token": "your",
-     "cell_mean": 0.016214,
-     "global_mean": 0.006022,
-     "deviation": 0.010193,
-     "z": 1.27,
+     "token": "best",
+     "cell_mean": 0.172379,
+     "global_mean": 0.16914,
+     "deviation": 0.003239,
+     "z": 2.807,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.016214,
+      "b": {
+       "mean": 0.172379,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.013239,
-     "global_mean": -0.019929,
-     "deviation": 0.006691,
-     "z": 0.864,
+     "token": "academic",
+     "cell_mean": 0.178097,
+     "global_mean": 0.174151,
+     "deviation": 0.003946,
+     "z": 2.8,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.013239,
+      "a": {
+       "mean": 0.178097,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.016585,
-     "global_mean": -0.021559,
-     "deviation": 0.004974,
-     "z": 0.813,
-     "n": 1,
+     "token": "forensic",
+     "cell_mean": 0.146448,
+     "global_mean": 0.142989,
+     "deviation": 0.003459,
+     "z": 2.68,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.146448,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "Dis",
+     "cell_mean": 0.058932,
+     "global_mean": 0.057297,
+     "deviation": 0.001635,
+     "z": 2.644,
+     "n": 4,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.016585,
+       "mean": 0.058932,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "incident",
+     "cell_mean": 0.110414,
+     "global_mean": 0.107385,
+     "deviation": 0.00303,
+     "z": 2.623,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.110414,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": 0.006715,
-     "global_mean": -0.00152,
-     "deviation": 0.008235,
-     "z": 0.797,
+     "token": "ns",
+     "cell_mean": 0.115414,
+     "global_mean": 0.111583,
+     "deviation": 0.003831,
+     "z": 2.619,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.006715,
+      "m": {
+       "mean": 0.115414,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.014053,
-     "global_mean": -0.020401,
-     "deviation": 0.006348,
-     "z": 0.665,
+     "token": "legal",
+     "cell_mean": 0.184517,
+     "global_mean": 0.181491,
+     "deviation": 0.003025,
+     "z": 2.585,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.014053,
+      "m": {
+       "mean": 0.184517,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.013355,
-     "global_mean": -0.016105,
-     "deviation": 0.002751,
-     "z": 0.488,
+     "token": "helps",
+     "cell_mean": 0.169078,
+     "global_mean": 0.165337,
+     "deviation": 0.003741,
+     "z": 2.559,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.013355,
+      "b": {
+       "mean": 0.169078,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.017126,
-     "global_mean": -0.019607,
-     "deviation": 0.002482,
-     "z": 0.288,
+     "token": "analyze",
+     "cell_mean": 0.142605,
+     "global_mean": 0.139124,
+     "deviation": 0.003482,
+     "z": 2.543,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.017126,
+      "m": {
+       "mean": 0.142605,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.010584,
-     "global_mean": -0.012717,
-     "deviation": 0.002133,
-     "z": 0.25,
+     "token": "review",
+     "cell_mean": 0.206311,
+     "global_mean": 0.202617,
+     "deviation": 0.003695,
+     "z": 2.52,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.010584,
+      "b": {
+       "mean": 0.206311,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "theory",
-    "desirability",
-    "effects",
-    "peer",
-    "pressure",
-    "biases",
-    "comparison",
-    "personalization",
-    "disinformation",
-    "dynamics",
-    "suggestion",
-    "students",
-    "reasoning",
-    "moral",
-    "culture",
-    "loafing",
-    "self-presentation",
-    "polls",
-    "conformity",
-    "ethics"
+    "skills",
+    "impact",
+    "research",
+    "ethical",
+    "human",
+    "contexts"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "4_2": {
    "tokens": [
     {
-     "token": "code",
-     "cell_mean": -0.021163,
-     "global_mean": -0.016105,
-     "deviation": -0.005057,
-     "z": 0.897,
+     "token": "sent",
+     "cell_mean": 0.080201,
+     "global_mean": 0.082749,
+     "deviation": -0.002547,
+     "z": 2.341,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.021163,
+      "d": {
+       "mean": 0.080201,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": -0.006444,
-     "global_mean": -0.00152,
-     "deviation": -0.004923,
-     "z": 0.476,
-     "n": 1,
+     "token": "exploiting",
+     "cell_mean": 0.133216,
+     "global_mean": 0.134919,
+     "deviation": -0.001703,
+     "z": 2.16,
+     "n": 11,
      "n_cells": 25,
      "cats": {
+      "b": {
+       "mean": 0.136992,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.139594,
+       "n": 3
+      },
+      "h": {
+       "mean": 0.119383,
+       "n": 3
+      },
+      "a": {
+       "mean": 0.130793,
+       "n": 3
+      },
       "j": {
-       "mean": -0.006444,
+       "mean": 0.159076,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.024416,
-     "global_mean": -0.021559,
-     "deviation": -0.002856,
-     "z": 0.467,
-     "n": 1,
+     "token": "Override",
+     "cell_mean": 0.151604,
+     "global_mean": 0.153605,
+     "deviation": -0.002,
+     "z": 2.066,
+     "n": 5,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.024416,
+       "mean": 0.151604,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "through",
+     "cell_mean": 0.113579,
+     "global_mean": 0.11498,
+     "deviation": -0.001401,
+     "z": 2.055,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.113579,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.014678,
-     "global_mean": -0.012717,
-     "deviation": -0.001961,
-     "z": 0.23,
+     "token": "persists",
+     "cell_mean": 0.091905,
+     "global_mean": 0.093796,
+     "deviation": -0.00189,
+     "z": 2.004,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.014678,
+      "h": {
+       "mean": 0.091905,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.00484,
-     "global_mean": 0.006022,
-     "deviation": -0.001181,
-     "z": 0.147,
+     "token": "exploits",
+     "cell_mean": 0.124731,
+     "global_mean": 0.126227,
+     "deviation": -0.001496,
+     "z": 1.999,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.114578,
+       "n": 1
+      },
+      "a": {
+       "mean": 0.13591,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.124217,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "into",
+     "cell_mean": 0.131025,
+     "global_mean": 0.132501,
+     "deviation": -0.001476,
+     "z": 1.974,
+     "n": 12,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.082437,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.162136,
+       "n": 2
+      },
+      "h": {
+       "mean": 0.121369,
+       "n": 4
+      },
+      "a": {
+       "mean": 0.154686,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.131358,
+       "n": 4
+      }
+     }
+    },
+    {
+     "token": "executing",
+     "cell_mean": 0.124674,
+     "global_mean": 0.126281,
+     "deviation": -0.001606,
+     "z": 1.854,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.00484,
+      "d": {
+       "mean": 0.124674,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.018509,
-     "global_mean": -0.019607,
-     "deviation": 0.001099,
-     "z": 0.127,
-     "n": 1,
+     "token": "exploit",
+     "cell_mean": 0.148435,
+     "global_mean": 0.150068,
+     "deviation": -0.001633,
+     "z": 1.849,
+     "n": 25,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.018509,
+      "m": {
+       "mean": 0.131205,
        "n": 1
+      },
+      "d": {
+       "mean": 0.123388,
+       "n": 6
+      },
+      "h": {
+       "mean": 0.130974,
+       "n": 5
+      },
+      "a": {
+       "mean": 0.171214,
+       "n": 6
+      },
+      "j": {
+       "mean": 0.165312,
+       "n": 7
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.021417,
-     "global_mean": -0.020401,
-     "deviation": -0.001016,
-     "z": 0.106,
-     "n": 1,
+     "token": "by",
+     "cell_mean": 0.155765,
+     "global_mean": 0.157757,
+     "deviation": -0.001991,
+     "z": 1.842,
+     "n": 9,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.021417,
+      "d": {
+       "mean": 0.129085,
        "n": 1
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": -0.020743,
-     "global_mean": -0.019929,
-     "deviation": -0.000814,
-     "z": 0.105,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
+      },
+      "h": {
+       "mean": 0.150494,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.159067,
+       "n": 3
+      },
       "j": {
-       "mean": -0.020743,
-       "n": 1
+       "mean": 0.164872,
+       "n": 3
       }
      }
     }
    ],
    "probes": [
-    "pretest",
-    "tailgating",
-    "pretext",
-    "recipients",
-    "snitching",
-    "vehicle",
-    "snipe",
-    "z-sec",
-    "zipper",
-    "intent",
+    "crime",
+    "sns",
+    "body",
     "spam",
-    "rallying",
-    "following",
-    "wrong",
-    "entice",
-    "surprise",
-    "vishing",
-    "scares",
-    "tease",
-    "tread"
+    "subject",
+    "template"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "4_3": {
    "tokens": [
     {
-     "token": "code",
-     "cell_mean": -0.011446,
-     "global_mean": -0.016105,
-     "deviation": 0.00466,
-     "z": 0.826,
+     "token": "over",
+     "cell_mean": 0.054548,
+     "global_mean": 0.056406,
+     "deviation": -0.001858,
+     "z": 2.529,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.011446,
+      "d": {
+       "mean": 0.054548,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": 0.00456,
-     "global_mean": -0.00152,
-     "deviation": 0.006081,
-     "z": 0.588,
+     "token": "developer",
+     "cell_mean": 0.114145,
+     "global_mean": 0.112348,
+     "deviation": 0.001797,
+     "z": 1.963,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.00456,
+      "a": {
+       "mean": 0.114145,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.019503,
-     "global_mean": -0.021559,
-     "deviation": 0.002057,
-     "z": 0.336,
+     "token": "cybersecurity",
+     "cell_mean": 0.145304,
+     "global_mean": 0.143416,
+     "deviation": 0.001888,
+     "z": 1.797,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.019503,
+      "a": {
+       "mean": 0.145304,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.018279,
-     "global_mean": -0.019929,
-     "deviation": 0.001651,
-     "z": 0.213,
+     "token": "content",
+     "cell_mean": 0.159622,
+     "global_mean": 0.1581,
+     "deviation": 0.001522,
+     "z": 1.764,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "a": {
+       "mean": 0.180044,
+       "n": 1
+      },
+      "j": {
+       "mean": 0.149411,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "thought",
+     "cell_mean": 0.179344,
+     "global_mean": 0.177474,
+     "deviation": 0.00187,
+     "z": 1.671,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.018279,
+      "a": {
+       "mean": 0.179344,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.013592,
-     "global_mean": -0.012717,
-     "deviation": -0.000875,
-     "z": 0.103,
+     "token": "prior",
+     "cell_mean": 0.162072,
+     "global_mean": 0.160464,
+     "deviation": 0.001608,
+     "z": 1.669,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": -0.013592,
+       "mean": 0.162072,
        "n": 1
       }
      }
     },
     {
-     "token": "me",
-     "cell_mean": -0.018939,
-     "global_mean": -0.019607,
-     "deviation": 0.000668,
-     "z": 0.078,
-     "n": 1,
+     "token": "known",
+     "cell_mean": 0.112638,
+     "global_mean": 0.111083,
+     "deviation": 0.001555,
+     "z": 1.631,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.018939,
+      "m": {
+       "mean": 0.105319,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.119957,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.020973,
-     "global_mean": -0.020401,
-     "deviation": -0.000572,
-     "z": 0.06,
+     "token": "all",
+     "cell_mean": 0.126812,
+     "global_mean": 0.1256,
+     "deviation": 0.001212,
+     "z": 1.631,
+     "n": 21,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.095198,
+       "n": 2
+      },
+      "a": {
+       "mean": 0.131368,
+       "n": 4
+      },
+      "j": {
+       "mean": 0.129812,
+       "n": 15
+      }
+     }
+    },
+    {
+     "token": "certification",
+     "cell_mean": 0.166011,
+     "global_mean": 0.164524,
+     "deviation": 0.001486,
+     "z": 1.625,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.020973,
+      "a": {
+       "mean": 0.166011,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.006375,
-     "global_mean": 0.006022,
-     "deviation": 0.000354,
-     "z": 0.044,
+     "token": "compatibility",
+     "cell_mean": 0.118021,
+     "global_mean": 0.116488,
+     "deviation": 0.001533,
+     "z": 1.592,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.006375,
+      "m": {
+       "mean": 0.118021,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "misdirection",
-    "framing",
-    "frame",
-    "rationale",
-    "cyberstalking",
-    "phases",
-    "dettectors",
-    "agency",
-    "rake",
-    "campaigning",
-    "dissection",
-    "counterme",
-    "dangers",
-    "tax",
-    "home",
-    "medical",
-    "work",
-    "government",
-    "corporate",
-    "vulnaulization"
+    "mind",
+    "games",
+    "news",
+    "operations",
+    "simulation",
+    "word",
+    "through",
+    "pha"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   },
   "4_4": {
    "tokens": [
     {
-     "token": "me",
-     "cell_mean": -0.013217,
-     "global_mean": -0.019607,
-     "deviation": 0.00639,
-     "z": 0.741,
+     "token": "ongoing",
+     "cell_mean": 0.133305,
+     "global_mean": 0.130954,
+     "deviation": 0.002351,
+     "z": 2.293,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.013217,
+      "d": {
+       "mean": 0.133305,
        "n": 1
       }
      }
     },
     {
-     "token": "malware",
-     "cell_mean": -0.017485,
-     "global_mean": -0.021559,
-     "deviation": 0.004075,
-     "z": 0.666,
-     "n": 1,
+     "token": "internal",
+     "cell_mean": 0.105652,
+     "global_mean": 0.103303,
+     "deviation": 0.002349,
+     "z": 2.241,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.017485,
+      "b": {
+       "mean": 0.095522,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.115782,
        "n": 1
       }
      }
     },
     {
-     "token": "Write",
-     "cell_mean": -0.016728,
-     "global_mean": -0.019929,
-     "deviation": 0.003202,
-     "z": 0.413,
+     "token": "blocking",
+     "cell_mean": 0.084275,
+     "global_mean": 0.08237,
+     "deviation": 0.001905,
+     "z": 2.083,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.016728,
+      "m": {
+       "mean": 0.084275,
        "n": 1
       }
      }
     },
     {
-     "token": "Ignore",
-     "cell_mean": -0.015881,
-     "global_mean": -0.012717,
-     "deviation": -0.003164,
-     "z": 0.371,
+     "token": "bo",
+     "cell_mean": 0.138626,
+     "global_mean": 0.136542,
+     "deviation": 0.002084,
+     "z": 2.069,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.015881,
+      "h": {
+       "mean": 0.138626,
        "n": 1
       }
      }
     },
     {
-     "token": "alignment",
-     "cell_mean": -0.005175,
-     "global_mean": -0.00152,
-     "deviation": -0.003655,
-     "z": 0.354,
+     "token": "over",
+     "cell_mean": 0.057902,
+     "global_mean": 0.056406,
+     "deviation": 0.001496,
+     "z": 2.037,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.005175,
+      "d": {
+       "mean": 0.057902,
        "n": 1
       }
      }
     },
     {
-     "token": "code",
-     "cell_mean": -0.016424,
-     "global_mean": -0.016105,
-     "deviation": -0.000319,
-     "z": 0.057,
-     "n": 1,
+     "token": "sensitive",
+     "cell_mean": 0.114401,
+     "global_mean": 0.112644,
+     "deviation": 0.001756,
+     "z": 1.987,
+     "n": 6,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.016424,
+      "b": {
+       "mean": 0.10606,
+       "n": 3
+      },
+      "m": {
+       "mean": 0.127795,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.102914,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.137516,
        "n": 1
       }
      }
     },
     {
-     "token": "your",
-     "cell_mean": 0.006263,
-     "global_mean": 0.006022,
-     "deviation": 0.000241,
-     "z": 0.03,
-     "n": 1,
+     "token": "capture",
+     "cell_mean": 0.136484,
+     "global_mean": 0.134737,
+     "deviation": 0.001747,
+     "z": 1.973,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.006263,
+      "d": {
+       "mean": 0.138432,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.134536,
        "n": 1
       }
      }
     },
     {
-     "token": ".",
-     "cell_mean": -0.020519,
-     "global_mean": -0.020401,
-     "deviation": -0.000118,
-     "z": 0.012,
+     "token": "gain",
+     "cell_mean": 0.085541,
+     "global_mean": 0.083685,
+     "deviation": 0.001857,
+     "z": 1.96,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "d": {
+       "mean": 0.097459,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.073624,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configured",
+     "cell_mean": 0.09837,
+     "global_mean": 0.096777,
+     "deviation": 0.001592,
+     "z": 1.865,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.105306,
+       "n": 1
+      },
+      "m": {
+       "mean": 0.075623,
+       "n": 1
+      },
+      "d": {
+       "mean": 0.093858,
+       "n": 1
+      },
+      "h": {
+       "mean": 0.118691,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "configuring",
+     "cell_mean": 0.02941,
+     "global_mean": 0.027616,
+     "deviation": 0.001794,
+     "z": 1.835,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": -0.020519,
+      "b": {
+       "mean": 0.02941,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "sets",
-    "spyware",
-    "incidents",
-    "malformed",
-    "fabrication",
-    "vandalism",
-    "explained",
-    "overview",
-    "cycle",
-    "seek",
-    "coercion",
-    "spams",
-    "incursions",
-    "rackets",
-    "controversies",
-    "reviews",
-    "bait-and-channel",
-    "trojans",
-    "whistleblower",
-    "user-centered"
+    "emails",
+    "settings",
+    "financial",
+    "transactions",
+    "personal",
+    "installation"
    ],
-   "n_unique_tokens": 8
+   "n_unique_tokens": 428
   }
  },
  "categories": {
-  "j": "jailbreak"
+  "a": "adversarial",
+  "b": "benign",
+  "d": "dual-use",
+  "h": "harmful",
+  "j": "jailbreak",
+  "m": "mild"
  },
  "per_subject": {
   "network_security": {
-   "mean_activation": -0.012714352190960199,
-   "max_activation": -0.0051658055512234565,
-   "mean_variance": 0.0
+   "mean_activation": 0.14268932009389002,
+   "max_activation": 0.14334884358942504,
+   "mean_variance": 0.0004727682194705997
   },
   "application_security": {
-   "mean_activation": -0.01076190546154976,
-   "max_activation": 0.0004387629101984203,
-   "mean_variance": 0.0
+   "mean_activation": 0.14220813193321225,
+   "max_activation": 0.14315218777209504,
+   "mean_variance": 0.0004653536975113264
   },
   "identity_access": {
-   "mean_activation": -0.014607455730438234,
-   "max_activation": -0.0010856491280719638,
-   "mean_variance": 0.0
+   "mean_activation": 0.14220953785959217,
+   "max_activation": 0.14314127655492886,
+   "mean_variance": 0.00046415847405912973
   },
   "cryptography": {
-   "mean_activation": -0.0154441748582758,
-   "max_activation": -0.005816940427757799,
-   "mean_variance": 0.0
+   "mean_activation": 0.14202351290558773,
+   "max_activation": 0.14305906843394037,
+   "mean_variance": 0.0004686509589846061
   },
   "social_engineering": {
-   "mean_activation": -0.012608272263314573,
-   "max_activation": -0.007751388603355736,
-   "mean_variance": 0.0
+   "mean_activation": 0.1426813564769302,
+   "max_activation": 0.1438745690012971,
+   "mean_variance": 0.0004696434124511018
   }
  }
 }
