@@ -193,6 +193,7 @@ table.tok tr:hover{background:#ffffff08}
     }
   }
 
+
   // ── Prompt picker + slideshow controls ─────────────────────
   // Mirrors the backscatter popout's slideshow convention: dropdown to
   // pick a specific prompt or "All", with prev/play/next buttons and a
@@ -403,6 +404,7 @@ table.tok tr:hover{background:#ffffff08}
     return gridFromCircuit(circuit) || [];
   }
 
+  // ── Tab strip ──────────────────────────────────────────────
   function buildTabs(){
     var btns = document.querySelectorAll(".tab-btn");
     for (var i=0; i<btns.length; i++){
