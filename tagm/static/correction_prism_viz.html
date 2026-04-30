@@ -13,6 +13,18 @@ h3{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:6px}
 .viewbar button{padding:4px 12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;font-family:var(--mono)}
 .viewbar button.active{background:var(--cyan);color:#000;border-color:var(--cyan)}
 .viewbar button:hover:not(.active){background:#2D333B}
+.promptbar{display:flex;gap:6px;margin-bottom:10px;font-size:11px;align-items:center;flex-wrap:wrap}
+.promptbar label{color:var(--text2)}
+.promptbar select{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 8px;font-family:var(--mono);font-size:11px;max-width:380px}
+.promptbar button{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px}
+.promptbar button:hover{background:#2D333B}
+.promptbar button.playing{color:var(--orange)}
+.promptbar .counter{font-size:10px;color:var(--text2);min-width:60px;font-variant-numeric:tabular-nums}
+.prompt-text{padding:10px 12px;margin-bottom:10px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;font-size:11px;line-height:1.5;display:none}
+.prompt-text.active{display:block}
+.prompt-text .pmeta{color:var(--text2);font-size:10px;margin-bottom:4px}
+.prompt-text .pmeta .cat{display:inline-block;padding:1px 6px;border-radius:2px;color:#000;font-weight:600;margin-right:6px}
+.prompt-text .ptext{color:var(--text);white-space:pre-wrap;word-break:break-word}
 .heatmap-wrap{margin-bottom:16px}
 table.hm{border-collapse:collapse;font-size:11px}
 table.hm th,table.hm td{padding:7px 12px;text-align:center;border:1px solid #2D333B;font-variant-numeric:tabular-nums}
@@ -58,7 +70,9 @@ table.tok tr:hover{background:#ffffff08}
 <div class="sub" id="subtitle">Loading...</div>
 
 <div class="viewbar" id="viewbar"></div>
+<div class="promptbar" id="promptbar"></div>
 <div class="legend" id="legend"></div>
+<div class="prompt-text" id="prompt-text"></div>
 <div class="heatmap-wrap" id="heatmap"></div>
 
 <div class="tabs">
@@ -90,6 +104,16 @@ table.tok tr:hover{background:#ffffff08}
   var sortKey = "abs";     // "abs" | "signed" | "name"
   var sortDir = -1;        // -1 desc, +1 asc
 
+  // Slideshow state — analogous to the backscatter popout.
+  // selPrompt = "all" shows the session-aggregated heatmap (default).
+  // selPrompt = "<idx>" shows that one prompt's per-cell response.
+  var selPrompt = "all";
+  var slideTimer = null, slideSpeed = 2000, slidePlaying = false;
+  var PROMPTS = [];        // [{idx, category, text, projected}, ...]
+  var CAT_NAMES = {};      // { "h": "harmful", ... }
+  var CELL_AGG = "sum";    // matches module's cell_aggregation config
+  var PROBE_CELL_MAP = {}; // { "si_li": [probe_idx, probe_idx, ...] }
+
   // ── Boot ───────────────────────────────────────────────────
   function esc(s){var d=document.createElement("div");d.textContent=String(s==null?"":s);return d.innerHTML}
 
@@ -114,6 +138,18 @@ table.tok tr:hover{background:#ffffff08}
     CIRC_LABELS = D.circuit_labels || {};
     PRIMARY = D.primary_circuit || "full";
     HAS_BASELINE = !!(DECOMP._baseline && DECOMP._baseline.aggregate);
+    PROMPTS = D.prompts || [];
+    CAT_NAMES = D.categories || {};
+    CELL_AGG = (D.config || {}).cell_aggregation || "sum";
+
+    // Build the cell → [probe_idx, ...] map by reading cell_details.
+    // We need this to derive per-prompt cell values from
+    // per_prompt_response without re-running the module.
+    PROBE_CELL_MAP = {};
+    Object.keys(CELLS).forEach(function(k){
+      var probes = (CELLS[k] && CELLS[k].probes) || [];
+      PROBE_CELL_MAP[k] = probes.map(function(p){ return p.probe_idx; });
+    });
 
     var cfg = D.config || {};
     document.getElementById("subtitle").textContent =
@@ -126,6 +162,7 @@ table.tok tr:hover{background:#ffffff08}
       (cfg.active_probe_model_id ? " · " + cfg.active_probe_model_id : "");
 
     buildViewbar();
+    buildPromptbar();
     buildTabs();
     render();
   }
@@ -149,13 +186,223 @@ table.tok tr:hover{background:#ffffff08}
     for (var i=0; i<btns.length; i++){
       btns[i].addEventListener("click", function(e){
         view = e.currentTarget.getAttribute("data-v");
+        stopSlideshow();
         buildViewbar();
         render();
       });
     }
   }
 
-  // ── Tab strip ──────────────────────────────────────────────
+  // ── Prompt picker + slideshow controls ─────────────────────
+  // Mirrors the backscatter popout's slideshow convention: dropdown to
+  // pick a specific prompt or "All", with prev/play/next buttons and a
+  // speed selector. Selecting a prompt switches the heatmap to that
+  // prompt's per-cell response derived from per_prompt_response.
+  var CAT_COLORS = {b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9",a:"#882255",d:"#4ade80",u:"#888"};
+
+  function projectedPrompts(){
+    return PROMPTS.filter(function(p){ return p.projected; });
+  }
+
+  function buildPromptbar(){
+    var bar = document.getElementById("promptbar");
+    var fps = projectedPrompts();
+    if (!fps.length){
+      bar.innerHTML = '';
+      return;
+    }
+    var html = '<label>Prompt:</label><select id="promptSel">';
+    html += '<option value="all"' + (selPrompt === "all" ? ' selected' : '') +
+            '>All (' + fps.length + ' prompts, session aggregate)</option>';
+    fps.forEach(function(p){
+      var lbl = '#' + (p.idx + 1) + ' [' + (CAT_NAMES[p.category] || p.category) +
+                '] ' + (p.text || '');
+      if (lbl.length > 90) lbl = lbl.slice(0, 90) + '…';
+      html += '<option value="' + p.idx + '"' +
+              (selPrompt == String(p.idx) ? ' selected' : '') +
+              '>' + esc(lbl) + '</option>';
+    });
+    html += '</select>';
+
+    html += '<button id="prevBtn" title="Previous prompt">◀</button>';
+    html += '<button id="playBtn" class="' + (slidePlaying ? 'playing' : '') +
+            '" title="Play/pause slideshow">' +
+            (slidePlaying ? '⏸ Pause' : '▶ Play') + '</button>';
+    html += '<button id="nextBtn" title="Next prompt">▶</button>';
+    html += '<label style="margin-left:4px">Speed:</label>';
+    html += '<select id="speedSel">';
+    [["500","0.5s"],["1000","1s"],["2000","2s"],["3000","3s"],["5000","5s"]].forEach(function(s){
+      html += '<option value="' + s[0] + '"' +
+              (slideSpeed == parseInt(s[0]) ? ' selected' : '') +
+              '>' + s[1] + '</option>';
+    });
+    html += '</select>';
+    html += '<span id="slideCounter" class="counter"></span>';
+
+    bar.innerHTML = html;
+
+    document.getElementById("promptSel").addEventListener("change", function(e){
+      selPrompt = e.currentTarget.value;
+      stopSlideshow();
+      render();
+    });
+    document.getElementById("prevBtn").addEventListener("click", function(){
+      stopSlideshow();
+      advanceSlide(-1);
+    });
+    document.getElementById("nextBtn").addEventListener("click", function(){
+      stopSlideshow();
+      advanceSlide(1);
+    });
+    document.getElementById("playBtn").addEventListener("click", playPause);
+    document.getElementById("speedSel").addEventListener("change", function(e){
+      slideSpeed = parseInt(e.currentTarget.value);
+      if (slidePlaying){ stopSlideshow(); playPause(); }
+    });
+
+    updateSlideCounter();
+  }
+
+  function updateSlideCounter(){
+    var el = document.getElementById("slideCounter");
+    if (!el) return;
+    if (selPrompt === "all"){ el.textContent = ""; return; }
+    var fps = projectedPrompts();
+    var pi = parseInt(selPrompt);
+    var idx = -1;
+    for (var i=0; i<fps.length; i++){
+      if (fps[i].idx === pi){ idx = i; break; }
+    }
+    el.textContent = (idx >= 0) ? ((idx + 1) + "/" + fps.length) : "";
+  }
+
+  function stopSlideshow(){
+    slidePlaying = false;
+    if (slideTimer){ clearInterval(slideTimer); slideTimer = null; }
+    var btn = document.getElementById("playBtn");
+    if (btn){ btn.textContent = "▶ Play"; btn.classList.remove("playing"); }
+  }
+
+  function advanceSlide(dir){
+    var fps = projectedPrompts();
+    if (!fps.length) return;
+    var curIdx = -1;
+    if (selPrompt !== "all"){
+      var pi = parseInt(selPrompt);
+      for (var i=0; i<fps.length; i++){
+        if (fps[i].idx === pi){ curIdx = i; break; }
+      }
+    }
+    var nextIdx = curIdx + dir;
+    if (nextIdx < 0) nextIdx = fps.length - 1;
+    if (nextIdx >= fps.length) nextIdx = 0;
+    selPrompt = String(fps[nextIdx].idx);
+    buildPromptbar();
+    render();
+  }
+
+  function playPause(){
+    if (slidePlaying){ stopSlideshow(); return; }
+    slidePlaying = true;
+    var btn = document.getElementById("playBtn");
+    if (btn){ btn.textContent = "⏸ Pause"; btn.classList.add("playing"); }
+    if (selPrompt === "all") advanceSlide(1);
+    slideTimer = setInterval(function(){ advanceSlide(1); }, slideSpeed);
+  }
+
+  // ── Prompt-text panel ──────────────────────────────────────
+  // Visible only when a single prompt is selected. Shows the prompt
+  // that's casting the beam right now, with category coloring matching
+  // the backscatter popout's convention.
+  function renderPromptText(){
+    var el = document.getElementById("prompt-text");
+    if (selPrompt === "all"){
+      el.classList.remove("active");
+      el.innerHTML = "";
+      return;
+    }
+    var pi = parseInt(selPrompt);
+    var p = PROMPTS[pi];
+    if (!p){
+      el.classList.remove("active");
+      el.innerHTML = "";
+      return;
+    }
+    var catColor = CAT_COLORS[p.category] || "#888";
+    var catName = CAT_NAMES[p.category] || p.category || "—";
+    var html = '<div class="pmeta">';
+    html += '<span class="cat" style="background:' + catColor + '">' +
+            esc(catName) + '</span>';
+    html += 'Prompt #' + (p.idx + 1);
+    html += '</div>';
+    html += '<div class="ptext">' + esc(p.text || "") + '</div>';
+    el.innerHTML = html;
+    el.classList.add("active");
+  }
+
+  // ── Per-prompt grid derivation ─────────────────────────────
+  // For a single prompt, the cell value is the aggregation of the
+  // per-probe responses for the probes assigned to that cell. Cell
+  // aggregation mode (sum / mean / median) matches the module config
+  // so per-prompt views are directly comparable to the session
+  // aggregate.
+  function aggregate(values){
+    if (!values.length) return 0;
+    if (CELL_AGG === "mean"){
+      var s = 0;
+      for (var i=0; i<values.length; i++) s += values[i];
+      return s / values.length;
+    }
+    if (CELL_AGG === "median"){
+      var sorted = values.slice().sort(function(a,b){ return a-b; });
+      var m = Math.floor(sorted.length / 2);
+      return (sorted.length % 2) ? sorted[m] : 0.5 * (sorted[m-1] + sorted[m]);
+    }
+    // sum (default)
+    var t = 0;
+    for (var j=0; j<values.length; j++) t += values[j];
+    return t;
+  }
+
+  function gridForPrompt(view, circuit, promptIdx){
+    circuit = circuit || PRIMARY;
+    function gridFromCircuit(ck){
+      var ppr = (DECOMP[ck] && DECOMP[ck].per_prompt_response) || null;
+      if (!ppr || !ppr[promptIdx]) return null;
+      var probeResps = ppr[promptIdx];
+      var grid = [];
+      for (var si=0; si<SUBJ.length; si++){
+        var row = [];
+        for (var li=0; li<LEVELS.length; li++){
+          var key = si + "_" + li;
+          var probeIdxs = PROBE_CELL_MAP[key] || [];
+          var vals = probeIdxs.map(function(pi){ return probeResps[pi] || 0; });
+          row.push(aggregate(vals));
+        }
+        grid.push(row);
+      }
+      return grid;
+    }
+    if (view === "baseline" && HAS_BASELINE){
+      return gridFromCircuit("_baseline");
+    }
+    if (view === "diff" && HAS_BASELINE){
+      var p = gridFromCircuit(circuit);
+      var b = gridFromCircuit("_baseline");
+      if (!p || !b) return p || b || [];
+      var out = [];
+      for (var si=0; si<p.length; si++){
+        var row = [];
+        for (var li=0; li<(p[si]||[]).length; li++){
+          row.push((p[si][li] || 0) - ((b[si] || [])[li] || 0));
+        }
+        out.push(row);
+      }
+      return out;
+    }
+    return gridFromCircuit(circuit) || [];
+  }
+
   function buildTabs(){
     var btns = document.querySelectorAll(".tab-btn");
     for (var i=0; i<btns.length; i++){
@@ -204,8 +451,12 @@ table.tok tr:hover{background:#ffffff08}
   }
 
   // ── Grid for current view ──────────────────────────────────
+  // Routes to per-prompt derivation when a single prompt is selected.
   function gridFor(view, circuit){
     circuit = circuit || PRIMARY;
+    if (selPrompt !== "all"){
+      return gridForPrompt(view, circuit, parseInt(selPrompt));
+    }
     var prim = (DECOMP[circuit] && DECOMP[circuit].aggregate) || [];
     if (view === "baseline" && HAS_BASELINE){
       return DECOMP._baseline.aggregate;
@@ -293,7 +544,13 @@ table.tok tr:hover{background:#ffffff08}
     var label = (view === "baseline") ? "no correction lens"
               : (view === "diff") ? "correction-induced response"
               : (CIRC_LABELS[PRIMARY] || PRIMARY);
+    if (selPrompt !== "all"){
+      label += " · single prompt";
+    }
     document.getElementById("legend").innerHTML = renderLegendBar(sc, label);
+
+    // Prompt text panel (shows the active prompt; hidden when "All")
+    renderPromptText();
 
     // Main heatmap
     var hm = document.getElementById("heatmap");
@@ -306,6 +563,7 @@ table.tok tr:hover{background:#ffffff08}
     renderCellPanel();
     // Glossary tab (static; render once is fine but cheap to redo)
     renderGlossary();
+    updateSlideCounter();
   }
 
   // ── Decomposition tab ──────────────────────────────────────
@@ -327,7 +585,14 @@ table.tok tr:hover{background:#ffffff08}
       var ck = CIRC_ORDER[i];
       var d = DECOMP[ck];
       if (!d) continue;
-      var dAgg = d.aggregate || [];
+      // Per-prompt: derive this circuit's grid for the current prompt.
+      // Otherwise: session aggregate.
+      var dAgg;
+      if (selPrompt !== "all"){
+        dAgg = gridForPrompt("primary", ck, parseInt(selPrompt));
+      } else {
+        dAgg = d.aggregate || [];
+      }
       var dSc = scale(dAgg);
       var isBaseline = (ck === "_baseline");
       var label = isBaseline ? "Baseline (ΔW = I)" : (CIRC_LABELS[ck] || ck);
@@ -363,16 +628,62 @@ table.tok tr:hover{background:#ffffff08}
     var subj = SUBJ[si] || ("subject " + si);
     var lvl = LEVELS[li] || ("level " + li);
 
-    var v = cell.cell_value || 0;
-    var probes = (cell.probes || []).slice();
+    // When viewing a single prompt, override per-probe responses with
+    // that prompt's per_prompt_response[probe_idx] so the table shows
+    // *this prompt's* probe responses rather than the session means.
+    // The cell value displayed also switches to the per-prompt cell.
+    var probes = (cell.probes || []).map(function(p){ return Object.assign({}, p); });
+    var displayedCellValue = cell.cell_value || 0;
+    var scopeLabel = "session aggregate";
+    if (selPrompt !== "all"){
+      var promptIdx = parseInt(selPrompt);
+      var ppr = (DECOMP[PRIMARY] && DECOMP[PRIMARY].per_prompt_response) || null;
+      if (ppr && ppr[promptIdx]){
+        var row = ppr[promptIdx];
+        var thresh = 0.05;
+        var nE = 0, nO = 0, nN = 0, vmin = Infinity, vmax = -Infinity, vals = [];
+        probes = probes.map(function(p){
+          var v = row[p.probe_idx] || 0;
+          var dir = (v > thresh) ? "excited"
+                  : (v < -thresh) ? "opposed" : "orthogonal";
+          if (v > thresh) nE++;
+          else if (v < -thresh) nO++;
+          else nN++;
+          if (v < vmin) vmin = v;
+          if (v > vmax) vmax = v;
+          vals.push(v);
+          return Object.assign({}, p, { response: v, direction: dir });
+        });
+        // Recompute the cell value for this prompt.
+        var grid = gridForPrompt(view, PRIMARY, promptIdx);
+        displayedCellValue = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
+        var pInfo = PROMPTS[promptIdx];
+        scopeLabel = "prompt #" + (promptIdx + 1) +
+          (pInfo ? " [" + (CAT_NAMES[pInfo.category] || pInfo.category) + "]" : "");
+        // Override aggregate stats with per-prompt counts
+        cell = Object.assign({}, cell, {
+          n_excited: nE, n_opposed: nO, n_neutral: nN,
+          probe_response_min: (probes.length ? vmin : 0),
+          probe_response_max: (probes.length ? vmax : 0),
+          probe_response_median: (function(){
+            if (!vals.length) return 0;
+            var s = vals.slice().sort(function(a,b){return a-b;});
+            var m = Math.floor(s.length/2);
+            return (s.length % 2) ? s[m] : 0.5*(s[m-1]+s[m]);
+          })(),
+        });
+      }
+    }
     sortProbes(probes);
 
+    var v = displayedCellValue;
     var html = '<div class="cell-info">';
     html += '<div style="margin-bottom:8px"><b>' + esc(subj.replace(/_/g, " ")) +
             '</b> / <b>' + esc(lvl) + '</b> · ';
     html += 'cell value <span style="color:' +
             (v > 0 ? 'var(--excited)' : v < 0 ? 'var(--opposed)' : 'var(--text2)') +
             ';font-weight:600">' + (v >= 0 ? '+' : '') + v.toFixed(4) + '</span>';
+    html += ' <span style="color:var(--text3)">(' + esc(scopeLabel) + ')</span>';
     html += '</div>';
 
     html += 'Probes: <b>' + (cell.n_probes || 0) + '</b> active';
@@ -386,7 +697,9 @@ table.tok tr:hover{background:#ffffff08}
     html += '<br>response range [' + (cell.probe_response_min || 0).toFixed(4) +
             ', ' + (cell.probe_response_max || 0).toFixed(4) + ']';
     html += ' · median ' + (cell.probe_response_median || 0).toFixed(4);
-    html += ' · variance ' + (cell.cell_variance || 0).toFixed(6);
+    if (selPrompt === "all"){
+      html += ' · variance ' + (cell.cell_variance || 0).toFixed(6);
+    }
     html += '</div>';
 
     function arrow(k){
