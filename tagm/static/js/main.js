@@ -3848,11 +3848,6 @@ function popoutCorrectionBackscatter(){
   window.open('/correction_backscatter_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
 
-function popoutCorrectionPrism(){
-  var pw=1200,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/correction_prism_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
-}
-
 function popoutProbeDiagnostic(file){
   var pw=1100,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   var url = '/probe_diagnostic_viz';
@@ -4227,7 +4222,6 @@ function renderCorrectionPrismResults(r) {
 
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
   h += 'Prism Heatmap — ' + escHtml(circLabels[primary] || primary);
-  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionPrism()">↗ Open in Explorer</button>';
   h += '</div>';
   h += '<div class="mod-results-body">';
   h += '<div style="padding:10px;display:flex;flex-direction:column;gap:8px" id="prism-primary-wrap">';

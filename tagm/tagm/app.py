@@ -101,7 +101,6 @@ async def favicon():
 
 for _viz in ("chat", "domain_surface_viz", "correction_manifold_viz",
              "correction_heatmap_viz", "correction_backscatter_viz",
-             "correction_prism_viz",
              "probe_diagnostic_viz"):
     def _make_viz_route(name):
         async def handler():
