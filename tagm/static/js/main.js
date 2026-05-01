@@ -2522,8 +2522,13 @@ function renderModules(modules) {
 }
 
 function renderModuleCard(m) {
-  // tier === "showpiece" gets a bordered card variant; rest are unstyled.
-  var tierClass = (m.tier === 'showpiece') ? ' mod-card--showpiece' : '';
+  // Tier classes on the card give different border colors:
+  //   showpiece      → cyan (featured analysis)
+  //   infrastructure → green (utility: probe gen, dialogue)
+  //   standard       → no border accent
+  var tierClass = '';
+  if (m.tier === 'showpiece') tierClass = ' mod-card--showpiece';
+  else if (m.tier === 'infrastructure') tierClass = ' mod-card--infra';
   var h = '<div class="mod-card' + tierClass + '" id="mod-' + m.name + '">';
 
   var modCollapsed = CARD_COLLAPSE_DEFAULTS.modules === 'collapsed';
