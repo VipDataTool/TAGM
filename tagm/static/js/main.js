@@ -3294,8 +3294,8 @@ function renderDomainSurfaceResults(r) {
 
   // Summary
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary';
-  if (r.observations && r.observations.length > 0) {
-    h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutDomainSurface()">↗ Scatter Plot</button>';
+  if (r.ladder && r.ladder.right_individual && r.ladder.right_individual.items && r.ladder.right_individual.items.length > 0) {
+    h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutDomainSurface()">↗ Probe Ladder</button>';
   }
   h += '</div>';
   h += '<div class="mod-results-body"><div class="mod-summary">';
@@ -3569,7 +3569,7 @@ function renderDsProbeTable() {
 }
 
 function popoutDomainSurface(){
-  if(!_dsSurfaceData||!_dsSurfaceData.observations||!_dsSurfaceData.observations.length)return;
+  if(!_dsSurfaceData||!_dsSurfaceData.ladder)return;
   var pw=1100,ph=780,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/domain_surface_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }

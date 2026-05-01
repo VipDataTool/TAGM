@@ -1,28 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Domain Surface — TAGM</title>
+<title>Domain Surface — Probe Ladder — TAGM</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --bg2:#262C34; --text:#E8ECEF; --text2:#6B7280; --text3:#5A6068; --border:#444C56; --cyan:#56B4E9; --orange:#E69F00; --green:#009E73; --red:#D55E00; }
 body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; padding:16px; margin:0; font-size:var(--font-legend); }
-button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; border-radius:3px; cursor:pointer; }
-.ctrl-row { display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap; align-items:center; }
-.legend { display:flex; flex-wrap:wrap; font-size:var(--font-legend); margin-bottom:10px; }
-.legend span { display:inline-flex; align-items:center; gap:3px; margin-right:8px; }
-.legend .sw { width:8px; height:8px; border-radius:1px; display:inline-block; }
-#dsCanvas { display:block; cursor:crosshair; }
-#dsTip { display:none; position:absolute; background:#2D333B; border:1px solid #56B4E9; border-radius:6px; padding:8px 10px; pointer-events:none; min-width:240px; max-width:320px; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,.5); font-size:var(--font-table); }
 #dsErr { color:#D55E00; font-size:var(--font-desc); padding:10px; white-space:pre-wrap; }
-.bc,.bs { border:1px solid #444; background:transparent; }
-
-/* ── Tab strip ── */
-.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px; }
-.tabs button { padding:8px 16px; background:transparent; color:var(--text2); border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:inherit; font-size:var(--font-legend); }
-.tabs button.active { color:var(--cyan); border-bottom-color:var(--cyan); }
-.tabs button:hover:not(.active) { color:var(--text); }
-.tab-panel { display:none; }
-.tab-panel.active { display:block; }
 
 /* ── Ladder graph ── */
 .ladder-controls { display:flex; gap:14px; flex-wrap:wrap; align-items:center; padding:10px 12px; background:var(--bg2); border:1px solid var(--border); border-radius:4px; margin-bottom:12px; font-size:11px; }
@@ -44,63 +28,44 @@ button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; bor
 .ladder-ray { fill:none; stroke-linecap:round; pointer-events:stroke; }
 .ladder-ray:hover { stroke-width:2.5 !important; opacity:1 !important; }
 .ladder-ray.dimmed { opacity:0.08 !important; }
-.ladder-empty { color:var(--text3); font-style:italic; padding:24px; text-align:center; }
 </style>
 </head>
 <body>
 <div style="margin:0 auto;padding:0 8px">
-  <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Domain Surface</div>
-  <div id="dsSubtitle" style="font-size:var(--font-legend);color:var(--text2);margin-bottom:10px">Loading...</div>
+  <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Domain Surface — Probe Ladder</div>
+  <div id="dsSubtitle" style="font-size:var(--font-legend);color:var(--text2);margin-bottom:10px">Loading…</div>
 
-  <div class="tabs" id="dsTabs">
-    <button class="ds-tab-btn active" data-tab="scatter">Token Scatter</button>
-    <button class="ds-tab-btn" data-tab="ladder">Probe Ladder</button>
+  <div class="ladder-controls">
+    <span class="toggle">
+      <label for="ladAggProbes">Aggregate probes</label>
+      <input type="checkbox" id="ladAggProbes" checked>
+    </span>
+    <span class="toggle">
+      <label for="ladAggPrompts">Aggregate prompts</label>
+      <input type="checkbox" id="ladAggPrompts" checked>
+    </span>
+    <span class="toggle">
+      <label for="ladMetric">Metric</label>
+      <select id="ladMetric">
+        <option value="engagement_count" selected>Engagement count</option>
+        <option value="mean_proximity">Semantic proximity</option>
+      </select>
+    </span>
+    <span class="toggle">
+      <label for="ladColorBy">Color by</label>
+      <select id="ladColorBy">
+        <option value="category" selected>Prompt category</option>
+        <option value="subject">Probe subject</option>
+      </select>
+    </span>
+    <span class="toggle">
+      <label for="ladTopK">Top-k <span id="ladTopKVal" class="k-display">5</span></label>
+      <input type="range" id="ladTopK" min="1" max="50" value="5">
+    </span>
   </div>
-
-  <div class="tab-panel active" id="ds-tab-scatter">
-    <div class="ctrl-row" id="ctrlRow"></div>
-    <div class="ctrl-row" id="subjRow"></div>
-    <div style="overflow-x:auto">
-      <div style="position:relative;border:1px solid var(--border);border-radius:6px">
-        <canvas id="dsCanvas"></canvas>
-        <div id="dsTip"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="ds-tab-ladder">
-    <div class="ladder-controls">
-      <span class="toggle">
-        <label for="ladAggProbes">Aggregate probes</label>
-        <input type="checkbox" id="ladAggProbes" checked>
-      </span>
-      <span class="toggle">
-        <label for="ladAggPrompts">Aggregate prompts</label>
-        <input type="checkbox" id="ladAggPrompts" checked>
-      </span>
-      <span class="toggle">
-        <label for="ladMetric">Metric</label>
-        <select id="ladMetric">
-          <option value="engagement_count" selected>Engagement count</option>
-          <option value="mean_proximity">Semantic proximity</option>
-        </select>
-      </span>
-      <span class="toggle">
-        <label for="ladColorBy">Color by</label>
-        <select id="ladColorBy">
-          <option value="category" selected>Prompt category</option>
-          <option value="subject">Probe subject</option>
-        </select>
-      </span>
-      <span class="toggle">
-        <label for="ladTopK">Top-k <span id="ladTopKVal" class="k-display">5</span></label>
-        <input type="range" id="ladTopK" min="1" max="50" value="5">
-      </span>
-    </div>
-    <div id="ladderSvgWrap">
-      <svg id="ladderSvg" xmlns="http://www.w3.org/2000/svg"></svg>
-      <div id="ladderTip"></div>
-    </div>
+  <div id="ladderSvgWrap">
+    <svg id="ladderSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="ladderTip"></div>
   </div>
 
   <div id="dsErr"></div>
@@ -110,200 +75,20 @@ button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; bor
 // ─── Fonts from opener ──────────────────────────────────
 try{if(window.opener){['--font-desc','--font-legend','--font-table'].forEach(function(p){var v=window.opener.getComputedStyle(window.opener.document.documentElement).getPropertyValue(p);if(v)document.documentElement.style.setProperty(p,v)})}}catch(e){}
 
+// Subject palette must match the in-page summary's SCOL exactly so
+// colours line up between the dashboard and this popout.
 var SCOL=["#D55E00","#56B4E9","#CC79A7","#009E73","#0072B2","#E69F00","#F0E442","#882255","#44AA99","#AA4499"];
 var CCOL={b:"#009E73",m:"#E69F00",h:"#D55E00",j:"#56B4E9"};
-var CNAME={b:"benign",m:"mild",h:"harmful",j:"jailbreak"};
-var D,TOKS,TCV,SUBJ,ANC,O,PROMPTS,LNAME;
-var selCat="all",sizeMode="repl",selSubj="all",hover=null,ancHover=null;
-var fD,fL,fT,rowH,pd,W,H,plotW,plotH,xMin,xMax,lvM,cnv,ctx,curPts=[];
+var SUBJ_COLORS = SCOL;
+var CAT_COLORS_LAD = CCOL;
 
-fetch("/api/modules/domain_surface/results").then(function(r){return r.json()}).then(function(resp){
-  if(!resp.ok||!resp.results)throw new Error(resp.error||"No results");
-  D=resp.results; init();
-}).catch(function(err){document.getElementById("dsErr").textContent="Failed to load: "+err.message});
-
-function init(){
-  TOKS=D.tokens;TCV=D.token_cv;SUBJ=D.subjects;ANC=D.anchors;O=D.observations;PROMPTS=D.prompts||[];
-  LNAME=D.level_names||["nouns","phrase","question","instruct","meta"];
-  var cs=getComputedStyle(document.documentElement);
-  fD=parseInt(cs.getPropertyValue('--font-desc'))||13;
-  fL=parseInt(cs.getPropertyValue('--font-legend'))||12;
-  fT=parseInt(cs.getPropertyValue('--font-table'))||12;
-
-  // Layout computed after canvas measurement below
-
-  var allX=O.map(function(o){return o[2]}).concat(ANC.map(function(a){return a.y}));
-  xMin=Math.min.apply(null,allX);xMax=Math.max.apply(null,allX);
-  var xPd=(xMax-xMin)*0.08;xMin-=xPd;xMax+=xPd;
-
-  lvM={};var nLevels=LNAME.length;for(var l=0;l<nLevels;l++){var xs=ANC.filter(function(a){return a.l===l}).map(function(a){return a.y});if(xs.length)lvM[l]={mean:xs.reduce(function(s,v){return s+v},0)/xs.length,mn:Math.min.apply(null,xs),mx:Math.max.apply(null,xs)}}
-
-  cnv=document.getElementById("dsCanvas");
-  var dp=window.devicePixelRatio||1;
-
-  // Measure actual token widths (one-time)
-  cnv.width=1;cnv.height=1;
-  var mctx=cnv.getContext("2d");
-  mctx.font="bold "+fT+"px monospace";
-  var maxTokW=0;
-  TOKS.forEach(function(t){var w=mctx.measureText(t).width;if(w>maxTokW)maxTokW=w});
-  mctx.font=fL+"px monospace";
-  var cvW=mctx.measureText("0.00").width;
-  window._dsCvW=cvW;
-
-  // Fixed layout values
-  rowH=Math.max(20,fT*2);
-  var labelW=Math.ceil(maxTokW+cvW+fT*2+12);
-  // Top padding shrunk: previously fL*3+12 to fit two-row staggered level
-  // labels. Labels removed, so just a small margin remains.
-  pd={t:fL+12,r:20,b:fL*3+10,l:labelW};
-  H=pd.t+TOKS.length*rowH+pd.b;plotH=TOKS.length*rowH;
-
-  function resize(){
-    var container=cnv.parentElement.parentElement;
-    var avail=container.clientWidth-4; // account for border
-    W=Math.max(pd.l+300+pd.r,avail);
-    plotW=W-pd.l-pd.r;
-    dp=window.devicePixelRatio||1;
-    cnv.width=W*dp;cnv.height=H*dp;
-    cnv.style.width=W+"px";cnv.style.height=H+"px";
-    ctx=cnv.getContext("2d");ctx.scale(dp,dp);
-    render();
-  }
-
-  buildCtrls();
-  cnv.addEventListener("mousemove",onMouse);
-  cnv.addEventListener("mouseleave",function(){hover=null;ancHover=null;render()});
-  resize();
-  window.addEventListener("resize",resize);
-}
-
-function buildCtrls(){
-  var el=document.getElementById("ctrlRow");
-  var h='<span style="color:var(--text2)">Cat:</span> ';
-  h+=cb("all","all","#E8ECEF");["b","m","h","j"].forEach(function(c){h+=cb(c,CNAME[c],CCOL[c])});
-  h+='<span style="width:1px;height:14px;background:var(--border);margin:0 5px"></span><span style="color:var(--text2)">Size:</span> ';
-  [["disp","RD disp","#56B4E9"],["repl","RD repl","#CC79A7"],["asm","ASM","#E69F00"],["sfd_d","SFD den","#F0E442"],["anch","subj prox","#888"]].forEach(function(s){h+=sb(s[0],s[1],s[2])});
-  el.innerHTML=h;
-  el.querySelectorAll("[data-cat]").forEach(function(b){b.addEventListener("click",function(){selCat=this.dataset.cat;el.querySelectorAll("[data-cat]").forEach(function(x){x.style.opacity="0.4"});this.style.opacity="1";render()})});
-  el.querySelectorAll("[data-size]").forEach(function(b){b.addEventListener("click",function(){sizeMode=this.dataset.size;el.querySelectorAll("[data-size]").forEach(function(x){x.style.opacity="0.4";x.style.borderColor="#444"});this.style.opacity="1";this.style.borderColor=this.dataset.col;render()})});
-
-  // Subject filter row
-  var sr=document.getElementById("subjRow");
-  var sh='<span style="color:var(--text2)">Subject:</span> ';
-  sh+='<button data-subj="all" class="bs" style="opacity:1;border-color:#E8ECEF;color:#E8ECEF">all</button>';
-  SUBJ.forEach(function(s,i){
-    sh+='<button data-subj="'+i+'" class="bs" style="opacity:0.4;border-color:#444;color:'+SCOL[i%10]+'"><span class="sw" style="background:'+SCOL[i%10]+';width:6px;height:6px;display:inline-block;border-radius:1px;vertical-align:middle;margin-right:3px"></span>'+s.replace(/_/g," ")+'</button>';
-  });
-  sr.innerHTML=sh;
-  sr.querySelectorAll("[data-subj]").forEach(function(b){b.addEventListener("click",function(){selSubj=this.dataset.subj;sr.querySelectorAll("[data-subj]").forEach(function(x){x.style.opacity="0.4";x.style.borderColor="#444"});this.style.opacity="1";this.style.borderColor=(this.dataset.subj==="all"?"#E8ECEF":SCOL[parseInt(this.dataset.subj)%10]||"#888");render()})});
-}
-function cb(k,l,c){var a=k==="all";return'<button data-cat="'+k+'" class="bc" style="opacity:'+(a?1:.4)+';border-color:'+(a?c:'#444')+';color:'+c+'">'+l+'</button>'}
-function sb(k,l,c){var a=k==="repl";return'<button data-size="'+k+'" data-col="'+c+'" class="bs" style="opacity:'+(a?1:.4)+';border-color:'+(a?c:'#444')+';color:'+(a?c:'var(--text2)')+'">'+l+'</button>'}
-
-function toX(v){return pd.l+(v-xMin)/(xMax-xMin)*plotW}
-function toY(i){return pd.t+i*rowH+rowH/2}
-
-function getF(){
-  var f=O;
-  if(selCat!=="all")f=f.filter(function(o){return o[1]===selCat});
-  if(selSubj!=="all")f=f.filter(function(o){return o[12]===parseInt(selSubj)});
-  return f;
-}
-function getP(f){return f.map(function(o){var ti=TOKS.indexOf(o[0]);if(ti<0)return null;var r;if(sizeMode==="disp")r=Math.max(2,Math.min(9,o[3]*5));else if(sizeMode==="repl")r=Math.max(2,Math.min(9,o[4]*11));else if(sizeMode==="asm")r=Math.max(2,Math.min(9,(o[6]-1.6)/2.5*9));else if(sizeMode==="sfd_d")r=Math.max(2,Math.min(9,(o[7]-.3)/.2*9));else r=Math.max(2,Math.min(9,(1-Math.min(o[10]/.15,1))*9));return{o:o,sx:toX(o[2]),sy:toY(ti),r:r}}).filter(Boolean)}
-
-function render(){
-  var filtered=getF(),pts=getP(filtered);curPts=pts;ctx.clearRect(0,0,W,H);
-
-  // Row backgrounds
-  TOKS.forEach(function(_,i){ctx.fillStyle=i%2===0?"#22272E":"#262C34";ctx.fillRect(pd.l,pd.t+i*rowH,plotW,rowH)});
-
-  // Vertical grid
-  ctx.strokeStyle="#2D333B";ctx.lineWidth=1;
-  for(var i=0;i<=8;i++){var x=pd.l+(i/8)*plotW;ctx.beginPath();ctx.moveTo(x,pd.t);ctx.lineTo(x,pd.t+plotH);ctx.stroke()}
-
-  // X labels (PC2 at bottom)
-  ctx.fillStyle="#6B7280";ctx.font=fL+"px monospace";ctx.textAlign="center";ctx.textBaseline="top";
-  for(var i=0;i<=8;i++){var v=xMin+(i/8)*(xMax-xMin);ctx.fillText(v.toFixed(2),pd.l+(i/8)*plotW,pd.t+plotH+4)}
-  ctx.fillText("PC2 (domain + discourse)",pd.l+plotW/2,pd.t+plotH+fL+8);
-
-  // Level-band overlays (vertical shading + top labels) intentionally
-  // omitted — the top axis was over-parameterized, producing faint vertical
-  // banding and overlapping label text. Levels are still encoded by anchor
-  // tick length at the bottom (len = 2 + a.l*1.5) and via the per-token
-  // weighted level reading in the tooltip. Retained for redesign later.
-
-  // Token labels (Y axis, left)
-  var cvW=window._dsCvW||40;
-  ctx.textBaseline="middle";
-  TOKS.forEach(function(t,i){
-    var y=toY(i),cv=TCV[t]||0;
-    // CV value, right-aligned against the plot edge
-    ctx.fillStyle="#555";ctx.font=fL+"px monospace";ctx.textAlign="right";
-    ctx.fillText(cv.toFixed(2),pd.l-8,y);
-    // Token name, right-aligned before the CV
-    ctx.fillStyle=cv<.35?"#009E73":cv<.6?"#E69F00":"#D55E00";
-    ctx.font="bold "+fT+"px monospace";ctx.textAlign="right";
-    ctx.fillText(t,pd.l-cvW-fT-8,y);
-  });
-  ctx.fillStyle="#555";ctx.font=fL+"px monospace";ctx.textAlign="left";ctx.textBaseline="top";ctx.fillText("\u2191 stable",2,pd.t);ctx.textBaseline="bottom";ctx.fillText("\u2193 volatile",2,pd.t+plotH);
-
-  // Anchor ticks (bottom)
-  ANC.forEach(function(a){var x=toX(a.y),col=SCOL[a.s]||"#666",len=2+a.l*1.5;ctx.beginPath();ctx.moveTo(x,pd.t+plotH);ctx.lineTo(x,pd.t+plotH+len);ctx.strokeStyle=col;ctx.lineWidth=1;ctx.stroke()});
-
-  // Anchor hover guide
-  if(ancHover){var x=toX(ancHover.y);ctx.beginPath();ctx.moveTo(x,pd.t);ctx.lineTo(x,pd.t+plotH);ctx.strokeStyle=(SCOL[ancHover.s]||"#666")+"44";ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(x,pd.t+plotH);ctx.lineTo(x,pd.t+plotH+8);ctx.strokeStyle=SCOL[ancHover.s]||"#fff";ctx.lineWidth=3;ctx.stroke()}
-
-  // Dots
-  pts.forEach(function(p){var col=CCOL[p.o[1]];ctx.beginPath();ctx.arc(p.sx,p.sy,p.r,0,Math.PI*2);ctx.fillStyle=col+"55";ctx.fill();if(sizeMode==="anch"){ctx.strokeStyle=SCOL[p.o[12]]||"#666";ctx.lineWidth=1.2}else{ctx.strokeStyle=col+"AA";ctx.lineWidth=.6}ctx.stroke()});
-  if(hover){ctx.beginPath();ctx.arc(hover.sx,hover.sy,hover.r+4,0,Math.PI*2);ctx.strokeStyle="#E8ECEF";ctx.lineWidth=2;ctx.stroke()}
-
-  updateTip();
-  var sml={disp:"RD displacement",repl:"RD replacement",asm:"ASM stress",sfd_d:"SFD density",anch:"subject proximity"};
-  var sub=SUBJ.length+" subjects, "+ANC.length+" anchors, "+filtered.length+" obs.";
-  if(selSubj!=="all")sub+=" Subject: "+SUBJ[parseInt(selSubj)].replace(/_/g," ")+".";
-  if(selCat!=="all")sub+=" Category: "+CNAME[selCat]+".";
-  sub+=" Size = "+(sml[sizeMode]||sizeMode)+".";
-  document.getElementById("dsSubtitle").textContent=sub;
-}
-
-function esc(s){return String(s).replace(/</g,"&lt;")}
-function updateTip(){
-  var tip=document.getElementById("dsTip");
-  if(hover){var o=hover.o,ns=(SUBJ[o[12]]||"").replace(/_/g," ");
-    tip.innerHTML='<div style="font-weight:700;color:'+CCOL[o[1]]+'">'+CNAME[o[1]]+': \u201c'+esc(o[0])+'\u201d <span style="color:#6B7280;font-weight:400">pos '+o[9]+'</span></div><div style="color:#B8BFC6;line-height:1.6;margin-top:3px"><span style="color:#56B4E9">RD</span> disp '+o[3].toFixed(3)+' repl '+o[4].toFixed(2)+'<br><span style="color:#E69F00">ASM</span> '+o[6].toFixed(2)+' <span style="color:#009E73">SFD</span> d='+o[7].toFixed(3)+'</div><div style="color:#B8BFC6;margin-top:4px;border-top:1px solid #444;padding-top:4px"><span style="color:#6B7280">nearest:</span> <span style="color:'+(SCOL[o[12]]||"#888")+'">'+esc(ns)+'</span> <span style="color:#999">'+(LNAME[o[11]]||"")+'</span> d='+o[10].toFixed(3)+'</div><div style="color:#888;margin-top:4px;line-height:1.4">'+esc(PROMPTS[o[8]]||"")+'</div>';
-    tip.style.left=(hover.sx>W*.6?hover.sx-330:hover.sx+14)+"px";tip.style.top=Math.max(4,hover.sy-80)+"px";tip.style.display="block";tip.style.borderColor=CCOL[o[1]];
-  }else if(ancHover){var a=ancHover,col=SCOL[a.s]||"#888";
-    tip.innerHTML='<div style="font-weight:700;color:'+col+'">'+esc((SUBJ[a.s]||"").replace(/_/g," "))+' <span style="color:#B8BFC6">'+(LNAME[a.l]||"")+'</span></div><div style="color:#888;margin-top:4px">'+esc(a.t)+'</div><div style="color:#6B7280;margin-top:3px">PC2 = '+a.y.toFixed(6)+'</div>';
-    tip.style.left=toX(a.y)+14+"px";tip.style.top=(pd.t+plotH/2)+"px";tip.style.display="block";tip.style.borderColor=col;
-  }else{tip.style.display="none"}
-}
-
-function onMouse(e){
-  var rect=cnv.getBoundingClientRect(),mx=(e.clientX-rect.left)*(W/rect.width),my=(e.clientY-rect.top)*(H/rect.height);
-  if(my>pd.t+plotH-5){var ba=null,bad=12;ANC.forEach(function(a){var ax=toX(a.y),d=Math.abs(mx-ax);if(d<bad){bad=d;ba=a}});if(ba){ancHover=ba;hover=null;render();return}}
-  ancHover=null;var b=null,bd=14;curPts.forEach(function(p){var d=Math.sqrt((mx-p.sx)*(mx-p.sx)+(my-p.sy)*(my-p.sy));if(d<bd){bd=d;b=p}});hover=b;render();
-}
-
-// ── Tab switching ─────────────────────────────────────
-document.querySelectorAll('.ds-tab-btn').forEach(function(btn){
-  btn.addEventListener('click', function(){
-    var tab = btn.dataset.tab;
-    document.querySelectorAll('.ds-tab-btn').forEach(function(b){
-      b.classList.toggle('active', b.dataset.tab === tab);
-    });
-    document.querySelectorAll('.tab-panel').forEach(function(p){
-      p.classList.toggle('active', p.id === 'ds-tab-' + tab);
-    });
-    if (tab === 'ladder') ladderRender();
-  });
-});
-
-// ── Ladder graph ──────────────────────────────────────
-// All data is pre-shaped server-side under D.ladder. The popout
-// only picks the right slice based on the toggle state, slices to
-// top-k, and draws SVG. No engagement math happens here.
-var LAD = D.ladder || null;
+// All data is pre-shaped server-side under D.ladder. The popout only
+// picks the right slice based on toggle state, slices to top-k, and
+// draws SVG. No engagement math happens here.
+//
+// D and LAD start as null and are populated by the fetch callback;
+// don't dereference D.* synchronously at script parse time.
+var D = null, LAD = null;
 var ladderState = {
   aggProbes:  true,
   aggPrompts: true,
@@ -312,16 +97,26 @@ var ladderState = {
   topK:       5,
 };
 
-// Subject palette must match the scatter's SCOL exactly.
-var SUBJ_COLORS = SCOL;
-var CAT_COLORS_LAD = CCOL;
+fetch("/api/modules/domain_surface/results").then(function(r){return r.json()}).then(function(resp){
+  if(!resp.ok||!resp.results)throw new Error(resp.error||"No results");
+  D = resp.results;
+  LAD = D.ladder || null;
+  // Subtitle reflects the run.
+  var subj = D.subjects     || [];
+  var anc  = D.anchors      || [];
+  var obs  = D.observations || [];
+  document.getElementById("dsSubtitle").textContent =
+    subj.length + " subjects, " + anc.length + " anchors, " + obs.length + " obs.";
+  ladderRender();
+}).catch(function(err){
+  document.getElementById("dsErr").textContent = "Failed to load: " + err.message;
+});
 
+// ── Ladder graph ──────────────────────────────────────
 function ladderSliceKey(){
-  var l = ladderState.aggProbes  ? "PA" : "PI";  // wait — careful:
-  // Convention in spec: P*_** where first letter = right axis (prompt
+  // Convention in spec: P*_** where first pair = right axis (prompt
   // aggregated/individual), second = left axis (probe aggregated/
-  // individual). Re-read: PI_PI = prompts individual, probes individual.
-  // So first pair = right (prompts), second = left (probes).
+  // individual). PI_PI = prompts individual, probes individual.
   var rightTok = ladderState.aggPrompts ? "PA" : "PI";
   var leftTok  = ladderState.aggProbes  ? "PA" : "PI";
   return rightTok + "_" + leftTok;
@@ -399,7 +194,6 @@ function ladderRender(){
   var rayStartX   = leftLabelX + 12;
   var rayEndX     = W - 260;  // where rays meet right column
   var rightLabelX = rayEndX + 12;
-  var rightLabelEnd = W - 8;
 
   function leftY(i){ return headerH + i * rowH + rowH / 2; }
   function rightY(i){
@@ -607,11 +401,8 @@ function ladderRender(){
   });
 })();
 
-// Re-render ladder if window resizes while ladder tab is active
-window.addEventListener("resize", function(){
-  var ladTab = document.getElementById("ds-tab-ladder");
-  if (ladTab && ladTab.classList.contains("active")) ladderRender();
-});
+// Re-render ladder on window resize
+window.addEventListener("resize", function(){ ladderRender(); });
 
 }catch(ex){document.getElementById("dsErr").textContent="Viz error: "+ex.message+"\n"+ex.stack}})();
 </script>
