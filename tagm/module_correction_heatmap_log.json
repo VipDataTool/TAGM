@@ -1,6 +1,6 @@
 {
  "version": "0.1.0",
- "probe_file": "5x5_auto_probes.csv",
+ "probe_file": "cyber_5x5_auto_probes.csv",
  "subjects": [
   "network_security",
   "application_security",
@@ -22,4781 +22,4616 @@
   "evasive",
   "destructive"
  ],
- "n_prompts": 200,
- "n_probes": 211,
+ "n_prompts": 40,
+ "n_probes": 500,
  "aggregate": [
   [
-   0.1424982987642288,
-   0.14231827402114877,
-   0.14254854407782358,
-   0.14273264001682398,
-   0.14334884358942504
+   -0.0033048051423784316,
+   -0.01974515170910763,
+   -0.00911024170283781,
+   -0.02076848988446727,
+   -0.011425620712336692
   ],
   [
-   0.1413216025680304,
-   0.14315218777209504,
-   0.1424569201096892,
-   0.14174021448567514,
-   0.1423697347305715
+   -0.01448054941238297,
+   -0.023436671064209807,
+   -0.009652089652266792,
+   -0.007603110662919334,
+   -0.002601950357202441
   ],
   [
-   0.14266716328635823,
-   0.14267069593816994,
-   0.14314127655492886,
-   0.13989451533183458,
-   0.14267403818666938
+   -0.022823440634365387,
+   -0.024521870362859778,
+   -0.0025538304534711643,
+   -0.014026063165653116,
+   -0.012640132528699725
   ],
   [
-   0.14108150448650122,
-   0.1412922096475959,
-   0.14305906843394037,
-   0.1419205923254291,
-   0.14276418963447207
+   -0.01980170517773331,
+   -0.018361447607362604,
+   -0.007904694918711926,
+   -0.02334969796409951,
+   -0.011280683694228345
   ],
   [
-   0.14284884629771105,
-   0.1438745690012971,
-   0.14130997374653811,
-   0.14305987630505115,
-   0.1423135170340537
+   -0.020798825541451148,
+   -0.009333873356354161,
+   -0.016900367761923003,
+   -0.011932377834828006,
+   -0.013625960028416562
   ]
  ],
  "variance": [
   [
-   0.00047213040428604704,
-   0.00046559214529358676,
-   0.0004678389259006372,
-   0.0004791753856644436,
-   0.0004791042362082844
+   2.502663441119779e-05,
+   3.668720853444987e-05,
+   1.859030552209463e-05,
+   1.9046406621220378e-05,
+   1.52097406964299e-05
   ],
   [
-   0.0004579982165205791,
-   0.00047016688529337924,
-   0.0004766915812240126,
-   0.0004606730809556578,
-   0.00046123872356300307
+   2.2889406342855374e-05,
+   3.109807348504141e-05,
+   1.8747907207477274e-05,
+   1.7636575561064638e-05,
+   1.782838251279487e-05
   ],
   [
-   0.000459374125802828,
-   0.0004624981349275951,
-   0.00047148316353526137,
-   0.0004572365728185089,
-   0.0004702003732114555
+   2.3768579552857474e-05,
+   3.197031268623061e-05,
+   1.7034376157400594e-05,
+   1.6974704901238465e-05,
+   2.1909478107246274e-05
   ],
   [
-   0.0004671221669892804,
-   0.00047064858833487566,
-   0.0004727969862972145,
-   0.0004638698652723299,
-   0.00046881718802932996
+   1.73935992614876e-05,
+   1.8059771223463256e-05,
+   1.8271146748482217e-05,
+   2.2726402271295473e-05,
+   2.3185400189530334e-05
   ],
   [
-   0.0004748236863531709,
-   0.0004820231063212281,
-   0.0004627195964156293,
-   0.000468882947531111,
-   0.0004597677256343696
+   2.6958236113113827e-05,
+   2.0216402987536517e-05,
+   1.4194195171370911e-05,
+   1.951765640494991e-05,
+   1.5369733272371454e-05
   ]
  ],
  "cell_details": {
   "0_0": {
    "tokens": [
     {
-     "token": "Dis",
-     "cell_mean": 0.058284,
-     "global_mean": 0.057297,
-     "deviation": 0.000987,
-     "z": 1.596,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.058284,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "directive",
-     "cell_mean": 0.160263,
-     "global_mean": 0.158872,
-     "deviation": 0.001392,
-     "z": 1.232,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.160263,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "new",
-     "cell_mean": 0.196224,
-     "global_mean": 0.195155,
-     "deviation": 0.001069,
-     "z": 1.161,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.196224,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "while",
-     "cell_mean": 0.010813,
-     "global_mean": 0.011665,
-     "deviation": -0.000851,
-     "z": 1.031,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.010813,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "containing",
-     "cell_mean": 0.074137,
-     "global_mean": 0.075148,
-     "deviation": -0.001011,
-     "z": 1.008,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.074137,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "should",
-     "cell_mean": 0.138792,
-     "global_mean": 0.13797,
-     "deviation": 0.000821,
-     "z": 0.985,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.138792,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "demonstrate",
-     "cell_mean": 0.144767,
-     "global_mean": 0.143658,
-     "deviation": 0.001108,
-     "z": 0.951,
+     "token": "security",
+     "cell_mean": 0.011657,
+     "global_mean": -0.005705,
+     "deviation": 0.017362,
+     "z": 3.016,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.144767,
+       "mean": 0.011657,
        "n": 1
       }
      }
     },
     {
-     "token": "content",
-     "cell_mean": 0.158919,
-     "global_mean": 0.1581,
-     "deviation": 0.000819,
-     "z": 0.949,
+     "token": "locksmith",
+     "cell_mean": 0.009843,
+     "global_mean": -0.006717,
+     "deviation": 0.01656,
+     "z": 2.66,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.009843,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "consider",
+     "cell_mean": 0.002105,
+     "global_mean": -0.017981,
+     "deviation": 0.020087,
+     "z": 2.578,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002105,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "You",
+     "cell_mean": -0.010146,
+     "global_mean": -0.028641,
+     "deviation": 0.018496,
+     "z": 2.563,
      "n": 3,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.179709,
+      "j": {
+       "mean": -0.010146,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "end",
+     "cell_mean": -0.01029,
+     "global_mean": -0.024821,
+     "deviation": 0.014531,
+     "z": 2.517,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01029,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "an",
+     "cell_mean": -0.007133,
+     "global_mean": -0.017255,
+     "deviation": 0.010121,
+     "z": 2.49,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005806,
        "n": 1
       },
       "j": {
-       "mean": 0.148524,
+       "mean": -0.013603,
        "n": 2
       }
      }
     },
     {
-     "token": "Override",
-     "cell_mean": 0.154523,
-     "global_mean": 0.153605,
-     "deviation": 0.000919,
-     "z": 0.949,
-     "n": 5,
+     "token": "software",
+     "cell_mean": 0.015866,
+     "global_mean": -0.001119,
+     "deviation": 0.016985,
+     "z": 2.395,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.154523,
-       "n": 5
+      "m": {
+       "mean": 0.015866,
+       "n": 1
       }
      }
     },
     {
-     "token": "previous",
-     "cell_mean": 0.168746,
-     "global_mean": 0.167904,
-     "deviation": 0.000843,
-     "z": 0.923,
-     "n": 2,
+     "token": "mixed",
+     "cell_mean": 0.003745,
+     "global_mean": -0.017325,
+     "deviation": 0.021069,
+     "z": 2.387,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.15742,
+      "m": {
+       "mean": 0.003745,
        "n": 1
-      },
+      }
+     }
+    },
+    {
+     "token": "has",
+     "cell_mean": -0.005253,
+     "global_mean": -0.020148,
+     "deviation": 0.014895,
+     "z": 2.377,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
       "j": {
-       "mean": 0.180073,
+       "mean": -0.005253,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "researchers",
+     "cell_mean": 0.006847,
+     "global_mean": -0.010918,
+     "deviation": 0.017765,
+     "z": 2.327,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006847,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "anti",
-    "nid",
-    "plan",
-    "event",
-    "program",
-    "operations",
-    "rules",
-    "ida",
-    "center",
-    "filter"
+    "npm",
+    "antivirus",
+    "plane",
+    "report",
+    "guarding",
+    "behavior-based",
+    "classification",
+    "measurement",
+    "certainly",
+    "explanations",
+    "state-of-the-art",
+    "remove",
+    "viruses",
+    "vnf",
+    "cloud",
+    "providers",
+    "dpi",
+    "translates",
+    "format",
+    "unusually"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
   "0_1": {
    "tokens": [
     {
-     "token": "method",
-     "cell_mean": 0.099386,
-     "global_mean": 0.10064,
-     "deviation": -0.001253,
-     "z": 1.275,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.099386,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "might",
-     "cell_mean": 0.135794,
-     "global_mean": 0.136801,
-     "deviation": -0.001008,
-     "z": 1.244,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.135794,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "been",
-     "cell_mean": 0.130197,
-     "global_mean": 0.129202,
-     "deviation": 0.000995,
-     "z": 1.24,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.127379,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.133015,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bug",
-     "cell_mean": 0.147156,
-     "global_mean": 0.14628,
-     "deviation": 0.000876,
-     "z": 1.145,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.147156,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "password",
-     "cell_mean": 0.09546,
-     "global_mean": 0.094382,
-     "deviation": 0.001077,
-     "z": 1.12,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.09546,
-       "n": 1
-      }
-     }
-    },
-    {
      "token": "P",
-     "cell_mean": 0.106947,
-     "global_mean": 0.107649,
-     "deviation": -0.000702,
-     "z": 1.035,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.106947,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "normal",
-     "cell_mean": 0.174875,
-     "global_mean": 0.174016,
-     "deviation": 0.000859,
-     "z": 1.03,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.174875,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "my",
-     "cell_mean": 0.135565,
-     "global_mean": 0.134666,
-     "deviation": 0.000899,
-     "z": 0.996,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.135565,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "logs",
-     "cell_mean": 0.129211,
-     "global_mean": 0.130188,
-     "deviation": -0.000977,
-     "z": 0.973,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.136466,
-       "n": 1
-      },
-      "m": {
-       "mean": 0.121956,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "activity",
-     "cell_mean": 0.132115,
-     "global_mean": 0.133052,
-     "deviation": -0.000938,
-     "z": 0.97,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.132115,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "vlan",
-    "ike",
-    "gre",
-    "loss",
-    "area",
-    "relay",
-    "flow",
-    "header",
-    "performance",
-    "ntp"
-   ],
-   "n_unique_tokens": 428
-  },
-  "0_2": {
-   "tokens": [
-    {
-     "token": "incoming",
-     "cell_mean": 0.111483,
-     "global_mean": 0.109577,
-     "deviation": 0.001906,
-     "z": 2.42,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.111483,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "preventing",
-     "cell_mean": 0.073241,
-     "global_mean": 0.075515,
-     "deviation": -0.002273,
-     "z": 2.113,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.073241,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "P",
-     "cell_mean": 0.109005,
-     "global_mean": 0.107649,
-     "deviation": 0.001355,
-     "z": 1.998,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.109005,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "should",
-     "cell_mean": 0.139568,
-     "global_mean": 0.13797,
-     "deviation": 0.001597,
-     "z": 1.915,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.139568,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "over",
-     "cell_mean": 0.057781,
-     "global_mean": 0.056406,
-     "deviation": 0.001375,
-     "z": 1.872,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.057781,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "detecting",
-     "cell_mean": 0.17225,
-     "global_mean": 0.170523,
-     "deviation": 0.001727,
-     "z": 1.827,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.17225,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "servers",
-     "cell_mean": 0.140109,
-     "global_mean": 0.138217,
-     "deviation": 0.001892,
-     "z": 1.71,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.140109,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "walls",
-     "cell_mean": 0.045356,
-     "global_mean": 0.044015,
-     "deviation": 0.001341,
-     "z": 1.539,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.045356,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "investigate",
-     "cell_mean": 0.142712,
-     "global_mean": 0.141337,
-     "deviation": 0.001375,
-     "z": 1.527,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.142712,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "certification",
-     "cell_mean": 0.165882,
-     "global_mean": 0.164524,
-     "deviation": 0.001358,
-     "z": 1.485,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.165882,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "apt",
-    "worm",
-    "line",
-    "interface",
-    "cli",
-    "mil"
-   ],
-   "n_unique_tokens": 428
-  },
-  "0_3": {
-   "tokens": [
-    {
-     "token": "should",
-     "cell_mean": 0.136353,
-     "global_mean": 0.13797,
-     "deviation": -0.001617,
-     "z": 1.939,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.136353,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "decrypt",
-     "cell_mean": 0.078116,
-     "global_mean": 0.079433,
-     "deviation": -0.001317,
-     "z": 1.858,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.078116,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "assistant",
-     "cell_mean": 0.082443,
-     "global_mean": 0.080903,
-     "deviation": 0.00154,
-     "z": 1.818,
+     "cell_mean": -0.024601,
+     "global_mean": -0.005178,
+     "deviation": -0.019423,
+     "z": 2.49,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.082443,
+       "mean": -0.024601,
        "n": 1
       }
      }
     },
     {
-     "token": "let",
-     "cell_mean": 0.084301,
-     "global_mean": 0.085953,
-     "deviation": -0.001651,
-     "z": 1.803,
+     "token": "DAN",
+     "cell_mean": -0.046172,
+     "global_mean": -0.028329,
+     "deviation": -0.017843,
+     "z": 2.412,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.084301,
+      "j": {
+       "mean": -0.046172,
        "n": 1
       }
      }
     },
     {
-     "token": "exist",
-     "cell_mean": 0.2192,
-     "global_mean": 0.21656,
-     "deviation": 0.00264,
-     "z": 1.782,
+     "token": "Enter",
+     "cell_mean": -0.035148,
+     "global_mean": -0.005607,
+     "deviation": -0.02954,
+     "z": 2.409,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.2192,
+      "j": {
+       "mean": -0.035148,
        "n": 1
       }
      }
     },
     {
      "token": "ret",
-     "cell_mean": 0.213611,
-     "global_mean": 0.210927,
-     "deviation": 0.002683,
-     "z": 1.747,
-     "n": 5,
+     "cell_mean": -0.044839,
+     "global_mean": -0.024781,
+     "deviation": -0.020058,
+     "z": 2.337,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.213611,
+      "j": {
+       "mean": -0.044839,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mar",
+     "cell_mean": -0.039586,
+     "global_mean": -0.018482,
+     "deviation": -0.021104,
+     "z": 2.069,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.039586,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "unrestricted",
+     "cell_mean": -0.023684,
+     "global_mean": -0.010499,
+     "deviation": -0.013185,
+     "z": 2.02,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.023684,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "malware",
+     "cell_mean": -0.033875,
+     "global_mean": -0.021559,
+     "deviation": -0.012315,
+     "z": 2.013,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.033875,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Write",
+     "cell_mean": -0.035492,
+     "global_mean": -0.017872,
+     "deviation": -0.01762,
+     "z": 1.981,
+     "n": 4,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.035074,
+       "n": 3
+      },
+      "j": {
+       "mean": -0.036744,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ethical",
+     "cell_mean": -0.029834,
+     "global_mean": -0.013081,
+     "deviation": -0.016753,
+     "z": 1.948,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.029834,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "identity",
+     "cell_mean": -0.025246,
+     "global_mean": -0.008508,
+     "deviation": -0.016738,
+     "z": 1.926,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.025246,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "router",
+    "unreachable",
+    "ipv",
+    "timestamped",
+    "ospf",
+    "switch",
+    "connected",
+    "igmp",
+    "ldp",
+    "spanning",
+    "tree",
+    "shortest",
+    "first",
+    "subnet",
+    "collection",
+    "default",
+    "routes",
+    "resolution",
+    "ntp",
+    "high"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_2": {
+   "tokens": [
+    {
+     "token": "Py",
+     "cell_mean": -0.008113,
+     "global_mean": 0.002699,
+     "deviation": -0.010812,
+     "z": 2.034,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.008113,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "researchers",
+     "cell_mean": 0.001569,
+     "global_mean": -0.010918,
+     "deviation": 0.012487,
+     "z": 1.635,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.001569,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "vaccines",
+     "cell_mean": 0.006872,
+     "global_mean": -0.003679,
+     "deviation": 0.010551,
+     "z": 1.204,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.006872,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "training",
+     "cell_mean": -0.01319,
+     "global_mean": -0.020816,
+     "deviation": 0.007627,
+     "z": 1.183,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01319,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "find",
+     "cell_mean": 0.014111,
+     "global_mean": 0.007242,
+     "deviation": 0.006869,
+     "z": 1.177,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.014111,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "note",
+     "cell_mean": -0.021848,
+     "global_mean": -0.031513,
+     "deviation": 0.009664,
+     "z": 1.154,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.021848,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "are",
+     "cell_mean": -0.011632,
+     "global_mean": -0.01862,
+     "deviation": 0.006988,
+     "z": 1.133,
+     "n": 8,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.001001,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.001454,
+       "n": 2
+      },
+      "j": {
+       "mean": -0.01823,
        "n": 5
       }
      }
     },
     {
-     "token": "Respond",
-     "cell_mean": 0.204419,
-     "global_mean": 0.202025,
-     "deviation": 0.002394,
-     "z": 1.681,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.204419,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "tokens",
-     "cell_mean": 0.144705,
-     "global_mean": 0.142347,
-     "deviation": 0.002358,
-     "z": 1.66,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.144705,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "evidence",
-     "cell_mean": 0.222586,
-     "global_mean": 0.219903,
-     "deviation": 0.002683,
-     "z": 1.648,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.222586,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "memory",
-     "cell_mean": 0.129815,
-     "global_mean": 0.127906,
-     "deviation": 0.001909,
-     "z": 1.634,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.129815,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "reply",
-    "redirect",
-    "destination",
-    "such",
-    "they",
-    "could",
-    "when",
-    "other",
-    "radius",
-    "hole"
-   ],
-   "n_unique_tokens": 428
-  },
-  "0_4": {
-   "tokens": [
-    {
-     "token": "As",
-     "cell_mean": 0.142295,
-     "global_mean": 0.138167,
-     "deviation": 0.004128,
-     "z": 2.853,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.142295,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "fore",
-     "cell_mean": 0.005894,
-     "global_mean": 0.008395,
-     "deviation": -0.002501,
-     "z": 2.83,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.005894,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "while",
-     "cell_mean": 0.009328,
-     "global_mean": 0.011665,
-     "deviation": -0.002337,
-     "z": 2.829,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.009328,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "answer",
-     "cell_mean": 0.083636,
-     "global_mean": 0.079972,
-     "deviation": 0.003664,
-     "z": 2.751,
+     "token": "where",
+     "cell_mean": -0.001851,
+     "global_mean": -0.011923,
+     "deviation": 0.010072,
+     "z": 1.128,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.083636,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "disabled",
-     "cell_mean": 0.177549,
-     "global_mean": 0.174578,
-     "deviation": 0.002972,
-     "z": 2.672,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.165274,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.189825,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "practices",
-     "cell_mean": 0.141938,
-     "global_mean": 0.138632,
-     "deviation": 0.003306,
-     "z": 2.627,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.141938,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "requests",
-     "cell_mean": 0.206075,
-     "global_mean": 0.203029,
-     "deviation": 0.003046,
-     "z": 2.603,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.206075,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "removed",
-     "cell_mean": 0.181698,
-     "global_mean": 0.178918,
-     "deviation": 0.002779,
-     "z": 2.587,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.181698,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "suspended",
-     "cell_mean": 0.208106,
-     "global_mean": 0.204977,
-     "deviation": 0.003129,
-     "z": 2.563,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.208106,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "filters",
-     "cell_mean": 0.175753,
-     "global_mean": 0.172887,
-     "deviation": 0.002866,
-     "z": 2.533,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.148911,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.202596,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "deny",
-    "you",
-    "your",
-    "please",
-    "note",
-    "may",
-    "not",
-    "own",
-    "this",
-    "water"
-   ],
-   "n_unique_tokens": 428
-  },
-  "1_0": {
-   "tokens": [
-    {
-     "token": "DAN",
-     "cell_mean": 0.138769,
-     "global_mean": 0.140814,
-     "deviation": -0.002045,
-     "z": 2.014,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.138769,
+       "mean": -0.001851,
        "n": 1
       }
      }
     },
     {
      "token": "mode",
-     "cell_mean": 0.127569,
-     "global_mean": 0.129138,
-     "deviation": -0.001569,
-     "z": 1.795,
+     "cell_mean": -0.008162,
+     "global_mean": -0.014702,
+     "deviation": 0.00654,
+     "z": 1.104,
      "n": 2,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.115267,
-       "n": 1
-      },
       "j": {
-       "mean": 0.139871,
-       "n": 1
+       "mean": -0.008162,
+       "n": 2
       }
      }
     },
     {
-     "token": "directive",
-     "cell_mean": 0.156955,
-     "global_mean": 0.158872,
-     "deviation": -0.001916,
-     "z": 1.696,
-     "n": 1,
+     "token": "break",
+     "cell_mean": -0.019854,
+     "global_mean": -0.030571,
+     "deviation": 0.010717,
+     "z": 1.096,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "j": {
-       "mean": 0.156955,
+      "m": {
+       "mean": -0.02637,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.013339,
        "n": 1
       }
      }
-    },
+    }
+   ],
+   "probes": [
+    "probing",
+    "systematically",
+    "nmap",
+    "targets",
+    "small",
+    "remotely",
+    "entities",
+    "enumerating",
+    "sweep",
+    "tracer",
+    "lanman",
+    "burp",
+    "ccs",
+    "fire",
+    "actively",
+    "examining",
+    "discovering",
+    "become",
+    "inaccessible",
+    "examination"
+   ],
+   "n_unique_tokens": 199
+  },
+  "0_3": {
+   "tokens": [
     {
-     "token": "re",
-     "cell_mean": -0.028413,
-     "global_mean": -0.026933,
-     "deviation": -0.00148,
-     "z": 1.679,
+     "token": "lock",
+     "cell_mean": -0.027824,
+     "global_mean": -0.01284,
+     "deviation": -0.014984,
+     "z": 1.606,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": -0.028413,
+       "mean": -0.027824,
        "n": 1
       }
      }
     },
     {
-     "token": "research",
-     "cell_mean": 0.195563,
-     "global_mean": 0.19751,
-     "deviation": -0.001947,
-     "z": 1.652,
+     "token": "mixed",
+     "cell_mean": -0.031466,
+     "global_mean": -0.017325,
+     "deviation": -0.014142,
+     "z": 1.602,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.195563,
+      "m": {
+       "mean": -0.031466,
        "n": 1
       }
      }
     },
     {
-     "token": "completely",
-     "cell_mean": 0.165042,
-     "global_mean": 0.166682,
-     "deviation": -0.001639,
-     "z": 1.65,
-     "n": 2,
+     "token": "find",
+     "cell_mean": -0.002059,
+     "global_mean": 0.007242,
+     "deviation": -0.009301,
+     "z": 1.593,
+     "n": 1,
      "n_cells": 25,
      "cats": {
+      "m": {
+       "mean": -0.002059,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "an",
+     "cell_mean": -0.023531,
+     "global_mean": -0.017255,
+     "deviation": -0.006276,
+     "z": 1.544,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.010725,
+       "n": 1
+      },
       "j": {
-       "mean": 0.165042,
+       "mean": -0.029934,
        "n": 2
       }
      }
     },
     {
-     "token": "guidelines",
-     "cell_mean": 0.184969,
-     "global_mean": 0.186589,
-     "deviation": -0.00162,
-     "z": 1.639,
-     "n": 4,
+     "token": "never",
+     "cell_mean": -0.030478,
+     "global_mean": -0.016435,
+     "deviation": -0.014043,
+     "z": 1.531,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.171217,
+      "m": {
+       "mean": -0.030478,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "researchers",
+     "cell_mean": -0.022512,
+     "global_mean": -0.010918,
+     "deviation": -0.011594,
+     "z": 1.518,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.022512,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "consider",
+     "cell_mean": -0.029567,
+     "global_mean": -0.017981,
+     "deviation": -0.011586,
+     "z": 1.487,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.029567,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "without",
+     "cell_mean": -0.029919,
+     "global_mean": -0.020731,
+     "deviation": -0.009188,
+     "z": 1.465,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.034363,
        "n": 2
       },
       "j": {
-       "mean": 0.198721,
-       "n": 2
+       "mean": -0.02103,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locksmith",
+     "cell_mean": -0.015812,
+     "global_mean": -0.006717,
+     "deviation": -0.009095,
+     "z": 1.461,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.015812,
+       "n": 1
       }
      }
     },
     {
      "token": "training",
-     "cell_mean": 0.197308,
-     "global_mean": 0.199401,
-     "deviation": -0.002093,
-     "z": 1.635,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.197308,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "developer",
-     "cell_mean": 0.110862,
-     "global_mean": 0.112348,
-     "deviation": -0.001486,
-     "z": 1.623,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.110862,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "broken",
-     "cell_mean": 0.166741,
-     "global_mean": 0.168656,
-     "deviation": -0.001916,
-     "z": 1.616,
+     "cell_mean": -0.030071,
+     "global_mean": -0.020816,
+     "deviation": -0.009255,
+     "z": 1.436,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.166741,
+       "mean": -0.030071,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "gateway",
-    "least",
-    "load",
-    "storage",
-    "xml",
-    "performance",
-    "validation",
-    "clean",
-    "loss",
-    "definitions"
+    "pivoting",
+    "blackholing",
+    "rsh",
+    "deterrence",
+    "preventing",
+    "seos",
+    "amplification",
+    "dqas",
+    "slow",
+    "openflow",
+    "mux",
+    "route",
+    "failover",
+    "nip",
+    "nsmts",
+    "snort",
+    "suricata",
+    "tagging",
+    "urls",
+    "basics"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "1_1": {
+  "0_4": {
    "tokens": [
     {
-     "token": "monitoring",
-     "cell_mean": 0.099859,
-     "global_mean": 0.098196,
-     "deviation": 0.001663,
-     "z": 1.814,
+     "token": "describe",
+     "cell_mean": -0.007918,
+     "global_mean": -0.016083,
+     "deviation": 0.008165,
+     "z": 1.547,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.099859,
+       "mean": -0.007918,
        "n": 1
       }
      }
     },
     {
-     "token": "fails",
-     "cell_mean": 0.109113,
-     "global_mean": 0.107902,
-     "deviation": 0.001211,
-     "z": 1.701,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.109113,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "during",
-     "cell_mean": 0.107354,
-     "global_mean": 0.105922,
-     "deviation": 0.001432,
-     "z": 1.693,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.095795,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.118913,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "persists",
-     "cell_mean": 0.095342,
-     "global_mean": 0.093796,
-     "deviation": 0.001546,
-     "z": 1.64,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.095342,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "executing",
-     "cell_mean": 0.127633,
-     "global_mean": 0.126281,
-     "deviation": 0.001352,
-     "z": 1.56,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.127633,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "from",
-     "cell_mean": 0.097926,
-     "global_mean": 0.096902,
-     "deviation": 0.001024,
-     "z": 1.516,
-     "n": 27,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.143379,
-       "n": 3
-      },
-      "m": {
-       "mean": 0.100434,
-       "n": 5
-      },
-      "d": {
-       "mean": 0.109126,
-       "n": 4
-      },
-      "h": {
-       "mean": 0.092427,
-       "n": 7
-      },
-      "a": {
-       "mean": 0.086455,
-       "n": 4
-      },
-      "j": {
-       "mean": 0.070595,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "deploy",
-     "cell_mean": 0.181476,
-     "global_mean": 0.180041,
-     "deviation": 0.001435,
-     "z": 1.515,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.18077,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.182181,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "used",
-     "cell_mean": 0.113928,
-     "global_mean": 0.11254,
-     "deviation": 0.001389,
-     "z": 1.508,
-     "n": 11,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.117142,
-       "n": 2
-      },
-      "m": {
-       "mean": 0.114995,
-       "n": 3
-      },
-      "d": {
-       "mean": 0.112324,
-       "n": 6
-      }
-     }
-    },
-    {
-     "token": "Write",
-     "cell_mean": 0.126494,
-     "global_mean": 0.12532,
-     "deviation": 0.001173,
-     "z": 1.49,
-     "n": 26,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.108909,
-       "n": 10
-      },
-      "a": {
-       "mean": 0.139609,
-       "n": 5
-      },
-      "j": {
-       "mean": 0.136518,
-       "n": 11
-      }
-     }
-    },
-    {
-     "token": "using",
-     "cell_mean": 0.113899,
-     "global_mean": 0.112601,
-     "deviation": 0.001298,
-     "z": 1.484,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.106413,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.121385,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "best",
-    "practice",
-    "coding",
-    "continuous",
-    "delivery",
-    "open",
-    "docker",
-    "source",
-    "operations",
-    "ten"
-   ],
-   "n_unique_tokens": 428
-  },
-  "1_2": {
-   "tokens": [
-    {
-     "token": "persistent",
-     "cell_mean": 0.124031,
-     "global_mean": 0.125392,
-     "deviation": -0.001361,
-     "z": 1.952,
-     "n": 6,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.174335,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.069063,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.140118,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.145804,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "door",
-     "cell_mean": 0.167441,
-     "global_mean": 0.169274,
-     "deviation": -0.001833,
-     "z": 1.948,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.167441,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "assistant",
-     "cell_mean": 0.082539,
-     "global_mean": 0.080903,
-     "deviation": 0.001636,
-     "z": 1.932,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.082539,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "transmitted",
-     "cell_mean": 0.085171,
-     "global_mean": 0.087072,
-     "deviation": -0.001901,
-     "z": 1.9,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.085171,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "shell",
-     "cell_mean": 0.083326,
-     "global_mean": 0.08499,
-     "deviation": -0.001663,
-     "z": 1.88,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.083326,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "password",
-     "cell_mean": 0.092603,
-     "global_mean": 0.094382,
-     "deviation": -0.001779,
-     "z": 1.85,
+     "token": "gas",
+     "cell_mean": 0.002966,
+     "global_mean": -0.006726,
+     "deviation": 0.009692,
+     "z": 1.289,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.092603,
+       "mean": 0.002966,
        "n": 1
       }
      }
     },
     {
-     "token": "bug",
-     "cell_mean": 0.144893,
-     "global_mean": 0.14628,
-     "deviation": -0.001386,
-     "z": 1.81,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.144893,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "potential",
-     "cell_mean": 0.165925,
-     "global_mean": 0.167859,
-     "deviation": -0.001935,
-     "z": 1.733,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.165925,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "fore",
-     "cell_mean": 0.006888,
-     "global_mean": 0.008395,
-     "deviation": -0.001506,
-     "z": 1.704,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.006888,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "blocking",
-     "cell_mean": 0.080839,
-     "global_mean": 0.08237,
-     "deviation": -0.00153,
-     "z": 1.673,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.080839,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "tool",
-    "where",
-    "program",
-    "language",
-    "about",
-    "applications",
-    "which",
-    "your",
-    "not",
-    "size"
-   ],
-   "n_unique_tokens": 428
-  },
-  "1_3": {
-   "tokens": [
-    {
-     "token": "protected",
-     "cell_mean": 0.150568,
-     "global_mean": 0.152172,
-     "deviation": -0.001604,
-     "z": 1.812,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.150568,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "preventing",
-     "cell_mean": 0.073715,
-     "global_mean": 0.075515,
-     "deviation": -0.001799,
-     "z": 1.672,
+     "token": "Civil",
+     "cell_mean": 0.000952,
+     "global_mean": -0.00652,
+     "deviation": 0.007471,
+     "z": 1.22,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.073715,
+       "mean": 0.000952,
        "n": 1
       }
      }
     },
     {
-     "token": "breached",
-     "cell_mean": 0.166795,
-     "global_mean": 0.168184,
-     "deviation": -0.001389,
-     "z": 1.616,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.176352,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.147681,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "commands",
-     "cell_mean": 0.138117,
-     "global_mean": 0.139559,
-     "deviation": -0.001442,
-     "z": 1.498,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.138117,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploited",
-     "cell_mean": 0.127063,
-     "global_mean": 0.128426,
-     "deviation": -0.001364,
-     "z": 1.487,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.127063,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bug",
-     "cell_mean": 0.145203,
-     "global_mean": 0.14628,
-     "deviation": -0.001076,
-     "z": 1.406,
+     "token": "my",
+     "cell_mean": 0.008155,
+     "global_mean": 8.1e-05,
+     "deviation": 0.008074,
+     "z": 1.187,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.145203,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "removed",
-     "cell_mean": 0.177454,
-     "global_mean": 0.178918,
-     "deviation": -0.001464,
-     "z": 1.363,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.177454,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "authorized",
-     "cell_mean": 0.1508,
-     "global_mean": 0.152232,
-     "deviation": -0.001431,
-     "z": 1.355,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.136873,
-       "n": 1
-      },
-      "a": {
-       "mean": 0.164728,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "its",
-     "cell_mean": 0.132458,
-     "global_mean": 0.133738,
-     "deviation": -0.001279,
-     "z": 1.354,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.142542,
-       "n": 1
-      },
-      "m": {
-       "mean": 0.124598,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.099604,
-       "n": 1
-      },
-      "a": {
-       "mean": 0.163089,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "potential",
-     "cell_mean": 0.166354,
-     "global_mean": 0.167859,
-     "deviation": -0.001505,
-     "z": 1.348,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.166354,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "purpose",
-    "box",
-    "encoding",
-    "examples",
-    "mime",
-    "using",
-    "stack",
-    "base",
-    "make",
-    "use"
-   ],
-   "n_unique_tokens": 428
-  },
-  "1_4": {
-   "tokens": [
-    {
-     "token": "shell",
-     "cell_mean": 0.086253,
-     "global_mean": 0.08499,
-     "deviation": 0.001264,
-     "z": 1.428,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.086253,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuring",
-     "cell_mean": 0.029009,
-     "global_mean": 0.027616,
-     "deviation": 0.001392,
-     "z": 1.424,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.029009,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "blocking",
-     "cell_mean": 0.083623,
-     "global_mean": 0.08237,
-     "deviation": 0.001253,
-     "z": 1.37,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.083623,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ex",
-     "cell_mean": 0.013349,
-     "global_mean": 0.012507,
-     "deviation": 0.000842,
-     "z": 1.274,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.008589,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.01811,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "persistent",
-     "cell_mean": 0.126246,
-     "global_mean": 0.125392,
-     "deviation": 0.000853,
-     "z": 1.223,
-     "n": 6,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.177141,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.071152,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.142438,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.147795,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "configuration",
-     "cell_mean": 0.132269,
-     "global_mean": 0.131214,
-     "deviation": 0.001054,
-     "z": 1.211,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.132269,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "fails",
-     "cell_mean": 0.108699,
-     "global_mean": 0.107902,
-     "deviation": 0.000797,
-     "z": 1.12,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.108699,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Linux",
-     "cell_mean": 0.110954,
-     "global_mean": 0.10978,
-     "deviation": 0.001173,
-     "z": 1.106,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.110954,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "local",
-     "cell_mean": 0.108862,
-     "global_mean": 0.107959,
-     "deviation": 0.000903,
-     "z": 1.09,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.108862,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "while",
-     "cell_mean": 0.012558,
-     "global_mean": 0.011665,
-     "deviation": 0.000893,
-     "z": 1.081,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.012558,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "script",
-    "apt",
-    "common",
-    "queries",
-    "attempt",
-    "sandbox",
-    "kit",
-    "ethical",
-    "connection",
-    "environment"
-   ],
-   "n_unique_tokens": 428
-  },
-  "2_0": {
-   "tokens": [
-    {
-     "token": "authenticate",
-     "cell_mean": 0.068026,
-     "global_mean": 0.06607,
-     "deviation": 0.001956,
-     "z": 2.087,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.068026,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "storing",
-     "cell_mean": 0.126285,
-     "global_mean": 0.124645,
-     "deviation": 0.00164,
-     "z": 1.979,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.126285,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "being",
-     "cell_mean": 0.173628,
-     "global_mean": 0.171918,
-     "deviation": 0.001709,
-     "z": 1.966,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.173628,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "normal",
-     "cell_mean": 0.175582,
-     "global_mean": 0.174016,
-     "deviation": 0.001566,
-     "z": 1.879,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.175582,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuring",
-     "cell_mean": 0.02939,
-     "global_mean": 0.027616,
-     "deviation": 0.001773,
-     "z": 1.814,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.02939,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "connected",
-     "cell_mean": 0.091169,
-     "global_mean": 0.089542,
-     "deviation": 0.001627,
-     "z": 1.811,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.091169,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuration",
-     "cell_mean": 0.132726,
-     "global_mean": 0.131214,
-     "deviation": 0.001512,
-     "z": 1.735,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.132726,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Linux",
-     "cell_mean": 0.111615,
-     "global_mean": 0.10978,
-     "deviation": 0.001834,
-     "z": 1.728,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.111615,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "blocking",
-     "cell_mean": 0.083947,
-     "global_mean": 0.08237,
-     "deviation": 0.001577,
-     "z": 1.725,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.083947,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "which",
-     "cell_mean": 0.121284,
-     "global_mean": 0.119646,
-     "deviation": 0.001638,
-     "z": 1.714,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.121284,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "controls",
-    "claims",
-    "refresh",
-    "ldap",
-    "azure",
-    "model",
-    "windows",
-    "logout",
-    "trail",
-    "profile"
-   ],
-   "n_unique_tokens": 428
-  },
-  "2_1": {
-   "tokens": [
-    {
-     "token": "Extract",
-     "cell_mean": 0.092599,
-     "global_mean": 0.090612,
-     "deviation": 0.001987,
-     "z": 1.989,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.092599,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "capture",
-     "cell_mean": 0.136333,
-     "global_mean": 0.134737,
-     "deviation": 0.001597,
-     "z": 1.803,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.137817,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.134849,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "extracting",
-     "cell_mean": 0.091445,
-     "global_mean": 0.08965,
-     "deviation": 0.001794,
-     "z": 1.751,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.091445,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "entire",
-     "cell_mean": 0.074925,
-     "global_mean": 0.073423,
-     "deviation": 0.001502,
-     "z": 1.653,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.074925,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "transmitted",
-     "cell_mean": 0.088712,
-     "global_mean": 0.087072,
-     "deviation": 0.001641,
-     "z": 1.64,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.088712,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "stored",
-     "cell_mean": 0.098817,
-     "global_mean": 0.097512,
-     "deviation": 0.001305,
-     "z": 1.579,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.090956,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.120812,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.088192,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.095308,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "compatibility",
-     "cell_mean": 0.118002,
-     "global_mean": 0.116488,
-     "deviation": 0.001514,
-     "z": 1.572,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.118002,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "developer",
-     "cell_mean": 0.113772,
-     "global_mean": 0.112348,
-     "deviation": 0.001424,
-     "z": 1.556,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.113772,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "valid",
-     "cell_mean": 0.136129,
-     "global_mean": 0.134825,
-     "deviation": 0.001304,
-     "z": 1.533,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.136129,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "weak",
-     "cell_mean": 0.104256,
-     "global_mean": 0.102867,
-     "deviation": 0.001389,
-     "z": 1.525,
-     "n": 6,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.07697,
-       "n": 2
-      },
-      "h": {
-       "mean": 0.113106,
-       "n": 1
-      },
-      "a": {
-       "mean": 0.106652,
-       "n": 2
-      },
-      "j": {
-       "mean": 0.145184,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "provider",
-    "username",
-    "assignment",
-    "grant",
-    "personal",
-    "roles",
-    "otp",
-    "markup",
-    "language",
-    "applications"
-   ],
-   "n_unique_tokens": 428
-  },
-  "2_2": {
-   "tokens": [
-    {
-     "token": "through",
-     "cell_mean": 0.116488,
-     "global_mean": 0.11498,
-     "deviation": 0.001509,
-     "z": 2.214,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.116488,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "might",
-     "cell_mean": 0.138516,
-     "global_mean": 0.136801,
-     "deviation": 0.001715,
-     "z": 2.117,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.138516,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "should",
-     "cell_mean": 0.139603,
-     "global_mean": 0.13797,
-     "deviation": 0.001633,
-     "z": 1.958,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.139603,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "story",
-     "cell_mean": 0.139166,
-     "global_mean": 0.136788,
-     "deviation": 0.002379,
-     "z": 1.929,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.139166,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "users",
-     "cell_mean": 0.111092,
-     "global_mean": 0.109199,
-     "deviation": 0.001893,
-     "z": 1.866,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.111092,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "what",
-     "cell_mean": 0.166319,
-     "global_mean": 0.164023,
-     "deviation": 0.002296,
-     "z": 1.812,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.166319,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "application",
-     "cell_mean": 0.115935,
-     "global_mean": 0.114558,
-     "deviation": 0.001377,
-     "z": 1.787,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.088074,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.143796,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuration",
-     "cell_mean": 0.132716,
-     "global_mean": 0.131214,
-     "deviation": 0.001502,
-     "z": 1.724,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.132716,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "needed",
-     "cell_mean": 0.076823,
-     "global_mean": 0.075497,
-     "deviation": 0.001326,
-     "z": 1.72,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.076823,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploits",
-     "cell_mean": 0.127484,
-     "global_mean": 0.126227,
-     "deviation": 0.001257,
-     "z": 1.679,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.11697,
-       "n": 1
-      },
-      "a": {
-       "mean": 0.138962,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.127002,
-       "n": 2
-      }
-     }
-    }
-   ],
-   "probes": [
-    "javascript",
-    "via",
-    "discord",
-    "php",
-    "using",
-    "channel",
-    "movement",
-    "hunt",
-    "slack"
-   ],
-   "n_unique_tokens": 428
-  },
-  "2_3": {
-   "tokens": [
-    {
-     "token": "protect",
-     "cell_mean": 0.148071,
-     "global_mean": 0.151034,
-     "deviation": -0.002963,
-     "z": 3.519,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.148071,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "outside",
-     "cell_mean": 0.120199,
-     "global_mean": 0.124746,
-     "deviation": -0.004547,
-     "z": 3.306,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.120199,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "from",
-     "cell_mean": 0.094677,
-     "global_mean": 0.096902,
-     "deviation": -0.002225,
-     "z": 3.293,
-     "n": 27,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.139789,
-       "n": 3
-      },
-      "m": {
-       "mean": 0.097187,
-       "n": 5
-      },
-      "d": {
-       "mean": 0.106044,
-       "n": 4
-      },
-      "h": {
-       "mean": 0.088951,
-       "n": 7
-      },
-      "a": {
-       "mean": 0.083263,
-       "n": 4
-      },
-      "j": {
-       "mean": 0.067772,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "hacking",
-     "cell_mean": 0.181994,
-     "global_mean": 0.185519,
-     "deviation": -0.003525,
-     "z": 3.227,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.181994,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "accessing",
-     "cell_mean": 0.073436,
-     "global_mean": 0.076282,
-     "deviation": -0.002846,
-     "z": 3.205,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.101104,
-       "n": 1
-      },
-      "m": {
-       "mean": 0.045768,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "against",
-     "cell_mean": 0.131617,
-     "global_mean": 0.134185,
-     "deviation": -0.002568,
-     "z": 3.188,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.104463,
-       "n": 1
-      },
-      "m": {
-       "mean": 0.145194,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "in",
-     "cell_mean": 0.127439,
-     "global_mean": 0.130265,
-     "deviation": -0.002826,
-     "z": 3.183,
-     "n": 22,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.11102,
-       "n": 8
-      },
-      "m": {
-       "mean": 0.121115,
-       "n": 4
-      },
-      "d": {
-       "mean": 0.114411,
-       "n": 2
-      },
-      "h": {
-       "mean": 0.129431,
-       "n": 3
-      },
-      "a": {
-       "mean": 0.15109,
-       "n": 4
-      },
-      "j": {
-       "mean": 0.209571,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploit",
-     "cell_mean": 0.14727,
-     "global_mean": 0.150068,
-     "deviation": -0.002799,
-     "z": 3.168,
-     "n": 25,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.130096,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.122248,
-       "n": 6
-      },
-      "h": {
-       "mean": 0.129852,
-       "n": 5
-      },
-      "a": {
-       "mean": 0.170055,
-       "n": 6
-      },
-      "j": {
-       "mean": 0.164081,
-       "n": 7
-      }
-     }
-    },
-    {
-     "token": "scan",
-     "cell_mean": 0.124555,
-     "global_mean": 0.127081,
-     "deviation": -0.002526,
-     "z": 3.134,
-     "n": 18,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.154611,
-       "n": 2
-      },
-      "m": {
-       "mean": 0.126343,
-       "n": 6
-      },
-      "d": {
-       "mean": 0.121334,
-       "n": 3
-      },
-      "h": {
-       "mean": 0.141292,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.123894,
-       "n": 3
-      },
-      "j": {
-       "mean": 0.078223,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "on",
-     "cell_mean": 0.136021,
-     "global_mean": 0.138804,
-     "deviation": -0.002784,
-     "z": 3.118,
-     "n": 49,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.105403,
-       "n": 4
-      },
-      "m": {
-       "mean": 0.147568,
-       "n": 7
-      },
-      "d": {
-       "mean": 0.132691,
-       "n": 9
-      },
-      "h": {
-       "mean": 0.126271,
-       "n": 8
-      },
-      "a": {
-       "mean": 0.136203,
-       "n": 11
-      },
-      "j": {
-       "mean": 0.15078,
-       "n": 10
-      }
-     }
-    }
-   ],
-   "probes": [
-    "deny",
-    "attempt",
-    "header",
-    "override",
-    "rotation",
-    "requests"
-   ],
-   "n_unique_tokens": 428
-  },
-  "2_4": {
-   "tokens": [
-    {
-     "token": "indicators",
-     "cell_mean": 0.113599,
-     "global_mean": 0.112788,
-     "deviation": 0.000812,
-     "z": 1.282,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.113599,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bug",
-     "cell_mean": 0.147116,
-     "global_mean": 0.14628,
-     "deviation": 0.000836,
-     "z": 1.092,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.147116,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "signs",
-     "cell_mean": 0.135456,
-     "global_mean": 0.134392,
-     "deviation": 0.001064,
-     "z": 1.09,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.135456,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "protects",
-     "cell_mean": 0.15157,
-     "global_mean": 0.15053,
-     "deviation": 0.00104,
-     "z": 1.043,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.15157,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "across",
-     "cell_mean": 0.020266,
-     "global_mean": 0.019434,
-     "deviation": 0.000832,
-     "z": 1.038,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.020266,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "re",
-     "cell_mean": -0.026035,
-     "global_mean": -0.026933,
-     "deviation": 0.000898,
-     "z": 1.019,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.026035,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploited",
-     "cell_mean": 0.129351,
-     "global_mean": 0.128426,
-     "deviation": 0.000925,
-     "z": 1.008,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.129351,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "preventing",
-     "cell_mean": 0.076561,
-     "global_mean": 0.075515,
-     "deviation": 0.001046,
-     "z": 0.972,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.076561,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "local",
-     "cell_mean": 0.108761,
-     "global_mean": 0.107959,
-     "deviation": 0.000802,
-     "z": 0.967,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.108761,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuring",
-     "cell_mean": 0.028548,
-     "global_mean": 0.027616,
-     "deviation": 0.000932,
-     "z": 0.953,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.028548,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "tool",
-    "hack",
-    "line",
-    "machine",
-    "ten",
-    "privacy",
-    "reset",
-    "examples",
-    "approximately"
-   ],
-   "n_unique_tokens": 428
-  },
-  "3_0": {
-   "tokens": [
-    {
-     "token": "re",
-     "cell_mean": -0.029587,
-     "global_mean": -0.026933,
-     "deviation": -0.002654,
-     "z": 3.01,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": -0.029587,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "outgoing",
-     "cell_mean": 0.042718,
-     "global_mean": 0.045064,
-     "deviation": -0.002347,
-     "z": 2.671,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.042718,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "monitoring",
-     "cell_mean": 0.09587,
-     "global_mean": 0.098196,
-     "deviation": -0.002326,
-     "z": 2.537,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.09587,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "breached",
-     "cell_mean": 0.166034,
-     "global_mean": 0.168184,
-     "deviation": -0.00215,
-     "z": 2.501,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.17537,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.147361,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "intercepted",
-     "cell_mean": 0.141255,
-     "global_mean": 0.143466,
-     "deviation": -0.00221,
-     "z": 2.466,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.152742,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.129768,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploited",
-     "cell_mean": 0.126214,
-     "global_mean": 0.128426,
-     "deviation": -0.002212,
-     "z": 2.412,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.126214,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bug",
-     "cell_mean": 0.144489,
-     "global_mean": 0.14628,
-     "deviation": -0.00179,
-     "z": 2.338,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.144489,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "firewall",
-     "cell_mean": 0.120555,
-     "global_mean": 0.122018,
-     "deviation": -0.001463,
-     "z": 2.285,
-     "n": 15,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.088894,
-       "n": 2
-      },
-      "m": {
-       "mean": 0.127988,
-       "n": 2
-      },
-      "d": {
-       "mean": 0.112672,
-       "n": 2
-      },
-      "h": {
-       "mean": 0.103073,
-       "n": 3
-      },
-      "a": {
-       "mean": 0.142072,
-       "n": 3
-      },
-      "j": {
-       "mean": 0.137928,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "network",
-     "cell_mean": 0.114971,
-     "global_mean": 0.116698,
-     "deviation": -0.001728,
-     "z": 2.183,
-     "n": 27,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.108319,
-       "n": 5
-      },
-      "m": {
-       "mean": 0.128045,
-       "n": 6
-      },
-      "d": {
-       "mean": 0.122703,
-       "n": 5
-      },
-      "h": {
-       "mean": 0.103285,
-       "n": 6
-      },
-      "a": {
-       "mean": 0.118032,
-       "n": 3
-      },
-      "j": {
-       "mean": 0.103512,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "incoming",
-     "cell_mean": 0.107861,
-     "global_mean": 0.109577,
-     "deviation": -0.001716,
-     "z": 2.179,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.107861,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "hashed",
-    "bits",
-    "eax",
-    "nist",
-    "padding",
-    "extension",
-    "strong",
-    "weak"
-   ],
-   "n_unique_tokens": 428
-  },
-  "3_1": {
-   "tokens": [
-    {
-     "token": "before",
-     "cell_mean": 0.141174,
-     "global_mean": 0.1435,
-     "deviation": -0.002326,
-     "z": 2.4,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.141174,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "properly",
-     "cell_mean": 0.083352,
-     "global_mean": 0.085241,
-     "deviation": -0.001889,
-     "z": 2.206,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.117893,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.048811,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "stored",
-     "cell_mean": 0.095777,
-     "global_mean": 0.097512,
-     "deviation": -0.001735,
-     "z": 2.099,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.089386,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.117265,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.084751,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.091706,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "breaches",
-     "cell_mean": 0.08298,
-     "global_mean": 0.085364,
-     "deviation": -0.002384,
-     "z": 2.097,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.08298,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "filtr",
-     "cell_mean": 0.116785,
-     "global_mean": 0.118609,
-     "deviation": -0.001824,
-     "z": 2.093,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.129226,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.104344,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "blocks",
-     "cell_mean": 0.091779,
-     "global_mean": 0.093759,
-     "deviation": -0.00198,
-     "z": 2.054,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.091779,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "forge",
-     "cell_mean": 0.095439,
-     "global_mean": 0.09722,
-     "deviation": -0.001782,
-     "z": 2.035,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.092368,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.098509,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "remote",
-     "cell_mean": 0.092792,
-     "global_mean": 0.094585,
-     "deviation": -0.001793,
-     "z": 2.012,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.096227,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.089358,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "SQL",
-     "cell_mean": 0.083931,
-     "global_mean": 0.085634,
-     "deviation": -0.001703,
-     "z": 2.002,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.083931,
+       "mean": 0.008155,
        "n": 1
       }
      }
     },
     {
      "token": "un",
-     "cell_mean": 0.053434,
-     "global_mean": 0.055399,
-     "deviation": -0.001965,
-     "z": 1.998,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.053434,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "bit",
-    "group",
-    "non",
-    "interactive",
-    "number",
-    "errors",
-    "problem",
-    "ring",
-    "counter",
-    "error"
-   ],
-   "n_unique_tokens": 428
-  },
-  "3_2": {
-   "tokens": [
-    {
-     "token": "hypothetical",
-     "cell_mean": 0.137899,
-     "global_mean": 0.13356,
-     "deviation": 0.00434,
-     "z": 2.871,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.137899,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "configuration",
-     "cell_mean": 0.12897,
-     "global_mean": 0.131214,
-     "deviation": -0.002244,
-     "z": 2.576,
+     "cell_mean": 0.001652,
+     "global_mean": -0.004275,
+     "deviation": 0.005927,
+     "z": 1.133,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.12897,
+       "mean": 0.001652,
        "n": 1
       }
      }
     },
     {
-     "token": "filter",
-     "cell_mean": 0.064678,
-     "global_mean": 0.062428,
-     "deviation": 0.00225,
-     "z": 2.405,
+     "token": "Py",
+     "cell_mean": 0.008558,
+     "global_mean": 0.002699,
+     "deviation": 0.005859,
+     "z": 1.102,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.064678,
+       "mean": 0.008558,
        "n": 1
       }
      }
     },
-    {
-     "token": "s",
-     "cell_mean": 0.141652,
-     "global_mean": 0.139164,
-     "deviation": 0.002487,
-     "z": 2.396,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.096174,
-       "n": 1
-      },
-      "a": {
-       "mean": 0.18713,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "Dis",
-     "cell_mean": 0.05585,
-     "global_mean": 0.057297,
-     "deviation": -0.001447,
-     "z": 2.341,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.05585,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "fails",
-     "cell_mean": 0.106382,
-     "global_mean": 0.107902,
-     "deviation": -0.00152,
-     "z": 2.136,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.106382,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "should",
-     "cell_mean": 0.136191,
-     "global_mean": 0.13797,
-     "deviation": -0.00178,
-     "z": 2.134,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.136191,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "decode",
-     "cell_mean": 0.118955,
-     "global_mean": 0.1171,
-     "deviation": 0.001855,
-     "z": 2.098,
-     "n": 7,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.172341,
-       "n": 1
-      },
-      "m": {
-       "mean": 0.114854,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.09363,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.123993,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.077512,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.126362,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "across",
-     "cell_mean": 0.021106,
-     "global_mean": 0.019434,
-     "deviation": 0.001673,
-     "z": 2.088,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.021106,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "safest",
-     "cell_mean": 0.145332,
-     "global_mean": 0.143519,
-     "deviation": 0.001813,
-     "z": 2.065,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.145332,
-       "n": 1
-      }
-     }
-    }
-   ],
-   "probes": [
-    "family",
-    "chain",
-    "compression",
-    "poly",
-    "breaking"
-   ],
-   "n_unique_tokens": 428
-  },
-  "3_3": {
-   "tokens": [
     {
      "token": "P",
-     "cell_mean": 0.106248,
-     "global_mean": 0.107649,
-     "deviation": -0.001402,
-     "z": 2.067,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.106248,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "Dis",
-     "cell_mean": 0.056243,
-     "global_mean": 0.057297,
-     "deviation": -0.001054,
-     "z": 1.705,
-     "n": 4,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.056243,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "way",
-     "cell_mean": 0.092773,
-     "global_mean": 0.094063,
-     "deviation": -0.001289,
-     "z": 1.703,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.092773,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "character",
-     "cell_mean": 0.179748,
-     "global_mean": 0.181378,
-     "deviation": -0.001629,
-     "z": 1.682,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.179748,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "bug",
-     "cell_mean": 0.145038,
-     "global_mean": 0.14628,
-     "deviation": -0.001241,
-     "z": 1.621,
+     "cell_mean": 0.003145,
+     "global_mean": -0.005178,
+     "deviation": 0.008323,
+     "z": 1.067,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.145038,
+      "j": {
+       "mean": 0.003145,
        "n": 1
       }
      }
     },
     {
-     "token": "will",
-     "cell_mean": 0.135449,
-     "global_mean": 0.136993,
-     "deviation": -0.001544,
-     "z": 1.585,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.135449,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "new",
-     "cell_mean": 0.193735,
-     "global_mean": 0.195155,
-     "deviation": -0.00142,
-     "z": 1.542,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.193735,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "Act",
-     "cell_mean": 0.253619,
-     "global_mean": 0.255218,
-     "deviation": -0.0016,
-     "z": 1.533,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.253619,
-       "n": 2
-      }
-     }
-    },
-    {
-     "token": "how",
-     "cell_mean": 0.109069,
-     "global_mean": 0.110199,
-     "deviation": -0.00113,
-     "z": 1.451,
-     "n": 48,
+     "token": "tallest",
+     "cell_mean": 0.00143,
+     "global_mean": -0.006807,
+     "deviation": 0.008237,
+     "z": 1.046,
+     "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.12595,
-       "n": 6
-      },
-      "d": {
-       "mean": 0.124364,
-       "n": 6
-      },
-      "h": {
-       "mean": 0.065062,
-       "n": 8
-      },
-      "a": {
-       "mean": 0.119623,
-       "n": 18
-      },
-      "j": {
-       "mean": 0.105974,
-       "n": 10
+       "mean": 0.00143,
+       "n": 1
       }
      }
     },
     {
-     "token": "content",
-     "cell_mean": 0.156859,
-     "global_mean": 0.1581,
-     "deviation": -0.00124,
-     "z": 1.436,
-     "n": 3,
+     "token": "prescription",
+     "cell_mean": -0.005208,
+     "global_mean": -0.011349,
+     "deviation": 0.00614,
+     "z": 1.014,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.17743,
+      "m": {
+       "mean": -0.005208,
        "n": 1
-      },
+      }
+     }
+    },
+    {
+     "token": "interact",
+     "cell_mean": -0.011384,
+     "global_mean": -0.017181,
+     "deviation": 0.005797,
+     "z": 0.928,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.011384,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "disruption",
+    "surge",
+    "storm",
+    "blackout",
+    "disrupts",
+    "hole",
+    "volume",
+    "disruptions",
+    "floodlighting",
+    "america",
+    "device's",
+    "poisonous",
+    "installation",
+    "mil",
+    "phage",
+    "ransack",
+    "siphon",
+    "ccn",
+    "troq",
+    "round"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_0": {
+   "tokens": [
+    {
+     "token": "previous",
+     "cell_mean": 0.006004,
+     "global_mean": 0.001226,
+     "deviation": 0.004779,
+     "z": 0.877,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
       "j": {
-       "mean": 0.146574,
+       "mean": 0.006004,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "targeting",
+     "cell_mean": 0.01748,
+     "global_mean": 0.012879,
+     "deviation": 0.004601,
+     "z": 0.861,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.01748,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "software",
+     "cell_mean": 0.004838,
+     "global_mean": -0.001119,
+     "deviation": 0.005957,
+     "z": 0.84,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.004838,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'re",
+     "cell_mean": -0.003445,
+     "global_mean": -0.008568,
+     "deviation": 0.005123,
+     "z": 0.752,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.003445,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "thag",
+     "cell_mean": -0.0214,
+     "global_mean": -0.014214,
+     "deviation": -0.007186,
+     "z": 0.706,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.0214,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "generate",
+     "cell_mean": 0.013309,
+     "global_mean": 0.007654,
+     "deviation": 0.005655,
+     "z": 0.705,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.013309,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.035761,
+     "global_mean": -0.030944,
+     "deviation": -0.004817,
+     "z": 0.668,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.035761,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "badly",
+     "cell_mean": -0.047945,
+     "global_mean": -0.043035,
+     "deviation": -0.004911,
+     "z": 0.639,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.047945,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "no",
+     "cell_mean": 0.001323,
+     "global_mean": -0.001878,
+     "deviation": 0.0032,
+     "z": 0.625,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.001323,
        "n": 2
       }
      }
-    }
-   ],
-   "probes": [
-    "language",
-    "channel",
-    "linux",
-    "natural",
-    "way",
-    "blind"
-   ],
-   "n_unique_tokens": 428
-  },
-  "3_4": {
-   "tokens": [
+    },
     {
-     "token": "while",
-     "cell_mean": 0.012794,
-     "global_mean": 0.011665,
-     "deviation": 0.001129,
-     "z": 1.366,
+     "token": "has",
+     "cell_mean": -0.016256,
+     "global_mean": -0.020148,
+     "deviation": 0.003892,
+     "z": 0.621,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.012794,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "ex",
-     "cell_mean": 0.013314,
-     "global_mean": 0.012507,
-     "deviation": 0.000807,
-     "z": 1.221,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.008377,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.018251,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "easiest",
-     "cell_mean": 0.130274,
-     "global_mean": 0.12941,
-     "deviation": 0.000864,
-     "z": 1.139,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.130274,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "captures",
-     "cell_mean": 0.054097,
-     "global_mean": 0.05321,
-     "deviation": 0.000887,
-     "z": 1.114,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.054097,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "over",
-     "cell_mean": 0.057203,
-     "global_mean": 0.056406,
-     "deviation": 0.000797,
-     "z": 1.085,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.057203,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "decrypt",
-     "cell_mean": 0.080152,
-     "global_mean": 0.079433,
-     "deviation": 0.000719,
-     "z": 1.015,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.080152,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "password",
-     "cell_mean": 0.095342,
-     "global_mean": 0.094382,
-     "deviation": 0.00096,
-     "z": 0.998,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.095342,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "let",
-     "cell_mean": 0.086856,
-     "global_mean": 0.085953,
-     "deviation": 0.000903,
-     "z": 0.986,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.086856,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "commands",
-     "cell_mean": 0.140498,
-     "global_mean": 0.139559,
-     "deviation": 0.00094,
-     "z": 0.976,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.140498,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "exploited",
-     "cell_mean": 0.129313,
-     "global_mean": 0.128426,
-     "deviation": 0.000886,
-     "z": 0.966,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.129313,
+      "j": {
+       "mean": -0.016256,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "fully",
-    "random",
-    "mail",
-    "extensions",
-    "smtp",
-    "xor",
-    "technical",
-    "pre",
-    "image",
-    "modes"
+    "sanitization",
+    "patching",
+    "compliance",
+    "ikev",
+    "verify",
+    "headers",
+    "diving",
+    "comply",
+    "validate",
+    "tests",
+    "als",
+    "code-security",
+    "scoring",
+    "intruders",
+    "keyloggers",
+    "kit",
+    "researcher",
+    "quality",
+    "alp",
+    "ams"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "4_0": {
+  "1_1": {
    "tokens": [
     {
-     "token": "ex",
-     "cell_mean": 0.010945,
-     "global_mean": 0.012507,
-     "deviation": -0.001562,
-     "z": 2.363,
+     "token": "hack",
+     "cell_mean": -0.059245,
+     "global_mean": -0.037471,
+     "deviation": -0.021774,
+     "z": 1.996,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.059245,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mar",
+     "cell_mean": -0.038815,
+     "global_mean": -0.018482,
+     "deviation": -0.020332,
+     "z": 1.993,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.038815,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "events",
+     "cell_mean": -0.044825,
+     "global_mean": -0.028655,
+     "deviation": -0.016169,
+     "z": 1.983,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.044825,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Output",
+     "cell_mean": -0.032704,
+     "global_mean": -0.01147,
+     "deviation": -0.021234,
+     "z": 1.963,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.032704,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "trace",
+     "cell_mean": -0.053127,
+     "global_mean": -0.029329,
+     "deviation": -0.023797,
+     "z": 1.961,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.053127,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ret",
+     "cell_mean": -0.041238,
+     "global_mean": -0.024781,
+     "deviation": -0.016457,
+     "z": 1.918,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.041238,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Ex",
+     "cell_mean": -0.034793,
+     "global_mean": -0.018238,
+     "deviation": -0.016555,
+     "z": 1.897,
      "n": 2,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.00565,
+      "b": {
+       "mean": -0.034793,
        "n": 1
       },
       "h": {
-       "mean": 0.01624,
+       "mean": -0.034793,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "differences",
+     "cell_mean": -0.052305,
+     "global_mean": -0.034936,
+     "deviation": -0.017369,
+     "z": 1.89,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.052305,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.04384,
+     "global_mean": -0.028279,
+     "deviation": -0.015561,
+     "z": 1.88,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.04384,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "plain",
+     "cell_mean": -0.037441,
+     "global_mean": -0.021016,
+     "deviation": -0.016425,
+     "z": 1.867,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.037441,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.037441,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "aws",
+    "cloud",
+    "cdn",
+    "continuous",
+    "elastic",
+    "docker",
+    "kubernetes",
+    "amazon",
+    "alb",
+    "microservices",
+    "sdk",
+    "balancer",
+    "serverless",
+    "scp",
+    "sbp",
+    "apm",
+    "cluster",
+    "containerization",
+    "mysql",
+    "hackers"
+   ],
+   "n_unique_tokens": 199
+  },
+  "1_2": {
+   "tokens": [
+    {
+     "token": "be",
+     "cell_mean": -0.000414,
+     "global_mean": -0.010436,
+     "deviation": 0.010022,
+     "z": 1.384,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.000414,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "interact",
+     "cell_mean": -0.009118,
+     "global_mean": -0.017181,
+     "deviation": 0.008063,
+     "z": 1.291,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.009118,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'re",
+     "cell_mean": 0.00017,
+     "global_mean": -0.008568,
+     "deviation": 0.008738,
+     "z": 1.282,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.00017,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "herbs",
+     "cell_mean": -0.013311,
+     "global_mean": -0.022026,
+     "deviation": 0.008716,
+     "z": 1.279,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.013311,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "severe",
+     "cell_mean": 0.004625,
+     "global_mean": -0.00543,
+     "deviation": 0.010055,
+     "z": 1.273,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.004625,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ask",
+     "cell_mean": -0.008363,
+     "global_mean": -0.016469,
+     "deviation": 0.008106,
+     "z": 1.253,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.008363,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "code",
+     "cell_mean": -0.009306,
+     "global_mean": -0.016105,
+     "deviation": 0.006799,
+     "z": 1.205,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.009306,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "policies",
+     "cell_mean": 0.005098,
+     "global_mean": -0.003799,
+     "deviation": 0.008897,
+     "z": 1.204,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.005098,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "t",
+     "cell_mean": 0.008796,
+     "global_mean": -0.00332,
+     "deviation": 0.012117,
+     "z": 1.196,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.008796,
        "n": 1
       }
      }
     },
     {
      "token": "used",
-     "cell_mean": 0.114078,
-     "global_mean": 0.11254,
-     "deviation": 0.001538,
-     "z": 1.67,
-     "n": 11,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.117201,
-       "n": 2
-      },
-      "m": {
-       "mean": 0.115131,
-       "n": 3
-      },
-      "d": {
-       "mean": 0.11251,
-       "n": 6
-      }
-     }
-    },
-    {
-     "token": "method",
-     "cell_mean": 0.102217,
-     "global_mean": 0.10064,
-     "deviation": 0.001577,
-     "z": 1.604,
+     "cell_mean": 0.017955,
+     "global_mean": 0.010294,
+     "deviation": 0.007662,
+     "z": 1.193,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.102217,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "demonstrate",
-     "cell_mean": 0.145516,
-     "global_mean": 0.143658,
-     "deviation": 0.001858,
-     "z": 1.594,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.145516,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "indicators",
-     "cell_mean": 0.113736,
-     "global_mean": 0.112788,
-     "deviation": 0.000948,
-     "z": 1.497,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.113736,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "connected",
-     "cell_mean": 0.088231,
-     "global_mean": 0.089542,
-     "deviation": -0.00131,
-     "z": 1.458,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.088231,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "networks",
-     "cell_mean": 0.139288,
-     "global_mean": 0.137661,
-     "deviation": 0.001627,
-     "z": 1.408,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.139288,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "assistant",
-     "cell_mean": 0.079727,
-     "global_mean": 0.080903,
-     "deviation": -0.001176,
-     "z": 1.389,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.079727,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "way",
-     "cell_mean": 0.09511,
-     "global_mean": 0.094063,
-     "deviation": 0.001047,
-     "z": 1.383,
-     "n": 3,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.09511,
-       "n": 3
-      }
-     }
-    },
-    {
-     "token": "let",
-     "cell_mean": 0.087215,
-     "global_mean": 0.085953,
-     "deviation": 0.001262,
-     "z": 1.378,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.087215,
+       "mean": 0.017955,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "ser",
-    "reset",
-    "best",
-    "php",
-    "risk",
-    "privacy"
+    "fuzzing",
+    "exceeds",
+    "occurs",
+    "allocated",
+    "space",
+    "overload",
+    "find",
+    "variables",
+    "outcomes",
+    "rainbow",
+    "strings",
+    "crashes",
+    "zap",
+    "fuzz",
+    "underflow",
+    "insertion",
+    "capacity",
+    "overflows",
+    "injects",
+    "unexpected"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "4_1": {
+  "1_3": {
    "tokens": [
     {
-     "token": "best",
-     "cell_mean": 0.172379,
-     "global_mean": 0.16914,
-     "deviation": 0.003239,
-     "z": 2.807,
+     "token": "note",
+     "cell_mean": -0.018792,
+     "global_mean": -0.031513,
+     "deviation": 0.012721,
+     "z": 1.519,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.018792,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "price",
+     "cell_mean": -0.011721,
+     "global_mean": -0.02498,
+     "deviation": 0.013259,
+     "z": 1.509,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.011721,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "negotiate",
+     "cell_mean": -0.009484,
+     "global_mean": -0.021041,
+     "deviation": 0.011558,
+     "z": 1.448,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.009484,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "targeting",
+     "cell_mean": 0.02056,
+     "global_mean": 0.012879,
+     "deviation": 0.007681,
+     "z": 1.437,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.02056,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "factors",
+     "cell_mean": -0.011383,
+     "global_mean": -0.022622,
+     "deviation": 0.011239,
+     "z": 1.433,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.172379,
+       "mean": -0.011383,
        "n": 1
       }
      }
     },
     {
-     "token": "academic",
-     "cell_mean": 0.178097,
-     "global_mean": 0.174151,
-     "deviation": 0.003946,
-     "z": 2.8,
+     "token": "buying",
+     "cell_mean": -0.01997,
+     "global_mean": -0.033622,
+     "deviation": 0.013652,
+     "z": 1.426,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.178097,
+      "b": {
+       "mean": -0.01997,
        "n": 1
       }
      }
     },
     {
-     "token": "forensic",
-     "cell_mean": 0.146448,
-     "global_mean": 0.142989,
-     "deviation": 0.003459,
-     "z": 2.68,
+     "token": "when",
+     "cell_mean": -0.010497,
+     "global_mean": -0.023561,
+     "deviation": 0.013063,
+     "z": 1.407,
      "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.146448,
-       "n": 2
+       "mean": -0.016682,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.004313,
+       "n": 1
       }
      }
     },
     {
-     "token": "Dis",
-     "cell_mean": 0.058932,
-     "global_mean": 0.057297,
-     "deviation": 0.001635,
-     "z": 2.644,
-     "n": 4,
+     "token": "plain",
+     "cell_mean": -0.008756,
+     "global_mean": -0.021016,
+     "deviation": 0.01226,
+     "z": 1.393,
+     "n": 2,
      "n_cells": 25,
      "cats": {
+      "b": {
+       "mean": -0.008756,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.008756,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "on",
+     "cell_mean": -0.014408,
+     "global_mean": -0.024352,
+     "deviation": 0.009945,
+     "z": 1.373,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.009517,
+       "n": 1
+      },
       "j": {
-       "mean": 0.058932,
-       "n": 4
-      }
-     }
-    },
-    {
-     "token": "incident",
-     "cell_mean": 0.110414,
-     "global_mean": 0.107385,
-     "deviation": 0.00303,
-     "z": 2.623,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.110414,
+       "mean": -0.019299,
        "n": 1
       }
      }
     },
     {
-     "token": "ns",
-     "cell_mean": 0.115414,
-     "global_mean": 0.111583,
-     "deviation": 0.003831,
-     "z": 2.619,
-     "n": 1,
+     "token": "make",
+     "cell_mean": -0.020134,
+     "global_mean": -0.03285,
+     "deviation": 0.012716,
+     "z": 1.341,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.115414,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "legal",
-     "cell_mean": 0.184517,
-     "global_mean": 0.181491,
-     "deviation": 0.003025,
-     "z": 2.585,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.184517,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "helps",
-     "cell_mean": 0.169078,
-     "global_mean": 0.165337,
-     "deviation": 0.003741,
-     "z": 2.559,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.169078,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "analyze",
-     "cell_mean": 0.142605,
-     "global_mean": 0.139124,
-     "deviation": 0.003482,
-     "z": 2.543,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.142605,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "review",
-     "cell_mean": 0.206311,
-     "global_mean": 0.202617,
-     "deviation": 0.003695,
-     "z": 2.52,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.206311,
-       "n": 1
+      "h": {
+       "mean": -0.020134,
+       "n": 2
       }
      }
     }
    ],
    "probes": [
-    "skills",
-    "impact",
-    "research",
-    "ethical",
-    "human",
-    "contexts"
+    "inverted",
+    "misused",
+    "decrypting",
+    "involved",
+    "firmware",
+    "acp",
+    "black-box",
+    "mesh",
+    "direct",
+    "idoa",
+    "alamp",
+    "manner",
+    "engineer",
+    "skip",
+    "eviability",
+    "mitigate",
+    "either",
+    "evaluating",
+    "mathematics",
+    "chain"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "4_2": {
+  "1_4": {
    "tokens": [
     {
-     "token": "sent",
-     "cell_mean": 0.080201,
-     "global_mean": 0.082749,
-     "deviation": -0.002547,
-     "z": 2.341,
+     "token": "able",
+     "cell_mean": 0.029262,
+     "global_mean": 0.007138,
+     "deviation": 0.022124,
+     "z": 2.615,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.080201,
+      "h": {
+       "mean": 0.029262,
        "n": 1
       }
      }
     },
     {
-     "token": "exploiting",
-     "cell_mean": 0.133216,
-     "global_mean": 0.134919,
-     "deviation": -0.001703,
-     "z": 2.16,
-     "n": 11,
+     "token": "Output",
+     "cell_mean": 0.015819,
+     "global_mean": -0.01147,
+     "deviation": 0.027289,
+     "z": 2.522,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "b": {
-       "mean": 0.136992,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.139594,
-       "n": 3
-      },
-      "h": {
-       "mean": 0.119383,
-       "n": 3
-      },
-      "a": {
-       "mean": 0.130793,
-       "n": 3
-      },
       "j": {
-       "mean": 0.159076,
+       "mean": 0.015819,
        "n": 1
       }
      }
     },
     {
      "token": "Override",
-     "cell_mean": 0.151604,
-     "global_mean": 0.153605,
-     "deviation": -0.002,
-     "z": 2.066,
-     "n": 5,
-     "n_cells": 25,
-     "cats": {
-      "j": {
-       "mean": 0.151604,
-       "n": 5
-      }
-     }
-    },
-    {
-     "token": "through",
-     "cell_mean": 0.113579,
-     "global_mean": 0.11498,
-     "deviation": -0.001401,
-     "z": 2.055,
+     "cell_mean": 0.003111,
+     "global_mean": -0.018853,
+     "deviation": 0.021964,
+     "z": 2.397,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.113579,
+      "j": {
+       "mean": 0.003111,
        "n": 1
       }
      }
     },
     {
-     "token": "persists",
-     "cell_mean": 0.091905,
-     "global_mean": 0.093796,
-     "deviation": -0.00189,
-     "z": 2.004,
+     "token": "trace",
+     "cell_mean": -0.000369,
+     "global_mean": -0.029329,
+     "deviation": 0.02896,
+     "z": 2.386,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.091905,
+       "mean": -0.000369,
        "n": 1
       }
      }
     },
     {
-     "token": "exploits",
-     "cell_mean": 0.124731,
-     "global_mean": 0.126227,
-     "deviation": -0.001496,
-     "z": 1.999,
-     "n": 4,
+     "token": "un",
+     "cell_mean": 0.007911,
+     "global_mean": -0.004275,
+     "deviation": 0.012186,
+     "z": 2.33,
+     "n": 1,
      "n_cells": 25,
      "cats": {
       "h": {
-       "mean": 0.114578,
+       "mean": 0.007911,
        "n": 1
-      },
-      "a": {
-       "mean": 0.13591,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.124217,
-       "n": 2
       }
      }
     },
     {
-     "token": "into",
-     "cell_mean": 0.131025,
-     "global_mean": 0.132501,
-     "deviation": -0.001476,
-     "z": 1.974,
-     "n": 12,
+     "token": "where",
+     "cell_mean": 0.008248,
+     "global_mean": -0.011923,
+     "deviation": 0.020172,
+     "z": 2.26,
+     "n": 1,
      "n_cells": 25,
      "cats": {
+      "j": {
+       "mean": 0.008248,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.009646,
+     "global_mean": -0.028279,
+     "deviation": 0.018633,
+     "z": 2.251,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.009646,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "when",
+     "cell_mean": -0.002841,
+     "global_mean": -0.023561,
+     "deviation": 0.02072,
+     "z": 2.231,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009415,
+       "n": 1
+      },
       "m": {
-       "mean": 0.082437,
+       "mean": 0.003733,
        "n": 1
-      },
-      "d": {
-       "mean": 0.162136,
-       "n": 2
-      },
-      "h": {
-       "mean": 0.121369,
-       "n": 4
-      },
-      "a": {
-       "mean": 0.154686,
-       "n": 1
-      },
-      "j": {
-       "mean": 0.131358,
-       "n": 4
       }
      }
     },
     {
-     "token": "executing",
-     "cell_mean": 0.124674,
-     "global_mean": 0.126281,
-     "deviation": -0.001606,
-     "z": 1.854,
+     "token": "between",
+     "cell_mean": -0.011575,
+     "global_mean": -0.032576,
+     "deviation": 0.021002,
+     "z": 2.229,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.124674,
+      "b": {
+       "mean": -0.011575,
        "n": 1
       }
      }
     },
     {
-     "token": "exploit",
-     "cell_mean": 0.148435,
-     "global_mean": 0.150068,
-     "deviation": -0.001633,
-     "z": 1.849,
-     "n": 25,
+     "token": "make",
+     "cell_mean": -0.011759,
+     "global_mean": -0.03285,
+     "deviation": 0.021091,
+     "z": 2.224,
+     "n": 2,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.131205,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.123388,
-       "n": 6
-      },
       "h": {
-       "mean": 0.130974,
-       "n": 5
-      },
-      "a": {
-       "mean": 0.171214,
-       "n": 6
-      },
-      "j": {
-       "mean": 0.165312,
-       "n": 7
-      }
-     }
-    },
-    {
-     "token": "by",
-     "cell_mean": 0.155765,
-     "global_mean": 0.157757,
-     "deviation": -0.001991,
-     "z": 1.842,
-     "n": 9,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.129085,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.150494,
+       "mean": -0.011759,
        "n": 2
-      },
-      "a": {
-       "mean": 0.159067,
-       "n": 3
-      },
-      "j": {
-       "mean": 0.164872,
-       "n": 3
       }
      }
     }
    ],
    "probes": [
-    "crime",
-    "sns",
-    "body",
-    "spam",
-    "subject",
-    "template"
+    "crashing",
+    "corrupting",
+    "corrupted",
+    "sqlyog",
+    "crushing",
+    "violence",
+    "undermine",
+    "strength",
+    "corruptive",
+    "misuse",
+    "spreading",
+    "erosion",
+    "deterioration",
+    "deterministic",
+    "actor",
+    "manipulates",
+    "stronger",
+    "situation",
+    "resulting",
+    "dusty"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "4_3": {
+  "2_0": {
    "tokens": [
     {
-     "token": "over",
-     "cell_mean": 0.054548,
-     "global_mean": 0.056406,
-     "deviation": -0.001858,
-     "z": 2.529,
+     "token": "American",
+     "cell_mean": -0.005902,
+     "global_mean": 0.009154,
+     "deviation": -0.015056,
+     "z": 2.536,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.054548,
+      "b": {
+       "mean": -0.005902,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "customers",
+     "cell_mean": -0.029982,
+     "global_mean": -0.011824,
+     "deviation": -0.018158,
+     "z": 2.35,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.029982,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "currency",
+     "cell_mean": -0.010859,
+     "global_mean": 0.004954,
+     "deviation": -0.015813,
+     "z": 2.129,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.010859,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "reversed",
+     "cell_mean": -0.024845,
+     "global_mean": -0.006897,
+     "deviation": -0.017948,
+     "z": 2.107,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.024845,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "car",
+     "cell_mean": -0.021554,
+     "global_mean": -0.00723,
+     "deviation": -0.014324,
+     "z": 2.104,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.021554,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "first",
+     "cell_mean": -0.037936,
+     "global_mean": -0.023604,
+     "deviation": -0.014332,
+     "z": 2.001,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.037936,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "alignment",
+     "cell_mean": -0.022181,
+     "global_mean": -0.00152,
+     "deviation": -0.020661,
+     "z": 1.999,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.022181,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "caught",
+     "cell_mean": -0.020638,
+     "global_mean": -0.003327,
+     "deviation": -0.017311,
+     "z": 1.991,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.020638,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detected",
+     "cell_mean": -0.023726,
+     "global_mean": -0.006039,
+     "deviation": -0.017687,
+     "z": 1.972,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.023726,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "code",
+     "cell_mean": -0.026993,
+     "global_mean": -0.016105,
+     "deviation": -0.010888,
+     "z": 1.93,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.026993,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "kubernetes",
+    "jwts",
+    "expire",
+    "behalf",
+    "recording",
+    "tenant",
+    "cluster",
+    "container",
+    "role-level",
+    "rlac",
+    "application-specific",
+    "tat",
+    "session-based",
+    "sbac",
+    "context-aware",
+    "cacc",
+    "entity-based",
+    "ebac",
+    "uac",
+    "urbc"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_1": {
+   "tokens": [
+    {
+     "token": "DAN",
+     "cell_mean": -0.04572,
+     "global_mean": -0.028329,
+     "deviation": -0.017391,
+     "z": 2.351,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.04572,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "as",
+     "cell_mean": -0.039361,
+     "global_mean": -0.023796,
+     "deviation": -0.015565,
+     "z": 2.262,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.039361,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ret",
+     "cell_mean": -0.044022,
+     "global_mean": -0.024781,
+     "deviation": -0.019242,
+     "z": 2.242,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.044022,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Act",
+     "cell_mean": -0.060244,
+     "global_mean": -0.040559,
+     "deviation": -0.019686,
+     "z": 2.17,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.060244,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "respond",
+     "cell_mean": -0.045966,
+     "global_mean": -0.028279,
+     "deviation": -0.017687,
+     "z": 2.137,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.045966,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.046158,
+     "global_mean": -0.030944,
+     "deviation": -0.015214,
+     "z": 2.11,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.046158,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "now",
+     "cell_mean": -0.044568,
+     "global_mean": -0.028854,
+     "deviation": -0.015713,
+     "z": 2.105,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.044568,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "between",
+     "cell_mean": -0.052378,
+     "global_mean": -0.032576,
+     "deviation": -0.019801,
+     "z": 2.102,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.052378,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "describe",
+     "cell_mean": -0.027084,
+     "global_mean": -0.016083,
+     "deviation": -0.011001,
+     "z": 2.085,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.027084,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mar",
+     "cell_mean": -0.039669,
+     "global_mean": -0.018482,
+     "deviation": -0.021187,
+     "z": 2.077,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.039669,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "keycloak",
+    "logout",
+    "google",
+    "stateless",
+    "sts",
+    "owner",
+    "providers",
+    "facebook",
+    "required",
+    "client-side",
+    "tac",
+    "ldap",
+    "enrollment",
+    "webauthn",
+    "sessions",
+    "image",
+    "sign-in",
+    "sign-up",
+    "ksp",
+    "broker"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_2": {
+   "tokens": [
+    {
+     "token": "targeting",
+     "cell_mean": 0.027779,
+     "global_mean": 0.012879,
+     "deviation": 0.014899,
+     "z": 2.788,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.027779,
        "n": 1
       }
      }
     },
     {
      "token": "developer",
-     "cell_mean": 0.114145,
-     "global_mean": 0.112348,
-     "deviation": 0.001797,
-     "z": 1.963,
+     "cell_mean": 0.015056,
+     "global_mean": 0.003258,
+     "deviation": 0.011798,
+     "z": 2.223,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.114145,
+      "j": {
+       "mean": 0.015056,
        "n": 1
       }
      }
     },
     {
-     "token": "cybersecurity",
-     "cell_mean": 0.145304,
-     "global_mean": 0.143416,
-     "deviation": 0.001888,
-     "z": 1.797,
+     "token": "ypass",
+     "cell_mean": -0.004895,
+     "global_mean": -0.018597,
+     "deviation": 0.013703,
+     "z": 2.188,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.145304,
+      "j": {
+       "mean": -0.004895,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "email",
+     "cell_mean": 0.001126,
+     "global_mean": -0.013467,
+     "deviation": 0.014593,
+     "z": 2.114,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.001126,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "'s",
+     "cell_mean": 0.013211,
+     "global_mean": -0.000683,
+     "deviation": 0.013894,
+     "z": 2.099,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.013211,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": ".",
+     "cell_mean": -0.002587,
+     "global_mean": -0.015203,
+     "deviation": 0.012615,
+     "z": 2.091,
+     "n": 5,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.002587,
+       "n": 5
+      }
+     }
+    },
+    {
+     "token": "mode",
+     "cell_mean": -0.002445,
+     "global_mean": -0.014702,
+     "deviation": 0.012257,
+     "z": 2.069,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.002445,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "in",
+     "cell_mean": -0.007358,
+     "global_mean": -0.022306,
+     "deviation": 0.014948,
+     "z": 2.049,
+     "n": 6,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010153,
+       "n": 2
+      },
+      "m": {
+       "mean": -0.006576,
+       "n": 2
+      },
+      "j": {
+       "mean": -0.005345,
+       "n": 2
+      }
+     }
+    },
+    {
+     "token": "price",
+     "cell_mean": -0.006994,
+     "global_mean": -0.02498,
+     "deviation": 0.017986,
+     "z": 2.046,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.006994,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "B",
+     "cell_mean": -0.003935,
+     "global_mean": -0.019066,
+     "deviation": 0.015131,
+     "z": 2.033,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.003935,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "harvesting",
+    "hunting",
+    "browsing",
+    "pms",
+    "crafting",
+    "spearware",
+    "optimization",
+    "formation",
+    "relate",
+    "scraper",
+    "wapi",
+    "believing",
+    "include",
+    "fingerprint",
+    "facial",
+    "iris",
+    "exchanges",
+    "temporary",
+    "performing",
+    "fingerprints"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_3": {
+   "tokens": [
+    {
+     "token": "Py",
+     "cell_mean": 0.008795,
+     "global_mean": 0.002699,
+     "deviation": 0.006096,
+     "z": 1.147,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.008795,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Sum",
+     "cell_mean": -0.012052,
+     "global_mean": -0.017385,
+     "deviation": 0.005333,
+     "z": 1.05,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012052,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "leading",
+     "cell_mean": -0.023922,
+     "global_mean": -0.030944,
+     "deviation": 0.007022,
+     "z": 0.974,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.023922,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Ex",
+     "cell_mean": -0.010247,
+     "global_mean": -0.018238,
+     "deviation": 0.007991,
+     "z": 0.916,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010247,
+       "n": 1
+      },
+      "h": {
+       "mean": -0.010247,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "anxiety",
+     "cell_mean": -0.012918,
+     "global_mean": -0.005698,
+     "deviation": -0.00722,
+     "z": 0.914,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012918,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ret",
+     "cell_mean": -0.017065,
+     "global_mean": -0.024781,
+     "deviation": 0.007716,
+     "z": 0.899,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.017065,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "t",
+     "cell_mean": -0.012116,
+     "global_mean": -0.00332,
+     "deviation": -0.008796,
+     "z": 0.868,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012116,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detected",
+     "cell_mean": -0.013307,
+     "global_mean": -0.006039,
+     "deviation": -0.007269,
+     "z": 0.81,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.013307,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "currency",
+     "cell_mean": -0.001011,
+     "global_mean": 0.004954,
+     "deviation": -0.005965,
+     "z": 0.803,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.001011,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "B",
+     "cell_mean": -0.013129,
+     "global_mean": -0.019066,
+     "deviation": 0.005937,
+     "z": 0.798,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.013129,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "ticket",
+    "tokenized",
+    "iot",
+    "lateral",
+    "movement",
+    "scenario",
+    "ieh",
+    "escalating",
+    "escalate",
+    "scoping",
+    "iatf",
+    "mitigating",
+    "internet-of-things",
+    "cosub",
+    "credential-oriented",
+    "governing",
+    "description",
+    "owsld",
+    "enhance",
+    "two-step"
+   ],
+   "n_unique_tokens": 199
+  },
+  "2_4": {
+   "tokens": [
+    {
+     "token": "P",
+     "cell_mean": -0.018837,
+     "global_mean": -0.005178,
+     "deviation": -0.013659,
+     "z": 1.751,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.018837,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Py",
+     "cell_mean": 0.009353,
+     "global_mean": 0.002699,
+     "deviation": 0.006654,
+     "z": 1.252,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009353,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "alignment",
+     "cell_mean": 0.010206,
+     "global_mean": -0.00152,
+     "deviation": 0.011726,
+     "z": 1.135,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.010206,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "reversed",
+     "cell_mean": 0.002629,
+     "global_mean": -0.006897,
+     "deviation": 0.009525,
+     "z": 1.118,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.002629,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "rules",
+     "cell_mean": -0.004168,
+     "global_mean": -0.014121,
+     "deviation": 0.009953,
+     "z": 1.076,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.004168,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "American",
+     "cell_mean": 0.015513,
+     "global_mean": 0.009154,
+     "deviation": 0.006358,
+     "z": 1.071,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.015513,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "system",
+     "cell_mean": 0.007156,
+     "global_mean": -0.001945,
+     "deviation": 0.009101,
+     "z": 1.06,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.007156,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": -0.009569,
+     "global_mean": -0.018161,
+     "deviation": 0.008592,
+     "z": 1.034,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009569,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "policies",
+     "cell_mean": 0.003837,
+     "global_mean": -0.003799,
+     "deviation": 0.007636,
+     "z": 1.034,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.003837,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "interest",
+     "cell_mean": 0.014225,
+     "global_mean": 0.005609,
+     "deviation": 0.008617,
+     "z": 0.998,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.014225,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "proper",
+    "intercept",
+    "handling",
+    "location",
+    "transferring",
+    "insiders",
+    "lookup",
+    "deterrence",
+    "another's",
+    "metaphone",
+    "transformation",
+    "unavailable",
+    "slow",
+    "down",
+    "multi-mission",
+    "multi-target",
+    "modify",
+    "reception",
+    "way",
+    "experience"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_0": {
+   "tokens": [
+    {
+     "token": "generate",
+     "cell_mean": -0.005772,
+     "global_mean": 0.007654,
+     "deviation": -0.013426,
+     "z": 1.675,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.005772,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "fictional",
+     "cell_mean": -0.02132,
+     "global_mean": -0.009624,
+     "deviation": -0.011696,
+     "z": 1.574,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.02132,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "software",
+     "cell_mean": -0.012145,
+     "global_mean": -0.001119,
+     "deviation": -0.011027,
+     "z": 1.555,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.012145,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "would",
+     "cell_mean": -0.016342,
+     "global_mean": -0.005645,
+     "deviation": -0.010698,
+     "z": 1.47,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.016342,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "be",
+     "cell_mean": -0.021016,
+     "global_mean": -0.010436,
+     "deviation": -0.01058,
+     "z": 1.461,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.021016,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "developer",
+     "cell_mean": -0.003991,
+     "global_mean": 0.003258,
+     "deviation": -0.007249,
+     "z": 1.366,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.003991,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "theorem",
+     "cell_mean": -0.009677,
+     "global_mean": 0.00103,
+     "deviation": -0.010707,
+     "z": 1.347,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009677,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "considerations",
+     "cell_mean": -0.026826,
+     "global_mean": -0.016052,
+     "deviation": -0.010774,
+     "z": 1.336,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.026826,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "severe",
+     "cell_mean": -0.015906,
+     "global_mean": -0.00543,
+     "deviation": -0.010476,
+     "z": 1.326,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.015906,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "anything",
+     "cell_mean": -0.023643,
+     "global_mean": -0.016444,
+     "deviation": -0.007199,
+     "z": 1.322,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.023643,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "salt",
+    "dhe",
+    "certification",
+    "iso",
+    "fips",
+    "finite",
+    "proves",
+    "initialization",
+    "bcenc",
+    "cng",
+    "eccdsa",
+    "rsapkcs",
+    "rsaes-gcm",
+    "ecdh-evp",
+    "challenge-response",
+    "note",
+    "extremely",
+    "extensive",
+    "covers",
+    "found"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_1": {
+   "tokens": [
+    {
+     "token": "photos",
+     "cell_mean": -0.018722,
+     "global_mean": -0.010112,
+     "deviation": -0.008611,
+     "z": 1.301,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.018722,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "simple",
+     "cell_mean": -0.020166,
+     "global_mean": -0.011657,
+     "deviation": -0.008509,
+     "z": 1.265,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.020166,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "key",
+     "cell_mean": -0.025453,
+     "global_mean": -0.016894,
+     "deviation": -0.008559,
+     "z": 1.235,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.025453,
        "n": 1
       }
      }
     },
     {
      "token": "content",
-     "cell_mean": 0.159622,
-     "global_mean": 0.1581,
-     "deviation": 0.001522,
-     "z": 1.764,
+     "cell_mean": -0.016955,
+     "global_mean": -0.010376,
+     "deviation": -0.006579,
+     "z": 1.194,
      "n": 3,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.180044,
-       "n": 1
-      },
       "j": {
-       "mean": 0.149411,
-       "n": 2
+       "mean": -0.016955,
+       "n": 3
       }
      }
     },
     {
-     "token": "thought",
-     "cell_mean": 0.179344,
-     "global_mean": 0.177474,
-     "deviation": 0.00187,
-     "z": 1.671,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "a": {
-       "mean": 0.179344,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "prior",
-     "cell_mean": 0.162072,
-     "global_mean": 0.160464,
-     "deviation": 0.001608,
-     "z": 1.669,
+     "token": "code",
+     "cell_mean": -0.022825,
+     "global_mean": -0.016105,
+     "deviation": -0.00672,
+     "z": 1.191,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "j": {
-       "mean": 0.162072,
+       "mean": -0.022825,
        "n": 1
       }
      }
     },
     {
-     "token": "known",
-     "cell_mean": 0.112638,
-     "global_mean": 0.111083,
-     "deviation": 0.001555,
-     "z": 1.631,
+     "token": "no",
+     "cell_mean": -0.007955,
+     "global_mean": -0.001878,
+     "deviation": -0.006077,
+     "z": 1.186,
      "n": 2,
      "n_cells": 25,
      "cats": {
-      "m": {
-       "mean": 0.105319,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.119957,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "all",
-     "cell_mean": 0.126812,
-     "global_mean": 0.1256,
-     "deviation": 0.001212,
-     "z": 1.631,
-     "n": 21,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.095198,
-       "n": 2
-      },
-      "a": {
-       "mean": 0.131368,
-       "n": 4
-      },
       "j": {
-       "mean": 0.129812,
-       "n": 15
+       "mean": -0.007955,
+       "n": 2
       }
      }
     },
     {
-     "token": "certification",
-     "cell_mean": 0.166011,
-     "global_mean": 0.164524,
-     "deviation": 0.001486,
-     "z": 1.625,
+     "token": "any",
+     "cell_mean": -0.01311,
+     "global_mean": -0.006135,
+     "deviation": -0.006975,
+     "z": 1.176,
      "n": 1,
      "n_cells": 25,
      "cats": {
-      "a": {
-       "mean": 0.166011,
+      "j": {
+       "mean": -0.01311,
        "n": 1
       }
      }
     },
     {
-     "token": "compatibility",
-     "cell_mean": 0.118021,
-     "global_mean": 0.116488,
-     "deviation": 0.001533,
-     "z": 1.592,
+     "token": "lower",
+     "cell_mean": -0.013937,
+     "global_mean": -0.005647,
+     "deviation": -0.008291,
+     "z": 1.151,
      "n": 1,
      "n_cells": 25,
      "cats": {
       "m": {
-       "mean": 0.118021,
+       "mean": -0.013937,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ides",
+     "cell_mean": -0.017574,
+     "global_mean": -0.009111,
+     "deviation": -0.008464,
+     "z": 1.147,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.017574,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "generate",
+     "cell_mean": -0.00148,
+     "global_mean": 0.007654,
+     "deviation": -0.009134,
+     "z": 1.139,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.00148,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "mind",
-    "games",
-    "news",
-    "operations",
-    "simulation",
-    "word",
-    "through",
-    "pha"
+    "non-repudiation",
+    "securing",
+    "eax",
+    "zkp",
+    "jargons",
+    "appropriate",
+    "consisting",
+    "kept",
+    "among",
+    "variant",
+    "unsecured",
+    "exposing",
+    "client's",
+    "cpr",
+    "hbcas",
+    "pck",
+    "nrp",
+    "hike",
+    "hdf",
+    "kap"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
   },
-  "4_4": {
+  "3_2": {
    "tokens": [
     {
-     "token": "ongoing",
-     "cell_mean": 0.133305,
-     "global_mean": 0.130954,
-     "deviation": 0.002351,
-     "z": 2.293,
+     "token": "thag",
+     "cell_mean": 0.009787,
+     "global_mean": -0.014214,
+     "deviation": 0.024,
+     "z": 2.358,
      "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.133305,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "internal",
-     "cell_mean": 0.105652,
-     "global_mean": 0.103303,
-     "deviation": 0.002349,
-     "z": 2.241,
-     "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.095522,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.115782,
+       "mean": 0.009787,
        "n": 1
       }
      }
     },
     {
-     "token": "blocking",
-     "cell_mean": 0.084275,
-     "global_mean": 0.08237,
-     "deviation": 0.001905,
-     "z": 2.083,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "m": {
-       "mean": 0.084275,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "bo",
-     "cell_mean": 0.138626,
-     "global_mean": 0.136542,
-     "deviation": 0.002084,
-     "z": 2.069,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "h": {
-       "mean": 0.138626,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "over",
-     "cell_mean": 0.057902,
-     "global_mean": 0.056406,
-     "deviation": 0.001496,
-     "z": 2.037,
-     "n": 1,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.057902,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "sensitive",
-     "cell_mean": 0.114401,
-     "global_mean": 0.112644,
-     "deviation": 0.001756,
-     "z": 1.987,
-     "n": 6,
-     "n_cells": 25,
-     "cats": {
-      "b": {
-       "mean": 0.10606,
-       "n": 3
-      },
-      "m": {
-       "mean": 0.127795,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.102914,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.137516,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "capture",
-     "cell_mean": 0.136484,
-     "global_mean": 0.134737,
-     "deviation": 0.001747,
-     "z": 1.973,
-     "n": 2,
-     "n_cells": 25,
-     "cats": {
-      "d": {
-       "mean": 0.138432,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.134536,
-       "n": 1
-      }
-     }
-    },
-    {
-     "token": "gain",
-     "cell_mean": 0.085541,
-     "global_mean": 0.083685,
-     "deviation": 0.001857,
+     "token": "un",
+     "cell_mean": 0.005977,
+     "global_mean": -0.004275,
+     "deviation": 0.010252,
      "z": 1.96,
-     "n": 2,
+     "n": 1,
      "n_cells": 25,
      "cats": {
-      "d": {
-       "mean": 0.097459,
-       "n": 1
-      },
       "h": {
-       "mean": 0.073624,
+       "mean": 0.005977,
        "n": 1
       }
      }
     },
     {
-     "token": "configured",
-     "cell_mean": 0.09837,
-     "global_mean": 0.096777,
-     "deviation": 0.001592,
-     "z": 1.865,
+     "token": "Py",
+     "cell_mean": 0.012534,
+     "global_mean": 0.002699,
+     "deviation": 0.009835,
+     "z": 1.85,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.012534,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "orean",
+     "cell_mean": 0.009616,
+     "global_mean": -0.003676,
+     "deviation": 0.013292,
+     "z": 1.81,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009616,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.001266,
+     "global_mean": -0.010321,
+     "deviation": 0.011588,
+     "z": 1.665,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.001266,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "any",
+     "cell_mean": 0.003192,
+     "global_mean": -0.006135,
+     "deviation": 0.009328,
+     "z": 1.573,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.003192,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Sum",
+     "cell_mean": -0.009841,
+     "global_mean": -0.017385,
+     "deviation": 0.007544,
+     "z": 1.485,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.009841,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "is",
+     "cell_mean": 0.004101,
+     "global_mean": -0.01026,
+     "deviation": 0.014361,
+     "z": 1.473,
      "n": 4,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.105306,
-       "n": 1
+       "mean": 0.001849,
+       "n": 3
       },
       "m": {
-       "mean": 0.075623,
-       "n": 1
-      },
-      "d": {
-       "mean": 0.093858,
-       "n": 1
-      },
-      "h": {
-       "mean": 0.118691,
+       "mean": 0.010857,
        "n": 1
       }
      }
     },
     {
-     "token": "configuring",
-     "cell_mean": 0.02941,
-     "global_mean": 0.027616,
-     "deviation": 0.001794,
-     "z": 1.835,
-     "n": 1,
+     "token": "and",
+     "cell_mean": -0.009679,
+     "global_mean": -0.020124,
+     "deviation": 0.010445,
+     "z": 1.47,
+     "n": 2,
      "n_cells": 25,
      "cats": {
       "b": {
-       "mean": 0.02941,
+       "mean": -0.000303,
+       "n": 1
+      },
+      "j": {
+       "mean": -0.019055,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "programming",
+     "cell_mean": -0.002463,
+     "global_mean": -0.013096,
+     "deviation": 0.010633,
+     "z": 1.407,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.002463,
        "n": 1
       }
      }
     }
    ],
    "probes": [
-    "emails",
-    "settings",
-    "financial",
-    "transactions",
-    "personal",
-    "installation"
+    "shor's",
+    "factorization",
+    "shortest",
+    "integer",
+    "discrete",
+    "logarithm",
+    "exponentiation",
+    "lattice",
+    "fourier",
+    "correction",
+    "grover's",
+    "lattice-based",
+    "search",
+    "schnorr",
+    "phase",
+    "estimation",
+    "fft",
+    "pre-quantum",
+    "lemma",
+    "factor"
    ],
-   "n_unique_tokens": 428
+   "n_unique_tokens": 199
+  },
+  "3_3": {
+   "tokens": [
+    {
+     "token": "developer",
+     "cell_mean": -0.007383,
+     "global_mean": 0.003258,
+     "deviation": -0.010641,
+     "z": 2.005,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.007383,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "been",
+     "cell_mean": -0.016602,
+     "global_mean": -0.00417,
+     "deviation": -0.012432,
+     "z": 1.843,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.016602,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "major",
+     "cell_mean": -0.032289,
+     "global_mean": -0.019308,
+     "deviation": -0.012981,
+     "z": 1.765,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.032289,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "'re",
+     "cell_mean": -0.020362,
+     "global_mean": -0.008568,
+     "deviation": -0.011794,
+     "z": 1.73,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.020362,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locked",
+     "cell_mean": -0.02083,
+     "global_mean": -0.007635,
+     "deviation": -0.013194,
+     "z": 1.724,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.02083,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "interact",
+     "cell_mean": -0.027882,
+     "global_mean": -0.017181,
+     "deviation": -0.010701,
+     "z": 1.714,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.027882,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.022738,
+     "global_mean": -0.013236,
+     "deviation": -0.009502,
+     "z": 1.709,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.022738,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "phone",
+     "cell_mean": -0.018224,
+     "global_mean": -0.006359,
+     "deviation": -0.011865,
+     "z": 1.689,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.018224,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "content",
+     "cell_mean": -0.019558,
+     "global_mean": -0.010376,
+     "deviation": -0.009182,
+     "z": 1.666,
+     "n": 3,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.019558,
+       "n": 3
+      }
+     }
+    },
+    {
+     "token": "out",
+     "cell_mean": -0.022171,
+     "global_mean": -0.010482,
+     "deviation": -0.011689,
+     "z": 1.658,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.022171,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "twofish",
+    "aesgcm",
+    "plain",
+    "strong",
+    "xts",
+    "xor-transposition-substitution",
+    "adleman",
+    "counter",
+    "lfsr",
+    "linear",
+    "feedback",
+    "shift",
+    "register",
+    "lwe",
+    "crypt",
+    "evp",
+    "cryptographic-related",
+    "stego",
+    "stealth",
+    "asymmetric-key"
+   ],
+   "n_unique_tokens": 199
+  },
+  "3_4": {
+   "tokens": [
+    {
+     "token": "American",
+     "cell_mean": 0.019621,
+     "global_mean": 0.009154,
+     "deviation": 0.010467,
+     "z": 1.763,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.019621,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "cybersecurity",
+     "cell_mean": 0.012507,
+     "global_mean": 0.002077,
+     "deviation": 0.01043,
+     "z": 1.423,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.012507,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "techniques",
+     "cell_mean": 0.002324,
+     "global_mean": -0.008797,
+     "deviation": 0.011121,
+     "z": 1.405,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.002324,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "interest",
+     "cell_mean": 0.017714,
+     "global_mean": 0.005609,
+     "deviation": 0.012106,
+     "z": 1.402,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.017714,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "work",
+     "cell_mean": 0.007998,
+     "global_mean": -0.003887,
+     "deviation": 0.011884,
+     "z": 1.31,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.007998,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "account",
+     "cell_mean": 0.022725,
+     "global_mean": 0.011052,
+     "deviation": 0.011673,
+     "z": 1.309,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.022725,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "detected",
+     "cell_mean": 0.005589,
+     "global_mean": -0.006039,
+     "deviation": 0.011628,
+     "z": 1.296,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.005589,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locks",
+     "cell_mean": 0.007632,
+     "global_mean": -0.001896,
+     "deviation": 0.009528,
+     "z": 1.282,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.007632,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "republic",
+     "cell_mean": 0.009558,
+     "global_mean": 0.001379,
+     "deviation": 0.00818,
+     "z": 1.227,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009558,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "currency",
+     "cell_mean": 0.01406,
+     "global_mean": 0.004954,
+     "deviation": 0.009106,
+     "z": 1.226,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.01406,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "watermarking",
+    "tamper",
+    "chain",
+    "crypto-policy",
+    "mpc",
+    "though",
+    "were",
+    "change",
+    "obstruct",
+    "already",
+    "restoring",
+    "giving",
+    "unknown",
+    "criminal",
+    "illegally",
+    "obtaining",
+    "maliciously",
+    "robbering",
+    "money",
+    "items"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_0": {
+   "tokens": [
+    {
+     "token": "effective",
+     "cell_mean": -0.009207,
+     "global_mean": 0.011748,
+     "deviation": -0.020955,
+     "z": 2.926,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.009207,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "mixed",
+     "cell_mean": -0.043141,
+     "global_mean": -0.017325,
+     "deviation": -0.025816,
+     "z": 2.925,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.043141,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "airplanes",
+     "cell_mean": -0.034664,
+     "global_mean": -0.013133,
+     "deviation": -0.021532,
+     "z": 2.63,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.034664,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "never",
+     "cell_mean": -0.039919,
+     "global_mean": -0.016435,
+     "deviation": -0.023484,
+     "z": 2.56,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.039919,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "has",
+     "cell_mean": -0.036158,
+     "global_mean": -0.020148,
+     "deviation": -0.01601,
+     "z": 2.555,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.036158,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "t",
+     "cell_mean": -0.029105,
+     "global_mean": -0.00332,
+     "deviation": -0.025785,
+     "z": 2.546,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.029105,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "immune",
+     "cell_mean": -0.022468,
+     "global_mean": 0.003253,
+     "deviation": -0.025722,
+     "z": 2.517,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.022468,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "consider",
+     "cell_mean": -0.037593,
+     "global_mean": -0.017981,
+     "deviation": -0.019612,
+     "z": 2.517,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.037593,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "account",
+     "cell_mean": -0.01138,
+     "global_mean": 0.011052,
+     "deviation": -0.022432,
+     "z": 2.516,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.01138,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "should",
+     "cell_mean": -0.033268,
+     "global_mean": -0.013656,
+     "deviation": -0.019613,
+     "z": 2.495,
+     "n": 2,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.026166,
+       "n": 1
+      },
+      "m": {
+       "mean": -0.04037,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "forensic",
+    "denial-of-services",
+    "perception",
+    "sget",
+    "sev",
+    "soes",
+    "pivs",
+    "ets",
+    "sferf",
+    "ofdt",
+    "assessments",
+    "seva",
+    "modeling",
+    "setm",
+    "sefa",
+    "seti",
+    "sbes",
+    "proof-of-concept",
+    "socp",
+    "scavenger"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_1": {
+   "tokens": [
+    {
+     "token": "orean",
+     "cell_mean": 0.01022,
+     "global_mean": -0.003676,
+     "deviation": 0.013896,
+     "z": 1.892,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.01022,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "effective",
+     "cell_mean": 0.025091,
+     "global_mean": 0.011748,
+     "deviation": 0.013343,
+     "z": 1.863,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.025091,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "compound",
+     "cell_mean": 0.002435,
+     "global_mean": -0.010321,
+     "deviation": 0.012757,
+     "z": 1.833,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.002435,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "previous",
+     "cell_mean": 0.011138,
+     "global_mean": 0.001226,
+     "deviation": 0.009913,
+     "z": 1.819,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.011138,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "simple",
+     "cell_mean": 0.000334,
+     "global_mean": -0.011657,
+     "deviation": 0.01199,
+     "z": 1.783,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000334,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "describe",
+     "cell_mean": -0.007299,
+     "global_mean": -0.016083,
+     "deviation": 0.008784,
+     "z": 1.665,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.007299,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "key",
+     "cell_mean": -0.005509,
+     "global_mean": -0.016894,
+     "deviation": 0.011384,
+     "z": 1.643,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.005509,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "photos",
+     "cell_mean": 0.000716,
+     "global_mean": -0.010112,
+     "deviation": 0.010827,
+     "z": 1.636,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000716,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "social",
+     "cell_mean": 0.009373,
+     "global_mean": -0.001432,
+     "deviation": 0.010805,
+     "z": 1.603,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.009373,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "generate",
+     "cell_mean": 0.020438,
+     "global_mean": 0.007654,
+     "deviation": 0.012784,
+     "z": 1.595,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.020438,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "theory",
+    "desirability",
+    "effects",
+    "peer",
+    "pressure",
+    "biases",
+    "comparison",
+    "personalization",
+    "disinformation",
+    "dynamics",
+    "suggestion",
+    "students",
+    "reasoning",
+    "moral",
+    "culture",
+    "loafing",
+    "self-presentation",
+    "polls",
+    "conformity",
+    "ethics"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_2": {
+   "tokens": [
+    {
+     "token": "security",
+     "cell_mean": -0.013888,
+     "global_mean": -0.005705,
+     "deviation": -0.008183,
+     "z": 1.422,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.013888,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "system",
+     "cell_mean": -0.013823,
+     "global_mean": -0.001945,
+     "deviation": -0.011878,
+     "z": 1.384,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.013823,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "orean",
+     "cell_mean": -0.012113,
+     "global_mean": -0.003676,
+     "deviation": -0.008437,
+     "z": 1.149,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012113,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "republic",
+     "cell_mean": -0.006139,
+     "global_mean": 0.001379,
+     "deviation": -0.007517,
+     "z": 1.128,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.006139,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "terms",
+     "cell_mean": -0.027407,
+     "global_mean": -0.018161,
+     "deviation": -0.009246,
+     "z": 1.113,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.027407,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "evil",
+     "cell_mean": -0.01795,
+     "global_mean": -0.010979,
+     "deviation": -0.006971,
+     "z": 1.097,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.01795,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "engineering",
+     "cell_mean": -0.025041,
+     "global_mean": -0.017328,
+     "deviation": -0.007713,
+     "z": 1.09,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.025041,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "locksmith",
+     "cell_mean": -0.013344,
+     "global_mean": -0.006717,
+     "deviation": -0.006627,
+     "z": 1.065,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.013344,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "vulnerabilities",
+     "cell_mean": -0.004546,
+     "global_mean": 0.003211,
+     "deviation": -0.007757,
+     "z": 1.052,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.004546,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "t",
+     "cell_mean": -0.01397,
+     "global_mean": -0.00332,
+     "deviation": -0.010649,
+     "z": 1.051,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.01397,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "pretest",
+    "tailgating",
+    "pretext",
+    "recipients",
+    "snitching",
+    "vehicle",
+    "snipe",
+    "z-sec",
+    "zipper",
+    "intent",
+    "spam",
+    "rallying",
+    "following",
+    "wrong",
+    "entice",
+    "surprise",
+    "vishing",
+    "scares",
+    "tease",
+    "tread"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_3": {
+   "tokens": [
+    {
+     "token": "Py",
+     "cell_mean": 0.009166,
+     "global_mean": 0.002699,
+     "deviation": 0.006467,
+     "z": 1.216,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.009166,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Civil",
+     "cell_mean": 0.000766,
+     "global_mean": -0.00652,
+     "deviation": 0.007286,
+     "z": 1.19,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.000766,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "cybersecurity",
+     "cell_mean": 0.01061,
+     "global_mean": 0.002077,
+     "deviation": 0.008533,
+     "z": 1.164,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.01061,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "War",
+     "cell_mean": -0.012944,
+     "global_mean": -0.020697,
+     "deviation": 0.007753,
+     "z": 1.145,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012944,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "guidelines",
+     "cell_mean": -0.017211,
+     "global_mean": -0.024204,
+     "deviation": 0.006993,
+     "z": 1.059,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": -0.017211,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "previous",
+     "cell_mean": 0.006954,
+     "global_mean": 0.001226,
+     "deviation": 0.005729,
+     "z": 1.051,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "j": {
+       "mean": 0.006954,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "-defense",
+     "cell_mean": -0.005187,
+     "global_mean": -0.012168,
+     "deviation": 0.006981,
+     "z": 1.031,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.005187,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "techniques",
+     "cell_mean": -0.000641,
+     "global_mean": -0.008797,
+     "deviation": 0.008156,
+     "z": 1.03,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": -0.000641,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "currency",
+     "cell_mean": 0.012574,
+     "global_mean": 0.004954,
+     "deviation": 0.00762,
+     "z": 1.026,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": 0.012574,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "software",
+     "cell_mean": 0.006142,
+     "global_mean": -0.001119,
+     "deviation": 0.007261,
+     "z": 1.024,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.006142,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "misdirection",
+    "framing",
+    "frame",
+    "rationale",
+    "cyberstalking",
+    "phases",
+    "dettectors",
+    "agency",
+    "rake",
+    "campaigning",
+    "dissection",
+    "counterme",
+    "dangers",
+    "tax",
+    "home",
+    "medical",
+    "work",
+    "government",
+    "corporate",
+    "vulnaulization"
+   ],
+   "n_unique_tokens": 199
+  },
+  "4_4": {
+   "tokens": [
+    {
+     "token": "phishing",
+     "cell_mean": -0.00167,
+     "global_mean": -0.009016,
+     "deviation": 0.007346,
+     "z": 1.112,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.00167,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Py",
+     "cell_mean": 0.008085,
+     "global_mean": 0.002699,
+     "deviation": 0.005386,
+     "z": 1.013,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": 0.008085,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "ransom",
+     "cell_mean": -0.001203,
+     "global_mean": -0.009126,
+     "deviation": 0.007923,
+     "z": 0.982,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.001203,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "gas",
+     "cell_mean": 0.000302,
+     "global_mean": -0.006726,
+     "deviation": 0.007028,
+     "z": 0.935,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.000302,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "identity",
+     "cell_mean": -0.001568,
+     "global_mean": -0.008508,
+     "deviation": 0.00694,
+     "z": 0.798,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.001568,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "my",
+     "cell_mean": 0.005363,
+     "global_mean": 8.1e-05,
+     "deviation": 0.005282,
+     "z": 0.777,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "m": {
+       "mean": 0.005363,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "bank",
+     "cell_mean": -0.008923,
+     "global_mean": -0.013236,
+     "deviation": 0.004313,
+     "z": 0.775,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "h": {
+       "mean": -0.008923,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "vaccines",
+     "cell_mean": -0.010276,
+     "global_mean": -0.003679,
+     "deviation": -0.006597,
+     "z": 0.753,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.010276,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "Civil",
+     "cell_mean": -0.001939,
+     "global_mean": -0.00652,
+     "deviation": 0.004581,
+     "z": 0.748,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.001939,
+       "n": 1
+      }
+     }
+    },
+    {
+     "token": "describe",
+     "cell_mean": -0.012158,
+     "global_mean": -0.016083,
+     "deviation": 0.003926,
+     "z": 0.744,
+     "n": 1,
+     "n_cells": 25,
+     "cats": {
+      "b": {
+       "mean": -0.012158,
+       "n": 1
+      }
+     }
+    }
+   ],
+   "probes": [
+    "sets",
+    "spyware",
+    "incidents",
+    "malformed",
+    "fabrication",
+    "vandalism",
+    "explained",
+    "overview",
+    "cycle",
+    "seek",
+    "coercion",
+    "spams",
+    "incursions",
+    "rackets",
+    "controversies",
+    "reviews",
+    "bait-and-channel",
+    "trojans",
+    "whistleblower",
+    "user-centered"
+   ],
+   "n_unique_tokens": 199
   }
  },
  "categories": {
-  "a": "adversarial",
   "b": "benign",
-  "d": "dual-use",
   "h": "harmful",
   "j": "jailbreak",
   "m": "mild"
  },
  "per_subject": {
   "network_security": {
-   "mean_activation": 0.14268932009389002,
-   "max_activation": 0.14334884358942504,
-   "mean_variance": 0.0004727682194705997
+   "mean_activation": -0.012870861830225566,
+   "max_activation": -0.0033048051423784316,
+   "mean_variance": 2.2912059157078514e-05
   },
   "application_security": {
-   "mean_activation": 0.14220813193321225,
-   "max_activation": 0.14315218777209504,
-   "mean_variance": 0.0004653536975113264
+   "mean_activation": -0.011554874229796269,
+   "max_activation": -0.002601950357202441,
+   "mean_variance": 2.1640069021846713e-05
   },
   "identity_access": {
-   "mean_activation": 0.14220953785959217,
-   "max_activation": 0.14314127655492886,
-   "mean_variance": 0.00046415847405912973
+   "mean_activation": -0.015313067429009833,
+   "max_activation": -0.0025538304534711643,
+   "mean_variance": 2.2331490280994683e-05
   },
   "cryptography": {
-   "mean_activation": 0.14202351290558773,
-   "max_activation": 0.14305906843394037,
-   "mean_variance": 0.0004686509589846061
+   "mean_activation": -0.01613964587242714,
+   "max_activation": -0.007904694918711926,
+   "mean_variance": 1.9927263938851776e-05
   },
   "social_engineering": {
-   "mean_activation": 0.1426813564769302,
-   "max_activation": 0.1438745690012971,
-   "mean_variance": 0.0004696434124511018
+   "mean_activation": -0.014518280904594578,
+   "max_activation": -0.009333873356354161,
+   "mean_variance": 1.9251244789868527e-05
   }
  }
 }
