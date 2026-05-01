@@ -187,6 +187,11 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     # CV is computed over engagement distances.
     probe_engagement = defaultdict(lambda: {"distances": [], "cats": []})
 
+    # Bipartite engagement accumulator. Same data, keyed by (prompt_idx,
+    # probe_idx) instead of just probe_idx — preserves which prompt
+    # engaged which probe so we can build the ladder graph payload.
+    bipartite = defaultdict(lambda: {"distances": []})
+
     for o in raw_obs:
         if o["tok"] not in top_set:
             continue
@@ -215,9 +220,11 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             # distribution.
             for idx, sim in zip(top_k, top_sims):
                 if idx < len(probes):
-                    probe_engagement[int(idx)]["distances"].append(
-                        float(1.0 - sim))
+                    dist = float(1.0 - sim)
+                    probe_engagement[int(idx)]["distances"].append(dist)
                     probe_engagement[int(idx)]["cats"].append(o["cat"])
+                    # Bipartite: track per-(prompt, probe) too.
+                    bipartite[(o["pi"], int(idx))]["distances"].append(dist)
 
             # Similarity-weighted position
             weights = np.exp(top_sims * knn_sharpness)
@@ -315,7 +322,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
                 "cat_mix": cat_mix,
             })
 
-    return obs_export, ordered, token_cv, probe_rows
+    return obs_export, ordered, token_cv, probe_rows, bipartite
 
 
 def _stratification(obs, subjects):
@@ -332,6 +339,299 @@ def _stratification(obs, subjects):
     return {
         "by_level": {str(k): dict(v) for k, v in sorted(by_level.items())},
         "by_subject": {k: dict(v) for k, v in sorted(by_subject.items())},
+    }
+
+
+def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
+                   top_k_storage=100, contributors_max=5):
+    """Build the ladder-graph payload from the bipartite engagement matrix.
+
+    bipartite:    dict[(prompt_idx, probe_idx)] -> {"distances": [float, ...]}
+                  populated in _build_observations from token-knn engagements.
+    probes:       list of probe dicts (active set, in lattice order).
+    prompts_meta: list of session_results entries, in their projected order.
+    subjects:     list of subject names, ordered.
+    level_names:  list of level names ordered by level index.
+
+    Returns a dict suitable for direct serialization into the module
+    output's "ladder" field. See spec for shape.
+
+    Server pre-computes:
+      - The two metric values per (prompt, probe): engagement_count + similarity
+      - Top-k_storage ranked left-items per right-item, for all four
+        (prompt aggregated yes/no × probe aggregated yes/no) combinations
+      - Contributor lists for aggregated views (top contributors_max)
+      - Default item orderings on both axes
+
+    The popout slices to user-chosen k from the stored ranked list.
+    """
+    n_probes = len(probes)
+    n_prompts = len(prompts_meta)
+    subj_idx = {s: i for i, s in enumerate(subjects)}
+
+    # ── Step 1: Build dense (n_prompts, n_probes) score matrices ──
+    # engagement_count[pi][bi] = number of token-knn engagements
+    # similarity[pi][bi]      = 1 - mean_distance (higher = closer in space)
+    # We keep them as nested dicts to stay sparse — most cells will be 0.
+    by_prompt_count = defaultdict(dict)        # pi -> {bi: count}
+    by_prompt_sim   = defaultdict(dict)        # pi -> {bi: similarity}
+    for (pi, bi), rec in bipartite.items():
+        dists = rec["distances"]
+        if not dists:
+            continue
+        by_prompt_count[pi][bi] = len(dists)
+        by_prompt_sim[pi][bi]   = 1.0 - (sum(dists) / len(dists))
+
+    # ── Step 2: Build axis item lists for both granularities ──
+    left_individual_items = []
+    for bi, p in enumerate(probes):
+        left_individual_items.append({
+            "id":          bi,
+            "label":       (p.get("text") or "")[:PROBE_TEXT_DISPLAY_LEN],
+            "subject":     p.get("subject", ""),
+            "subject_idx": subj_idx.get(p.get("subject", ""), 0),
+            "level":       int(p.get("level", 0)),
+        })
+
+    # Aggregated left = subject × level cells
+    cell_to_probes = defaultdict(list)         # (si, li) -> [bi, ...]
+    for bi, p in enumerate(probes):
+        si = subj_idx.get(p.get("subject", ""), 0)
+        li = int(p.get("level", 0))
+        cell_to_probes[(si, li)].append(bi)
+
+    left_aggregated_items = []
+    for (si, li), bis in sorted(cell_to_probes.items()):
+        subj_name = subjects[si] if si < len(subjects) else f"s{si}"
+        lvl_name  = level_names[li] if li < len(level_names) else f"L{li}"
+        left_aggregated_items.append({
+            "id":          f"{si}_{li}",
+            "label":       f"{subj_name} / {lvl_name}",
+            "subject_idx": si,
+            "level":       li,
+            "n_probes":    len(bis),
+        })
+
+    # Right: individual prompts and aggregated categories
+    right_individual_items = []
+    cat_to_prompts = defaultdict(list)
+    for pi, sr in enumerate(prompts_meta):
+        cat = (sr.get("category", "") or "?")[0]
+        cat_to_prompts[cat].append(pi)
+        text = (sr.get("prompt") or "")
+        right_individual_items.append({
+            "id":       pi,
+            "label":    text[:PROMPT_TEXT_DISPLAY_LEN],
+            "category": cat,
+            "n_tokens": len(sr.get("tokens", []) or []),
+        })
+
+    cat_names = {"b": "benign", "m": "mild", "h": "harmful",
+                 "j": "jailbreak", "a": "adversarial",
+                 "d": "dual-use", "u": "unknown", "?": "unknown"}
+    right_aggregated_items = []
+    for cat in sorted(cat_to_prompts.keys()):
+        right_aggregated_items.append({
+            "id":        cat,
+            "label":     cat_names.get(cat, cat),
+            "category":  cat,
+            "n_prompts": len(cat_to_prompts[cat]),
+        })
+
+    # ── Step 3: Helper to rank+slice a flat dict[left_id -> score] ──
+    def _rank_slice(scores, top_k):
+        """scores: dict[left_id -> float]. Returns sorted [(id, score), ...]."""
+        if not scores:
+            return []
+        items = sorted(scores.items(), key=lambda x: -x[1])
+        return items[:top_k]
+
+    # Tooltip metadata helpers — populate both metrics regardless of which
+    # is the displayed score, so swapping metrics in the popout doesn't
+    # require re-fetching.
+    def _tooltip_meta_individual(pi, bi):
+        return {
+            "engagement_count": by_prompt_count.get(pi, {}).get(bi, 0),
+            "mean_proximity":   round(by_prompt_sim.get(pi, {}).get(bi, 0.0), 4),
+        }
+
+    # ── Step 4: PI_PI — prompts (individual) → probes (individual) ──
+    PI_PI = []
+    for pi in range(n_prompts):
+        scores = by_prompt_count.get(pi, {})
+        ranked = []
+        for rank, (bi, score) in enumerate(_rank_slice(scores, top_k_storage), 1):
+            ranked.append({
+                "left_id":      bi,
+                "score":        float(score),
+                "rank":         rank,
+                "tooltip_meta": _tooltip_meta_individual(pi, bi),
+            })
+        PI_PI.append({"right_id": pi, "ranked": ranked})
+
+    # ── Step 5: PI_PA — prompts (individual) → cells (aggregated) ──
+    # Cell score = sum of probe scores in that cell, for that prompt.
+    PI_PA = []
+    for pi in range(n_prompts):
+        prompt_scores = by_prompt_count.get(pi, {})
+        if not prompt_scores:
+            PI_PA.append({"right_id": pi, "ranked": []})
+            continue
+        cell_scores = {}
+        cell_contributors = defaultdict(list)  # cell_id -> [(bi, score)]
+        for (si, li), bis in cell_to_probes.items():
+            cell_id = f"{si}_{li}"
+            total = 0.0
+            for bi in bis:
+                s = prompt_scores.get(bi, 0)
+                if s > 0:
+                    total += s
+                    cell_contributors[cell_id].append((bi, s))
+            if total > 0:
+                cell_scores[cell_id] = total
+        ranked = []
+        for rank, (cell_id, score) in enumerate(
+                _rank_slice(cell_scores, top_k_storage), 1):
+            contribs = sorted(cell_contributors[cell_id], key=lambda x: -x[1])
+            contribs = contribs[:contributors_max]
+            ranked.append({
+                "left_id": cell_id,
+                "score":   float(score),
+                "rank":    rank,
+                "contributors": [
+                    {
+                        "probe_idx": bi,
+                        "label":     left_individual_items[bi]["label"],
+                        "score":     int(s) if isinstance(s, int) else float(s),
+                    }
+                    for bi, s in contribs
+                ],
+            })
+        PI_PA.append({"right_id": pi, "ranked": ranked})
+
+    # ── Step 6: PA_PI — categories (aggregated) → probes (individual) ──
+    # Category score per probe = mean of its prompts' scores for that probe.
+    PA_PI = []
+    for cat in sorted(cat_to_prompts.keys()):
+        member_pids = cat_to_prompts[cat]
+        if not member_pids:
+            PA_PI.append({"right_id": cat, "ranked": []})
+            continue
+        all_bids = set()
+        for pi in member_pids:
+            all_bids.update(by_prompt_count.get(pi, {}).keys())
+        probe_scores = {}
+        probe_contributors = defaultdict(list)  # bi -> [(pi, score)]
+        for bi in all_bids:
+            scores_per_pi = []
+            for pi in member_pids:
+                s = by_prompt_count.get(pi, {}).get(bi, 0)
+                scores_per_pi.append(s)
+                if s > 0:
+                    probe_contributors[bi].append((pi, s))
+            if scores_per_pi:
+                probe_scores[bi] = sum(scores_per_pi) / len(scores_per_pi)
+        ranked = []
+        for rank, (bi, score) in enumerate(
+                _rank_slice(probe_scores, top_k_storage), 1):
+            contribs = sorted(probe_contributors[bi], key=lambda x: -x[1])
+            contribs = contribs[:contributors_max]
+            ranked.append({
+                "left_id": bi,
+                "score":   round(float(score), 4),
+                "rank":    rank,
+                "contributors": [
+                    {
+                        "prompt_idx": pi,
+                        "label":      right_individual_items[pi]["label"],
+                        "score":      int(s) if isinstance(s, int) else float(s),
+                    }
+                    for pi, s in contribs
+                ],
+            })
+        PA_PI.append({"right_id": cat, "ranked": ranked})
+
+    # ── Step 7: PA_PA — categories (aggregated) → cells (aggregated) ──
+    # Cell score per category = mean across the category's prompts of
+    # (sum of probe scores in that cell for that prompt).
+    PA_PA = []
+    for cat in sorted(cat_to_prompts.keys()):
+        member_pids = cat_to_prompts[cat]
+        if not member_pids:
+            PA_PA.append({"right_id": cat, "ranked": []})
+            continue
+        cell_score_per_pi = defaultdict(list)  # cell_id -> [score per pi]
+        cell_contributors = defaultdict(list)  # cell_id -> [(pi, score)]
+        for (si, li), bis in cell_to_probes.items():
+            cell_id = f"{si}_{li}"
+            for pi in member_pids:
+                ps = by_prompt_count.get(pi, {})
+                total = sum(ps.get(bi, 0) for bi in bis)
+                cell_score_per_pi[cell_id].append(total)
+                if total > 0:
+                    cell_contributors[cell_id].append((pi, total))
+        cell_scores = {}
+        for cell_id, vals in cell_score_per_pi.items():
+            if vals:
+                m = sum(vals) / len(vals)
+                if m > 0:
+                    cell_scores[cell_id] = m
+        ranked = []
+        for rank, (cell_id, score) in enumerate(
+                _rank_slice(cell_scores, top_k_storage), 1):
+            contribs = sorted(cell_contributors[cell_id], key=lambda x: -x[1])
+            contribs = contribs[:contributors_max]
+            ranked.append({
+                "left_id": cell_id,
+                "score":   round(float(score), 4),
+                "rank":    rank,
+                "contributors": [
+                    {
+                        "prompt_idx": pi,
+                        "label":      right_individual_items[pi]["label"],
+                        "score":      int(s) if isinstance(s, int) else float(s),
+                    }
+                    for pi, s in contribs
+                ],
+            })
+        PA_PA.append({"right_id": cat, "ranked": ranked})
+
+    n_active = sum(1 for bi in range(n_probes)
+                    if any(bi in by_prompt_count.get(pi, {})
+                           for pi in range(n_prompts)))
+
+    return {
+        "metric":           "engagement_count",
+        "metrics_available": ["engagement_count", "mean_proximity"],
+        "n_prompts_projected": n_prompts,
+        "n_probes_active":     n_active,
+        "categories":          sorted(cat_to_prompts.keys()),
+        "category_names":      {c: cat_names.get(c, c)
+                                for c in cat_to_prompts.keys()},
+        "left_individual": {
+            "axis":  "probes",
+            "items": left_individual_items,
+        },
+        "left_aggregated": {
+            "axis":  "cells",
+            "items": left_aggregated_items,
+        },
+        "right_individual": {
+            "axis":  "prompts",
+            "items": right_individual_items,
+        },
+        "right_aggregated": {
+            "axis":  "categories",
+            "items": right_aggregated_items,
+        },
+        "engagements": {
+            "PI_PI": PI_PI,
+            "PI_PA": PI_PA,
+            "PA_PI": PA_PI,
+            "PA_PA": PA_PA,
+        },
+        "top_k_storage":      top_k_storage,
+        "contributors_max":   contributors_max,
     }
 
 
@@ -637,7 +937,7 @@ class DomainSurfaceModule(TASMModule):
             logger.info("[DOMAIN] Token variance data not found — using frequency-only "
                         "token selection. Run Token Variance first for better subject accuracy.")
 
-        obs, ordered_tokens, token_cv, probe_rows = _build_observations(
+        obs, ordered_tokens, token_cv, probe_rows, bipartite = _build_observations(
             session_subset, prompt_coords, anchor_pts,
             subjects, top_tokens, min_appearances, progress,
             probe_embs=probe_embs, probes=probes,
@@ -674,6 +974,12 @@ class DomainSurfaceModule(TASMModule):
         # Prompt texts (truncated)
         prompts = [r["prompt"][:PROMPT_TEXT_DISPLAY_LEN] for r in session_subset]
 
+        # Build ladder-graph payload (bipartite prompt × probe engagement)
+        if progress:
+            progress("Building ladder graph payload...")
+        ladder = _build_ladder(bipartite, probes, session_subset,
+                                subjects, level_names)
+
         # Build output
         output = {
             "pca": variance,
@@ -702,6 +1008,7 @@ class DomainSurfaceModule(TASMModule):
             "stratification": strat,
             "probe_file": probe_file,
             "level_names": level_names,
+            "ladder": ladder,
         }
 
         if progress:

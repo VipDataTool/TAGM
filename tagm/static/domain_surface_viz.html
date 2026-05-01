@@ -4,7 +4,7 @@
 <title>Domain Surface — TAGM</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --text:#E8ECEF; --text2:#6B7280; --border:#444C56; }
+:root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --bg2:#262C34; --text:#E8ECEF; --text2:#6B7280; --text3:#5A6068; --border:#444C56; --cyan:#56B4E9; --orange:#E69F00; --green:#009E73; --red:#D55E00; }
 body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; padding:16px; margin:0; font-size:var(--font-legend); }
 button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; border-radius:3px; cursor:pointer; }
 .ctrl-row { display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap; align-items:center; }
@@ -15,20 +15,94 @@ button { font-family:inherit; font-size:var(--font-legend); padding:2px 8px; bor
 #dsTip { display:none; position:absolute; background:#2D333B; border:1px solid #56B4E9; border-radius:6px; padding:8px 10px; pointer-events:none; min-width:240px; max-width:320px; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,.5); font-size:var(--font-table); }
 #dsErr { color:#D55E00; font-size:var(--font-desc); padding:10px; white-space:pre-wrap; }
 .bc,.bs { border:1px solid #444; background:transparent; }
+
+/* ── Tab strip ── */
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px; }
+.tabs button { padding:8px 16px; background:transparent; color:var(--text2); border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:inherit; font-size:var(--font-legend); }
+.tabs button.active { color:var(--cyan); border-bottom-color:var(--cyan); }
+.tabs button:hover:not(.active) { color:var(--text); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ── Ladder graph ── */
+.ladder-controls { display:flex; gap:14px; flex-wrap:wrap; align-items:center; padding:10px 12px; background:var(--bg2); border:1px solid var(--border); border-radius:4px; margin-bottom:12px; font-size:11px; }
+.ladder-controls label { color:var(--text2); }
+.ladder-controls select, .ladder-controls input[type=range] { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; padding:2px 6px; font-family:inherit; font-size:11px; }
+.ladder-controls .toggle { display:flex; align-items:center; gap:5px; }
+.ladder-controls input[type=range] { width:120px; }
+.ladder-controls .k-display { font-variant-numeric:tabular-nums; min-width:24px; color:var(--text); }
+#ladderSvgWrap { position:relative; border:1px solid var(--border); border-radius:6px; background:var(--bg); overflow:hidden; }
+#ladderSvg { display:block; width:100%; }
+#ladderTip { display:none; position:absolute; background:#2D333B; border:1px solid var(--cyan); border-radius:6px; padding:8px 10px; pointer-events:none; min-width:260px; max-width:380px; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,.5); font-size:11px; line-height:1.5; }
+#ladderTip .tip-row { margin-bottom:4px; }
+#ladderTip .tip-label { color:var(--text2); font-size:10px; }
+#ladderTip .tip-val { color:var(--text); }
+.ladder-axis-label { fill:var(--text2); font-family:"IBM Plex Mono",monospace; font-size:10px; }
+.ladder-axis-header { fill:var(--text); font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; }
+.ladder-item { cursor:pointer; }
+.ladder-item:hover .ladder-item-label { fill:var(--cyan); }
+.ladder-ray { fill:none; stroke-linecap:round; pointer-events:stroke; }
+.ladder-ray:hover { stroke-width:2.5 !important; opacity:1 !important; }
+.ladder-ray.dimmed { opacity:0.08 !important; }
+.ladder-empty { color:var(--text3); font-style:italic; padding:24px; text-align:center; }
 </style>
 </head>
 <body>
 <div style="margin:0 auto;padding:0 8px">
-  <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Token × Domain × Correction</div>
+  <div style="font-size:var(--font-desc);font-weight:700;margin-bottom:4px">Domain Surface</div>
   <div id="dsSubtitle" style="font-size:var(--font-legend);color:var(--text2);margin-bottom:10px">Loading...</div>
-  <div class="ctrl-row" id="ctrlRow"></div>
-  <div class="ctrl-row" id="subjRow"></div>
-  <div style="overflow-x:auto">
-    <div style="position:relative;border:1px solid var(--border);border-radius:6px">
-      <canvas id="dsCanvas"></canvas>
-      <div id="dsTip"></div>
+
+  <div class="tabs" id="dsTabs">
+    <button class="ds-tab-btn active" data-tab="scatter">Token Scatter</button>
+    <button class="ds-tab-btn" data-tab="ladder">Probe Ladder</button>
+  </div>
+
+  <div class="tab-panel active" id="ds-tab-scatter">
+    <div class="ctrl-row" id="ctrlRow"></div>
+    <div class="ctrl-row" id="subjRow"></div>
+    <div style="overflow-x:auto">
+      <div style="position:relative;border:1px solid var(--border);border-radius:6px">
+        <canvas id="dsCanvas"></canvas>
+        <div id="dsTip"></div>
+      </div>
     </div>
   </div>
+
+  <div class="tab-panel" id="ds-tab-ladder">
+    <div class="ladder-controls">
+      <span class="toggle">
+        <label for="ladAggProbes">Aggregate probes</label>
+        <input type="checkbox" id="ladAggProbes" checked>
+      </span>
+      <span class="toggle">
+        <label for="ladAggPrompts">Aggregate prompts</label>
+        <input type="checkbox" id="ladAggPrompts" checked>
+      </span>
+      <span class="toggle">
+        <label for="ladMetric">Metric</label>
+        <select id="ladMetric">
+          <option value="engagement_count" selected>Engagement count</option>
+          <option value="mean_proximity">Semantic proximity</option>
+        </select>
+      </span>
+      <span class="toggle">
+        <label for="ladColorBy">Color by</label>
+        <select id="ladColorBy">
+          <option value="category" selected>Prompt category</option>
+          <option value="subject">Probe subject</option>
+        </select>
+      </span>
+      <span class="toggle">
+        <label for="ladTopK">Top-k <span id="ladTopKVal" class="k-display">5</span></label>
+        <input type="range" id="ladTopK" min="1" max="50" value="5">
+      </span>
+    </div>
+    <div id="ladderSvgWrap">
+      <svg id="ladderSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="ladderTip"></div>
+    </div>
+  </div>
+
   <div id="dsErr"></div>
 </div>
 <script>
@@ -210,6 +284,334 @@ function onMouse(e){
   if(my>pd.t+plotH-5){var ba=null,bad=12;ANC.forEach(function(a){var ax=toX(a.y),d=Math.abs(mx-ax);if(d<bad){bad=d;ba=a}});if(ba){ancHover=ba;hover=null;render();return}}
   ancHover=null;var b=null,bd=14;curPts.forEach(function(p){var d=Math.sqrt((mx-p.sx)*(mx-p.sx)+(my-p.sy)*(my-p.sy));if(d<bd){bd=d;b=p}});hover=b;render();
 }
+
+// ── Tab switching ─────────────────────────────────────
+document.querySelectorAll('.ds-tab-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var tab = btn.dataset.tab;
+    document.querySelectorAll('.ds-tab-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-panel').forEach(function(p){
+      p.classList.toggle('active', p.id === 'ds-tab-' + tab);
+    });
+    if (tab === 'ladder') ladderRender();
+  });
+});
+
+// ── Ladder graph ──────────────────────────────────────
+// All data is pre-shaped server-side under D.ladder. The popout
+// only picks the right slice based on the toggle state, slices to
+// top-k, and draws SVG. No engagement math happens here.
+var LAD = D.ladder || null;
+var ladderState = {
+  aggProbes:  true,
+  aggPrompts: true,
+  metric:     "engagement_count",
+  colorBy:    "category",
+  topK:       5,
+};
+
+// Subject palette must match the scatter's SCOL exactly.
+var SUBJ_COLORS = SCOL;
+var CAT_COLORS_LAD = CCOL;
+
+function ladderSliceKey(){
+  var l = ladderState.aggProbes  ? "PA" : "PI";  // wait — careful:
+  // Convention in spec: P*_** where first letter = right axis (prompt
+  // aggregated/individual), second = left axis (probe aggregated/
+  // individual). Re-read: PI_PI = prompts individual, probes individual.
+  // So first pair = right (prompts), second = left (probes).
+  var rightTok = ladderState.aggPrompts ? "PA" : "PI";
+  var leftTok  = ladderState.aggProbes  ? "PA" : "PI";
+  return rightTok + "_" + leftTok;
+}
+
+function ladderLeftItems(){
+  return ladderState.aggProbes
+    ? (LAD.left_aggregated.items || [])
+    : (LAD.left_individual.items || []);
+}
+function ladderRightItems(){
+  return ladderState.aggPrompts
+    ? (LAD.right_aggregated.items || [])
+    : (LAD.right_individual.items || []);
+}
+function ladderEngagements(){
+  var key = ladderSliceKey();
+  return (LAD.engagements && LAD.engagements[key]) || [];
+}
+
+function ladderColorFor(rightItem, leftItem){
+  if (ladderState.colorBy === "subject") {
+    var si = leftItem ? leftItem.subject_idx : 0;
+    return SUBJ_COLORS[si % SUBJ_COLORS.length];
+  }
+  // category: use right-side category
+  var cat = rightItem.category || rightItem.id;
+  return CAT_COLORS_LAD[cat] || "#888";
+}
+
+function ladderEscapeText(s, n){
+  s = String(s == null ? "" : s);
+  if (s.length > n) s = s.slice(0, n - 1) + "\u2026";
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function ladderRender(){
+  var svg = document.getElementById("ladderSvg");
+  if (!svg) return;
+  if (!LAD) {
+    svg.innerHTML = '<text x="20" y="40" class="ladder-axis-label">No ladder data in this run.</text>';
+    return;
+  }
+  var leftItems  = ladderLeftItems();
+  var rightItems = ladderRightItems();
+  var engagements = ladderEngagements();
+  if (!leftItems.length || !rightItems.length){
+    svg.innerHTML = '<text x="20" y="40" class="ladder-axis-label">Empty axis — nothing to draw.</text>';
+    return;
+  }
+
+  // Map right_id -> ranked top-k slice
+  var topK = ladderState.topK;
+  var raysByRight = {};
+  engagements.forEach(function(e){
+    var ranked = (e.ranked || []).slice(0, topK);
+    raysByRight[String(e.right_id)] = ranked;
+  });
+
+  // Geometry
+  var wrap = document.getElementById("ladderSvgWrap");
+  var W = Math.max(800, wrap.clientWidth || 1000);
+  var rowH = 18;
+  var headerH = 28;
+  var leftCount  = leftItems.length;
+  var rightCount = rightItems.length;
+  var maxCount   = Math.max(leftCount, rightCount, 6);
+  var H = headerH + maxCount * rowH + 24;
+  svg.setAttribute("width",  W);
+  svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+
+  // Column geometry
+  var leftLabelX  = 240;     // where probe/cell labels end (right-aligned)
+  var rayStartX   = leftLabelX + 12;
+  var rayEndX     = W - 260;  // where rays meet right column
+  var rightLabelX = rayEndX + 12;
+  var rightLabelEnd = W - 8;
+
+  function leftY(i){ return headerH + i * rowH + rowH / 2; }
+  function rightY(i){
+    // Distribute right items along the same vertical span as the longest
+    // axis so they line up cleanly when both columns have similar size.
+    var span = maxCount * rowH;
+    var step = span / Math.max(1, rightItems.length);
+    return headerH + (i + 0.5) * step;
+  }
+
+  // ─── Build SVG content as string then attach ───
+  var s = '';
+
+  // Headers
+  var leftHeader  = ladderState.aggProbes  ? "Domain Cells" : "Probes";
+  var rightHeader = ladderState.aggPrompts ? "Categories"   : "Prompts";
+  s += '<text x="' + (rayStartX - 8) + '" y="14" text-anchor="end" class="ladder-axis-header">'
+    +  leftHeader + '</text>';
+  s += '<text x="' + (rightLabelX) + '" y="14" text-anchor="start" class="ladder-axis-header">'
+    +  rightHeader + '</text>';
+
+  // Left column items
+  leftItems.forEach(function(it, i){
+    var y = leftY(i);
+    var sw = SUBJ_COLORS[(it.subject_idx || 0) % SUBJ_COLORS.length];
+    s += '<g class="ladder-item" data-side="left" data-id="' + ladderEscapeText(it.id, 80) + '">';
+    s += '<rect x="' + (leftLabelX - 230) + '" y="' + (y - 5) + '" width="6" height="6" '
+       + 'fill="' + sw + '" rx="1"/>';
+    s += '<text x="' + (leftLabelX - 218) + '" y="' + (y + 3) + '" '
+       + 'class="ladder-axis-label ladder-item-label">' + ladderEscapeText(it.label, 36) + '</text>';
+    s += '</g>';
+  });
+
+  // Right column items
+  rightItems.forEach(function(it, i){
+    var y = rightY(i);
+    var col = ladderState.aggPrompts
+      ? (CAT_COLORS_LAD[it.category || it.id] || "#888")
+      : (CAT_COLORS_LAD[it.category] || "#888");
+    s += '<g class="ladder-item" data-side="right" data-id="' + ladderEscapeText(it.id, 80) + '">';
+    s += '<rect x="' + rightLabelX + '" y="' + (y - 5) + '" width="6" height="6" '
+       + 'fill="' + col + '" rx="1"/>';
+    s += '<text x="' + (rightLabelX + 12) + '" y="' + (y + 3) + '" '
+       + 'class="ladder-axis-label ladder-item-label">' + ladderEscapeText(it.label, 40) + '</text>';
+    s += '</g>';
+  });
+
+  // Rays. Ray opacity scales with rank within its top-k.
+  var leftIndexById = {};
+  leftItems.forEach(function(it, i){ leftIndexById[String(it.id)] = i; });
+
+  // Find global score range for opacity normalization
+  var maxScore = 0;
+  rightItems.forEach(function(rit){
+    var rays = raysByRight[String(rit.id)] || [];
+    rays.forEach(function(r){ if (r.score > maxScore) maxScore = r.score; });
+  });
+  if (maxScore <= 0) maxScore = 1;
+
+  rightItems.forEach(function(rit, ri){
+    var rays = raysByRight[String(rit.id)] || [];
+    var ry = rightY(ri);
+    rays.forEach(function(ray){
+      var li = leftIndexById[String(ray.left_id)];
+      if (li == null) return;
+      var ly = leftY(li);
+      var col = ladderColorFor(rit,
+                  leftItems[li] || {subject_idx: 0});
+      var op = 0.25 + 0.75 * Math.min(1, ray.score / maxScore);
+      // Bezier curve for visual flow
+      var cx1 = rayStartX + (rayEndX - rayStartX) * 0.4;
+      var cx2 = rayStartX + (rayEndX - rayStartX) * 0.6;
+      var d = 'M' + rayStartX + ',' + ly
+            + ' C' + cx1 + ',' + ly
+            + ' '  + cx2 + ',' + ry
+            + ' '  + rayEndX + ',' + ry;
+      s += '<path class="ladder-ray" d="' + d + '" '
+        +  'stroke="' + col + '" '
+        +  'stroke-width="1.4" '
+        +  'opacity="' + op.toFixed(3) + '" '
+        +  'data-right-id="' + ladderEscapeText(rit.id, 80) + '" '
+        +  'data-left-id="' + ladderEscapeText(ray.left_id, 80) + '" '
+        +  'data-score="' + ray.score + '" '
+        +  'data-rank="' + ray.rank + '"/>';
+    });
+  });
+
+  svg.innerHTML = s;
+
+  // Wire ray hover for tooltips + dimming siblings
+  var tip = document.getElementById("ladderTip");
+  var rays = svg.querySelectorAll(".ladder-ray");
+  rays.forEach(function(rayEl){
+    rayEl.addEventListener("mouseenter", function(e){
+      var rid = rayEl.dataset.rightId;
+      var lid = rayEl.dataset.leftId;
+      var score = parseFloat(rayEl.dataset.score);
+      var rank = parseInt(rayEl.dataset.rank, 10);
+
+      // Dim non-related rays
+      rays.forEach(function(r){
+        if (r === rayEl) return;
+        if (r.dataset.rightId === rid || r.dataset.leftId === lid) return;
+        r.classList.add("dimmed");
+      });
+
+      // Resolve labels
+      var rItem = rightItems.find(function(x){ return String(x.id) === rid; });
+      var lItem = leftItems.find(function(x){ return String(x.id) === lid; });
+      if (!rItem || !lItem) return;
+
+      // Look up the engagement record for the contributors detail
+      var engRec = engagements.find(function(e){ return String(e.right_id) === rid; });
+      var rayRec = engRec ? engRec.ranked.find(function(r){
+        return String(r.left_id) === lid;
+      }) : null;
+
+      var html = '';
+      // Right summary
+      var rCol = ladderState.aggPrompts
+        ? (CAT_COLORS_LAD[rItem.id] || "#888")
+        : (CAT_COLORS_LAD[rItem.category] || "#888");
+      html += '<div class="tip-row" style="border-left:3px solid ' + rCol + ';padding-left:6px">';
+      html += '<div class="tip-label">' + (ladderState.aggPrompts ? "Category" : "Prompt") + '</div>';
+      html += '<div class="tip-val">' + ladderEscapeText(rItem.label, 80) + '</div>';
+      if (rItem.n_prompts != null)
+        html += '<div class="tip-label">' + rItem.n_prompts + ' prompts</div>';
+      else if (rItem.n_tokens != null)
+        html += '<div class="tip-label">' + rItem.n_tokens + ' tokens</div>';
+      html += '</div>';
+
+      // Left summary
+      var lCol = SUBJ_COLORS[(lItem.subject_idx || 0) % SUBJ_COLORS.length];
+      html += '<div class="tip-row" style="border-left:3px solid ' + lCol + ';padding-left:6px;margin-top:6px">';
+      html += '<div class="tip-label">' + (ladderState.aggProbes ? "Cell" : "Probe") + '</div>';
+      html += '<div class="tip-val">' + ladderEscapeText(lItem.label, 80) + '</div>';
+      if (lItem.n_probes != null)
+        html += '<div class="tip-label">' + lItem.n_probes + ' probes</div>';
+      html += '</div>';
+
+      // Connection summary
+      html += '<div class="tip-row" style="margin-top:6px;border-top:1px solid #444;padding-top:6px">';
+      html += '<div class="tip-label">Engagement</div>';
+      var metricLabel = ladderState.metric === "mean_proximity"
+        ? "proximity" : "count";
+      html += '<div class="tip-val">' + score.toFixed(3) + ' '
+           +  '<span class="tip-label">(' + metricLabel + ', rank ' + rank + ')</span></div>';
+      html += '</div>';
+
+      // Contributors (aggregated views only)
+      if (rayRec && rayRec.contributors && rayRec.contributors.length){
+        html += '<div class="tip-row" style="margin-top:4px"><div class="tip-label">Contributors</div>';
+        rayRec.contributors.forEach(function(c){
+          var cl = c.label || ("#" + (c.probe_idx != null ? c.probe_idx : c.prompt_idx));
+          html += '<div class="tip-val" style="font-size:10px">'
+               +  ladderEscapeText(cl, 60) + ' <span class="tip-label">(' + c.score + ')</span></div>';
+        });
+        html += '</div>';
+      }
+      tip.innerHTML = html;
+
+      // Position tooltip near the cursor
+      var wrapRect = wrap.getBoundingClientRect();
+      tip.style.left = (e.clientX - wrapRect.left + 14) + "px";
+      tip.style.top  = (e.clientY - wrapRect.top + 8) + "px";
+      tip.style.display = "block";
+    });
+    rayEl.addEventListener("mouseleave", function(){
+      rays.forEach(function(r){ r.classList.remove("dimmed"); });
+      tip.style.display = "none";
+    });
+    rayEl.addEventListener("mousemove", function(e){
+      var wrapRect = wrap.getBoundingClientRect();
+      tip.style.left = (e.clientX - wrapRect.left + 14) + "px";
+      tip.style.top  = (e.clientY - wrapRect.top + 8) + "px";
+    });
+  });
+}
+
+// Wire ladder controls
+(function wireLadder(){
+  var aggP = document.getElementById("ladAggProbes");
+  var aggR = document.getElementById("ladAggPrompts");
+  var metr = document.getElementById("ladMetric");
+  var colb = document.getElementById("ladColorBy");
+  var topK = document.getElementById("ladTopK");
+  var topKVal = document.getElementById("ladTopKVal");
+  if (!aggP) return;
+  aggP.addEventListener("change", function(){
+    ladderState.aggProbes = aggP.checked; ladderRender();
+  });
+  aggR.addEventListener("change", function(){
+    ladderState.aggPrompts = aggR.checked; ladderRender();
+  });
+  metr.addEventListener("change", function(){
+    ladderState.metric = metr.value; ladderRender();
+  });
+  colb.addEventListener("change", function(){
+    ladderState.colorBy = colb.value; ladderRender();
+  });
+  topK.addEventListener("input", function(){
+    ladderState.topK = parseInt(topK.value, 10);
+    topKVal.textContent = ladderState.topK;
+    ladderRender();
+  });
+})();
+
+// Re-render ladder if window resizes while ladder tab is active
+window.addEventListener("resize", function(){
+  var ladTab = document.getElementById("ds-tab-ladder");
+  if (ladTab && ladTab.classList.contains("active")) ladderRender();
+});
 
 }catch(ex){document.getElementById("dsErr").textContent="Viz error: "+ex.message+"\n"+ex.stack}})();
 </script>
