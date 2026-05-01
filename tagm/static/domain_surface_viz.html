@@ -28,6 +28,15 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
 .ladder-ray { fill:none; stroke-linecap:round; pointer-events:stroke; }
 .ladder-ray:hover { stroke-width:2.5 !important; opacity:1 !important; }
 .ladder-ray.dimmed { opacity:0.08 !important; }
+.ladder-ray.pinned { stroke-width:3 !important; opacity:1 !important; filter:drop-shadow(0 0 4px rgba(255,255,255,0.55)); }
+.ladder-ray.pinned:hover { stroke-width:3 !important; }
+#ladderPinnedTip { display:none; position:absolute; top:8px; right:8px; background:#2D333B; border:2px solid var(--cyan); border-radius:6px; padding:24px 12px 10px 12px; min-width:240px; max-width:320px; z-index:11; font-size:11px; line-height:1.5; box-shadow:0 6px 16px rgba(0,0,0,.6); }
+#ladderPinnedTip .tip-row { margin-bottom:4px; }
+#ladderPinnedTip .tip-label { color:var(--text2); font-size:10px; }
+#ladderPinnedTip .tip-val { color:var(--text); }
+#ladderPinnedTip .pin-header { font-size:10px; color:var(--cyan); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #444; }
+.ladder-pin-close { position:absolute; top:2px; right:6px; background:transparent; border:none; color:var(--text2); cursor:pointer; font-size:18px; padding:0 4px; line-height:1; font-family:inherit; }
+.ladder-pin-close:hover { color:var(--text); }
 </style>
 </head>
 <body>
@@ -66,6 +75,7 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
   <div id="ladderSvgWrap">
     <svg id="ladderSvg" xmlns="http://www.w3.org/2000/svg"></svg>
     <div id="ladderTip"></div>
+    <div id="ladderPinnedTip"></div>
   </div>
 
   <div id="dsErr"></div>
@@ -283,76 +293,99 @@ function ladderRender(){
 
   svg.innerHTML = s;
 
-  // Wire ray hover for tooltips + dimming siblings
+  // Pin state — clicking a ray freezes its details in a corner panel
+  // so you can hover other rays and compare side-by-side. Pinning
+  // resets on each render (rays are rebuilt).
+  var pinnedRayEl = null;
+  var pinnedTip = document.getElementById("ladderPinnedTip");
+  pinnedTip.style.display = "none";
+
+  function unpinRay(){
+    if (pinnedRayEl) pinnedRayEl.classList.remove("pinned");
+    pinnedRayEl = null;
+    pinnedTip.style.display = "none";
+  }
+
+  // Build the body of a tooltip for a given ray. Used by both hover
+  // (cursor-following tip) and click (corner-pinned panel).
+  function buildRayTipBody(rid, lid, score, rank){
+    var rItem = rightItems.find(function(x){ return String(x.id) === rid; });
+    var lItem = leftItems.find(function(x){ return String(x.id) === lid; });
+    if (!rItem || !lItem) return '';
+
+    var engRec = engagements.find(function(e){ return String(e.right_id) === rid; });
+    var rayRec = engRec ? engRec.ranked.find(function(r){
+      return String(r.left_id) === lid;
+    }) : null;
+
+    var html = '';
+    // Right summary
+    var rCol = ladderState.aggPrompts
+      ? (CAT_COLORS_LAD[rItem.id] || "#888")
+      : (CAT_COLORS_LAD[rItem.category] || "#888");
+    html += '<div class="tip-row" style="border-left:3px solid ' + rCol + ';padding-left:6px">';
+    html += '<div class="tip-label">' + (ladderState.aggPrompts ? "Category" : "Prompt") + '</div>';
+    html += '<div class="tip-val">' + ladderEscapeText(rItem.label, 80) + '</div>';
+    if (rItem.n_prompts != null)
+      html += '<div class="tip-label">' + rItem.n_prompts + ' prompts</div>';
+    else if (rItem.n_tokens != null)
+      html += '<div class="tip-label">' + rItem.n_tokens + ' tokens</div>';
+    html += '</div>';
+
+    // Left summary
+    var lCol = SUBJ_COLORS[(lItem.subject_idx || 0) % SUBJ_COLORS.length];
+    html += '<div class="tip-row" style="border-left:3px solid ' + lCol + ';padding-left:6px;margin-top:6px">';
+    html += '<div class="tip-label">' + (ladderState.aggProbes ? "Cell" : "Probe") + '</div>';
+    html += '<div class="tip-val">' + ladderEscapeText(lItem.label, 80) + '</div>';
+    if (lItem.n_probes != null)
+      html += '<div class="tip-label">' + lItem.n_probes + ' probes</div>';
+    html += '</div>';
+
+    // Connection summary
+    html += '<div class="tip-row" style="margin-top:6px;border-top:1px solid #444;padding-top:6px">';
+    html += '<div class="tip-label">Engagement</div>';
+    var metricLabel = ladderState.metric === "mean_proximity"
+      ? "proximity" : "count";
+    html += '<div class="tip-val">' + score.toFixed(3) + ' '
+         +  '<span class="tip-label">(' + metricLabel + ', rank ' + rank + ')</span></div>';
+    html += '</div>';
+
+    // Contributors (aggregated views only)
+    if (rayRec && rayRec.contributors && rayRec.contributors.length){
+      html += '<div class="tip-row" style="margin-top:4px"><div class="tip-label">Contributors</div>';
+      rayRec.contributors.forEach(function(c){
+        var cl = c.label || ("#" + (c.probe_idx != null ? c.probe_idx : c.prompt_idx));
+        html += '<div class="tip-val" style="font-size:10px">'
+             +  ladderEscapeText(cl, 60) + ' <span class="tip-label">(' + c.score + ')</span></div>';
+      });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  // Wire ray hover (cursor-following tip) + click (corner-pin)
   var tip = document.getElementById("ladderTip");
   var rays = svg.querySelectorAll(".ladder-ray");
   rays.forEach(function(rayEl){
     rayEl.addEventListener("mouseenter", function(e){
+      // Don't double-display: pinned ray's info is already in the panel
+      if (rayEl === pinnedRayEl) return;
+
       var rid = rayEl.dataset.rightId;
       var lid = rayEl.dataset.leftId;
       var score = parseFloat(rayEl.dataset.score);
       var rank = parseInt(rayEl.dataset.rank, 10);
 
-      // Dim non-related rays
+      // Dim non-related rays — but never dim the pinned one
       rays.forEach(function(r){
         if (r === rayEl) return;
         if (r.dataset.rightId === rid || r.dataset.leftId === lid) return;
+        if (r === pinnedRayEl) return;
         r.classList.add("dimmed");
       });
 
-      // Resolve labels
-      var rItem = rightItems.find(function(x){ return String(x.id) === rid; });
-      var lItem = leftItems.find(function(x){ return String(x.id) === lid; });
-      if (!rItem || !lItem) return;
-
-      // Look up the engagement record for the contributors detail
-      var engRec = engagements.find(function(e){ return String(e.right_id) === rid; });
-      var rayRec = engRec ? engRec.ranked.find(function(r){
-        return String(r.left_id) === lid;
-      }) : null;
-
-      var html = '';
-      // Right summary
-      var rCol = ladderState.aggPrompts
-        ? (CAT_COLORS_LAD[rItem.id] || "#888")
-        : (CAT_COLORS_LAD[rItem.category] || "#888");
-      html += '<div class="tip-row" style="border-left:3px solid ' + rCol + ';padding-left:6px">';
-      html += '<div class="tip-label">' + (ladderState.aggPrompts ? "Category" : "Prompt") + '</div>';
-      html += '<div class="tip-val">' + ladderEscapeText(rItem.label, 80) + '</div>';
-      if (rItem.n_prompts != null)
-        html += '<div class="tip-label">' + rItem.n_prompts + ' prompts</div>';
-      else if (rItem.n_tokens != null)
-        html += '<div class="tip-label">' + rItem.n_tokens + ' tokens</div>';
-      html += '</div>';
-
-      // Left summary
-      var lCol = SUBJ_COLORS[(lItem.subject_idx || 0) % SUBJ_COLORS.length];
-      html += '<div class="tip-row" style="border-left:3px solid ' + lCol + ';padding-left:6px;margin-top:6px">';
-      html += '<div class="tip-label">' + (ladderState.aggProbes ? "Cell" : "Probe") + '</div>';
-      html += '<div class="tip-val">' + ladderEscapeText(lItem.label, 80) + '</div>';
-      if (lItem.n_probes != null)
-        html += '<div class="tip-label">' + lItem.n_probes + ' probes</div>';
-      html += '</div>';
-
-      // Connection summary
-      html += '<div class="tip-row" style="margin-top:6px;border-top:1px solid #444;padding-top:6px">';
-      html += '<div class="tip-label">Engagement</div>';
-      var metricLabel = ladderState.metric === "mean_proximity"
-        ? "proximity" : "count";
-      html += '<div class="tip-val">' + score.toFixed(3) + ' '
-           +  '<span class="tip-label">(' + metricLabel + ', rank ' + rank + ')</span></div>';
-      html += '</div>';
-
-      // Contributors (aggregated views only)
-      if (rayRec && rayRec.contributors && rayRec.contributors.length){
-        html += '<div class="tip-row" style="margin-top:4px"><div class="tip-label">Contributors</div>';
-        rayRec.contributors.forEach(function(c){
-          var cl = c.label || ("#" + (c.probe_idx != null ? c.probe_idx : c.prompt_idx));
-          html += '<div class="tip-val" style="font-size:10px">'
-               +  ladderEscapeText(cl, 60) + ' <span class="tip-label">(' + c.score + ')</span></div>';
-        });
-        html += '</div>';
-      }
+      var html = buildRayTipBody(rid, lid, score, rank);
+      if (!html) return;
       tip.innerHTML = html;
 
       // Position tooltip near the cursor
@@ -366,9 +399,46 @@ function ladderRender(){
       tip.style.display = "none";
     });
     rayEl.addEventListener("mousemove", function(e){
+      if (rayEl === pinnedRayEl) return;
       var wrapRect = wrap.getBoundingClientRect();
       tip.style.left = (e.clientX - wrapRect.left + 14) + "px";
       tip.style.top  = (e.clientY - wrapRect.top + 8) + "px";
+    });
+    rayEl.addEventListener("click", function(e){
+      e.stopPropagation();
+      // Toggle: clicking the pinned ray again unpins it
+      if (rayEl === pinnedRayEl){
+        unpinRay();
+        return;
+      }
+      // Replace any prior pin
+      if (pinnedRayEl) pinnedRayEl.classList.remove("pinned");
+      pinnedRayEl = rayEl;
+      rayEl.classList.add("pinned");
+
+      var rid = rayEl.dataset.rightId;
+      var lid = rayEl.dataset.leftId;
+      var score = parseFloat(rayEl.dataset.score);
+      var rank = parseInt(rayEl.dataset.rank, 10);
+      var body = buildRayTipBody(rid, lid, score, rank);
+      if (!body) return;
+
+      pinnedTip.innerHTML =
+        '<button class="ladder-pin-close" aria-label="Unpin" title="Unpin (or click ray again)">\u00D7</button>'
+        + '<div class="pin-header">Pinned</div>'
+        + body;
+      pinnedTip.style.display = "block";
+      var closeBtn = pinnedTip.querySelector(".ladder-pin-close");
+      if (closeBtn) closeBtn.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        unpinRay();
+      });
+
+      // Hide the cursor-following tip — the pinned panel now shows
+      // this ray. Hovering other rays will surface the hover tip again.
+      tip.style.display = "none";
+      // Also clear any dim from the prior hover state
+      rays.forEach(function(r){ r.classList.remove("dimmed"); });
     });
   });
 }
