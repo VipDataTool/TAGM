@@ -2522,7 +2522,9 @@ function renderModules(modules) {
 }
 
 function renderModuleCard(m) {
-  var h = '<div class="mod-card" id="mod-' + m.name + '">';
+  // tier === "showpiece" gets a bordered card variant; rest are unstyled.
+  var tierClass = (m.tier === 'showpiece') ? ' mod-card--showpiece' : '';
+  var h = '<div class="mod-card' + tierClass + '" id="mod-' + m.name + '">';
 
   var modCollapsed = CARD_COLLAPSE_DEFAULTS.modules === 'collapsed';
   var chevSymbol = modCollapsed ? '▶' : '▼';

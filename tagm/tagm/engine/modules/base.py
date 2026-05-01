@@ -183,9 +183,48 @@ class ModuleRunner:
                 logger.warning(f"[MODULES] Failed to load {filepath.name}: {e}")
 
     def list_modules(self) -> list:
-        """Return metadata for all discovered modules."""
+        """Return metadata for all discovered modules.
+
+        Modules are returned in a deliberate display order rather than
+        whatever filesystem-walk order Python produced at discovery
+        time. The frontend renders top-to-bottom in the order received.
+
+        Three loose tiers, signalled by the `tier` field:
+          - "infrastructure": utility modules (probe gen, dialogue)
+          - "showpiece":      featured analysis modules (bordered in UI)
+          - "standard":       everything else
+        """
+        DISPLAY_ORDER = [
+            # Infrastructure
+            ("model_dialogue",                "infrastructure"),
+            ("probe_generator",               "infrastructure"),
+            # Showpieces (bordered in UI)
+            ("domain_surface",                "showpiece"),
+            ("correction_field_topology",     "showpiece"),
+            ("correction_prism",              "showpiece"),
+            # Experimental / aspirational MI work
+            ("mechanistic_interpretability",  "standard"),
+            ("mi_instrumentation",            "standard"),
+            ("arditi_benchmarks",             "standard"),
+            # Legacy
+            ("comparative_analysis",          "standard"),
+            # Older analysis modules retained for now
+            ("correction_backscatter",        "standard"),
+            ("correction_heatmap",            "standard"),
+            ("correction_manifold",           "standard"),
+            ("token_variance",                "standard"),
+        ]
+
+        # Build ordered list using DISPLAY_ORDER as the spine. Any
+        # discovered module not in DISPLAY_ORDER is appended at the end
+        # with tier "standard" — keeps newly-added modules visible
+        # without forcing a registry edit before they show up.
+        seen = set()
         result = []
-        for name, mod in self._modules.items():
+        for name, tier in DISPLAY_ORDER:
+            if name not in self._modules:
+                continue
+            mod = self._modules[name]
             meta = mod.get_metadata()
             state = self._state[name]
             meta["status"] = state.status
@@ -193,6 +232,20 @@ class ModuleRunner:
             meta["has_results"] = state.results is not None
             if state.error:
                 meta["error"] = state.error
+            meta["tier"] = tier
+            result.append(meta)
+            seen.add(name)
+        for name, mod in self._modules.items():
+            if name in seen:
+                continue
+            meta = mod.get_metadata()
+            state = self._state[name]
+            meta["status"] = state.status
+            meta["progress"] = state.progress
+            meta["has_results"] = state.results is not None
+            if state.error:
+                meta["error"] = state.error
+            meta["tier"] = "standard"
             result.append(meta)
         return result
 
