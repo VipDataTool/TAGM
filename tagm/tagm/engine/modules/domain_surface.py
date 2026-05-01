@@ -381,9 +381,8 @@ class DomainSurfaceModule(TASMModule):
                 display_name="Top Tokens",
                 description="Number of most-frequent tokens to include",
                 type="int",
-                default=30,
+                default=100,
                 min_val=5,
-                max_val=100,
             ),
             ModuleParameter(
                 name="min_appearances",
@@ -494,7 +493,7 @@ class DomainSurfaceModule(TASMModule):
         if not ok:
             raise RuntimeError(msg)
         probe_file = active.probe_file
-        top_tokens = params.get("top_tokens", 30)
+        top_tokens = params.get("top_tokens", 100)
         min_appearances = params.get("min_appearances", 2)
         pca_components = params.get("pca_components", 2)
         probe_neighbors = int(params.get("probe_neighbors", 5))
