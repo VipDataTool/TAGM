@@ -198,21 +198,16 @@ class ModuleRunner:
             # Infrastructure
             ("model_dialogue",                "infrastructure"),
             ("probe_generator",               "infrastructure"),
-            # Showpieces (bordered in UI)
+            # Showpieces (cyan border in UI)
             ("domain_surface",                "showpiece"),
             ("correction_field_topology",     "showpiece"),
             ("correction_prism",              "showpiece"),
-            # Experimental / aspirational MI work
-            ("mechanistic_interpretability",  "standard"),
-            ("mi_instrumentation",            "standard"),
-            ("arditi_benchmarks",             "standard"),
-            # Legacy
-            ("comparative_analysis",          "standard"),
-            # Older analysis modules retained for now
-            ("correction_backscatter",        "standard"),
-            ("correction_heatmap",            "standard"),
-            ("correction_manifold",           "standard"),
-            ("token_variance",                "standard"),
+            # Mechanistic-interpretability work (lime-green border in UI)
+            ("mechanistic_interpretability",  "mi"),
+            ("mi_instrumentation",            "mi"),
+            ("arditi_benchmarks",             "mi"),
+            # Legacy (purple border in UI)
+            ("comparative_analysis",          "legacy"),
         ]
 
         # Build ordered list using DISPLAY_ORDER as the spine. Any

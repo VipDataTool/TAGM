@@ -99,8 +99,7 @@ async def favicon():
         return FileResponse(str(p), media_type="image/svg+xml")
     raise HTTPException(status_code=404)
 
-for _viz in ("chat", "domain_surface_viz", "correction_manifold_viz",
-             "correction_heatmap_viz", "correction_backscatter_viz",
+for _viz in ("chat", "domain_surface_viz",
              "correction_prism_viz",
              "probe_diagnostic_viz"):
     def _make_viz_route(name):

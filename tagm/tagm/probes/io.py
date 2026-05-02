@@ -17,7 +17,6 @@ The probe-set apply flow:
    load. No filename heuristics, no directory scans.
 
 Cross-module callers (``engine/modules/{domain_surface,
-correction_heatmap, correction_manifold, correction_backscatter,
 probe_generator}.py`` and ``app.py``) all import from this module.
 These helpers are an explicit public API of the probe subsystem;
 they do not carry leading underscores.

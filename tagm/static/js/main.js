@@ -2523,11 +2523,15 @@ function renderModules(modules) {
 
 function renderModuleCard(m) {
   // Tier classes on the card give different border colors:
-  //   showpiece      → cyan (featured analysis)
-  //   infrastructure → green (utility: probe gen, dialogue)
+  //   showpiece      → cyan   (featured analysis)
+  //   mi             → lime   (mechanistic-interpretability work)
+  //   legacy         → purple (legacy modules)
+  //   infrastructure → orange (utility: probe gen, dialogue)
   //   standard       → no border accent
   var tierClass = '';
-  if (m.tier === 'showpiece') tierClass = ' mod-card--showpiece';
+  if      (m.tier === 'showpiece')      tierClass = ' mod-card--showpiece';
+  else if (m.tier === 'mi')             tierClass = ' mod-card--mi';
+  else if (m.tier === 'legacy')         tierClass = ' mod-card--legacy';
   else if (m.tier === 'infrastructure') tierClass = ' mod-card--infra';
   var h = '<div class="mod-card' + tierClass + '" id="mod-' + m.name + '">';
 
@@ -2832,19 +2836,11 @@ function renderModuleResults(name, results) {
   if (!container) return;
 
   // Route to module-specific renderer
-  if (name === 'token_variance') {
-    container.innerHTML = renderTokenVarianceResults(results);
-  } else if (name === 'domain_surface') {
+  if (name === 'domain_surface') {
     _dsSurfaceData = results;
     container.innerHTML = renderDomainSurfaceResults(results);
-  } else if (name === 'correction_manifold') {
-    container.innerHTML = renderCorrectionManifoldResults(results);
   } else if (name === 'probe_generator') {
     container.innerHTML = renderProbeGeneratorResults(results);
-  } else if (name === 'correction_heatmap') {
-    container.innerHTML = renderCorrectionHeatmapResults(results);
-  } else if (name === 'correction_backscatter') {
-    container.innerHTML = renderCorrectionBackscatterResults(results);
   } else if (name === 'correction_prism') {
     container.innerHTML = renderCorrectionPrismResults(results);
   } else if (name === 'mechanistic_interpretability') {
@@ -3176,57 +3172,6 @@ function _arditiVerdictColor(tag) {
 function _truncate(s, n) {
   s = s || '';
   return s.length > n ? s.substring(0, n) + '…' : s;
-}
-
-// ─── Token Variance Results Renderer ───────────────────────────
-
-function renderTokenVarianceResults(r) {
-  var s = r.summary;
-  var h = '<div class="mod-results">';
-
-  // Summary stats
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Summary</div>';
-  h += '<div class="mod-results-body">';
-  h += '<div class="mod-summary">';
-  h += tvStat('Prompts', s.n_prompts, s.n_skipped + ' skipped');
-  h += tvStat('Tokens Analyzed', s.n_tokens_analyzed, s.n_qualified + ' qualified (n≥' + (s.qualified_threshold||3) + ')');
-  h += tvStat('Categories', s.categories ? s.categories.length : 0, s.categories ? s.categories.join(', ') : '');
-  if (s.density_cv) {
-    h += tvStat('Density CV (p50)', s.density_cv.p50.toFixed(4), 'p25=' + s.density_cv.p25.toFixed(4) + ' p75=' + s.density_cv.p75.toFixed(4));
-    h += tvStat('Density η²', s.density_cv.eta_sq_mean.toFixed(4), 'median ' + s.density_cv.eta_sq_median.toFixed(4));
-  }
-  if (s.context_stable) {
-    h += tvStat('Context-Stable', s.context_stable.count, 'CV ≤ ' + s.context_stable.threshold.toFixed(4));
-    h += tvStat('Context-Dependent', s.context_dependent.count, 'CV ≥ ' + s.context_dependent.threshold.toFixed(4));
-  }
-  h += '</div></div>';
-
-  // Highest CV tokens
-  if (r.highest_cv && r.highest_cv.length) {
-    h += tvTokenTable('Highest Density CV — Most Context-Dependent', r.highest_cv);
-  }
-
-  // Lowest CV tokens
-  if (r.lowest_cv && r.lowest_cv.length) {
-    h += tvTokenTable('Lowest Density CV — Most Context-Stable', r.lowest_cv);
-  }
-
-  // Eta-squared
-  if (r.high_eta && r.high_eta.length) {
-    h += tvTokenTable('Highest η² — Most Category-Driven Variance', r.high_eta);
-  }
-
-  // Pairwise comparisons
-  if (r.pairwise) {
-    Object.keys(r.pairwise).forEach(function(key) {
-      var pair = r.pairwise[key];
-      if (!pair.length) return;
-      h += tvPairwiseTable(key.replace(/_/g, ' ').toUpperCase(), pair);
-    });
-  }
-
-  h += '</div>';
-  return h;
 }
 
 function tvStat(label, value, detail) {
@@ -3574,177 +3519,6 @@ function popoutDomainSurface(){
   window.open('/domain_surface_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
 
-// ─── Correction Manifold Results Renderer ────────────────────
-function renderCorrectionManifoldResults(r) {
-  var h = '<div class="mod-results">';
-
-  // Summary
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Classification Results</div>';
-  h += '<div class="mod-results-body">';
-  h += '<div class="mod-summary">';
-
-  var cls = r.classification || {};
-  var bin = cls.binary || {};
-  var pca = r.pca_explained || [0,0];
-  h += tvStat('Prompts', r.n_prompts || 0);
-  h += tvStat('Clusters', r.n_clusters || 0);
-  h += tvStat('Silhouette', (r.silhouette_score || 0).toFixed(3));
-  h += tvStat('Cluster Accuracy', cls.overall_accuracy ? (cls.overall_accuracy * 100).toFixed(1) + '%' : '--');
-  h += tvStat('Binary Accuracy', bin.best_accuracy ? (bin.best_accuracy * 100).toFixed(1) + '%' : '--', 'safe=' + (bin.n_safe||0) + ' risk=' + (bin.n_risk||0));
-  h += tvStat('PCA Variance', ((pca[0]+pca[1])*100).toFixed(1) + '%', 'PC1=' + (pca[0]*100).toFixed(1) + '% PC2=' + (pca[1]*100).toFixed(1) + '%');
-  h += tvStat('Fingerprint Dim', r.n_cells || 0, (r.classes||[]).length + ' classes × ' + (r.subclasses||[]).length + ' subclasses');
-
-  h += '</div>';
-
-  // Cluster-to-category mapping
-  var mapping = r.cluster_mapping || [];
-  if (mapping.length > 0) {
-    h += '<div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>Cluster</th><th>Best Match</th><th>Overlap</th></tr>';
-    for (var i = 0; i < mapping.length; i++) {
-      var m = mapping[i];
-      var catName = m.category === 'b' ? 'benign' : m.category === 'm' ? 'mild' : m.category === 'd' ? 'dual-use' : m.category === 'h' ? 'harmful' : m.category === 'j' ? 'jailbreak' : m.category;
-      h += '<tr><td>K' + m.cluster + '</td><td><span class="pill ' + pillClass(catName) + '">' + catName + '</span></td><td>' + m.overlap + '</td></tr>';
-    }
-    h += '</table></div>';
-  }
-
-  // Cluster detail
-  var clusters = r.clusters || [];
-  if (clusters.length > 0) {
-    h += '<div style="margin-top:8px"><table class="data-table" style="font-size:11px"><tr><th>Cluster</th><th>Size</th><th>Distribution</th></tr>';
-    for (var i = 0; i < clusters.length; i++) {
-      var cl = clusters[i];
-      var dist = cl.category_distribution || {};
-      var distStr = Object.keys(dist).map(function(k){ return k + ':' + dist[k] }).join(' ');
-      h += '<tr><td>K' + cl.id + '</td><td>' + cl.size + '</td><td style="font-size:10px;color:var(--text-2)">' + escHtml(distStr) + '</td></tr>';
-    }
-    h += '</table></div>';
-  }
-
-  h += '</div>';
-
-  // Popout button
-  h += '<div style="margin-top:8px;text-align:center">';
-  h += '<button class="btn-popout" onclick="popoutCorrectionManifold()" style="font-size:12px;padding:6px 16px">↗ Open Manifold Visualization</button>';
-  h += '</div>';
-
-  h += '</div>';
-  return h;
-}
-
-// ─── Correction Heatmap Results Renderer ───────────────────────
-
-function renderCorrectionHeatmapResults(r) {
-  var h = '<div class="mod-results">';
-  var subjects = r.subjects || [];
-  var levels = r.levels || [];
-  var agg = r.aggregate || [];
-  var variance = r.variance || [];
-
-  // Find symmetric range for diverging color scale (centered on zero)
-  var absMax = 0;
-  for (var si = 0; si < agg.length; si++)
-    for (var li = 0; li < (agg[si]||[]).length; li++) {
-      var av = Math.abs(agg[si][li] || 0);
-      if (av > absMax) absMax = av;
-    }
-  if (absMax < 1e-8) absMax = 1;
-
-  // Diverging color: blue (negative) → neutral (zero) → red (positive)
-  function heatColor(val) {
-    var t = Math.max(-1, Math.min(1, val / absMax)); // -1 to +1
-    var r, g, b;
-    if (t >= 0) {
-      // zero → red: rgb(42,42,52) → rgb(220,50,47)
-      r = Math.round(42 + t * (220 - 42));
-      g = Math.round(42 - t * (42 - 50) * (t > 0.5 ? 0 : 1));
-      b = Math.round(52 - t * (52 - 47));
-      // desaturate near zero, saturate at extremes
-      r = Math.round(42 + t * 178);
-      g = Math.round(42 - t * 12);
-      b = Math.round(52 - t * 15);
-    } else {
-      var s = -t; // 0 to 1
-      // zero → blue: rgb(42,42,52) → rgb(38,139,210)
-      r = Math.round(42 - s * 4);
-      g = Math.round(42 + s * 97);
-      b = Math.round(52 + s * 158);
-    }
-    return 'rgb(' + r + ',' + g + ',' + b + ')';
-  }
-  function heatTextColor(val) {
-    return Math.abs(val / absMax) > 0.35 ? '#fff' : 'var(--text-2)';
-  }
-
-  // Summary stats
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-  h += 'Aggregate Heatmap';
-  h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionHeatmap()">↗ Interactive Explorer</button>';
-  h += '</div>';
-  h += '<div class="mod-results-body">';
-  h += '<div style="padding:10px;overflow-x:auto">';
-
-  // Color legend
-  h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:10px;color:var(--text-2)">';
-  h += '<span>−' + absMax.toFixed(3) + '</span>';
-  h += '<div style="display:flex;height:10px;width:120px;border-radius:2px;overflow:hidden">';
-  for (var ci = 0; ci < 20; ci++) {
-    var cv = -absMax + (ci / 19) * 2 * absMax;
-    h += '<div style="flex:1;background:' + heatColor(cv) + '"></div>';
-  }
-  h += '</div>';
-  h += '<span>+' + absMax.toFixed(3) + '</span>';
-  h += '<span style="margin-left:8px;color:var(--text-3)">blue = suppressed · red = activated</span>';
-  h += '</div>';
-
-  // Heatmap table
-  h += '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
-  h += '<tr><th style="padding:4px 8px;text-align:left;color:var(--text-2)"></th>';
-  for (var li = 0; li < levels.length; li++) {
-    h += '<th style="padding:4px 6px;color:var(--text-2);font-weight:500;text-align:center">' + escHtml(levels[li]) + '</th>';
-  }
-  h += '</tr>';
-
-  for (var si = 0; si < subjects.length; si++) {
-    h += '<tr>';
-    h += '<td style="padding:4px 8px;color:var(--text-1);font-weight:600;text-align:left;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
-    for (var li = 0; li < levels.length; li++) {
-      var val = (agg[si] && agg[si][li] != null) ? agg[si][li] : 0;
-      var vari = (variance[si] && variance[si][li]) ? variance[si][li] : 0;
-      var bg = heatColor(val);
-      var textCol = heatTextColor(val);
-      var sign = val > 0 ? '+' : '';
-      var title = subjects[si] + ' \u00d7 ' + levels[li] + ': activation=' + sign + val.toFixed(4) + ' variance=' + vari.toFixed(4);
-      h += '<td style="padding:4px 6px;text-align:center;background:' + bg + ';color:' + textCol + '" title="' + escHtml(title) + '">';
-      h += sign + val.toFixed(3);
-      h += '</td>';
-    }
-    h += '</tr>';
-  }
-  h += '</table>';
-  h += '</div></div>';
-
-  // Per-subject summary
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
-  h += '<div class="mod-results-body">';
-  h += '<table class="data-table" style="width:100%;font-size:11px">';
-  h += '<tr><th style="text-align:left">Subject</th><th>Mean</th><th>Max</th><th>Variance</th></tr>';
-  var ps = r.per_subject || {};
-  subjects.forEach(function(subj) {
-    var s = ps[subj] || {};
-    h += '<tr>';
-    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">' + escHtml(subj.replace('_',' ')) + '</td>';
-    h += '<td>' + (s.mean_activation || 0).toFixed(4) + '</td>';
-    h += '<td>' + (s.max_activation || 0).toFixed(4) + '</td>';
-    h += '<td>' + (s.mean_variance || 0).toFixed(6) + '</td>';
-    h += '</tr>';
-  });
-  h += '</table></div>';
-
-  h += '</div>';
-  return h;
-}
-
 // ─── Probe Generator Results Renderer ──────────────────────────
 
 function renderProbeGeneratorResults(r) {
@@ -3840,21 +3614,6 @@ function renderProbeGeneratorResults(r) {
   return h;
 }
 
-function popoutCorrectionManifold(){
-  var pw=960,ph=960,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/correction_manifold_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
-}
-
-function popoutCorrectionHeatmap(){
-  var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/correction_heatmap_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
-}
-
-function popoutCorrectionBackscatter(){
-  var pw=1100,ph=800,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/correction_backscatter_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
-}
-
 function popoutCorrectionPrism(){
   var pw=1200,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   window.open('/correction_prism_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
@@ -3918,140 +3677,6 @@ async function embedActiveProbes(filename){
     btn.disabled = false;
     btn.textContent = 'Embed Probe Set';
   }
-}
-
-function renderCorrectionBackscatterResults(r) {
-  var h = '<div class="mod-results">';
-  var subjects = r.subjects || [];
-  var levels = r.levels || [];
-  var agg = r.aggregate || [];
-  var variance = r.variance || [];
-  var probeEnergy = r.probe_energy_grid || [];
-  var cfg = r.config || {};
-  var decomp = r.decomposition || {};
-  var projOrder = r.projection_order || [];
-  var projLabels = r.projection_labels || {};
-
-  // Warm color scale helper (positive energies)
-  function warmScale(grid) {
-    var mn = Infinity, mx = 0;
-    for (var si = 0; si < grid.length; si++)
-      for (var li = 0; li < (grid[si]||[]).length; li++) {
-        var v = grid[si][li] || 0;
-        if (v > 0 && v < mn) mn = v;
-        if (v > mx) mx = v;
-      }
-    if (mx < 1e-10) mx = 1;
-    if (mn === Infinity) mn = 0;
-    return {min: mn, max: mx};
-  }
-  function warmColor(val, sc) {
-    if (val <= 0) return 'rgb(30,30,36)';
-    var t = Math.max(0, Math.min(1, (val - sc.min) / (sc.max - sc.min)));
-    return 'rgb(' + Math.round(30 + t * 200) + ',' + Math.round(30 + t * 120) + ',' + Math.round(36 + t * 10) + ')';
-  }
-  function warmText(val, sc) {
-    var t = (sc.max > sc.min) ? (val - sc.min) / (sc.max - sc.min) : 0;
-    return t > 0.4 ? '#fff' : 'var(--text-2)';
-  }
-  function peColor(val, sc) {
-    if (val <= 0) return 'rgb(30,30,36)';
-    var t = Math.max(0, Math.min(1, (val - sc.min) / (sc.max - sc.min)));
-    return 'rgb(' + Math.round(30 + t * 50) + ',' + Math.round(60 + t * 140) + ',' + Math.round(100 + t * 130) + ')';
-  }
-
-  function renderHeatmapTable(grid, colorFn, sc, digits) {
-    var th = '<table style="border-collapse:collapse;font-size:10px;font-family:var(--mono)">';
-    th += '<tr><th style="padding:3px 6px;text-align:left;color:var(--text-2)"></th>';
-    for (var li = 0; li < levels.length; li++)
-      th += '<th style="padding:3px 5px;color:var(--text-2);font-weight:500;text-align:center;font-size:9px">' + escHtml(levels[li]) + '</th>';
-    th += '</tr>';
-    for (var si = 0; si < subjects.length; si++) {
-      th += '<tr>';
-      th += '<td style="padding:3px 6px;color:var(--text-1);font-weight:600;text-align:left;font-size:9px;white-space:nowrap">' + escHtml((r.subj_short||subjects)[si]) + '</td>';
-      for (var li = 0; li < levels.length; li++) {
-        var val = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
-        var bg = colorFn(val, sc);
-        var tc = warmText(val, sc);
-        th += '<td style="padding:3px 5px;text-align:center;background:' + bg + ';color:' + tc + ';font-size:9px">' + val.toFixed(digits) + '</td>';
-      }
-      th += '</tr>';
-    }
-    th += '</table>';
-    return th;
-  }
-
-  // ── Delta Decomposition: all projections side by side ──
-  var aggSc = warmScale(agg);  // retained for any per-subject scale use below
-  if (projOrder.length > 1) {
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-    h += 'Delta Decomposition (' + projOrder.length + ' projections)';
-    h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionBackscatter()">↗ Interactive Explorer</button>';
-    h += '</div>';
-    h += '<div class="mod-results-body">';
-    h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
-    projOrder.forEach(function(pk) {
-      var d = decomp[pk];
-      if (!d) return;
-      var dAgg = d.aggregate || [];
-      var dPe = d.probe_energy || [];
-      var sc = warmScale(dAgg);
-      var label = projLabels[pk] || pk.toUpperCase();
-      h += '<div style="min-width:200px">';
-      h += '<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:4px">' + escHtml(label) + '</div>';
-      h += renderHeatmapTable(dAgg, warmColor, sc, 4);
-      h += '</div>';
-    });
-    h += '</div></div>';
-
-    // Probe energy decomposition
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Probe Energy Decomposition</div>';
-    h += '<div class="mod-results-body">';
-    h += '<div style="padding:10px;display:flex;flex-wrap:wrap;gap:16px">';
-    projOrder.forEach(function(pk) {
-      var d = decomp[pk];
-      if (!d) return;
-      var dPe = d.probe_energy || [];
-      var sc = warmScale(dPe);
-      var label = projLabels[pk] || pk.toUpperCase();
-      h += '<div style="min-width:200px">';
-      h += '<div style="font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:4px">' + escHtml(label) + '</div>';
-      h += renderHeatmapTable(dPe, peColor, sc, 4);
-      h += '</div>';
-    });
-    h += '</div></div>';
-  }
-
-  // ── Per-subject summary ──
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Per Subject Summary</div>';
-  h += '<div class="mod-results-body">';
-  h += '<table class="data-table" style="width:100%;font-size:11px">';
-  h += '<tr><th style="text-align:left">Subject</th><th>Mean</th><th>Max</th><th>Probe Energy</th><th>Variance</th></tr>';
-  var ps = r.per_subject || {};
-  subjects.forEach(function(subj) {
-    var s = ps[subj] || {};
-    h += '<tr>';
-    h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">' + escHtml(subj.replace(/_/g,' ')) + '</td>';
-    h += '<td>' + (s.mean_backscatter || 0).toFixed(6) + '</td>';
-    h += '<td>' + (s.max_backscatter || 0).toFixed(6) + '</td>';
-    h += '<td style="color:var(--cyan)">' + (s.mean_probe_energy || 0).toFixed(6) + '</td>';
-    h += '<td>' + (s.mean_variance || 0).toFixed(8) + '</td>';
-    h += '</tr>';
-  });
-  h += '</table></div>';
-
-  // ── Config ──
-  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Configuration</div>';
-  h += '<div class="mod-results-body collapsed">';
-  h += '<div style="padding:10px;font-size:10px;color:var(--text-2);line-height:1.8">';
-  h += 'Primary: <span style="color:var(--text-1)">' + escHtml(cfg.primary_projection || 'qkv') + '</span> · ';
-  h += 'Aggregation: <span style="color:var(--text-1)">' + escHtml(cfg.aggregation || 'mean') + '</span> · ';
-  h += 'Signal layers: <span style="color:var(--text-1)">' + (cfg.n_signal_layers || 0) + '</span> · ';
-  h += 'Projections: <span style="color:var(--text-1)">' + (cfg.projections_computed || []).join(', ') + '</span>';
-  h += '</div></div>';
-
-  h += '</div>';
-  return h;
 }
 
 // ─── Correction Prism Results Renderer ──────────────────────────

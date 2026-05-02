@@ -20,10 +20,8 @@ of the probes in that cell. Magnitudes-only would lose this; the prism
 interpretation makes the sign meaningful.
 
 This module is the "what does the correction excite for this prompt"
-question. It is NOT the same as `correction_backscatter`, which
-computes ‖probe·ΔW‖ × ‖token·ΔW‖ independently and never has the probe
-and prompt meet through the model. The two modules answer different
-questions; both are valid; users may run either or both.
+question. Magnitudes-only analyses lose the sign of probe-prompt
+alignment; the prism interpretation makes that sign meaningful.
 """
 from __future__ import annotations
 

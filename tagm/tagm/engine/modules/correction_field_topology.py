@@ -52,7 +52,7 @@ Only measures that decompose per-rank are supported. The visualization
 is a counterfactual-plane projection: each bank vertex represents one
 candidate at one rank, so the measure must produce a separate value
 per candidate during probing. Scalar-only measures (ASM stress, SFD
-density, per-token KL, token variance) summarize or aggregate across
+density, per-token KL) summarize or aggregate across
 ranks and do not project onto this plane; they are deliberately
 excluded rather than offered with synthesized banks.
 
