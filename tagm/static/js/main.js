@@ -68,7 +68,7 @@ const VIZ_REGISTRY = {
   signed_attribution:  {cat:'ASM Core',   title:'Signed Attribution',         on:true,  scope:'prompt', order:20, type:'plot', desc:'Per-token contribution to alignment correction'},
   stress_per_token:    {cat:'ASM Core',   title:'Per-Token Stress',           on:true,  scope:'prompt', order:30, type:'plot', desc:'Correction pressure at discriminative middle layers'},
   heatmap:             {cat:'ASM Core',   title:'Token × Layer Heatmap',      on:true,  scope:'prompt', order:40, type:'plot', desc:'2D correction intensity by token and sublayer'},
-  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'batch', order:10, type:'plot', desc:'Single-prompt correction through model depth'},
+  amplitude_trajectory:{cat:'ASM Detail', title:'Layer Trajectory (single)',   on:true, scope:'prompt', order:10, type:'plot', desc:'Single-prompt correction through model depth'},
 
   // ── Per-Prompt: ASM Detail ──
   distribution_metrics:{cat:'ASM Detail', title:'Distribution Metrics',       on:true, scope:'prompt', order:50, type:'plot', desc:'Entropy, boundary/interior bars'},
@@ -85,33 +85,12 @@ const VIZ_REGISTRY = {
   // ── Per-Prompt: SFD ──
   sfd_density:         {cat:'SFD',        title:'Per-Token QK Density',        on:true,  scope:'prompt', order:130, type:'plot',  needs:'sfd', desc:'How many dimensions of the QK routing subspace each token engages'},
   rank_displacement:   {cat:'SFD',        title:'Rank Displacement',           on:true,  scope:'prompt', order:160, type:'plot',  needs:'sfd', desc:'Kendall tau between base and instruct alternative orderings per position'},
-
-  // ── Batch: Analysis tab ──
-  separability:        {cat:'Batch Analysis',title:'Effect Sizes (Forest)',    on:true,  scope:'batch', order:20, type:'plot', desc:'Cohen\'s d with CIs for proven metrics'},
-  batch_summary:       {cat:'Batch Analysis',title:'Category Distributions',  on:true,  scope:'batch', order:30, type:'plot', desc:'Strip plots with mean+CI for 4 key metrics'},
-  key_scatters:        {cat:'Batch Analysis',title:'Separability Scatters',   on:true,  scope:'batch', order:40, type:'plot', desc:'2-panel scatter with confidence ellipses'},
-  discriminative_sublayers:{cat:'Batch Analysis',title:'Discriminative Sublayers',on:true,scope:'batch', order:50,type:'plot',desc:'Sublayers ranked by adversarial-benign delta'},
-  proof1_summary:      {cat:'Batch Analysis',title:'Proof 1 Verification',    on:true,  scope:'batch', order:60, type:'plot', desc:'Mathematical exactness of the decomposition'},
-
-  // ── Batch: Extended ──
-  exp_trajectory_overlay:{cat:'Batch Analysis',title:'Amplitude Trajectories',on:true,scope:'batch', order:70,type:'plot',desc:'All prompts overlaid across sublayer depth — category separation visible at middle layers'},
-  exp_difference_from_benign:{cat:'Batch Analysis',title:'Difference from Benign',on:true,scope:'batch', order:80,type:'plot',desc:'Per-category trajectory minus benign mean'},
-  exp_metric_scatters: {cat:'Batch Analysis',title:'Full Scatter Grid',   on:true, scope:'batch', order:90,type:'plot',desc:'All pairwise metric scatters including weak metrics'},
-  exp_behavioral_comparison:{cat:'Batch Analysis',title:'Behavioral Divergence',on:true,scope:'batch', order:100,type:'plot',desc:'Instruct vs base probabilities and KL'},
-  exp_ltp_category_comparison:{cat:'Batch Analysis',title:'LTP by Category',on:true,scope:'batch', order:110,type:'plot',desc:'LTP M,C,V box plots across categories'},
-  exp_ltp_m_vs_stress: {cat:'Batch Analysis',title:'LTP M vs Stress',     on:true,  scope:'batch', order:120,type:'plot',desc:'Scatter showing Stress-M anticorrelation'},
-  exp_ltp_profile_shapes:{cat:'Batch Analysis',title:'Profile Shapes',    on:true, scope:'batch', order:130,type:'plot',desc:'Shape distribution across categories'},
-
-  // ── Batch: SFD ──
-  exp_sfd_category_comparison:{cat:'Batch Analysis',title:'SFD by Category',on:true,scope:'batch', order:140,type:'plot',desc:'SFD density box plot across categories'},
-  exp_sfd_vs_asm:      {cat:'Batch Analysis',title:'SFD vs ASM',           on:true, scope:'batch', order:150,type:'plot',desc:'Scatter: QK density vs ASM middle share'},
-  exp_rank_displacement:{cat:'Batch Analysis',title:'Rank Displacement',   on:true, scope:'batch', order:160,type:'plot',desc:'Kendall tau by category — base vs instruct reordering'},
 };
 
-function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
-
 // Per-prompt scope: drives the buttons under the Configuration tab's
-// "Prompt Visualizations" card.
+// "Prompt Visualizations" card. (Batch-scoped viz was never gated by
+// these toggles in the first place — the batch popout list reads
+// directly from the module's plots output.)
 function vizResetDefaults(){
   for(const[k,v]of Object.entries(VIZ_REGISTRY)){
     if(v.scope==='prompt') v.on=v._default;
@@ -130,40 +109,6 @@ function vizDisableAll(){
   }
   vizRenderConfig(); saveConfig();
 }
-
-// Batch scope: drives the buttons inside the Comparative Analysis
-// module's batch viz config section. Re-renders the module so the
-// disabled/enabled lists update in place.
-function vizBatchResetDefaults(){
-  for(const[k,v]of Object.entries(VIZ_REGISTRY)){
-    if(v.scope==='batch') v.on=v._default;
-  }
-  saveConfig(); _rerenderComparativeIfOpen();
-}
-function vizBatchEnableAll(){
-  for(const v of Object.values(VIZ_REGISTRY)){
-    if(v.scope==='batch') v.on=true;
-  }
-  saveConfig(); _rerenderComparativeIfOpen();
-}
-function vizBatchDisableAll(){
-  for(const v of Object.values(VIZ_REGISTRY)){
-    if(v.scope==='batch') v.on=false;
-  }
-  saveConfig(); _rerenderComparativeIfOpen();
-}
-
-// Helper: re-render the Comparative Analysis module body in place if
-// it has cached results. Used after any batch-toggle change so the UI
-// updates without forcing a full module re-run.
-function _rerenderComparativeIfOpen(){
-  var container = $('mod-results-comparative_analysis');
-  if (!container) return;
-  if (typeof _comparativeLastResults !== 'undefined' && _comparativeLastResults){
-    container.innerHTML = renderComparativeResults(_comparativeLastResults);
-  }
-}
-var _comparativeLastResults = null;
 
 function vizRenderConfig(){
   const panel=$('vizConfigPanel'); if(!panel) return;
@@ -231,11 +176,11 @@ function vizRenderConfig(){
       <button class="btn btn-sm btn-danger" onclick="clearAllSessionData()">Clear All Session Data</button>
     </div>
   </div>`;
-  // Viz toggles by category. Batch-scoped categories are rendered
-  // inside the Comparative Analysis module instead of here, since they
-  // configure that module's output directly.
+  // Viz toggles by category. All entries are per-prompt; the batch
+  // viz popout list lives in the Comparative Analysis module body and
+  // reads directly from its plots output (no toggles needed —
+  // available plots auto-render).
   for(const[cat,items]of Object.entries(groups)){
-    if(items[0] && items[0].scope === 'batch') continue;
     const color=cat.includes('LTP')?'var(--cyan)':cat.includes('SFD')?'var(--orange)':cat.includes('Fusion')?'var(--green)':'var(--text-2)';
     const scope=items[0].scope;
     const scopeLabel=scope==='prompt'?'per-prompt':'analysis tab';
@@ -2903,7 +2848,6 @@ function renderModuleResults(name, results) {
   } else if (name === 'correction_field_topology') {
     container.innerHTML = renderCFTResults(results);
   } else if (name === 'comparative_analysis') {
-    _comparativeLastResults = results;
     container.innerHTML = renderComparativeResults(results);
   } else if (name === 'mi_instrumentation') {
     container.innerHTML = renderMIInstrumentationResults(results);
@@ -4253,7 +4197,7 @@ function renderComparativeResults(r) {
   var h = '<div class="mod-results">';
   var agg = r.aggregate || {};
   var cats = agg.categories || {};
-  var plotKeys = r.plot_keys || [];
+  var plots = r.plots || [];
 
   // Session summary badges
   h += '<div style="padding:10px 16px;border-bottom:1px solid var(--border)">';
@@ -4289,64 +4233,21 @@ function renderComparativeResults(r) {
     h += '</tbody></table></div>';
   }
 
-  // ── Batch Visualization Configuration ──
-  // The toggles for which batch plots render. These used to live in
-  // the global Configuration tab but have been moved here since they
-  // configure this module's output. Order spinners control sort order
-  // of the popout list below.
-  var plotKeySet = {};
-  plotKeys.forEach(function(k) { plotKeySet[k] = true; });
-  var allBatchItems = Object.entries(VIZ_REGISTRY).filter(function(e) {
-    return e[1].scope === 'batch' && plotKeySet[e[0]];
-  }).sort(function(a, b) { return a[1].order - b[1].order; });
-
-  if (allBatchItems.length) {
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Batch Visualization Configuration (' + allBatchItems.length + ')</div>';
-    h += '<div class="mod-results-body">';
-    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:10px;line-height:1.5">Toggle which batch-level visualizations render and in what order. Changes take effect immediately on the popout list below.</div>';
-    allBatchItems.forEach(function(e) {
-      var key = e[0], v = e[1];
-      // Note: onchange re-renders the whole comparative module body so
-      // the popout list below this toggle UI reflects the change. That
-      // also means we can't lose focus mid-edit on the order spinner —
-      // use onblur for that instead of onchange.
-      h += '<div class="viz-config-row">'
-         +   '<input type="checkbox" id="viz_' + key + '_comp" '
-         +     (v.on ? 'checked' : '')
-         +     ' onchange="VIZ_REGISTRY[\'' + key + '\'].on=this.checked;saveConfig();_rerenderComparativeIfOpen()">'
-         +   '<label for="viz_' + key + '_comp" style="flex:1">'
-         +     '<span style="color:var(--text-0)">' + escHtml(v.title) + '</span> '
-         +     '<span style="color:var(--text-2);font-size:var(--font-legend)">— ' + escHtml(v.desc || '') + '</span>'
-         +   '</label>'
-         +   '<span style="font-family:var(--mono);font-size:var(--font-legend);color:var(--text-3);padding:3px 6px;border:1px solid var(--border);border-radius:3px;min-width:48px;text-align:center">batch</span>'
-         +   '<input type="number" value="' + v.order + '" min="1" max="999" '
-         +     'style="width:42px;font-size:var(--font-table);padding:3px;text-align:center" '
-         +     'onblur="VIZ_REGISTRY[\'' + key + '\'].order=parseInt(this.value)||0;saveConfig();_rerenderComparativeIfOpen()">'
-         + '</div>';
-    });
-    h += '<div style="margin-top:10px;display:flex;gap:8px">'
-       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchResetDefaults()">Reset to defaults</button>'
-       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchEnableAll()">Enable all</button>'
-       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchDisableAll()">Disable all</button>'
-       + '</div>';
-    h += '</div>';
-  }
-
-  // ── Batch visualizations — popout labels ──
-  var batchItems = allBatchItems.filter(function(e) { return e[1].on; });
-
-  if (batchItems.length) {
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Visualizations (' + batchItems.length + ')</div>';
+  // ── Batch visualizations — popout list ──
+  // Each entry in r.plots is {key, title, desc}, sourced from the
+  // Python module's BATCH_PLOTS catalog (single source of truth for
+  // both behavior and presentation). Order = catalog order.
+  if (plots.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Visualizations (' + plots.length + ')</div>';
     h += '<div class="mod-results-body">';
     h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Click any item to open in a new window.</div>';
-    batchItems.forEach(function(e) {
-      var key = e[0], v = e[1];
-      var sk = 'comp_' + key;
-      storeViz(sk, v.title, _plotHtml(key, v.title, v.desc || ''));
-      h += vizLabel(sk, v.title, v.desc || '');
+    plots.forEach(function(p) {
+      var sk = 'comp_' + p.key;
+      storeViz(sk, p.title, _plotHtml(p.key, p.title, p.desc));
+      h += vizLabel(sk, p.title, p.desc);
     });
 
-    // Candidate graph aggregate
+    // Candidate graph aggregate (computed client-side, not in r.plots)
     if (dashResults.length > 1) {
       try {
         var cgAgg = _computeGraphsChunked(dashResults);

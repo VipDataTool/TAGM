@@ -9,7 +9,8 @@ Produces:
   - Bootstrapped per-category metric estimates with 95% CIs
   - Cohen's d effect sizes for safe/risk separation
   - Optimal classification thresholds
-  - Available batch visualization plot keys
+  - Available batch visualization plots, with display titles and
+    descriptions, ready for the frontend to render
 """
 
 import json
@@ -19,6 +20,69 @@ from pathlib import Path
 from .base import TASMModule, ModuleParameter
 
 logger = logging.getLogger("tasm")
+
+
+# ─── Batch plot catalog ──────────────────────────────────────────
+# Single source of truth for the batch-level plots this module
+# advertises. Each entry is the contract between the renderer in
+# tagm/engine/comparative.py (which produces the plot under that key)
+# and the frontend (which displays the title/desc as a popout label).
+# Order in this list = display order in the UI's popout list.
+#
+# To add a new batch plot:
+#   1. Implement the renderer in tagm/engine/comparative.py
+#   2. Add an entry below with its key, human title, and one-line desc
+#   3. Make sure the renderer wires up at the corresponding plot key
+# No frontend changes needed — titles and descriptions are returned
+# from run() and rendered as-is.
+BATCH_PLOTS = [
+    {"key": "separability",
+     "title": "Effect Sizes (Forest)",
+     "desc":  "Cohen's d with CIs for proven metrics"},
+    {"key": "batch_summary",
+     "title": "Category Distributions",
+     "desc":  "Strip plots with mean+CI for 4 key metrics"},
+    {"key": "key_scatters",
+     "title": "Separability Scatters",
+     "desc":  "2-panel scatter with confidence ellipses"},
+    {"key": "discriminative_sublayers",
+     "title": "Discriminative Sublayers",
+     "desc":  "Sublayers ranked by adversarial-benign delta"},
+    {"key": "proof1_summary",
+     "title": "Proof 1 Verification",
+     "desc":  "Mathematical exactness of the decomposition"},
+    {"key": "exp_trajectory_overlay",
+     "title": "Amplitude Trajectories",
+     "desc":  "All prompts overlaid across sublayer depth — "
+              "category separation visible at middle layers"},
+    {"key": "exp_difference_from_benign",
+     "title": "Difference from Benign",
+     "desc":  "Per-category trajectory minus benign mean"},
+    {"key": "exp_metric_scatters",
+     "title": "Full Scatter Grid",
+     "desc":  "All pairwise metric scatters including weak metrics"},
+    {"key": "exp_behavioral_comparison",
+     "title": "Behavioral Divergence",
+     "desc":  "Instruct vs base probabilities and KL"},
+    {"key": "exp_ltp_category_comparison",
+     "title": "LTP by Category",
+     "desc":  "LTP M,C,V box plots across categories"},
+    {"key": "exp_ltp_m_vs_stress",
+     "title": "LTP M vs Stress",
+     "desc":  "Scatter showing Stress-M anticorrelation"},
+    {"key": "exp_ltp_profile_shapes",
+     "title": "Profile Shapes",
+     "desc":  "Shape distribution across categories"},
+    {"key": "exp_sfd_category_comparison",
+     "title": "SFD by Category",
+     "desc":  "SFD density box plot across categories"},
+    {"key": "exp_sfd_vs_asm",
+     "title": "SFD vs ASM",
+     "desc":  "Scatter: QK density vs ASM middle share"},
+    {"key": "exp_rank_displacement",
+     "title": "Rank Displacement",
+     "desc":  "Kendall tau by category — base vs instruct reordering"},
+]
 
 
 class ComparativeAnalysisModule(TASMModule):
@@ -100,26 +164,21 @@ class ComparativeAnalysisModule(TASMModule):
                     logger.warning(f"[COMPARATIVE] Failed to cache: {e}")
 
         # ── Determine available batch plots ──
-        available_plots = [
-            "batch_summary", "separability",
-            "key_scatters", "discriminative_sublayers", "proof1_summary",
-            "exp_trajectory_overlay", "exp_difference_from_benign",
-            "exp_metric_scatters", "exp_behavioral_comparison",
-            "exp_ltp_category_comparison", "exp_ltp_m_vs_stress",
-            "exp_ltp_profile_shapes", "exp_sfd_category_comparison",
-            "exp_sfd_vs_asm", "exp_rank_displacement",
-        ]
+        # The frontend needs both the keys (to build URLs) and human
+        # titles/descs (to render labels). Send both, in display order,
+        # straight from BATCH_PLOTS — the single source of truth.
+        plots = list(BATCH_PLOTS)
 
         # ── Category breakdown ──
         cats = agg.get("categories", {})
         cat_names = sorted(cats.keys())
 
         prog(f"Complete: {n} prompts, {len(cat_names)} categories, "
-             f"{len(available_plots)} visualizations available")
+             f"{len(plots)} visualizations available")
 
         return {
             "aggregate": agg,
-            "plot_keys": available_plots,
+            "plots": plots,
             "n_prompts": n,
             "categories": cat_names,
             "category_details": cats,
