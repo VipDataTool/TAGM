@@ -109,9 +109,61 @@ const VIZ_REGISTRY = {
 };
 
 function vizIsEnabled(key){ return VIZ_REGISTRY[key] && VIZ_REGISTRY[key].on; }
-function vizResetDefaults(){ for(const[k,v]of Object.entries(VIZ_REGISTRY)){v.on=v._default} vizRenderConfig();saveConfig(); }
-function vizEnableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=true} vizRenderConfig();saveConfig(); }
-function vizDisableAll(){ for(const v of Object.values(VIZ_REGISTRY)){v.on=false} vizRenderConfig();saveConfig(); }
+
+// Per-prompt scope: drives the buttons under the Configuration tab's
+// "Prompt Visualizations" card.
+function vizResetDefaults(){
+  for(const[k,v]of Object.entries(VIZ_REGISTRY)){
+    if(v.scope==='prompt') v.on=v._default;
+  }
+  vizRenderConfig(); saveConfig();
+}
+function vizEnableAll(){
+  for(const v of Object.values(VIZ_REGISTRY)){
+    if(v.scope==='prompt') v.on=true;
+  }
+  vizRenderConfig(); saveConfig();
+}
+function vizDisableAll(){
+  for(const v of Object.values(VIZ_REGISTRY)){
+    if(v.scope==='prompt') v.on=false;
+  }
+  vizRenderConfig(); saveConfig();
+}
+
+// Batch scope: drives the buttons inside the Comparative Analysis
+// module's batch viz config section. Re-renders the module so the
+// disabled/enabled lists update in place.
+function vizBatchResetDefaults(){
+  for(const[k,v]of Object.entries(VIZ_REGISTRY)){
+    if(v.scope==='batch') v.on=v._default;
+  }
+  saveConfig(); _rerenderComparativeIfOpen();
+}
+function vizBatchEnableAll(){
+  for(const v of Object.values(VIZ_REGISTRY)){
+    if(v.scope==='batch') v.on=true;
+  }
+  saveConfig(); _rerenderComparativeIfOpen();
+}
+function vizBatchDisableAll(){
+  for(const v of Object.values(VIZ_REGISTRY)){
+    if(v.scope==='batch') v.on=false;
+  }
+  saveConfig(); _rerenderComparativeIfOpen();
+}
+
+// Helper: re-render the Comparative Analysis module body in place if
+// it has cached results. Used after any batch-toggle change so the UI
+// updates without forcing a full module re-run.
+function _rerenderComparativeIfOpen(){
+  var container = $('mod-results-comparative_analysis');
+  if (!container) return;
+  if (typeof _comparativeLastResults !== 'undefined' && _comparativeLastResults){
+    container.innerHTML = renderComparativeResults(_comparativeLastResults);
+  }
+}
+var _comparativeLastResults = null;
 
 function vizRenderConfig(){
   const panel=$('vizConfigPanel'); if(!panel) return;
@@ -179,8 +231,11 @@ function vizRenderConfig(){
       <button class="btn btn-sm btn-danger" onclick="clearAllSessionData()">Clear All Session Data</button>
     </div>
   </div>`;
-  // Viz toggles by category
+  // Viz toggles by category. Batch-scoped categories are rendered
+  // inside the Comparative Analysis module instead of here, since they
+  // configure that module's output directly.
   for(const[cat,items]of Object.entries(groups)){
+    if(items[0] && items[0].scope === 'batch') continue;
     const color=cat.includes('LTP')?'var(--cyan)':cat.includes('SFD')?'var(--orange)':cat.includes('Fusion')?'var(--green)':'var(--text-2)';
     const scope=items[0].scope;
     const scopeLabel=scope==='prompt'?'per-prompt':'analysis tab';
@@ -2848,6 +2903,7 @@ function renderModuleResults(name, results) {
   } else if (name === 'correction_field_topology') {
     container.innerHTML = renderCFTResults(results);
   } else if (name === 'comparative_analysis') {
+    _comparativeLastResults = results;
     container.innerHTML = renderComparativeResults(results);
   } else if (name === 'mi_instrumentation') {
     container.innerHTML = renderMIInstrumentationResults(results);
@@ -4233,12 +4289,51 @@ function renderComparativeResults(r) {
     h += '</tbody></table></div>';
   }
 
-  // Batch visualizations — popout labels
+  // ── Batch Visualization Configuration ──
+  // The toggles for which batch plots render. These used to live in
+  // the global Configuration tab but have been moved here since they
+  // configure this module's output. Order spinners control sort order
+  // of the popout list below.
   var plotKeySet = {};
   plotKeys.forEach(function(k) { plotKeySet[k] = true; });
-  var batchItems = Object.entries(VIZ_REGISTRY).filter(function(e) {
-    return e[1].scope === 'batch' && e[1].on && plotKeySet[e[0]];
+  var allBatchItems = Object.entries(VIZ_REGISTRY).filter(function(e) {
+    return e[1].scope === 'batch' && plotKeySet[e[0]];
   }).sort(function(a, b) { return a[1].order - b[1].order; });
+
+  if (allBatchItems.length) {
+    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Batch Visualization Configuration (' + allBatchItems.length + ')</div>';
+    h += '<div class="mod-results-body">';
+    h += '<div style="font-size:11px;color:var(--text-2);margin-bottom:10px;line-height:1.5">Toggle which batch-level visualizations render and in what order. Changes take effect immediately on the popout list below.</div>';
+    allBatchItems.forEach(function(e) {
+      var key = e[0], v = e[1];
+      // Note: onchange re-renders the whole comparative module body so
+      // the popout list below this toggle UI reflects the change. That
+      // also means we can't lose focus mid-edit on the order spinner —
+      // use onblur for that instead of onchange.
+      h += '<div class="viz-config-row">'
+         +   '<input type="checkbox" id="viz_' + key + '_comp" '
+         +     (v.on ? 'checked' : '')
+         +     ' onchange="VIZ_REGISTRY[\'' + key + '\'].on=this.checked;saveConfig();_rerenderComparativeIfOpen()">'
+         +   '<label for="viz_' + key + '_comp" style="flex:1">'
+         +     '<span style="color:var(--text-0)">' + escHtml(v.title) + '</span> '
+         +     '<span style="color:var(--text-2);font-size:var(--font-legend)">— ' + escHtml(v.desc || '') + '</span>'
+         +   '</label>'
+         +   '<span style="font-family:var(--mono);font-size:var(--font-legend);color:var(--text-3);padding:3px 6px;border:1px solid var(--border);border-radius:3px;min-width:48px;text-align:center">batch</span>'
+         +   '<input type="number" value="' + v.order + '" min="1" max="999" '
+         +     'style="width:42px;font-size:var(--font-table);padding:3px;text-align:center" '
+         +     'onblur="VIZ_REGISTRY[\'' + key + '\'].order=parseInt(this.value)||0;saveConfig();_rerenderComparativeIfOpen()">'
+         + '</div>';
+    });
+    h += '<div style="margin-top:10px;display:flex;gap:8px">'
+       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchResetDefaults()">Reset to defaults</button>'
+       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchEnableAll()">Enable all</button>'
+       +   '<button class="btn btn-sm btn-secondary" onclick="vizBatchDisableAll()">Disable all</button>'
+       + '</div>';
+    h += '</div>';
+  }
+
+  // ── Batch visualizations — popout labels ──
+  var batchItems = allBatchItems.filter(function(e) { return e[1].on; });
 
   if (batchItems.length) {
     h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Visualizations (' + batchItems.length + ')</div>';
@@ -4261,21 +4356,6 @@ function renderComparativeResults(r) {
           h += vizLabel(sk2, 'Candidate Graph Aggregate', 'Contested positions and role switches across batch', 'var(--purple)');
         }
       } catch(e) { console.error('Candidate graph aggregate:', e); }
-    }
-
-    // Disabled batch vizs
-    var disabledBatch = Object.entries(VIZ_REGISTRY).filter(function(e) {
-      return e[1].scope === 'batch' && !e[1].on && plotKeySet[e[0]];
-    }).sort(function(a, b) { return a[1].order - b[1].order; });
-    if (disabledBatch.length) {
-      h += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Disabled (enable in Configuration tab):</div>';
-      disabledBatch.forEach(function(e) {
-        var key = e[0], v = e[1];
-        var sk3 = 'comp_dis_' + key;
-        storeViz(sk3, v.title, _plotHtml(key, v.title, v.desc || ''));
-        h += vizLabel(sk3, v.title + ' (disabled)', v.desc || '');
-      });
-      h += '</div>';
     }
     h += '</div>';
   }

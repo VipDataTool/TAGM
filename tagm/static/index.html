@@ -188,7 +188,7 @@
     <div class="card">
       <div class="card-header"><h3>Prompt Visualizations</h3></div>
       <div class="card-body">
-        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:10px;line-height:1.5">Toggle which features render in the Prompt tab. Changes apply to the next analysis.</div>
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:10px;line-height:1.5">Toggle which features render in the Prompt tab. Changes apply to the next analysis. Batch-level visualization toggles live in the <strong>Comparative Analysis</strong> module.</div>
         <div id="vizConfigPanel"></div>
         <div style="margin-top:10px;display:flex;gap:8px">
           <button class="btn btn-sm btn-secondary" onclick="vizResetDefaults()">Reset to defaults</button>
@@ -200,7 +200,7 @@
     <div class="card">
       <div class="card-header"><h3>Probe Set</h3></div>
       <div class="card-body">
-        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Active probe CSV for domain surface, heatmap, and manifold modules. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by subclass columns.</div>
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Active probe CSV used by the Domain Surface Geometry module. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by subclass columns.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <div class="file-input-wrapper" style="flex:1"><input type="file" id="probeFilePicker" accept=".csv"></div>
           <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="probeApplyBtn" onclick="applyProbeSet()">Apply</button>
