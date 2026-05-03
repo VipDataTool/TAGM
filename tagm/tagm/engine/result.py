@@ -143,7 +143,7 @@ class PromptResult:
     per_token_domain_emb: Optional[list] = None
     per_token_escalation_emb: Optional[list] = None
     per_token_final_emb: Optional[list] = None
-    per_token_domain_offset: int = 1
+    per_token_domain_offset: int = 0
 
 
 def ltp_result_to_dict(ltp: LTPResult) -> dict:

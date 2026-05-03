@@ -185,7 +185,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
         # Per-token embeddings at both depths (if available)
         ptde = sr.get("per_token_domain_emb")       # subject layer
         ptee = sr.get("per_token_escalation_emb")    # escalation layer
-        ptde_offset = sr.get("per_token_domain_offset", 1)
+        ptde_offset = sr.get("per_token_domain_offset", 0)
 
         for pos in range(len(per_pos)):
             if pos >= len(toks):

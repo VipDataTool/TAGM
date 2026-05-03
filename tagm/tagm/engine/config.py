@@ -51,7 +51,7 @@ DEFAULTS = {
     # ── Domain Embedding ──
     "domain_embedding_layer_frac": 0.50,
     "domain_escalation_layer_frac": 0.75,
-    "include_first_token": False,
+    "include_first_token": True,
     "export_domain_embeddings": False,
     "probe_projection_space": False,
     "attention_weighted_pool": False,
