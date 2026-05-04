@@ -568,11 +568,14 @@ class CorrectionFieldTopologyModule(TASMModule):
         # Build per-prompt payloads.
         builder = PROMPT_BUILDERS[measure]
         prompts = []
+        n_skipped = 0
         for r in filtered:
             if len(prompts) >= record_limit:
                 break
             payload = builder(r, token_limit)
-            if payload is not None:
+            if payload is None:
+                n_skipped += 1
+            else:
                 prompts.append(payload)
 
         prog(f"Built {len(prompts)} prompt payloads.")
@@ -587,6 +590,14 @@ class CorrectionFieldTopologyModule(TASMModule):
 
         stats = _compute_summary_stats(prompts)
 
+        # Count prompts that have populated dual-bank data (non-empty
+        # base_bank). This is what the dashboard's "Base Candidates" card
+        # is asking about — how many records carry both an instruct and
+        # base candidate distribution to compare, vs instruct-only.
+        n_with_base_candidates = sum(
+            1 for p in prompts if any(p.get("base_bank") or [])
+        )
+
         # Resolve accent_mode against the measure's accent capability. If
         # the user picked promoted_demoted for a non-capable measure, fall
         # back to kl_brightness silently rather than failing the run.
@@ -599,6 +610,31 @@ class CorrectionFieldTopologyModule(TASMModule):
         else:
             effective_accent = requested_accent
 
+        # ─── Frontend dashboard contract ────────────────────────────
+        # renderCFTResults() in static/js/main.js reads its summary cards
+        # from top-level keys: n_with_displacement, n_with_ltp_fallback,
+        # n_with_base_candidates, n_skipped, token_stats, by_category,
+        # and displacement_stats. The v2 module's natural shape nests
+        # these under `stats`, which left the dashboard reading undefined
+        # and rendering zeros even when the run was successful.
+        #
+        # We satisfy the existing renderer contract by promoting/aliasing
+        # at the result boundary rather than restructuring the renderer:
+        #   - n_with_displacement / n_with_ltp_fallback are vestigial from
+        #     a prior architecture where one run could produce both. In
+        #     v2 only the selected measure's prompts are built, so we
+        #     route len(prompts) to whichever slot matches the measure
+        #     and leave the other zero. The renderer sums them for its
+        #     "Usable Prompts" total, which is what we want.
+        #   - displacement_stats is the per-measure magnitude detail
+        #     panel; we alias it from primary_stats only on the
+        #     rank_displacement path because the panel is labeled
+        #     "Displacement Magnitude" in the renderer. For ltp_tension
+        #     the panel stays hidden, which is the correct fallback.
+        #   - The nested `stats` block is preserved for any consumer that
+        #     reads from there (export, log inspection); the top-level
+        #     fields are additive, not a replacement.
+
         result = {
             "measure": measure,
             "target_max": spec["target_max"],
@@ -606,6 +642,23 @@ class CorrectionFieldTopologyModule(TASMModule):
             "available_measures": _detect_available_measures(session_results),
             "prompts": prompts,
             "stats": stats,
+
+            # Dashboard counters (top-level for renderCFTResults).
+            "n_with_displacement": (
+                len(prompts) if measure == "rank_displacement" else 0
+            ),
+            "n_with_ltp_fallback": (
+                len(prompts) if measure == "ltp_tension" else 0
+            ),
+            "n_with_base_candidates": n_with_base_candidates,
+            "n_skipped": n_skipped,
+            "token_stats": stats.get("token_stats", {}),
+            "by_category": stats.get("by_category", {}),
+            "displacement_stats": (
+                stats.get("primary_stats")
+                if measure == "rank_displacement" else None
+            ),
+
             "launch_params": {
                 "measure": measure,
                 "category": category,
