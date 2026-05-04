@@ -52,6 +52,18 @@ DEFAULTS = {
     "domain_embedding_layer_frac": 0.50,
     "domain_escalation_layer_frac": 0.75,
     "include_first_token": True,
+    # ── Tokenization ──
+    # Forwarded as the `add_special_tokens` kwarg at every tokenizer
+    # call site. False = content-only tokenization across model
+    # families: position 0 is the first content token whether the
+    # underlying tokenizer would otherwise prepend a BOS (Llama 3's
+    # `<|begin_of_text|>`) or not (Qwen 2.5). Keeps cross-family runs
+    # 1:1 aligned at the position level. True = each family tokenizes
+    # in its training-distribution-native form, but token sequences
+    # differ across families by one position. Default False because
+    # TAGM's primary use case is comparative analysis where empirical
+    # comparability dominates.
+    "add_special_tokens": False,
     "export_domain_embeddings": False,
     "probe_projection_space": False,
     "attention_weighted_pool": False,

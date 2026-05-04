@@ -35,6 +35,8 @@ import re
 import time
 from collections import Counter
 
+from tagm.engine import config as engine_config
+
 from .base import TASMModule, ModuleParameter
 
 logger = logging.getLogger("tasm")
@@ -546,7 +548,10 @@ class ProbeGeneratorModule(TASMModule):
                     if _inf_lock:
                         _inf_lock.acquire()
                     try:
-                        inputs = self._active_tokenizer(prompt_text, return_tensors="pt")
+                        inputs = self._active_tokenizer(
+                            prompt_text, return_tensors="pt",
+                            add_special_tokens=engine_config.get("add_special_tokens"),
+                        )
                         inputs = {k: v.to(device) for k, v in inputs.items()}
                         with torch.no_grad():
                             out = self._active_model.generate(
@@ -677,7 +682,9 @@ class ProbeGeneratorModule(TASMModule):
                             _inf_lock.acquire()
                         try:
                             inputs = self._active_tokenizer(
-                                prompt_text, return_tensors="pt")
+                                prompt_text, return_tensors="pt",
+                                add_special_tokens=engine_config.get("add_special_tokens"),
+                            )
                             inputs = {k: v.to(device) for k, v in inputs.items()}
                             with torch.no_grad():
                                 out = self._active_model.generate(

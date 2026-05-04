@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 import numpy as np
 import torch
 
+from tagm.engine import config as engine_config
 from tagm.engine.interventions import (
     ActivationIntervention,
     InterventionSpec,
@@ -600,7 +601,10 @@ class AblationRunner:
             )
         except Exception:
             # Tokenizer lacks chat template — fall back to plain.
-            inputs = tokenizer(prompt, return_tensors="pt")
+            inputs = tokenizer(
+                prompt, return_tensors="pt",
+                add_special_tokens=engine_config.get("add_special_tokens"),
+            )
         inputs = {k: v.to(device) for k, v in inputs.items()}
         prompt_len = inputs["input_ids"].shape[1]
 

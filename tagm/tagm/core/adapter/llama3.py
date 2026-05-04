@@ -12,7 +12,7 @@ For models that use tied embeddings (smaller Llama3 variants), the default
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from tagm.core.adapter.base import (
     ModelAdapter,
@@ -23,7 +23,7 @@ from tagm.core.adapter.base import (
 )
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer
+    from transformers import PreTrainedModel
 
 
 class Llama3Adapter(ModelAdapter):
@@ -94,74 +94,6 @@ class Llama3Adapter(ModelAdapter):
     @classmethod
     def matches(cls, model):
         return getattr(model.config, "model_type", "") == "llama"
-
-    # ── Tokenizer policy ────────────────────────────────────────────
-    # Suppress the leading <|begin_of_text|> (Llama 3) / <s> (Llama 2-arch
-    # variants like TinyLlama) that the HF tokenizer prepends by default.
-    # This brings position 0 in line with Qwen 2.5, whose tokenizer does
-    # not add a BOS, so cross-family analyses share the same token-axis
-    # contract: position 0 is the first content token, not a special
-    # marker.
-    #
-    # Why we strip it here rather than skip it post-hoc:
-    #   - Avoids a position-0 attention-sink + unconditional-prior spike
-    #     that dominates the correction-field topology view and obscures
-    #     real signal at content tokens.
-    #   - Keeps result.tokens, per_token_kl, ltp profiles, and rank
-    #     displacement bank profiles all aligned to a single content-only
-    #     token axis with no per-call-site special-casing.
-    #   - The model still sees every input symmetrically (base and
-    #     instruct both run without BOS), so KL and tension comparisons
-    #     remain valid; only the absolute calibration to training
-    #     distribution shifts slightly, which we don't depend on.
-    #
-    # Two-step suppression because Llama-family tokenizers come in three
-    # shapes and the canonical lever differs:
-    #
-    #   1. LlamaTokenizer (slow, sentencepiece): add_bos_token is a
-    #      class attribute checked in build_inputs_with_special_tokens.
-    #      A plain attribute set is sufficient.
-    #
-    #   2. LlamaTokenizerFast (sentencepiece-based fast; TinyLlama):
-    #      add_bos_token is a property whose setter calls
-    #      update_post_processor() and rebuilds the Rust template.
-    #      Setting it works.
-    #
-    #   3. PreTrainedTokenizerFast (Llama 3, tiktoken BPE): no property
-    #      setter — assigning add_bos_token is inert. BOS is enforced
-    #      by a TemplateProcessing post-processor on the underlying
-    #      Rust tokenizer, and that post-processor must be rewritten
-    #      directly to take effect.
-    #
-    # We do both: set the attribute (handles cases 1 and 2), then rewrite
-    # the post-processor (handles case 3, and is a safe no-op for the
-    # others because Llama-family tokenizers don't use the post-processor
-    # to add EOS or pair-separator tokens — EOS is generated, not
-    # appended, and TAGM never tokenizes pair sequences).
-    #
-    # To restore default Llama BOS behavior, delete this override.
-    def load_tokenizer(self, model_id: str, hf_token: Optional[str] = None
-                        ) -> "PreTrainedTokenizer":
-        tok = super().load_tokenizer(model_id, hf_token=hf_token)
-
-        # Step 1: the canonical Python-level lever.
-        if hasattr(tok, "add_bos_token"):
-            tok.add_bos_token = False
-
-        # Step 2: rewrite the Rust-side post-processor for fast tokenizers
-        # whose BOS injection is enforced there independently of any
-        # Python attribute. The replacement template emits the input
-        # sequence verbatim with no special tokens.
-        inner = getattr(tok, "_tokenizer", None)
-        if inner is not None and hasattr(inner, "post_processor"):
-            from tokenizers import processors
-            inner.post_processor = processors.TemplateProcessing(
-                single="$A:0",
-                pair="$A:0 $B:1",
-                special_tokens=[],
-            )
-
-        return tok
 
     def n_layers(self, model): return model.config.num_hidden_layers
     def hidden_size(self, model): return model.config.hidden_size

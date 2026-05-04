@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tagm.engine import config as engine_config
+
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
     from tagm.core.adapter.base import ModelAdapter
@@ -160,8 +162,10 @@ class ActivationCapture:
         self.activations.clear()
         self.attn_weights.clear()
 
-        inputs = tokenizer(prompt, return_tensors="pt").to(
-            next(model.parameters()).device)
+        inputs = tokenizer(
+            prompt, return_tensors="pt",
+            add_special_tokens=engine_config.get("add_special_tokens"),
+        ).to(next(model.parameters()).device)
         tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         tokens = [_clean_token(t) for t in tokens]
 

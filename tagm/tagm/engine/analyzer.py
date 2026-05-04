@@ -619,7 +619,10 @@ class Analyzer:
                                         topk=10):
         """KL divergence, base predictions, and counterfactuals (live base model)."""
         precision = engine_config.get("serialization_precision")
-        inputs = self.tokenizer(result.prompt, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(
+            result.prompt, return_tensors="pt",
+            add_special_tokens=engine_config.get("add_special_tokens"),
+        ).to(self.device)
 
         with torch.no_grad():
             logits_i = instruct_logits[0] if instruct_logits is not None else None
@@ -693,7 +696,10 @@ class Analyzer:
                     progress("base_phase",
                              f"[Base phase {pi+1}/{len(prompts)}] {prompt_text[:40]}...")
 
-                inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.device)
+                inputs = self.tokenizer(
+                    prompt_text, return_tensors="pt",
+                    add_special_tokens=engine_config.get("add_special_tokens"),
+                ).to(self.device)
                 token_ids = inputs["input_ids"][0]
                 seq_len = token_ids.shape[0]
 
