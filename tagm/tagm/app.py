@@ -841,40 +841,14 @@ async def export_session(request: Request):
     if not state.session.results:
         return {"ok": False, "error": "No data to export."}
 
-    # Parse export options from the request body. The body is sent by the
-    # frontend's exportSession() and contains the export-format toggles
-    # (csv/pdf/json/charts/moduleResults/...). Tolerate a missing or
-    # unparseable body for backward compatibility — older callers may
-    # POST with no body and expect the original behavior.
-    try:
-        opts = await request.json()
-        if not isinstance(opts, dict):
-            opts = {}
-    except Exception:
-        opts = {}
-
     def _do_export():
         global _export_ready, _export_path
         state.progress("exporting", "Preparing export...")
-        from tagm.service.export import build_export_filename
-        fname = build_export_filename(state.session, opts)
-        p = _cache.layout.sessions / fname
-        _export(state.session, p, module_runner=_module_runner, opts=opts)
+        p = _cache.layout.sessions / f"session_{state.session.session_id}.json.gz"
+        _export(state.session, p)
         _export_path = p
         _export_ready = True
-        # Surface the module count in the progress log so the user gets a
-        # confirmation that "Module results" actually pulled something in.
-        if opts.get("moduleResults"):
-            n_mods = sum(
-                1 for st in getattr(_module_runner, "_state", {}).values()
-                if getattr(st, "status", None) == "completed"
-                and getattr(st, "results", None) is not None
-            )
-            state.progress("done",
-                           f"Export ready: {p.name} ({n_mods} module result"
-                           f"{'s' if n_mods != 1 else ''} included)")
-        else:
-            state.progress("done", f"Export ready: {p.name}")
+        state.progress("done", f"Export ready: {p.name}")
 
     _export_ready = False
     await run_in_threadpool(_do_export)

@@ -49,7 +49,7 @@ function applyCardDefaults(panelId,tab){
 }
 
 // ─── Export Defaults ────────────────────────────────────────────
-const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,moduleResults:false,includeArrays:true,exportPath:''};
+const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
 const DISPLAY_DEFAULTS={terrainCharLimit:50,terrainRecordLimit:100,terrainTokenLimit:20,terrainCategory:'all',terrainAutoRotate:false,terrainRotateSpeed:0.3};
 
 // Global delegated click handler for all card headers
@@ -142,12 +142,11 @@ function vizRenderConfig(){
   h+=`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
     <div style="font-size:var(--font-desc);font-family:var(--mono);color:var(--text-1);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Export Options</div>
     <div style="font-size:var(--font-legend);color:var(--text-0);margin-bottom:8px;line-height:1.5">Select which formats to include when exporting. CSV is always generated.</div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:680px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;max-width:540px;margin-bottom:10px">
       <div class="checkbox-row"><input type="checkbox" id="cfgExportCsv" checked disabled><label for="cfgExportCsv" style="color:var(--text-2)">CSV (always)</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportPdf" ${EXPORT_DEFAULTS.pdf?'checked':''} onchange="EXPORT_DEFAULTS.pdf=this.checked;saveConfig()"><label for="cfgExportPdf">PDF report</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportJson" ${EXPORT_DEFAULTS.json?'checked':''} onchange="EXPORT_DEFAULTS.json=this.checked;saveConfig()"><label for="cfgExportJson">JSON results</label></div>
       <div class="checkbox-row"><input type="checkbox" id="cfgExportCharts" ${EXPORT_DEFAULTS.charts?'checked':''} onchange="EXPORT_DEFAULTS.charts=this.checked;saveConfig()"><label for="cfgExportCharts">Charts &amp; plots</label></div>
-      <div class="checkbox-row"><input type="checkbox" id="cfgExportModuleResults" ${EXPORT_DEFAULTS.moduleResults?'checked':''} onchange="EXPORT_DEFAULTS.moduleResults=this.checked;saveConfig()"><label for="cfgExportModuleResults">Module results</label></div>
     </div>
     <div style="max-width:540px;margin-bottom:10px">
       <div class="checkbox-row"><input type="checkbox" id="cfgExportArrays" ${EXPORT_DEFAULTS.includeArrays?'checked':''} onchange="EXPORT_DEFAULTS.includeArrays=this.checked;saveConfig()"><label for="cfgExportArrays">Include per-token arrays in JSON <span style="color:var(--text-3)">(signed attribution, per-position tau, LTP profiles, SFD per-token — larger file)</span></label></div>
@@ -283,7 +282,6 @@ async function loadConfig(){
       if(typeof c.exportOpts.pdf==='boolean')EXPORT_DEFAULTS.pdf=c.exportOpts.pdf;
       if(typeof c.exportOpts.json==='boolean')EXPORT_DEFAULTS.json=c.exportOpts.json;
       if(typeof c.exportOpts.charts==='boolean')EXPORT_DEFAULTS.charts=c.exportOpts.charts;
-      if(typeof c.exportOpts.moduleResults==='boolean')EXPORT_DEFAULTS.moduleResults=c.exportOpts.moduleResults;
       if(typeof c.exportOpts.includeArrays==='boolean')EXPORT_DEFAULTS.includeArrays=c.exportOpts.includeArrays;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
     }
@@ -576,8 +574,8 @@ function plotCardUrl(key,title,desc,collapsed){
 async function exportSession(){
   if(_busy){log('Another operation in progress, please wait.','error');return}
   _busy=true;
-  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,moduleResults:EXPORT_DEFAULTS.moduleResults,includeArrays:EXPORT_DEFAULTS.includeArrays,exportPath:EXPORT_DEFAULTS.exportPath};
-  const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null,opts.moduleResults?'Modules':null].filter(Boolean).join(', ');
+  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,includeArrays:EXPORT_DEFAULTS.includeArrays,exportPath:EXPORT_DEFAULTS.exportPath};
+  const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null].filter(Boolean).join(', ');
   log(`Exporting (${enabledFmts})...`);
   try{
     // Get current progress length so we only see NEW entries
@@ -609,18 +607,7 @@ async function exportSession(){
             log('Downloading ZIP...');
             try{
               const dr=await fetch('/api/export/download');
-              if(dr.ok){
-                // Server picked a descriptive filename via FileResponse(filename=…),
-                // which sets Content-Disposition. Honor it; fall back to a
-                // sensible default only if the header is unparseable.
-                let fname='tagm_export.json.gz';
-                const cd=dr.headers.get('Content-Disposition')||'';
-                const m=cd.match(/filename\*?=(?:UTF-\d['']*)?["]?([^";\n]+)["]?/i);
-                if(m&&m[1])fname=decodeURIComponent(m[1].trim());
-                const b=await dr.blob();const u=URL.createObjectURL(b);
-                const a=document.createElement('a');a.href=u;a.download=fname;a.click();
-                URL.revokeObjectURL(u);log('Download complete: '+fname,'done')
-              }
+              if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tagm_session.json.gz';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
               else{log('Download failed: HTTP '+dr.status,'error')}
             }catch(de){log('Download error: '+de.message,'error')}
           }
@@ -1872,7 +1859,6 @@ var ENGINE_PARAM_META = {
   domain_embedding_layer_frac:{group:'Modules',     label:'Angular probe depth',         desc:'Embedding depth for subject/topic identity (angular axis). Lower = better noun separation. 0.50=default.', type:'float', step:0.05, min:0.05, max:0.95},
   domain_escalation_layer_frac:{group:'Modules',    label:'Radial probe depth',          desc:'Embedding depth for escalation level (radial axis). Higher = better discourse framing. 0.75=default.', type:'float', step:0.05, min:0.05, max:0.95},
   include_first_token:     {group:'Token Processing', label:'Include first token',        desc:'Include position-0 token in per-token analysis. On by default. Disable only if your tokenizer prepends a BOS token that would dominate per-position metrics.', type:'bool'},
-  add_special_tokens:      {group:'Token Processing', label:'Add special tokens',          desc:'Forwarded as the HF tokenizer add_special_tokens kwarg at every call site. Off (default) = content-only tokenization across families: position 0 is the first content token whether the tokenizer would otherwise prepend a BOS (Llama 3) or not (Qwen 2.5). Required for cross-family empirical comparability. On = each family tokenizes per its training distribution but token sequences differ across families by one position.', type:'bool'},
   probe_projection_space:  {group:'Modules',         label:'Delta-projected probes',      desc:'Project embeddings through the o_proj weight delta before probe matching. Matches in the correction field coordinate system instead of raw hidden-state space.', type:'bool'},
   attention_weighted_pool:  {group:'Modules',        label:'Attention-weighted pooling',   desc:'Weight each token by model attention at the domain layer instead of uniform mean-pool. De-emphasizes function words without external filtering.', type:'bool'},
   export_domain_embeddings: {group:'Serialization',  label:'Export domain embeddings',     desc:'Include per-token domain embeddings in session JSON export. Large but enables offline re-analysis with different probe sets.', type:'bool'},
