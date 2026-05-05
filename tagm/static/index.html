@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAGM v0.1 — Transformer Alignment Geometric Metrology</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div class="header">
+  <h1><span>TAGM</span> Analyzer</h1>
+  <span class="subtitle">Alignment Stress Map + Lateral Tension Profile</span>
+  <span class="session-badge" id="sessionBadge">No session</span>
+  <div class="status-pill idle" id="statusPill">NO MODEL</div>
+</div>
+<div class="main">
+<div class="sidebar">
+
+  <!-- Analyst -->
+  <div class="section">
+    <div class="section-title">Analyst</div>
+    <input type="text" id="userName" placeholder="Name" onchange="saveUserInfo()">
+    <input type="text" id="userOrg" placeholder="Organization" onchange="saveUserInfo()">
+    <input type="text" id="userProject" placeholder="Project" onchange="saveUserInfo()">
+  </div>
+
+  <!-- Model -->
+  <div class="section">
+    <div class="section-title">Model</div>
+    <label>Model Pair</label>
+    <select id="modelSelect"><option value="">-- Select --</option></select>
+    <label>Inference Model</label>
+    <select id="inferenceModelSelect" onchange="setInferenceModel(this.value)">
+      <option value="instruct" selected>Instruct</option>
+      <option value="base">Base</option>
+    </select>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="loadModelBtn" onclick="loadModel()">Load Model</button>
+      <button class="btn btn-danger" onclick="resetAll()" title="Clear session">Reset</button>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="toggleAddModel()">+ Add model pair</button>
+    <div class="add-model-form" id="addModelForm">
+      <input type="text" id="newModelId" placeholder="ID (e.g. llama3-8b)">
+      <input type="text" id="newModelName" placeholder="Display name">
+      <input type="text" id="newModelBase" placeholder="Base HF ID">
+      <input type="text" id="newModelInstruct" placeholder="Instruct HF ID">
+      <button class="btn btn-sm btn-primary" onclick="addModel()">Save</button>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="section">
+    <div class="section-title">Prompt</div>
+    <label>Library</label>
+    <select id="promptLibrary" onchange="loadFromLibrary()"><option value="">-- Presets --</option></select>
+    <label>Prompt text</label>
+    <textarea id="promptInput" placeholder="Enter or select a prompt..."></textarea>
+    <div id="promptError"></div>
+    <label>Category</label>
+    <select id="categorySelect">
+      <option value="">Auto</option><option value="benign">Benign</option>
+      <option value="mild">Mild</option><option value="harmful">Harmful</option>
+      <option value="jailbreak">Jailbreak</option>
+    </select>
+    <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="sfd-badge">SFD</span></label></div>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
+  </div>
+
+  <!-- Batch -->
+  <div class="section">
+    <div class="section-title">Batch</div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
+      <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
+    </div>
+  </div>
+
+  <!-- Session -->
+  <div class="section">
+    <div class="section-title">Session</div>
+    <button class="btn btn-dashboard" id="dashBtn" onclick="refreshSession()" disabled>Refresh Session</button>
+    <button class="btn btn-export" id="exportBtn" onclick="exportSession()" disabled>Export Dataset (ZIP)</button>
+    <button class="btn btn-sm btn-secondary" style="margin-top:4px" onclick="addCurrentToLibrary()">Save to Library</button>
+    <div class="checkbox-row" style="margin-top:8px"><input type="checkbox" id="chimeToggle" onchange="localStorage.setItem('tagm_chime',this.checked?'1':'0')"><label for="chimeToggle" style="font-size:11px;color:var(--text-2)">Notification chime</label></div>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Log <button class="btn btn-sm" id="downloadLogBtn" onclick="downloadLog()" style="float:right;border:1px solid var(--border);color:var(--text-2);background:transparent;font-size:11px;padding:2px 8px;cursor:pointer">Download</button></div>
+    <div class="progress-log" id="progressLog"><div class="entry">Ready.</div></div>
+  </div>
+
+</div>
+<div class="content">
+  <div class="main-tabs">
+    <div class="main-tab active" onclick="switchMainTab(this,'panel-data')">Data</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-modules')">Modules</div>
+    <div class="main-tab" onclick="switchMainTab(this,'panel-config')">Configuration</div>
+  </div>
+  <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-header"><h3 style="font-size:13px">Field Glossary</h3></div>
+      <div class="card-body collapsed" style="padding:12px 16px;font-size:12px;line-height:1.7;color:var(--text-1)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+          <div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:8px">Core ASM</div>
+            <div><strong style="color:var(--text-0)">#</strong> — Record index (chronological order)</div>
+            <div><strong style="color:var(--text-0)">Prompt</strong> — Input text analyzed</div>
+            <div><strong style="color:var(--text-0)">Cat</strong> — Category label (benign, mild, harmful, jailbreak, etc.)</div>
+            <div><strong style="color:var(--text-0)">Role</strong> — Source role (user prompt or model response)</div>
+            <div><strong style="color:var(--text-0)">Tok</strong> — Token count (sequence length)</div>
+            <div><strong style="color:var(--text-0)">Stress</strong> — Alignment stress score. Total correction pressure across discriminative middle layers. Higher = model working harder to maintain alignment</div>
+            <div><strong style="color:var(--text-0)">Net</strong> — Net correction. Signed sum of per-token attribution. Positive = net reinforcement of alignment direction</div>
+            <div><strong style="color:var(--text-0)">Ent</strong> — Entropy of the correction distribution. High = correction spread evenly across tokens. Low = concentrated on a few tokens</div>
+            <div><strong style="color:var(--text-0)">Int%</strong> — Interior share. Fraction of correction attributed to interior (non-boundary) tokens. Higher values indicate the model is responding to semantic framing</div>
+            <div><strong style="color:var(--text-0)">IntCV</strong> — Interior coefficient of variation. How unevenly correction is distributed among interior tokens. High = a few interior tokens dominate</div>
+            <div><strong style="color:var(--text-0)">Bnd%</strong> — Boundary share. Fraction of correction at first and last tokens. Complement of Int%</div>
+            <div><strong style="color:var(--text-0)">KL</strong> — KL divergence between instruct and base model next-token distributions. Higher = alignment training changed the output more at this prompt</div>
+            <div><strong style="color:var(--text-0)">Neg</strong> — Count of tokens with negative attribution (pushing against the alignment correction)</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:8px">Model Predictions</div>
+            <div><strong style="color:var(--text-0)">InstTop1</strong> — Most likely next token predicted by the instruct (aligned) model</div>
+            <div><strong style="color:var(--text-0)">InstP</strong> — Probability the instruct model assigns to its top prediction</div>
+            <div><strong style="color:var(--text-0)">BaseTop1</strong> — Most likely next token predicted by the base (unaligned) model</div>
+            <div><strong style="color:var(--text-0)">BaseP</strong> — Probability the base model assigns to its top prediction</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Lateral Tension Profile (LTP)</div>
+            <div><strong style="color:var(--text-0)">M</strong> — Mean lateral tension magnitude across all tokens. How much the alignment correction displaces probability mass toward alternative tokens</div>
+            <div><strong style="color:var(--text-0)">MaxPRC</strong> — Maximum probability reallocation at any single token (in percentage points)</div>
+            <div><strong style="color:var(--text-0)">N_dir</strong> — Number of tokens with directional (non-flat) tension profiles</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Spectral Field Density (SFD)</div>
+            <div><strong style="color:var(--text-0)">Dens</strong> — QK routing density. How many dimensions of the attention routing subspace each token engages on average</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Rank Displacement</div>
+            <div><strong style="color:var(--text-0)">Tau</strong> — Kendall tau correlation between base and instruct alternative token orderings. 1.0 = identical ranking, lower = RLHF reordered the priority structure</div>
+            <div><strong style="color:var(--text-0)">Ovlp</strong> — Overlap. Fraction of top-k alternative tokens shared between base and instruct models</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
+  </div>
+  <div class="tab-panel" id="panel-modules">
+    <div id="modulesLoading" style="color:var(--text-3);font-family:var(--mono);font-size:12px;padding:8px">Loading modules...</div>
+    <div id="modulesContainer"></div>
+  </div>
+  <div class="tab-panel" id="panel-config">
+    <div class="card">
+      <div class="card-header"><h3>LTP Configuration</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Configuration for the Lateral Tension Profile measurement. Layer strategy determines which layers are probed. Counterfactual k controls how many alternative tokens are examined per position.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
+          <div>
+            <label style="font-size:var(--font-desc);color:var(--cyan)">Layer strategy</label>
+            <select id="cfgLtpLayerStrategy" onchange="saveConfig()">
+              <option value="late" selected>Late layers (final third)</option>
+              <option value="signal">Signal layers (middle third)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:var(--font-desc);color:var(--cyan)">Counterfactual k</label>
+            <select id="cfgLtpK" onchange="saveConfig()">
+              <option value="4">k=4</option>
+              <option value="6">k=6</option>
+              <option value="8" selected>k=8</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="resetLtpConfig()">Reset to defaults</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Analysis Options</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:8px;line-height:1.5">These apply to single-prompt analysis. Batch mode skips trajectory and per-prompt plots.</div>
+        <div style="max-width:500px">
+          <div class="checkbox-row"><input type="checkbox" id="cfgComputeTraj" checked onchange="saveConfig()"><label for="cfgComputeTraj">Full trajectory (sublayer heatmaps)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full capture (derived metrics: coherence, spectral, similarity, attn/MLP)</label></div>
+          <div style="font-size:var(--font-legend);color:var(--text-2);margin:4px 0 0 22px;line-height:1.4">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Prompt Visualizations</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:10px;line-height:1.5">Toggle which features render in the Prompt tab. Changes apply to the next analysis. Batch-level visualization toggles live in the <strong>Comparative Analysis</strong> module.</div>
+        <div id="vizConfigPanel"></div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-sm btn-secondary" onclick="vizResetDefaults()">Reset to defaults</button>
+          <button class="btn btn-sm btn-secondary" onclick="vizEnableAll()">Enable all</button>
+          <button class="btn btn-sm btn-secondary" onclick="vizDisableAll()">Disable all</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Probe Set</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Active probe CSV used by the Domain Surface Geometry module. Probe files need <code>subject</code> and <code>anchor_id</code> columns followed by subclass columns.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <div class="file-input-wrapper" style="flex:1"><input type="file" id="probeFilePicker" accept=".csv"></div>
+          <button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" id="probeApplyBtn" onclick="applyProbeSet()">Apply</button>
+          <button class="btn btn-sm" style="background:transparent;color:var(--text-2);border:1px solid var(--border)" onclick="clearProbeCaches()">Clear Caches</button>
+        </div>
+        <div id="probeStatus" style="font-family:var(--mono);font-size:var(--font-desc);color:var(--text-2)"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Advanced Parameters</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--red);margin-bottom:10px;line-height:1.5;padding:8px 10px;border:1px solid var(--red);border-radius:4px;background:rgba(213,94,0,0.05)">These parameters directly affect measurement computations. Changing any value requires a full application reset — model unload, session clear, all caches invalidated. Data collected under different settings is not comparable.</div>
+        <div class="checkbox-row" style="margin-bottom:10px"><input type="checkbox" id="advParamsUnlock" onchange="_advToggleLock(this.checked)"><label for="advParamsUnlock" style="color:var(--red);font-weight:600">I understand. Unlock parameters.</label></div>
+        <div id="advancedParamsPanel" style="color:var(--text-3)">Locked.</div>
+        <div id="advParamsButtons" style="margin-top:10px;display:none;gap:8px">
+          <button class="btn btn-sm btn-danger" id="advApplyBtn" onclick="_advApplyChanges()" disabled>Apply Changes &amp; Reset Application</button>
+          <button class="btn btn-sm btn-secondary" onclick="resetAdvancedParams()">Reset to Defaults</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
