@@ -24,6 +24,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 from tagm.core.pipeline import Pipeline
+from tagm.core.db import get_db, migrate_json_to_db
 from tagm.engine.analyzer import Analyzer
 from tagm.engine.result import result_to_dict
 from tagm.engine import config as engine_config
@@ -34,12 +35,17 @@ logger = logging.getLogger("tagm")
 # app_core.py lives at tagm/tagm/engine/app_core.py
 # Project root (where models.json, start.sh, static/ live) is 3 levels up
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
-MODELS_FILE = _PROJECT_ROOT / "models.json"
-CONFIG_FILE = _PROJECT_ROOT / "ui_config.json"
+MODELS_FILE = _PROJECT_ROOT / "models.json"    # legacy, kept for reference
+CONFIG_FILE = _PROJECT_ROOT / "ui_config.json"  # legacy, kept for reference
 
 # Log at import time so path issues are visible immediately
 logger.info(f"[app_core] Project root: {_PROJECT_ROOT}")
-logger.info(f"[app_core] MODELS_FILE: {MODELS_FILE} (exists={MODELS_FILE.exists()})")
+
+# ─── Database bootstrap + migration ─────────────────────────────
+_db = get_db()
+_migration_summary = migrate_json_to_db(_db, _PROJECT_ROOT)
+if any(v for v in _migration_summary.values()):
+    logger.info(f"[app_core] Migration summary: {_migration_summary}")
 
 
 # ─── Global state ───────────────────────────────────────────────
@@ -48,7 +54,7 @@ class AppState:
     def __init__(self):
         self.pipeline: Optional[Pipeline] = None
         self.analyzer: Optional[Analyzer] = None
-        self.session = Session()
+        self.session = Session(db=_db)
         self.loading_state = {"active": False, "error": None}
         self.progress_log: list[dict] = []
         self.user_info: dict = {"name": "", "organization": "", "project": ""}
@@ -87,10 +93,7 @@ _batch_lock = threading.Lock()
 # ─── Model registry ─────────────────────────────────────────────
 
 def _load_model_registry() -> list[dict]:
-    if not MODELS_FILE.exists():
-        return []
-    with open(MODELS_FILE) as f:
-        return json.load(f)
+    return _db.list_models()
 
 
 # ─── Status ─────────────────────────────────────────────────────
@@ -132,19 +135,14 @@ def api_status_handler():
 
 def api_config_get_handler():
     """GET /api/config — load saved UI preferences."""
-    if CONFIG_FILE.exists():
-        try:
-            data = json.loads(CONFIG_FILE.read_text())
-            return {"ok": True, "config": data}
-        except Exception:
-            pass
-    return {"ok": True, "config": {}}
+    data = _db.get_config("ui")
+    return {"ok": True, "config": data}
 
 
 def api_config_post_handler(data: dict):
-    """POST /api/config — save UI preferences to disk."""
+    """POST /api/config — save UI preferences."""
     try:
-        CONFIG_FILE.write_text(json.dumps(data, indent=2))
+        _db.set_config("ui", data)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -177,9 +175,8 @@ def _load_worker(instruct_id: str, base_id: str,
             progress=state.progress,
         )
 
-        # Create the Analyzer — the engine that produces TASM-shaped results
         state.analyzer = Analyzer(state.pipeline)
-        state.session = Session()
+        state.session = Session(db=_db)
         state.session.set_model(instruct_id)
 
         state.loading_state = {"active": False, "error": None}
@@ -450,8 +447,7 @@ async def api_analyze_batch_handler(request: Request):
 
 def api_session_results_handler(page: int = 1, per_page: int = 10):
     """GET /api/session/results — paginated flat results."""
-    results = state.session.results
-    total = len(results)
+    total = state.session.n_results
     if total == 0:
         return {"ok": False, "results": [], "total": 0, "page": 1,
                 "per_page": per_page, "total_pages": 0,
@@ -461,15 +457,11 @@ def api_session_results_handler(page: int = 1, per_page: int = 10):
     total_pages = max(1, -(-total // per_page))
     page = max(1, min(page, total_pages))
     start = (page - 1) * per_page
-    end = min(start + per_page, total)
 
-    # Results already have _index; add _plot_keys if missing
-    out = []
-    for i in range(start, end):
-        r = dict(results[i])
+    out = state.session.get_results_page(offset=start, limit=per_page)
+    for r in out:
         if "_plot_keys" not in r:
             r["_plot_keys"] = _plot_keys_for_result(r)
-        out.append(r)
 
     return {
         "ok": True, "results": out, "page": page,
@@ -480,37 +472,17 @@ def api_session_results_handler(page: int = 1, per_page: int = 10):
 
 
 def api_dashboard_handler(force: bool = False):
-    """GET /api/dashboard — slim results for the data table."""
-    results = state.session.results
-    if not results:
+    """GET /api/dashboard — slim results via indexed SQL columns."""
+    n = state.session.n_results
+    if n == 0:
         return {"ok": False, "error": "No data in session.",
                 "results": [], "session_info": {"n_results": 0},
                 "cache_size_bytes": state.session.get_cache_size()}
 
-    slim = []
-    for i, r in enumerate(results):
-        s = {"_index": i}
-        for k in ("prompt", "category", "seq_len", "stress_score",
-                   "net_correction", "entropy", "top2_share",
-                   "middle_share", "interior_cv", "kl_divergence",
-                   "n_negative_tokens", "has_negative_tokens"):
-            if k in r:
-                s[k] = r[k]
-        ltp = r.get("ltp")
-        if isinstance(ltp, dict):
-            s["ltp"] = {k: ltp.get(k) for k in ("mean_M", "mean_V", "max_prc", "n_directional")}
-        sfd = r.get("sfd")
-        if isinstance(sfd, dict):
-            s["sfd"] = {"density_mean": sfd.get("density_mean")}
-        rd = r.get("rank_displacement")
-        if isinstance(rd, dict):
-            s["rank_displacement"] = {k: rd.get(k) for k in
-                                       ("mean_tau", "mean_overlap", "mean_replacement",
-                                        "mean_disp_per_token", "total_displacement")}
-        slim.append(s)
+    slim = state.session.get_dashboard_rows()
 
     session_info = {
-        "n_results": len(results),
+        "n_results": n,
         "categories": state.session.categories,
         "session_id": state.session.session_id,
         "model": state.session.model_name,
@@ -524,22 +496,18 @@ def api_dashboard_handler(force: bool = False):
 
 
 def api_results_detail_handler(start: int = 0, count: int = 50):
-    """GET /api/results/detail — chunked detail window."""
-    results = state.session.results
-    total = len(results)
+    """GET /api/results/detail — paginated full results from DB."""
+    total = state.session.n_results
     start = max(0, start)
     count = max(1, min(count, 1000))
-    end = min(start + count, total)
 
-    out = []
-    for i in range(start, end):
-        r = dict(results[i])
+    out = state.session.get_results_page(offset=start, limit=count)
+    for r in out:
         if "_plot_keys" not in r:
             r["_plot_keys"] = _plot_keys_for_result(r)
-        out.append(r)
 
     return {"ok": True, "results": out, "start": start,
-            "count": end - start, "total": total}
+            "count": len(out), "total": total}
 
 
 # ─── Progress / reset / user_info ───────────────────────────────
@@ -558,7 +526,7 @@ def api_reset_handler():
             pass
     state.pipeline = None
     state.analyzer = None
-    state.session = Session()
+    state.session = Session(db=_db)
     state.loading_state = {"active": False, "error": None}
     state.progress("reset", "Pipeline and session reset")
     return {"ok": True, "message": "Reset complete"}
@@ -566,7 +534,7 @@ def api_reset_handler():
 
 def api_session_restore_handler():
     """POST /api/session/restore"""
-    restored = Session.restore()
+    restored = Session.restore(db=_db)
     if restored is None:
         return {"ok": False, "error": "No session to restore."}
     state.session = restored

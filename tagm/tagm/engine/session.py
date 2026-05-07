@@ -1,38 +1,52 @@
-"""Session: stores flat per-prompt result dicts.
+"""Session: DB-backed per-prompt result store.
 
-TASM's session is a list of flat dicts — each dict is the output of
-result_to_dict(). This module provides the same contract with disk
-persistence and basic query methods.
+Drop-in replacement for the original JSON-file Session. All public
+attributes and methods keep the same signatures. The key difference:
+``add_result()`` is now a single INSERT instead of rewriting a
+monolithic JSON file, and ``results`` is a lazy list-like accessor
+that loads rows on demand.
+
+Migration: on first import the module checks for legacy JSON files
+(``datasets/current/results.json``) and migrates them into SQLite
+automatically. See ``tagm.core.db.migrate_json_to_db``.
 """
 from __future__ import annotations
 
-import json
 import logging
-import shutil
 import time
 from pathlib import Path
 from typing import Optional
+
+from tagm.core.db import Database, ResultsList, get_db, migrate_json_to_db
 
 logger = logging.getLogger("tagm")
 
 
 class Session:
-    """Accumulates flat prompt-result dicts for one experimental session.
+    """Accumulates per-prompt result dicts for one experimental session.
 
-    Results are stored as-is from result_to_dict() — same flat shape
-    the frontend reads. No nesting, no translation.
+    Results are stored directly in SQLite via the ``ResultsList`` proxy.
+    The ``results`` attribute behaves like a regular list — indexing,
+    iteration, ``len()`` all work — but each access loads from the
+    database on demand.
     """
 
-    def __init__(self, base_dir: str = "datasets"):
+    def __init__(self, base_dir: str = "datasets", db: Optional[Database] = None):
+        self._db = db or get_db()
         self.base_dir = Path(base_dir)
         self.session_dir = self.base_dir / "current"
         self.timestamp = time.strftime("%Y%m%d_%H%M%S")
         self.session_id = f"session_{self.timestamp}"
         self.model_name: str = ""
-        self.results: list[dict] = []
 
-        # Create session directory
+        # Create session directory (still used by modules for output)
         self.session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Register this session in the DB
+        self._db.create_session(self.session_id, "", self.timestamp)
+
+        # results is a list-like proxy backed by the DB
+        self.results: ResultsList = ResultsList(self._db, self.session_id)
 
     @property
     def n_results(self) -> int:
@@ -40,132 +54,133 @@ class Session:
 
     @property
     def categories(self) -> dict:
-        cats: dict[str, int] = {}
-        for r in self.results:
-            c = r.get("category", "unknown")
-            cats[c] = cats.get(c, 0) + 1
-        return cats
+        return self._db.session_categories(self.session_id)
 
     def set_model(self, name: str):
         self.model_name = name
-        meta = {
-            "model": name,
-            "started": self.timestamp,
-            "session_id": self.session_id,
-        }
-        meta_path = self.session_dir / "session.json"
-        try:
-            with open(meta_path, "w") as f:
-                json.dump(meta, f, indent=2)
-        except OSError:
-            pass
+        self._db.update_session_model(self.session_id, name)
 
     def add_result(self, result_dict: dict) -> int:
-        """Add a flat result dict to the session. Returns the index."""
-        idx = len(self.results)
-        result_dict["_index"] = idx
-        self.results.append(result_dict)
+        """Add a result dict. Returns the index."""
+        idx = self.results.append(result_dict)
         return idx
 
     def remove_indices(self, indices: list[int]):
-        """Remove results at the given indices and reindex."""
-        indices_set = set(indices)
-        self.results = [r for i, r in enumerate(self.results)
-                        if i not in indices_set]
-        for i, r in enumerate(self.results):
-            r["_index"] = i
+        """Remove results at given indices and reindex."""
+        self._db.remove_results(self.session_id, indices)
+        self.results.invalidate()
 
     def clear(self):
-        """Clear all results."""
+        """Clear all results for this session."""
         self.results.clear()
 
     def get_cache_size(self) -> int:
-        """Approximate bytes of session data on disk."""
-        total = 0
-        if self.session_dir.exists():
-            for f in self.session_dir.rglob("*"):
-                if f.is_file():
-                    total += f.stat().st_size
-        return total
+        """Approximate bytes of session data."""
+        return self._db.session_size_bytes(self.session_id)
 
-    # ── Disk persistence ────────────────────────────────────────────
+    # ── Disk persistence (now mostly no-ops) ────────────────────
 
     def save_to_disk(self):
-        """Persist current results to disk."""
-        self.session_dir.mkdir(parents=True, exist_ok=True)
-        path = self.session_dir / "results.json"
-        try:
-            with open(path, "w") as f:
-                json.dump(self.results, f)
-        except OSError as e:
-            logger.warning(f"[SESSION] Failed to save: {e}")
+        """No-op — results are already persisted on every add_result.
+
+        Kept for API compatibility; callers that do
+        ``session.save_to_disk()`` after batch operations won't break.
+        """
+        pass
 
     @classmethod
-    def restore(cls, base_dir: str = "datasets") -> Optional["Session"]:
-        """Restore session from disk. Returns None if nothing to restore."""
-        base = Path(base_dir)
-        results_path = base / "current" / "results.json"
-        if not results_path.exists():
-            return None
-        try:
-            with open(results_path) as f:
-                results = json.load(f)
-            if not isinstance(results, list) or not results:
-                return None
-        except (json.JSONDecodeError, OSError):
+    def restore(cls, base_dir: str = "datasets",
+                db: Optional[Database] = None) -> Optional["Session"]:
+        """Restore the most recent session from the database.
+
+        Falls back to migrating legacy JSON files if the DB has no
+        sessions yet.
+        """
+        _db = db or get_db()
+
+        # Try legacy JSON migration first if DB is empty
+        sessions = _db.list_sessions()
+        if not sessions:
+            project_root = Path(base_dir).resolve().parent
+            summary = migrate_json_to_db(_db, project_root)
+            if summary["results"] > 0:
+                sessions = _db.list_sessions()
+
+        if not sessions:
             return None
 
+        # Pick the most recent session with results
+        target = None
+        for s in sessions:
+            if s["n_results"] > 0:
+                target = s
+                break
+        if target is None:
+            return None
+
+        # Build a Session object wired to the existing session_id
         obj = object.__new__(cls)
-        obj.base_dir = base
-        obj.session_dir = base / "current"
-        obj.results = results
-        obj.model_name = ""
-        obj.session_id = ""
-        obj.timestamp = ""
+        obj._db = _db
+        obj.base_dir = Path(base_dir)
+        obj.session_dir = obj.base_dir / "current"
+        obj.session_id = target["session_id"]
+        obj.model_name = target.get("model", "")
+        obj.timestamp = target.get("started", "")
+        obj.results = ResultsList(_db, obj.session_id)
 
-        meta_path = obj.session_dir / "session.json"
-        if meta_path.exists():
-            try:
-                with open(meta_path) as f:
-                    meta = json.load(f)
-                obj.model_name = meta.get("model", "")
-                obj.session_id = meta.get("session_id", "")
-                obj.timestamp = meta.get("started", "")
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        logger.info(f"[SESSION] Restored {len(results)} results from disk")
+        logger.info(
+            f"[SESSION] Restored {target['n_results']} results "
+            f"from session {obj.session_id}")
         return obj
 
     @staticmethod
     def has_session_on_disk(base_dir: str = "datasets") -> Optional[dict]:
         """Check if restorable data exists. Returns info dict or None."""
-        results_path = Path(base_dir) / "current" / "results.json"
-        if not results_path.exists():
-            return None
         try:
-            size = results_path.stat().st_size
-            if size < 3:
-                return None
-        except OSError:
+            db = get_db()
+        except Exception:
             return None
 
-        info = {"path": str(results_path.parent), "has_results": True,
-                "results_size_bytes": size}
+        sessions = db.list_sessions()
+        if not sessions:
+            # Check for legacy JSON files that could be migrated
+            results_path = Path(base_dir) / "current" / "results.json"
+            if results_path.exists():
+                try:
+                    size = results_path.stat().st_size
+                    if size >= 3:
+                        return {
+                            "path": str(results_path.parent),
+                            "has_results": True,
+                            "results_size_bytes": size,
+                            "legacy_json": True,
+                        }
+                except OSError:
+                    pass
+            return None
 
-        meta_path = results_path.parent / "session.json"
-        if meta_path.exists():
-            try:
-                with open(meta_path) as f:
-                    meta = json.load(f)
-                info["model"] = meta.get("model", "")
-                info["n_results"] = 0
-                # Quick count
-                with open(results_path) as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        info["n_results"] = len(data)
-            except (json.JSONDecodeError, OSError):
-                pass
+        # Find most recent session with results
+        for s in sessions:
+            if s["n_results"] > 0:
+                return {
+                    "session_id": s["session_id"],
+                    "has_results": True,
+                    "n_results": s["n_results"],
+                    "model": s.get("model", ""),
+                }
 
-        return info
+        return None
+
+    # ── Dashboard query (direct SQL, no decompression) ──────────
+
+    def get_dashboard_rows(self) -> list[dict]:
+        """Return slim scalar-only rows for the dashboard view.
+
+        Uses indexed columns — never touches the compressed blobs.
+        """
+        return self._db.get_dashboard_rows(self.session_id)
+
+    def get_results_page(self, offset: int = 0,
+                         limit: int = 50) -> list[dict]:
+        """Load a page of full result dicts."""
+        return self._db.get_results_page(self.session_id, offset, limit)

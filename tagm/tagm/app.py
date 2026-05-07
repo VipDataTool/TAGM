@@ -46,7 +46,6 @@ from tagm.engine.app_core import (
     _sanitize_for_json,
     _form_bool,
     _analysis_lock,
-    MODELS_FILE, CONFIG_FILE,
 )
 from tagm.engine.modules import ModuleRunner
 from tagm.core.cache import Cache
@@ -139,17 +138,8 @@ async def add_model(id: str = Form(...), name: str = Form(...),
     id_clean = id.strip().lower().replace(" ", "-")
     if not id_clean or not base.strip() or not instruct.strip():
         return JSONResponse(status_code=400, content={"error": "All fields required."})
-    pairs = _load_model_registry()
-    found = False
-    for p in pairs:
-        if p.get("id") == id_clean:
-            p.update({"name": name.strip(), "base": base.strip(), "instruct": instruct.strip()})
-            found = True
-            break
-    if not found:
-        pairs.append({"id": id_clean, "name": name.strip(), "base": base.strip(), "instruct": instruct.strip()})
-    with open(MODELS_FILE, "w") as f:
-        json.dump(pairs, f, indent=2)
+    from tagm.core.db import get_db
+    get_db().upsert_model(id_clean, name.strip(), base.strip(), instruct.strip())
     return {"ok": True}
 
 @app.post("/api/load_model")
@@ -298,26 +288,23 @@ _PROMPTS_FILE = _PACKAGE_DIR.parent / "prompts.csv"
 
 @app.get("/api/prompts")
 async def get_prompts():
-    prompts = []
-    if _PROMPTS_FILE.exists():
-        with open(_PROMPTS_FILE, newline="", encoding="utf-8") as f:
-            for row in _csv.DictReader(f):
-                prompts.append({"prompt": row.get("prompt", ""), "category": row.get("category", "")})
+    from tagm.core.db import get_db
+    prompts = get_db().list_prompts()
     return {"prompts": prompts}
 
 @app.post("/api/prompts")
 async def add_prompt(prompt: str = Form(...), category: str = Form("")):
+    from tagm.core.db import get_db
+    db = get_db()
+    db.add_prompt(prompt.strip(), category.strip())
+    # Also append to CSV for backward compat
     exists = _PROMPTS_FILE.exists()
     with open(_PROMPTS_FILE, "a", newline="", encoding="utf-8") as f:
         writer = _csv.DictWriter(f, fieldnames=["prompt", "category"])
         if not exists:
             writer.writeheader()
         writer.writerow({"prompt": prompt.strip(), "category": category.strip()})
-    prompts = []
-    with open(_PROMPTS_FILE, newline="", encoding="utf-8") as f:
-        for row in _csv.DictReader(f):
-            prompts.append({"prompt": row.get("prompt", ""), "category": row.get("category", "")})
-    return {"ok": True, "prompts": prompts}
+    return {"ok": True, "prompts": db.list_prompts()}
 
 
 # ═══════════════════════════════════════════════════════════════
