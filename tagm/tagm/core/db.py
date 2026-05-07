@@ -407,6 +407,7 @@ class Database:
     def _bootstrap(self):
         """Create tables if missing, run migrations."""
         self._conn.executescript(_SCHEMA_SQL)
+        self._migrate_columns()
         # Stamp version
         self._conn.execute(
             "INSERT OR REPLACE INTO schema_meta (key, value) VALUES (?, ?)",
@@ -414,6 +415,29 @@ class Database:
         )
         self._conn.commit()
         logger.info(f"[db] Database ready at {self.path}")
+
+    def _migrate_columns(self):
+        """Add any columns missing from the results table.
+
+        ``CREATE TABLE IF NOT EXISTS`` won't alter an existing table,
+        so when the schema gains new indexed columns we need to add
+        them via ``ALTER TABLE``.
+        """
+        # Desired columns and their DDL types/defaults
+        expected = {
+            "delta_scale": "REAL",
+            "full_capture_enabled": "INTEGER DEFAULT 0",
+        }
+        # Get existing column names
+        cursor = self._conn.execute("PRAGMA table_info(results)")
+        existing = {row[1] for row in cursor.fetchall()}
+        for col, typedef in expected.items():
+            if col not in existing:
+                self._conn.execute(
+                    f"ALTER TABLE results ADD COLUMN {col} {typedef}"
+                )
+                logger.info(f"[db] Added column results.{col}")
+        self._conn.commit()
 
     def execute(self, sql: str, params=()) -> sqlite3.Cursor:
         return self._conn.execute(sql, params)
