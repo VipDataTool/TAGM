@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS results (
     sfd_density_mean REAL,
     rd_mean_tau     REAL,
     rd_mean_overlap REAL,
+    delta_scale     REAL,
+    full_capture_enabled INTEGER DEFAULT 0,
     data_blob       BLOB NOT NULL,
     created_at      REAL DEFAULT (strftime('%s','now')),
     UNIQUE(session_id, idx)
@@ -190,6 +192,8 @@ def _extract_scalars(d: dict) -> dict:
         "sfd_density_mean": _safe_float(sfd.get("density_mean")),
         "rd_mean_tau": _safe_float(rd.get("mean_tau")),
         "rd_mean_overlap": _safe_float(rd.get("mean_overlap")),
+        "delta_scale": _safe_float(d.get("delta_scale")),
+        "full_capture_enabled": 1 if d.get("full_capture_enabled") else 0,
     }
 
 
@@ -261,6 +265,8 @@ class ResultsList:
                    ltp_mean_m = ?, ltp_mean_v = ?, ltp_max_prc = ?,
                    ltp_n_directional = ?, sfd_density_mean = ?,
                    rd_mean_tau = ?, rd_mean_overlap = ?,
+                   delta_scale = ?,
+                   full_capture_enabled = ?,
                    data_blob = ?
                WHERE session_id = ? AND idx = ?""",
             (
@@ -272,6 +278,8 @@ class ResultsList:
                 scalars["ltp_mean_m"], scalars["ltp_mean_v"], scalars["ltp_max_prc"],
                 scalars["ltp_n_directional"], scalars["sfd_density_mean"],
                 scalars["rd_mean_tau"], scalars["rd_mean_overlap"],
+                scalars["delta_scale"],
+                scalars["full_capture_enabled"],
                 blob, self._session_id, idx,
             ),
         )
@@ -312,8 +320,9 @@ class ResultsList:
                 kl_divergence, n_negative_tokens, has_negative_tokens,
                 ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
+                delta_scale, full_capture_enabled,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 self._session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -324,6 +333,8 @@ class ResultsList:
                 scalars["ltp_mean_m"], scalars["ltp_mean_v"], scalars["ltp_max_prc"],
                 scalars["ltp_n_directional"], scalars["sfd_density_mean"],
                 scalars["rd_mean_tau"], scalars["rd_mean_overlap"],
+                scalars["delta_scale"],
+                scalars["full_capture_enabled"],
                 blob,
             ),
         )
@@ -525,8 +536,9 @@ class Database:
                 kl_divergence, n_negative_tokens, has_negative_tokens,
                 ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
+                delta_scale, full_capture_enabled,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -537,6 +549,8 @@ class Database:
                 scalars["ltp_mean_m"], scalars["ltp_mean_v"], scalars["ltp_max_prc"],
                 scalars["ltp_n_directional"], scalars["sfd_density_mean"],
                 scalars["rd_mean_tau"], scalars["rd_mean_overlap"],
+                scalars["delta_scale"],
+                scalars["full_capture_enabled"],
                 blob,
             ),
         )
@@ -577,7 +591,8 @@ class Database:
                       top2_share, middle_share, interior_cv,
                       kl_divergence, n_negative_tokens, has_negative_tokens,
                       ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
-                      sfd_density_mean, rd_mean_tau, rd_mean_overlap
+                      sfd_density_mean, rd_mean_tau, rd_mean_overlap,
+                      delta_scale, full_capture_enabled
                FROM results
                WHERE session_id = ?
                ORDER BY idx""",
@@ -593,6 +608,8 @@ class Database:
                 "interior_cv": r[9], "kl_divergence": r[10],
                 "n_negative_tokens": r[11],
                 "has_negative_tokens": bool(r[12]),
+                "delta_scale": r[20],
+                "full_capture_enabled": bool(r[21]),
             }
             # Nested structures the dashboard expects
             if r[13] is not None:
