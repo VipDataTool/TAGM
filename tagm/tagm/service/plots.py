@@ -177,10 +177,17 @@ def _plot_distribution_metrics(r: dict) -> bytes:
 
 def _plot_amplitude_trajectory(r: dict) -> bytes:
     plt = _setup_matplotlib()
-    at = r.get("amplitude_trajectory") or {}
-    raw = at.get("raw") or []
-    norm = at.get("normalized") or []
-    labels = at.get("sublayer_labels") or []
+    at = r.get("amplitude_trajectory")
+    # amplitude_trajectory is a flat list of raw values;
+    # amplitude_normalized is a separate flat list.
+    if isinstance(at, dict):
+        raw = at.get("raw") or []
+        norm = at.get("normalized") or []
+        labels = at.get("sublayer_labels") or []
+    else:
+        raw = at if isinstance(at, list) else []
+        norm = r.get("amplitude_normalized") or []
+        labels = []
     if not raw and not norm:
         return _empty_plot("No amplitude trajectory data")
 
