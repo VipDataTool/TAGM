@@ -2801,6 +2801,13 @@ async function pollModule(name) {
         }
       }
       fetchModuleResults(name);
+      // Auto-expand card body so results (incl. Embed button) are visible
+      var body = $('mod-body-' + name);
+      var chev = $('mod-chev-' + name);
+      if (body && body.style.display === 'none') {
+        body.style.display = '';
+        if (chev) chev.textContent = '▼';
+      }
     } else if (d.status === 'error') {
       clearInterval(_modulePollers[name]);
       delete _modulePollers[name];
@@ -3537,13 +3544,24 @@ function renderProbeGeneratorResults(r) {
   if (r.catalog_file) h += '<div class="mod-stat"><span class="mod-stat-val">' + escHtml(r.catalog_file) + '</span><span class="mod-stat-label">Catalog File</span></div>';
   h += '</div></div>';
 
-  // Embed action row — operates on the file just produced by this run.
-  // (Generic probe-set apply lives in the Configuration tab; this is a
-  // shortcut to embed/activate the freshly-generated set without re-uploading.)
+  // Embed status row
   if (outputFile) {
-    h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:#22272E">';
-    h += '<button id="pgEmbedBtn" onclick="embedActiveProbes(' + JSON.stringify(outputFile) + ')" style="padding:6px 14px;border:1px solid var(--cyan);color:var(--cyan);background:transparent;border-radius:3px;cursor:pointer;font-family:inherit;font-size:12px">Embed Probe Set</button>';
-    h += '<span id="pgEmbedStatus" style="color:var(--text-2);font-size:11px;flex:1"></span>';
+    var ae = r.auto_embed;
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:#1a2233">';
+    if (ae && ae.applied) {
+      // Auto-embed succeeded — show green status
+      h += '<span style="color:var(--green);font-size:12px;font-weight:600">⬡ Embedded &amp; Activated</span>';
+      h += '<span style="color:var(--text-2);font-size:11px;flex:1">'
+        + ae.n_probes + ' probes, ' + ae.n_subjects + ' subjects, ' + ae.n_levels + ' levels'
+        + ' — depths L' + (ae.depths || []).join(', L')
+        + '</span>';
+    } else {
+      // Auto-embed didn't run or failed — show manual button
+      h += '<button id="pgEmbedBtn" onclick="embedActiveProbes(' + JSON.stringify(outputFile) + ')" style="padding:8px 18px;border:none;color:#000;background:var(--cyan);border-radius:4px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600">⬡ Embed &amp; Activate Probe Set</button>';
+      var statusMsg = 'Ready to embed <code>' + escHtml(outputFile) + '</code> into the loaded model';
+      if (ae && ae.error) statusMsg = '<span style="color:var(--yellow)">Auto-embed skipped: ' + escHtml(ae.error) + '</span>';
+      h += '<span id="pgEmbedStatus" style="color:var(--text-2);font-size:11px;flex:1">' + statusMsg + '</span>';
+    }
     h += '</div>';
   }
 
@@ -3632,7 +3650,8 @@ async function embedActiveProbes(filename){
   var status = document.getElementById('pgEmbedStatus');
   if (!btn || !status) return;
   btn.disabled = true;
-  btn.textContent = 'Embedding...';
+  btn.textContent = '⬡ Embedding...';
+  btn.style.opacity = '0.6';
   status.textContent = 'Submitting embed request...';
   status.style.color = 'var(--text-2)';
   try {
@@ -3645,7 +3664,8 @@ async function embedActiveProbes(filename){
       status.textContent = 'Error: ' + (r.error || 'Unknown');
       status.style.color = 'var(--red)';
       btn.disabled = false;
-      btn.textContent = 'Embed Probe Set';
+      btn.style.opacity = '1';
+      btn.textContent = '⬡ Embed & Activate Probe Set';
       return;
     }
     var poll = setInterval(async function(){
@@ -3655,7 +3675,8 @@ async function embedActiveProbes(filename){
         if (!s.active) {
           clearInterval(poll);
           btn.disabled = false;
-          btn.textContent = 'Embed Probe Set';
+          btn.style.opacity = '1';
+          btn.textContent = '⬡ Embed & Activate Probe Set';
           if (s.error) {
             status.innerHTML = '<span style="color:var(--red)">✗ ' + escHtml(s.error) + '</span>';
           } else if (s.result) {
@@ -3675,7 +3696,8 @@ async function embedActiveProbes(filename){
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--red)';
     btn.disabled = false;
-    btn.textContent = 'Embed Probe Set';
+    btn.style.opacity = '1';
+    btn.textContent = '⬡ Embed & Activate Probe Set';
   }
 }
 

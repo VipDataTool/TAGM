@@ -1,3 +1,521 @@
 {
- "error": "Need at least 2 safe and 2 risk prompts with embeddings. Found 17 safe, 0 risk."
+ "n_prompts": 30,
+ "n_safe": 10,
+ "n_risk": 20,
+ "hidden_dim": 896,
+ "refusal_direction": {
+  "auroc": 1.0,
+  "stress_auroc": 0.72,
+  "refusal_norm": 0.314372,
+  "mean_cosine_safe": -0.1285,
+  "mean_cosine_risk": 0.1859,
+  "std_cosine_safe": 0.0421,
+  "std_cosine_risk": 0.0644,
+  "separation": 0.3144,
+  "per_category": {
+   "benign": {
+    "mean": -0.1285,
+    "std": 0.0421,
+    "n": 10
+   },
+   "harmful": {
+    "mean": 0.1923,
+    "std": 0.0747,
+    "n": 10
+   },
+   "jailbreak": {
+    "mean": 0.1795,
+    "std": 0.0515,
+    "n": 10
+   }
+  }
+ },
+ "per_layer_auroc": {
+  "layers": [
+   {
+    "layer": 7,
+    "auroc": 0.45,
+    "mean_safe": 0.006923,
+    "mean_risk": 0.006541,
+    "ratio": 0.945
+   },
+   {
+    "layer": 8,
+    "auroc": 0.42,
+    "mean_safe": 0.009077,
+    "mean_risk": 0.008239,
+    "ratio": 0.908
+   },
+   {
+    "layer": 9,
+    "auroc": 0.405,
+    "mean_safe": 0.007615,
+    "mean_risk": 0.006896,
+    "ratio": 0.906
+   },
+   {
+    "layer": 10,
+    "auroc": 0.555,
+    "mean_safe": 0.00878,
+    "mean_risk": 0.008973,
+    "ratio": 1.022
+   },
+   {
+    "layer": 11,
+    "auroc": 0.29,
+    "mean_safe": 0.00832,
+    "mean_risk": 0.006678,
+    "ratio": 0.803
+   },
+   {
+    "layer": 12,
+    "auroc": 0.56,
+    "mean_safe": 0.008416,
+    "mean_risk": 0.00853,
+    "ratio": 1.013
+   },
+   {
+    "layer": 13,
+    "auroc": 0.38,
+    "mean_safe": 0.007434,
+    "mean_risk": 0.006444,
+    "ratio": 0.867
+   },
+   {
+    "layer": 14,
+    "auroc": 0.485,
+    "mean_safe": 0.00993,
+    "mean_risk": 0.009246,
+    "ratio": 0.931
+   },
+   {
+    "layer": 15,
+    "auroc": 0.395,
+    "mean_safe": 0.011977,
+    "mean_risk": 0.010378,
+    "ratio": 0.867
+   }
+  ],
+  "n_layers": 9
+ },
+ "patching_priority": {
+  "top_points": [
+   {
+    "layer": 14,
+    "position": 14,
+    "intensity": 0.165926,
+    "n_observations": 1
+   },
+   {
+    "layer": 10,
+    "position": 14,
+    "intensity": 0.127477,
+    "n_observations": 1
+   },
+   {
+    "layer": 15,
+    "position": 14,
+    "intensity": 0.123307,
+    "n_observations": 1
+   },
+   {
+    "layer": 12,
+    "position": 14,
+    "intensity": 0.09907,
+    "n_observations": 1
+   },
+   {
+    "layer": 10,
+    "position": 13,
+    "intensity": 0.093809,
+    "n_observations": 2
+   },
+   {
+    "layer": 14,
+    "position": 13,
+    "intensity": 0.091789,
+    "n_observations": 2
+   },
+   {
+    "layer": 14,
+    "position": 12,
+    "intensity": 0.087275,
+    "n_observations": 4
+   },
+   {
+    "layer": 11,
+    "position": 0,
+    "intensity": 0.079473,
+    "n_observations": 30
+   },
+   {
+    "layer": 8,
+    "position": 14,
+    "intensity": 0.078852,
+    "n_observations": 1
+   },
+   {
+    "layer": 8,
+    "position": 13,
+    "intensity": 0.075746,
+    "n_observations": 2
+   },
+   {
+    "layer": 12,
+    "position": 12,
+    "intensity": 0.065015,
+    "n_observations": 4
+   },
+   {
+    "layer": 14,
+    "position": 8,
+    "intensity": 0.062337,
+    "n_observations": 22
+   },
+   {
+    "layer": 10,
+    "position": 12,
+    "intensity": 0.060615,
+    "n_observations": 4
+   },
+   {
+    "layer": 15,
+    "position": 13,
+    "intensity": 0.060577,
+    "n_observations": 2
+   },
+   {
+    "layer": 12,
+    "position": 8,
+    "intensity": 0.059338,
+    "n_observations": 22
+   },
+   {
+    "layer": 12,
+    "position": 13,
+    "intensity": 0.058773,
+    "n_observations": 2
+   },
+   {
+    "layer": 14,
+    "position": 9,
+    "intensity": 0.058635,
+    "n_observations": 13
+   },
+   {
+    "layer": 13,
+    "position": 14,
+    "intensity": 0.05732,
+    "n_observations": 1
+   },
+   {
+    "layer": 8,
+    "position": 12,
+    "intensity": 0.057234,
+    "n_observations": 4
+   },
+   {
+    "layer": 10,
+    "position": 8,
+    "intensity": 0.055295,
+    "n_observations": 22
+   }
+  ],
+  "layer_marginal": [
+   {
+    "layer": 7,
+    "mean_intensity": 0.025325,
+    "max_intensity": 0.054601
+   },
+   {
+    "layer": 8,
+    "mean_intensity": 0.035356,
+    "max_intensity": 0.078852
+   },
+   {
+    "layer": 9,
+    "mean_intensity": 0.021283,
+    "max_intensity": 0.041816
+   },
+   {
+    "layer": 10,
+    "mean_intensity": 0.042421,
+    "max_intensity": 0.127477
+   },
+   {
+    "layer": 11,
+    "mean_intensity": 0.015441,
+    "max_intensity": 0.079473
+   },
+   {
+    "layer": 12,
+    "mean_intensity": 0.038367,
+    "max_intensity": 0.09907
+   },
+   {
+    "layer": 13,
+    "mean_intensity": 0.021173,
+    "max_intensity": 0.05732
+   },
+   {
+    "layer": 14,
+    "mean_intensity": 0.046827,
+    "max_intensity": 0.165926
+   },
+   {
+    "layer": 15,
+    "mean_intensity": 0.039793,
+    "max_intensity": 0.123307
+   }
+  ],
+  "matrix_shape": [
+   9,
+   15
+  ],
+  "matrix": [
+   [
+    0.028128,
+    0.014309,
+    0.010691,
+    0.01431,
+    0.011334,
+    0.020621,
+    0.009045,
+    0.012255,
+    0.043964,
+    0.030804,
+    0.019658,
+    0.024057,
+    0.051949,
+    0.034147,
+    0.054601
+   ],
+   [
+    0.027752,
+    0.016861,
+    0.014654,
+    0.018402,
+    0.019142,
+    0.022108,
+    0.014787,
+    0.026244,
+    0.04716,
+    0.041746,
+    0.031171,
+    0.038484,
+    0.057234,
+    0.075746,
+    0.078852
+   ],
+   [
+    0.038595,
+    0.011462,
+    0.013317,
+    0.016917,
+    0.016489,
+    0.017014,
+    0.011461,
+    0.015675,
+    0.027396,
+    0.020617,
+    0.010842,
+    0.018154,
+    0.034422,
+    0.041816,
+    0.025064
+   ],
+   [
+    0.018429,
+    0.009466,
+    0.012462,
+    0.0233,
+    0.022992,
+    0.024308,
+    0.024453,
+    0.036263,
+    0.055295,
+    0.050101,
+    0.03575,
+    0.041601,
+    0.060615,
+    0.093809,
+    0.127477
+   ],
+   [
+    0.079473,
+    0.003959,
+    0.003352,
+    0.007084,
+    0.007986,
+    0.007449,
+    0.003998,
+    0.005235,
+    0.010687,
+    0.009175,
+    0.005088,
+    0.010762,
+    0.016711,
+    0.012346,
+    0.048311
+   ],
+   [
+    0.013817,
+    0.007874,
+    0.011156,
+    0.022845,
+    0.023599,
+    0.025781,
+    0.025215,
+    0.031626,
+    0.059338,
+    0.046885,
+    0.037288,
+    0.047215,
+    0.065015,
+    0.058773,
+    0.09907
+   ],
+   [
+    0.048671,
+    0.006337,
+    0.005074,
+    0.00863,
+    0.0094,
+    0.011955,
+    0.007647,
+    0.013757,
+    0.031238,
+    0.028618,
+    0.016424,
+    0.02034,
+    0.029462,
+    0.022724,
+    0.05732
+   ],
+   [
+    0.030249,
+    0.016392,
+    0.015314,
+    0.013779,
+    0.016605,
+    0.027564,
+    0.016941,
+    0.02837,
+    0.062337,
+    0.058635,
+    0.035929,
+    0.035296,
+    0.087275,
+    0.091789,
+    0.165926
+   ],
+   [
+    0.052695,
+    0.013986,
+    0.014571,
+    0.029473,
+    0.026441,
+    0.022321,
+    0.020537,
+    0.028087,
+    0.047499,
+    0.040786,
+    0.032006,
+    0.042077,
+    0.04253,
+    0.060577,
+    0.123307
+   ]
+  ],
+  "layers": [
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15
+  ]
+ },
+ "random_projection": {
+  "n_trials": 50,
+  "random_mean_auroc": 0.5695,
+  "random_std_auroc": 0.1785,
+  "random_max_auroc": 0.9,
+  "random_p95_auroc": 0.8637,
+  "refusal_direction": {
+   "auroc": 1.0,
+   "delta_over_random": 0.4305,
+   "empirical_p": 0.0
+  },
+  "tagm_stress": {
+   "auroc": 0.72,
+   "delta_over_random": 0.1505,
+   "empirical_p": 0.26
+  },
+  "histogram": [
+   0.895,
+   0.595,
+   0.575,
+   0.52,
+   0.64,
+   0.54,
+   0.72,
+   0.875,
+   0.85,
+   0.745,
+   0.82,
+   0.495,
+   0.77,
+   0.59,
+   0.57,
+   0.535,
+   0.41,
+   0.49,
+   0.54,
+   0.505,
+   0.48,
+   0.62,
+   0.415,
+   0.52,
+   0.165,
+   0.2,
+   0.425,
+   0.75,
+   0.655,
+   0.495,
+   0.535,
+   0.77,
+   0.63,
+   0.805,
+   0.39,
+   0.9,
+   0.325,
+   0.265,
+   0.555,
+   0.735,
+   0.175,
+   0.59,
+   0.75,
+   0.615,
+   0.415,
+   0.62,
+   0.505,
+   0.34,
+   0.515,
+   0.635
+  ]
+ },
+ "summary": {
+  "refusal_auroc": 1.0,
+  "stress_auroc": 0.72,
+  "random_mean": 0.5695,
+  "best_layer_auroc": 0.56,
+  "best_layer": 12,
+  "refusal_separates": true,
+  "stress_separates": false,
+  "refusal_beats_stress": true
+ }
 }

@@ -418,6 +418,18 @@ class ProbeGeneratorModule(TASMModule):
                 type="bool",
                 default=False,
             ),
+            ModuleParameter(
+                name="auto_embed",
+                display_name="Auto-Embed After Generation",
+                description=(
+                    "Automatically embed and activate the generated probe "
+                    "set when generation completes. Embeds at configured "
+                    "depths (L50/L75) and caches to probe_cache/. "
+                    "Uncheck to generate the CSV only."
+                ),
+                type="bool",
+                default=True,
+            ),
         ]
 
     def validate(self, session_results, params):
@@ -475,6 +487,7 @@ class ProbeGeneratorModule(TASMModule):
         ap_batch = int(params.get("auto_populate_batch", 5))
         ap_max_rounds = int(params.get("auto_populate_max_rounds", 3))
         skip_dedup = bool(params.get("skip_dedup", False))
+        auto_embed = bool(params.get("auto_embed", True))
 
         # No concurrent inference lock needed — module runs in its own thread
         _inf_lock = None
@@ -929,5 +942,49 @@ class ProbeGeneratorModule(TASMModule):
                      f"tokens ({len(cross_class_shared)} shared across "
                      f"classes, {len(cross_subclass_shared)} shared across "
                      f"subclasses) across {total_cells} cells{sw_msg}")
+
+        # ── Auto-embed ──
+        if auto_embed and self._pipeline is not None and self._pipeline.loaded:
+            try:
+                from tagm.probes.io import embed_and_activate_probe_set
+
+                if progress:
+                    progress(f"Auto-embedding {output_name}...")
+
+                project_root = self._project_root or os.getcwd()
+                embed_result = embed_and_activate_probe_set(
+                    self._pipeline, str(project_root), output_name,
+                    progress=progress,
+                )
+
+                if embed_result.get("applied"):
+                    output["auto_embed"] = {
+                        "applied": True,
+                        "filename": embed_result.get("filename"),
+                        "n_probes": embed_result.get("n_probes"),
+                        "n_subjects": embed_result.get("n_subjects"),
+                        "n_levels": embed_result.get("n_levels"),
+                        "depths": embed_result.get("depths", []),
+                    }
+                    if progress:
+                        progress(
+                            f"Embedded and activated: "
+                            f"{embed_result['n_probes']} probes at depths "
+                            f"L{', L'.join(str(d) for d in embed_result.get('depths', []))}")
+                else:
+                    output["auto_embed"] = {
+                        "applied": False,
+                        "error": embed_result.get("error", "Unknown error"),
+                    }
+                    if progress:
+                        progress(f"Auto-embed failed: {embed_result.get('error', 'Unknown')}")
+
+            except Exception as e:
+                logger.exception("Auto-embed failed")
+                output["auto_embed"] = {"applied": False, "error": str(e)}
+                if progress:
+                    progress(f"Auto-embed error: {e}")
+        elif auto_embed:
+            output["auto_embed"] = {"applied": False, "error": "No model loaded"}
 
         return output
