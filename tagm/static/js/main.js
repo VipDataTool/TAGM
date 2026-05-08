@@ -2224,8 +2224,10 @@ async function loadHepStatus() {
     var r = await(await fetch('/api/hep/status')).json();
     renderHepPanel(r);
   } catch(e) {
-    var panel = $('hepStatus');
-    if (panel) panel.textContent = 'Failed to load HEP status.';
+    var status = $('hepStatus');
+    var controls = $('hepControls');
+    if (status) status.innerHTML = '<span style="color:var(--text-2)">Status: <b>Inactive</b> (standard memory mode)</span>';
+    if (controls) controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
   }
 }
 
