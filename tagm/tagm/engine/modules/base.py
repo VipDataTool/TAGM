@@ -278,6 +278,24 @@ class ModuleRunner:
         state = self._state.get(name)
         return state.results if state else None
 
+    def collect_results(self, skip: set = None) -> dict:
+        """Return {name: results} for all modules that have results.
+
+        Args:
+            skip: set of module names to exclude (e.g. {'comparative_analysis'})
+
+        Returns:
+            dict mapping module name to its results dict.
+        """
+        skip = skip or set()
+        out = {}
+        for name, st in self._state.items():
+            if name in skip:
+                continue
+            if st.results is not None:
+                out[name] = st.results
+        return out
+
     def get_log_path(self, name: str) -> Optional[str]:
         state = self._state.get(name)
         return state.log_path if state else None

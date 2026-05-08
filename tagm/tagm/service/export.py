@@ -54,17 +54,19 @@ def export_session(session, path: Union[str, Path]) -> Path:
 
 
 def export_session_split(session, path: Union[str, Path],
-                         float_precision: int = 12) -> Path:
-    """Write a session as a zip: lean JSON + embedding CSVs.
+                         float_precision: int = 12,
+                         module_results: dict = None) -> Path:
+    """Write a session as a zip: lean JSON + embedding CSVs + module reports.
 
     The zip contains:
       session.json.gz              Scalar/structural data (no embeddings)
       embeddings_domain.csv.gz     Per-token hidden states at domain layer
       embeddings_escalation.csv.gz Per-token hidden states at escalation layer
       embeddings_final.csv.gz      Per-token hidden states at final layer
+      modules/_{name}.json.gz       Module analytical reports (one per module)
 
-    Each CSV has columns: prompt_index, token_index, dim_0 .. dim_N.
-    float_precision controls significant digits in the CSV (default 12).
+    float_precision controls significant digits in the embedding CSV (default 12).
+    module_results is {name: results_dict} from ModuleRunner.collect_results().
 
     Returns the path to the zip file.
     """
@@ -92,6 +94,10 @@ def export_session_split(session, path: Union[str, Path],
         lean = {k: v for k, v in r.items() if k not in _EMBEDDING_FIELDS}
         lean_results.append(lean)
 
+    # Module report filenames
+    module_results = module_results or {}
+    module_files = {name: f"modules/{name}.json.gz" for name in module_results}
+
     session_data = {
         "session_id": getattr(session, "session_id", ""),
         "model": getattr(session, "model_name", ""),
@@ -99,6 +105,7 @@ def export_session_split(session, path: Union[str, Path],
         "results": lean_results,
         "_embedding_files": list(_EMB_CSV_NAMES.values()),
         "_embedding_dims": n_dims,
+        "_module_files": module_files,
     }
 
     with zipfile.ZipFile(p, "w", compression=zipfile.ZIP_DEFLATED,
@@ -132,6 +139,13 @@ def export_session_split(session, path: Union[str, Path],
                             ]
                             writer.writerow(row)
                 zf.writestr(csv_name, csv_buf.getvalue())
+
+        # Write module reports
+        for name, mod_data in module_results.items():
+            mod_buf = io.BytesIO()
+            with gzip.open(mod_buf, "wt", encoding="utf-8") as gf:
+                json.dump(mod_data, gf, indent=1, default=_json_default)
+            zf.writestr(f"modules/{name}.json.gz", mod_buf.getvalue())
 
     return p
 

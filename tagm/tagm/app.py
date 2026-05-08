@@ -860,7 +860,10 @@ async def export_session(request: Request):
         global _export_ready, _export_path
         state.progress("exporting", "Preparing export...")
         p = _cache.layout.sessions / f"session_{state.session.session_id}.zip"
-        export_session_split(state.session, p, float_precision=emb_precision)
+        mod_results = _module_runner.collect_results(skip={"comparative_analysis"})
+        export_session_split(state.session, p,
+                             float_precision=emb_precision,
+                             module_results=mod_results)
         _export_path = p
         _export_ready = True
         state.progress("done", f"Export ready: {p.name}")
