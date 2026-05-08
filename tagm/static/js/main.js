@@ -754,15 +754,26 @@ async function exportSession(){
   const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null].filter(Boolean).join(', ');
   log(`Exporting (${enabledFmts})...`);
   try{
-    const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)});const data=await r.json();
-    if(!data.ok){log('Export error: '+(data.error||''),'error');_busy=false;return}
-    log('Export started...');
-
-    // Wait for export_ready via SSE
-    var result = await new Promise(function(resolve) {
+    // Register the SSE waiter BEFORE the POST, because the server's
+    // export handler uses await run_in_threadpool(_do_export) which
+    // completes the export (and emits the SSE event) before returning
+    // the HTTP response.  If we wait until after the fetch resolves
+    // to register, the event has already fired and been discarded.
+    var exportPromise = new Promise(function(resolve) {
       _sseWaiters.export_ready.push(function(evt) { resolve({ok: true, evt: evt}); });
       _sseWaiters.export_error.push(function(evt) { resolve({ok: false, evt: evt}); });
     });
+
+    const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)});const data=await r.json();
+    if(!data.ok){
+      // Clean up the dangling waiter
+      _sseWaiters.export_ready.length = 0;
+      _sseWaiters.export_error.length = 0;
+      log('Export error: '+(data.error||''),'error');_busy=false;return;
+    }
+    log('Export started...');
+
+    var result = await exportPromise;
 
     if (result.ok) {
       playChime();
