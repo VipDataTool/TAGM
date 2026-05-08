@@ -220,7 +220,7 @@ function applyCardDefaults(panelId,tab){
 }
 
 // ─── Export Defaults ────────────────────────────────────────────
-const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:''};
+const EXPORT_DEFAULTS={csv:true,pdf:false,json:false,charts:false,includeArrays:true,exportPath:'',embeddingPrecision:12};
 const DISPLAY_DEFAULTS={terrainCharLimit:50,terrainRecordLimit:100,terrainTokenLimit:20,terrainCategory:'all',terrainAutoRotate:false,terrainRotateSpeed:0.3};
 
 // Global delegated click handler for all card headers
@@ -321,6 +321,17 @@ function vizRenderConfig(){
     </div>
     <div style="max-width:540px;margin-bottom:10px">
       <div class="checkbox-row"><input type="checkbox" id="cfgExportArrays" ${EXPORT_DEFAULTS.includeArrays?'checked':''} onchange="EXPORT_DEFAULTS.includeArrays=this.checked;saveConfig()"><label for="cfgExportArrays">Include per-token arrays in JSON <span style="color:var(--text-3)">(signed attribution, per-position tau, LTP profiles, SFD per-token — larger file)</span></label></div>
+    </div>
+    <div style="max-width:540px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+      <label style="font-size:var(--font-desc);color:var(--text-1);white-space:nowrap">Embedding precision</label>
+      <select id="cfgEmbeddingPrecision" onchange="EXPORT_DEFAULTS.embeddingPrecision=parseInt(this.value);saveConfig()" style="width:auto;min-width:80px">
+        <option value="6" ${EXPORT_DEFAULTS.embeddingPrecision===6?'selected':''}>6 digits</option>
+        <option value="8" ${EXPORT_DEFAULTS.embeddingPrecision===8?'selected':''}>8 digits</option>
+        <option value="10" ${EXPORT_DEFAULTS.embeddingPrecision===10?'selected':''}>10 digits</option>
+        <option value="12" ${EXPORT_DEFAULTS.embeddingPrecision===12?'selected':''}>12 digits</option>
+        <option value="15" ${EXPORT_DEFAULTS.embeddingPrecision===15?'selected':''}>15 digits (full)</option>
+      </select>
+      <span style="font-size:var(--font-legend);color:var(--text-3)">Significant digits for embedding CSVs. Source precision is ~3 digits (bfloat16). Higher = larger files.</span>
     </div>
     <div style="max-width:540px">
       <label style="font-size:var(--font-desc);color:var(--text-1)">Export path <span style="color:var(--text-3)">(optional — leave blank to download via browser)</span></label>
@@ -455,6 +466,7 @@ async function loadConfig(){
       if(typeof c.exportOpts.charts==='boolean')EXPORT_DEFAULTS.charts=c.exportOpts.charts;
       if(typeof c.exportOpts.includeArrays==='boolean')EXPORT_DEFAULTS.includeArrays=c.exportOpts.includeArrays;
       if(typeof c.exportOpts.exportPath==='string')EXPORT_DEFAULTS.exportPath=c.exportOpts.exportPath;
+      if(typeof c.exportOpts.embeddingPrecision==='number')EXPORT_DEFAULTS.embeddingPrecision=c.exportOpts.embeddingPrecision;
     }
     // Display settings
     if(c.display){
@@ -750,7 +762,7 @@ function plotCardUrl(key,title,desc,collapsed){
 async function exportSession(){
   if(_busy){log('Another operation in progress, please wait.','error');return}
   _busy=true;
-  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,includeArrays:EXPORT_DEFAULTS.includeArrays,exportPath:EXPORT_DEFAULTS.exportPath};
+  const opts={csv:true,pdf:EXPORT_DEFAULTS.pdf,json:EXPORT_DEFAULTS.json,charts:EXPORT_DEFAULTS.charts,includeArrays:EXPORT_DEFAULTS.includeArrays,exportPath:EXPORT_DEFAULTS.exportPath,embeddingPrecision:EXPORT_DEFAULTS.embeddingPrecision};
   const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null].filter(Boolean).join(', ');
   log(`Exporting (${enabledFmts})...`);
   try{
@@ -786,7 +798,7 @@ async function exportSession(){
           var dr = await fetch('/api/export/download');
           if (dr.ok) {
             var b = await dr.blob(); var u = URL.createObjectURL(b);
-            var a = document.createElement('a'); a.href = u; a.download = 'tagm_session.json.gz'; a.click();
+            var a = document.createElement('a'); a.href = u; a.download = 'tagm_session.zip'; a.click();
             URL.revokeObjectURL(u); log('Download complete', 'done');
           } else { log('Download failed: HTTP ' + dr.status, 'error'); }
         } catch(de) { log('Download error: ' + de.message, 'error'); }

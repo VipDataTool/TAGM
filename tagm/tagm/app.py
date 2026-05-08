@@ -843,16 +843,24 @@ _export_path: Optional[Path] = None
 @app.post("/api/export")
 async def export_session(request: Request):
     global _export_ready, _export_path
-    from tagm.service.export import export_session as _export
+    from tagm.service.export import export_session_split
 
     if not state.session.results:
         return {"ok": False, "error": "No data to export."}
 
+    # Read options from request body
+    try:
+        opts = await request.json()
+    except Exception:
+        opts = {}
+    emb_precision = int(opts.get("embeddingPrecision", 12))
+    emb_precision = max(4, min(emb_precision, 17))  # sane bounds
+
     def _do_export():
         global _export_ready, _export_path
         state.progress("exporting", "Preparing export...")
-        p = _cache.layout.sessions / f"session_{state.session.session_id}.json.gz"
-        _export(state.session, p)
+        p = _cache.layout.sessions / f"session_{state.session.session_id}.zip"
+        export_session_split(state.session, p, float_precision=emb_precision)
         _export_path = p
         _export_ready = True
         state.progress("done", f"Export ready: {p.name}")
@@ -866,7 +874,8 @@ async def export_session(request: Request):
 async def export_download():
     if not _export_ready or _export_path is None or not _export_path.exists():
         raise HTTPException(status_code=404, detail="No export available.")
-    return FileResponse(str(_export_path), media_type="application/gzip",
+    media = "application/zip" if _export_path.suffix == ".zip" else "application/gzip"
+    return FileResponse(str(_export_path), media_type=media,
                         filename=_export_path.name)
 
 
