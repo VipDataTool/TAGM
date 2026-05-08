@@ -49,6 +49,7 @@ from tagm.engine.app_core import (
 )
 from tagm.engine.modules import ModuleRunner
 from tagm.core.cache import Cache
+from tagm.service.events import broker
 
 logger = logging.getLogger("tagm")
 
@@ -65,7 +66,7 @@ logging.basicConfig(
 )
 
 # ─── Additional global state ────────────────────────────────────
-_module_runner = ModuleRunner()
+_module_runner = ModuleRunner(event_hook=broker.publish)
 _cache = Cache()
 
 # When a model loads, propagate the pipeline to modules that need it
@@ -109,6 +110,15 @@ for _viz in ("chat", "domain_surface_viz",
             raise HTTPException(status_code=404)
         return handler
     app.get(f"/{_viz}", include_in_schema=False)(_make_viz_route(_viz))
+
+
+# ═══════════════════════════════════════════════════════════════
+# SSE event stream — replaces polling for all state transitions
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/events")
+async def events(request: Request):
+    return broker.sse_response(request)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -454,6 +464,11 @@ async def probe_apply(request: Request):
             _probe_apply_state["error"] = str(e)
         finally:
             _probe_apply_state["active"] = False
+            broker.publish("probe_status", {
+                "active": False,
+                "error": _probe_apply_state.get("error"),
+                "result": _probe_apply_state.get("result"),
+            })
 
     import threading
     threading.Thread(target=_embed_worker, daemon=True).start()
@@ -606,6 +621,11 @@ async def pg_embed_active(request: Request):
             _pg_embed_state["error"] = str(e)
         finally:
             _pg_embed_state["active"] = False
+            broker.publish("pg_embed_status", {
+                "active": False,
+                "error": _pg_embed_state.get("error"),
+                "result": _pg_embed_state.get("result"),
+            })
 
     import threading
     threading.Thread(target=_embed_worker, daemon=True).start()
@@ -836,6 +856,7 @@ async def export_session(request: Request):
         _export_path = p
         _export_ready = True
         state.progress("done", f"Export ready: {p.name}")
+        broker.publish("export_ready", {"filename": p.name})
 
     _export_ready = False
     await run_in_threadpool(_do_export)

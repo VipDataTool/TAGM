@@ -29,6 +29,7 @@ from tagm.engine.analyzer import Analyzer
 from tagm.engine.result import result_to_dict
 from tagm.engine import config as engine_config
 from tagm.engine.session import Session
+from tagm.service.events import broker
 
 logger = logging.getLogger("tagm")
 
@@ -81,6 +82,7 @@ class AppState:
         logger.info(f"[{stage}] {message}")
         if len(self.progress_log) > 1000:
             self.progress_log = self.progress_log[-500:]
+        broker.publish("progress", {"stage": stage, "message": message})
 
 
 state = AppState()
@@ -183,11 +185,23 @@ def _load_worker(instruct_id: str, base_id: str,
         state._fire_post_load()
         state.progress("ready", f"Model pair loaded: {instruct_id}")
 
+        broker.publish("model_loaded", {
+            "model_name": instruct_id,
+            "instruct": instruct_id,
+            "base": base_id,
+            "n_deltas": len(state.pipeline.delta_store) if state.pipeline.delta_store else 0,
+        })
+
     except Exception as e:
         tb = traceback.format_exc()
         logger.error(f"[LOAD] FAILED:\n{tb}")
         state.loading_state = {"active": False, "error": str(e)}
         state.progress("error", f"Load failed: {type(e).__name__}: {e}")
+
+        broker.publish("model_error", {
+            "error": str(e),
+            "stage": "loading",
+        })
 
 
 def api_load_model_handler(pair_id: str = "", instruct_id: str = "",
@@ -428,6 +442,7 @@ async def api_analyze_batch_handler(request: Request):
 
             state.session.save_to_disk()
             state.progress("done", f"Batch complete: {len(prompts)} prompts analyzed")
+            broker.publish("batch_done", {"n_results": len(prompts)})
         except Exception as e:
             logger.exception("Batch failed")
             state.progress("error", f"Batch failed: {e}")

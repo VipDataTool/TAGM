@@ -144,13 +144,12 @@ class ModuleRunner:
     Each module runs in its own thread with crash isolation.
     """
 
-    def __init__(self, project_root=None):
+    def __init__(self, project_root=None, event_hook=None):
         self._modules: dict[str, TASMModule] = {}
         self._state: dict[str, _ModuleState] = {}
         self._lock = threading.Lock()
-        # base.py is at tagm/tagm/engine/modules/base.py
-        # Project root (tagm/) is 4 levels up
         self._project_root = Path(project_root) if project_root else Path(__file__).parent.parent.parent.parent
+        self._event_hook: Optional[Callable] = event_hook
         self._discover_modules()
 
     def _discover_modules(self):
@@ -331,6 +330,17 @@ class ModuleRunner:
 
         def _progress(message: str):
             state.progress = message
+            if self._event_hook:
+                now = time.time()
+                if not hasattr(_progress, '_last') or now - _progress._last > 0.5:
+                    _progress._last = now
+                    try:
+                        self._event_hook("module_status", {
+                            "name": name, "status": "running",
+                            "progress": message,
+                        })
+                    except Exception:
+                        pass
 
         def _run():
             try:
@@ -368,11 +378,31 @@ class ModuleRunner:
                 except Exception as e:
                     logger.warning(f"[MODULES] Failed to save log: {e}")
 
+                # Emit completion event AFTER all persistence work
+                if self._event_hook:
+                    try:
+                        self._event_hook("module_status", {
+                            "name": name, "status": "completed",
+                            "elapsed": round(elapsed, 1),
+                            "has_log": state.log_path is not None,
+                        })
+                    except Exception:
+                        pass
+
             except Exception as e:
                 state.status = "error"
                 state.error = str(e)
                 state.completed_at = time.time()
                 logger.error(f"[MODULES] {name} crashed: {traceback.format_exc()}")
+
+                if self._event_hook:
+                    try:
+                        self._event_hook("module_status", {
+                            "name": name, "status": "error",
+                            "error": str(e),
+                        })
+                    except Exception:
+                        pass
 
         thread = threading.Thread(target=_run, name=f"tasm-module-{name}", daemon=True)
         state.thread = thread

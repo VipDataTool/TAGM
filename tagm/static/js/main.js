@@ -35,6 +35,177 @@ function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4
 function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
 function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
 
+// ═══════════════════════════════════════════════════════════════
+// SSE Event Stream — replaces all setInterval-based polling
+// ═══════════════════════════════════════════════════════════════
+
+let _eventSource = null;
+let _sseConnected = false;
+
+// One-shot waiter arrays: polling consumers register a callback here,
+// and the SSE handler resolves it when the corresponding event arrives.
+const _sseWaiters = {
+  model_loaded: [],
+  model_error: [],
+  batch_done: [],
+  export_ready: [],
+  export_error: [],
+  probe_status: [],
+  pg_embed_status: [],
+  module_status: {},  // keyed by module name
+};
+
+function initEventSource() {
+  if (_eventSource) { try { _eventSource.close(); } catch(e) {} }
+  _eventSource = new EventSource('/api/events');
+  _eventSource.onmessage = function(e) {
+    try { _handleSSEEvent(JSON.parse(e.data)); } catch(err) {}
+  };
+  _eventSource.onerror = function() {
+    _sseConnected = false;
+    // EventSource auto-reconnects with backoff.
+    // On reconnect, server replays snapshot.
+  };
+}
+
+function _handleSSEEvent(evt) {
+  switch (evt.type) {
+    case 'connected':
+      _sseConnected = true;
+      break;
+    case 'progress':
+      _handleProgressEvent(evt);
+      break;
+    case 'model_loaded':
+      _handleModelLoaded(evt);
+      break;
+    case 'model_error':
+      _handleModelError(evt);
+      break;
+    case 'module_status':
+      _handleModuleStatusEvent(evt);
+      break;
+    case 'batch_done':
+      _handleBatchDone(evt);
+      break;
+    case 'export_ready':
+      _handleExportReady(evt);
+      break;
+    case 'export_error':
+      _handleExportError(evt);
+      break;
+    case 'probe_status':
+      _handleProbeStatus(evt);
+      break;
+    case 'pg_embed_status':
+      _handlePgEmbedStatus(evt);
+      break;
+  }
+}
+
+function _handleProgressEvent(evt) {
+  // Only log progress events after the initial snapshot replay.
+  // The 'connected' event signals the snapshot is done.
+  if (!_sseConnected) return;
+  var cls = evt.stage === 'error' ? 'error' : (evt.stage === 'ready' || evt.stage === 'done' ? 'done' : '');
+  log('[' + evt.stage + '] ' + evt.message, cls);
+}
+
+function _handleModelLoaded(evt) {
+  modelLoaded = true;
+  setStatus('ready', 'READY');
+  $('analyzeBtn').disabled = false;
+  $('batchBtn').disabled = false;
+  var waiters = _sseWaiters.model_loaded.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handleModelError(evt) {
+  setStatus('idle', 'ERROR');
+  log('Load failed: ' + (evt.error || 'unknown'), 'error');
+  var waiters = _sseWaiters.model_error.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handleModuleStatusEvent(evt) {
+  var name = evt.name;
+  if (!name) return;
+
+  if (evt.status === 'running') {
+    var prog = $('mod-progress-' + name);
+    if (prog && evt.progress) prog.textContent = evt.progress;
+    return;
+  }
+
+  if (evt.status === 'completed') {
+    var prog2 = $('mod-progress-' + name);
+    var btn = $('mod-run-' + name);
+    updateModuleStatus(name, 'completed');
+    playChime();
+    if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
+    var elapsedStr = evt.elapsed ? evt.elapsed + 's' : '?';
+    if (prog2) prog2.textContent = 'Completed in ' + elapsedStr;
+    log('Module ' + name + ': completed in ' + elapsedStr, 'done');
+    if (evt.has_log) {
+      var existing = $('mod-log-' + name);
+      if (!existing) {
+        var logBtn = document.createElement('button');
+        logBtn.id = 'mod-log-' + name;
+        logBtn.className = 'btn btn-sm';
+        logBtn.style.cssText = 'border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer';
+        logBtn.textContent = 'Download Log';
+        logBtn.onclick = function(e2) { e2.stopPropagation(); window.open('/api/modules/' + name + '/download_log', '_blank'); };
+        if (btn && btn.parentNode) btn.parentNode.insertBefore(logBtn, btn.nextSibling);
+      }
+    }
+    fetchModuleResults(name);
+    var body = $('mod-body-' + name);
+    var chev = $('mod-chev-' + name);
+    if (body && body.style.display === 'none') {
+      body.style.display = '';
+      if (chev) chev.textContent = '\u25BC';
+    }
+    var mw = (_sseWaiters.module_status[name] || []).splice(0);
+    for (var j = 0; j < mw.length; j++) mw[j](evt);
+
+  } else if (evt.status === 'error') {
+    updateModuleStatus(name, 'error');
+    var btn2 = $('mod-run-' + name);
+    if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
+    var errMsg = evt.error || 'unknown';
+    var prog3 = $('mod-progress-' + name);
+    if (prog3) prog3.textContent = 'Error: ' + errMsg;
+    log('Module ' + name + ': error \u2014 ' + errMsg, 'error');
+    var mw2 = (_sseWaiters.module_status[name] || []).splice(0);
+    for (var k = 0; k < mw2.length; k++) mw2[k](evt);
+  }
+}
+
+function _handleBatchDone(evt) {
+  var waiters = _sseWaiters.batch_done.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handleExportReady(evt) {
+  var waiters = _sseWaiters.export_ready.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handleExportError(evt) {
+  var waiters = _sseWaiters.export_error.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handleProbeStatus(evt) {
+  var waiters = _sseWaiters.probe_status.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
+function _handlePgEmbedStatus(evt) {
+  var waiters = _sseWaiters.pg_embed_status.splice(0);
+  for (var i = 0; i < waiters.length; i++) waiters[i](evt);
+}
+
 // ─── Card Collapse Defaults ─────────────────────────────────────
 const CARD_COLLAPSE_DEFAULTS={prompt:'expanded',modules:'expanded',config:'expanded'};
 const CARD_COLLAPSE_LABELS={prompt:'Prompt',modules:'Modules',config:'Configuration'};
@@ -391,17 +562,36 @@ async function loadModel(){
     fd.append('base_id',b);fd.append('instruct_id',i);
   } else fd.append('pair_id',sel.value);
   try{await fetch('/api/load_model',{method:'POST',body:fd})}catch(e){}
-  let lastLen=0;
-  const poll=setInterval(async()=>{
-    try{
-      const prog=await(await fetch('/api/progress')).json();
-      for(let i=lastLen;i<prog.log.length;i++){const e=prog.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}
-      lastLen=prog.log.length;
-      const st=await(await fetch('/api/status')).json();
-      if(st.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;setLoading(btn,false);sessionResults=[];dashResults=[];_promptTotal=0;updateSessionBadge();loadPromptLibrary();loadProbeFiles();if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}playChime();setInferenceModel($('inferenceModelSelect').value)}
-      else if(st.loading_error){clearInterval(poll);setStatus('idle','ERROR');log('Failed: '+st.loading_error,'error');setLoading(btn,false)}
-    }catch(e){}
-  },2000);
+
+  // Wait for model_loaded or model_error via SSE.
+  // Progress events are logged by _handleProgressEvent automatically.
+  var result = await new Promise(function(resolve) {
+    _sseWaiters.model_loaded.push(function(evt) { resolve({ok: true, evt: evt}); });
+    _sseWaiters.model_error.push(function(evt) { resolve({ok: false, evt: evt}); });
+  });
+
+  setLoading(btn, false);
+
+  if (result.ok) {
+    // _handleModelLoaded already set modelLoaded, status, buttons.
+    // Do the remaining one-time setup here.
+    sessionResults = [];
+    dashResults = [];
+    _promptTotal = 0;
+    updateSessionBadge();
+    loadPromptLibrary();
+    loadProbeFiles();
+    try {
+      var st = await(await fetch('/api/status')).json();
+      if (st.user_info) {
+        $('userName').value = st.user_info.name || '';
+        $('userOrg').value = st.user_info.organization || '';
+        $('userProject').value = st.user_info.project || '';
+      }
+    } catch(e) {}
+    playChime();
+    setInferenceModel($('inferenceModelSelect').value);
+  }
 }
 
 async function setInferenceModel(cls){
@@ -496,41 +686,27 @@ async function analyzeBatch(){
     const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
     if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
     log(`Batch started: ${data.n_prompts} prompts...`);
-    // Start reading from current log length so we don't see
-    // done messages from a previous batch.
-    let lastLen=0;
-    try{const p=await(await fetch('/api/progress')).json();lastLen=p.log.length}catch(e){}
-    async function pollBatch(){
-      try{
-        const p=await(await fetch('/api/progress')).json();
-        let done=false;
-        for(let i=lastLen;i<p.log.length;i++){
-          const e=p.log[i];
-          log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':(e.stage==='warning'?'error':'')));
-          if(e.stage==='done'&&e.message.includes('Batch complete')){done=true;playChime()}
-        }
-        lastLen=p.log.length;
-        if(done){
-          setLoading(btn,false);
-          log('Loading results...');
-          try{
-            const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
-            const allData=await allResp.json();
-            if(allData.ok&&allData.results){
-              sessionResults=allData.results;
-              _promptTotal=allData.total;
-              if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
-              updateSessionBadge();
-              renderDataTable();
-            }
-          }catch(re){log('Results load: '+re.message,'error')}
-          try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
-          return;
-        }
-      }catch(pe){}
-      setTimeout(pollBatch,2000);
-    }
-    setTimeout(pollBatch,2000);
+
+    // Wait for batch_done via SSE. Progress logged by _handleProgressEvent.
+    await new Promise(function(resolve) {
+      _sseWaiters.batch_done.push(function() { resolve(); });
+    });
+
+    playChime();
+    setLoading(btn,false);
+    log('Loading results...');
+    try{
+      const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
+      const allData=await allResp.json();
+      if(allData.ok&&allData.results){
+        sessionResults=allData.results;
+        _promptTotal=allData.total;
+        if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
+        updateSessionBadge();
+        renderDataTable();
+      }
+    }catch(re){log('Results load: '+re.message,'error')}
+    try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
   }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
 }
 
@@ -578,46 +754,34 @@ async function exportSession(){
   const enabledFmts=['CSV',opts.pdf?'PDF':null,opts.json?'JSON':null,opts.charts?'Charts':null].filter(Boolean).join(', ');
   log(`Exporting (${enabledFmts})...`);
   try{
-    // Get current progress length so we only see NEW entries
-    const curProg=await(await fetch('/api/progress')).json();
-    let lastLen=curProg.log.length;
     const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)});const data=await r.json();
     if(!data.ok){log('Export error: '+(data.error||''),'error');_busy=false;return}
     log('Export started...');
-    async function pollExport(){
-      try{
-        const p=await(await fetch('/api/progress')).json();
-        let exportDone=false, exportFailed=false, doneMessage='';
-        for(let i=lastLen;i<p.log.length;i++){
-          const e=p.log[i];
-          if(e.stage==='exporting'||e.stage==='done'||e.stage==='error'||e.stage==='warning'){
-            log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='done'?'done':''));
-          }
-          if(e.stage==='done'&&e.message.includes('Export ready')){exportDone=true;doneMessage=e.message;playChime()}
-          if(e.stage==='error'&&e.message.includes('Export')){exportFailed=true}
-        }
-        lastLen=p.log.length;
-        if(exportDone){
-          // Check if a custom path was requested AND the backend confirmed it succeeded
-          // (path failure messages contain "path failed" and fall back to "Click Download")
-          const pathSucceeded=opts.exportPath && !doneMessage.includes('path failed');
-          if(pathSucceeded){
-            log('Export saved to: '+opts.exportPath,'done');
-          } else {
-            log('Downloading ZIP...');
-            try{
-              const dr=await fetch('/api/export/download');
-              if(dr.ok){const b=await dr.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='tagm_session.json.gz';a.click();URL.revokeObjectURL(u);log('Download complete','done')}
-              else{log('Download failed: HTTP '+dr.status,'error')}
-            }catch(de){log('Download error: '+de.message,'error')}
-          }
-          _busy=false;return;
-        }
-        if(exportFailed){_busy=false;return;}
-      }catch(pe){}
-      setTimeout(pollExport,2000);
+
+    // Wait for export_ready via SSE
+    var result = await new Promise(function(resolve) {
+      _sseWaiters.export_ready.push(function(evt) { resolve({ok: true, evt: evt}); });
+      _sseWaiters.export_error.push(function(evt) { resolve({ok: false, evt: evt}); });
+    });
+
+    if (result.ok) {
+      playChime();
+      var pathSucceeded = opts.exportPath && result.evt.filename && !result.evt.filename.includes('path failed');
+      if (pathSucceeded) {
+        log('Export saved to: ' + opts.exportPath, 'done');
+      } else {
+        log('Downloading ZIP...');
+        try {
+          var dr = await fetch('/api/export/download');
+          if (dr.ok) {
+            var b = await dr.blob(); var u = URL.createObjectURL(b);
+            var a = document.createElement('a'); a.href = u; a.download = 'tagm_session.json.gz'; a.click();
+            URL.revokeObjectURL(u); log('Download complete', 'done');
+          } else { log('Download failed: HTTP ' + dr.status, 'error'); }
+        } catch(de) { log('Download error: ' + de.message, 'error'); }
+      }
     }
-    setTimeout(pollExport,2000);
+    _busy=false;
   }catch(e){log('Export error: '+e.message,'error');_busy=false}
 }
 
@@ -2062,30 +2226,24 @@ async function applyProbeSet(){
       return;
     }
     status.textContent = 'Embedding probes...';
-    // Poll for completion
-    var poll = setInterval(async function(){
-      try {
-        var s = await(await fetch('/api/probe_set/apply_status')).json();
-        if(s.progress) status.textContent = s.progress;
-        if(!s.active){
-          clearInterval(poll);
-          btn.disabled = false;
-          btn.textContent = 'Apply';
-          if(s.error){
-            status.textContent = 'Error: ' + s.error;
-            status.style.color = 'var(--red)';
-          } else if(s.result){
-            var res = s.result;
-            status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(res.filename) + '</span>'
-              + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' subclasses'
-              + ' — embedded at L' + res.layer_L50 + ' and L' + res.layer_L75;
-            status.style.color = 'var(--text-1)';
-            log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
-            playChime();
-          }
-        }
-      } catch(e){}
-    }, 1000);
+    // Wait for probe_status via SSE
+    var probeResult = await new Promise(function(resolve) {
+      _sseWaiters.probe_status.push(function(evt) { resolve(evt); });
+    });
+    btn.disabled = false;
+    btn.textContent = 'Apply';
+    if (probeResult.error) {
+      status.textContent = 'Error: ' + probeResult.error;
+      status.style.color = 'var(--red)';
+    } else if (probeResult.result) {
+      var res = probeResult.result;
+      status.innerHTML = '<span style="color:var(--green)">✓ ' + escHtml(res.filename) + '</span>'
+        + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' subclasses'
+        + ' — embedded at L' + res.layer_L50 + ' and L' + res.layer_L75;
+      status.style.color = 'var(--text-1)';
+      log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
+      playChime();
+    }
   } catch(e) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--red)';
@@ -2192,13 +2350,31 @@ function playChime() {
 // ─── Init ───────────────────────────────────────────────────────
 (async function(){
   try{
+    // Initialize SSE event stream before anything else.
+    initEventSource();
+
     loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();
     if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tagm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}
     if(st.model_loaded){modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false}
-    else if(st.loading){setStatus('loading','LOADING');$('loadModelBtn').disabled=true;$('loadModelBtn').textContent='Processing...';
-      let ll=0;const poll=setInterval(async()=>{try{const p=await(await fetch('/api/progress')).json();for(let i=ll;i<p.log.length;i++){const e=p.log[i];log(`[${e.stage}] ${e.message}`,e.stage==='error'?'error':(e.stage==='ready'?'done':''))}ll=p.log.length;const s=await(await fetch('/api/status')).json();if(s.model_loaded){clearInterval(poll);modelLoaded=true;setStatus('ready','READY');$('analyzeBtn').disabled=false;$('batchBtn').disabled=false;$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model';loadPromptLibrary()}else if(s.loading_error){clearInterval(poll);setStatus('idle','ERROR');$('loadModelBtn').disabled=false;$('loadModelBtn').textContent='Load Model'}}catch(e){}},2000)}
+    else if(st.loading){
+      // Load in progress (page refreshed mid-load). SSE will deliver
+      // progress events and eventually model_loaded or model_error.
+      setStatus('loading','LOADING');
+      $('loadModelBtn').disabled=true;
+      $('loadModelBtn').textContent='Processing...';
+      _sseWaiters.model_loaded.push(function() {
+        $('loadModelBtn').disabled=false;
+        $('loadModelBtn').textContent='Load Model';
+        loadPromptLibrary();
+        playChime();
+      });
+      _sseWaiters.model_error.push(function() {
+        $('loadModelBtn').disabled=false;
+        $('loadModelBtn').textContent='Load Model';
+      });
+    }
     // Restored session: populate data table and enable dashboard
     if(st.session&&st.session.n_results>0){
       _promptTotal=st.session.n_results;
@@ -2758,68 +2934,12 @@ async function runModule(name) {
 }
 
 function startModulePoll(name) {
-  if (_modulePollers[name]) clearInterval(_modulePollers[name]);
-  _modulePollers[name] = setInterval(function() { pollModule(name); }, 500);
+  // Module status now delivered via SSE (module_status events).
+  // Retained as no-op so callers don't need to change.
 }
 
 async function pollModule(name) {
-  try {
-    const r = await fetch('/api/modules/' + name + '/status');
-    const d = await r.json();
-    var prog = $('mod-progress-' + name);
-    if (prog) prog.textContent = d.progress || '';
-
-    if (d.status === 'completed') {
-      clearInterval(_modulePollers[name]);
-      delete _modulePollers[name];
-      updateModuleStatus(name, 'completed');
-      playChime();
-      var btn = $('mod-run-' + name);
-      if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
-      var elapsedStr;
-      if (d.completed_at && d.started_at) {
-        elapsedStr = (d.completed_at - d.started_at).toFixed(1) + 's';
-      } else if (_moduleStartTimes[name]) {
-        elapsedStr = ((Date.now() - _moduleStartTimes[name]) / 1000).toFixed(1) + 's';
-      } else {
-        elapsedStr = '?';
-      }
-      delete _moduleStartTimes[name];
-      if (prog) prog.textContent = 'Completed in ' + elapsedStr;
-      log('Module ' + name + ': completed in ' + elapsedStr, 'done');
-      // Show download log button
-      if (d.has_log) {
-        var existing = $('mod-log-' + name);
-        if (!existing) {
-          var logBtn = document.createElement('button');
-          logBtn.id = 'mod-log-' + name;
-          logBtn.className = 'btn btn-sm';
-          logBtn.style.cssText = 'border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer';
-          logBtn.textContent = 'Download Log';
-          logBtn.onclick = function(e) { e.stopPropagation(); window.open('/api/modules/' + name + '/download_log', '_blank'); };
-          if (btn && btn.parentNode) btn.parentNode.insertBefore(logBtn, btn.nextSibling);
-        }
-      }
-      fetchModuleResults(name);
-      // Auto-expand card body so results (incl. Embed button) are visible
-      var body = $('mod-body-' + name);
-      var chev = $('mod-chev-' + name);
-      if (body && body.style.display === 'none') {
-        body.style.display = '';
-        if (chev) chev.textContent = '▼';
-      }
-    } else if (d.status === 'error') {
-      clearInterval(_modulePollers[name]);
-      delete _modulePollers[name];
-      delete _moduleStartTimes[name];
-      updateModuleStatus(name, 'error');
-      var btn2 = $('mod-run-' + name);
-      if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
-      var errMsg = d.error || 'unknown';
-      if (prog) prog.textContent = 'Error: ' + errMsg;
-      log('Module ' + name + ': error — ' + errMsg, 'error');
-    }
-  } catch(e) { /* silent retry */ }
+  // No longer called. Module status arrives via SSE.
 }
 
 function updateModuleStatus(name, status) {
@@ -3668,30 +3788,24 @@ async function embedActiveProbes(filename){
       btn.textContent = '⬡ Embed & Activate Probe Set';
       return;
     }
-    var poll = setInterval(async function(){
-      try {
-        var s = await(await fetch('/api/modules/probe_generator/embed_active_status')).json();
-        if (s.progress) status.textContent = s.progress;
-        if (!s.active) {
-          clearInterval(poll);
-          btn.disabled = false;
-          btn.style.opacity = '1';
-          btn.textContent = '⬡ Embed & Activate Probe Set';
-          if (s.error) {
-            status.innerHTML = '<span style="color:var(--red)">✗ ' + escHtml(s.error) + '</span>';
-          } else if (s.result) {
-            var res = s.result;
-            status.innerHTML = '<span style="color:var(--green)">✓ Embedded and activated</span>'
-              + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' levels'
-              + ' — depths L' + (res.depths || []).join(', L');
-            log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
-            // Refresh the global probe-status indicator if present
-            if (typeof loadProbeFiles === 'function') loadProbeFiles();
-            if (typeof playChime === 'function') playChime();
-          }
-        }
-      } catch(e) {}
-    }, 1000);
+    // Wait for pg_embed_status via SSE
+    var pgResult = await new Promise(function(resolve) {
+      _sseWaiters.pg_embed_status.push(function(evt) { resolve(evt); });
+    });
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.textContent = '⬡ Embed & Activate Probe Set';
+    if (pgResult.error) {
+      status.innerHTML = '<span style="color:var(--red)">✗ ' + escHtml(pgResult.error) + '</span>';
+    } else if (pgResult.result) {
+      var res = pgResult.result;
+      status.innerHTML = '<span style="color:var(--green)">✓ Embedded and activated</span>'
+        + ' — ' + res.n_probes + ' probes, ' + res.n_subjects + ' subjects, ' + res.n_levels + ' levels'
+        + ' — depths L' + (res.depths || []).join(', L');
+      log('Probe set applied: ' + res.filename + ' (' + res.n_probes + ' probes)', 'done');
+      if (typeof loadProbeFiles === 'function') loadProbeFiles();
+      if (typeof playChime === 'function') playChime();
+    }
   } catch(e) {
     status.textContent = 'Failed: ' + e.message;
     status.style.color = 'var(--red)';
