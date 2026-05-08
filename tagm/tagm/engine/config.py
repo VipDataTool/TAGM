@@ -73,6 +73,11 @@ DEFAULTS = {
     "chat_temperature": 0.7,
     "chat_top_p": 0.9,
     "chat_max_tokens": 256,
+
+    # ── High-Efficiency Pipeline ──
+    "delta_backend": "memory",       # "memory" or "mmap"
+    "hep_active": False,
+    "hep_evict_base_cache": False,
 }
 
 _config = dict(DEFAULTS)

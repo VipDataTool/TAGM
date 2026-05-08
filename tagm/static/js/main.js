@@ -2217,6 +2217,127 @@ async function resetAdvancedParams(){
   }catch(e){log('Reset failed: '+e.message,'error')}
 }
 
+// ─── High-Efficiency Pipeline ──────────────────────────────────
+
+async function loadHepStatus() {
+  try {
+    var r = await(await fetch('/api/hep/status')).json();
+    renderHepPanel(r);
+  } catch(e) {
+    var panel = $('hepStatus');
+    if (panel) panel.textContent = 'Failed to load HEP status.';
+  }
+}
+
+function renderHepPanel(st) {
+  var status = $('hepStatus');
+  var controls = $('hepControls');
+  if (!status || !controls) return;
+
+  var diskPct = ((st.disk_used / st.disk_total) * 100).toFixed(0);
+  var diskFreeGB = (st.disk_free / 1e9).toFixed(1);
+  var ramAvailGB = (st.ram_available / 1e9).toFixed(1);
+  var hfCacheGB = (st.hf_cache_bytes / 1e9).toFixed(1);
+
+  if (st.active) {
+    var mmapInfo = st.mmap_file
+      ? 'Mmap file: ' + st.mmap_file.split('/').pop() + ' (' + (st.mmap_size_bytes / 1e9).toFixed(1) + ' GB)'
+      : 'No mmap file (load a model to create one)';
+    status.innerHTML = '<div style="padding:8px 10px;border:1px solid var(--yellow);border-radius:4px;background:rgba(240,228,66,0.06);margin-bottom:8px">'
+      + '<span style="color:var(--yellow);font-weight:600">HIGH-EFFICIENCY PIPELINE: ACTIVE</span><br>'
+      + '<span style="color:var(--text-2)">'
+      + 'Delta backend: memory-mapped (disk)<br>'
+      + mmapInfo + '<br>'
+      + 'Disk: ' + diskPct + '% used (' + diskFreeGB + ' GB free)<br>'
+      + 'RAM available: ' + ramAvailGB + ' GB'
+      + '</span></div>';
+    controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent" onclick="deactivateHep()">Deactivate HEP</button>';
+  } else {
+    status.innerHTML = '<div style="color:var(--text-2)">'
+      + 'Status: <b>Inactive</b> (standard memory mode)<br>'
+      + 'Disk: ' + diskPct + '% used (' + diskFreeGB + ' GB free)<br>'
+      + 'HF model cache: ' + hfCacheGB + ' GB<br>'
+      + 'RAM available: ' + ramAvailGB + ' GB'
+      + '</div>';
+    controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
+  }
+}
+
+function showHepConfirm() {
+  // Fetch fresh status for the dialog
+  fetch('/api/hep/status').then(function(r){ return r.json(); }).then(function(st) {
+    var hfGB = (st.hf_cache_bytes / 1e9).toFixed(1);
+    var freeAfter = ((st.disk_free + st.hf_cache_bytes) / 1e9).toFixed(1);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'hepConfirmOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+
+    overlay.innerHTML = '<div style="background:var(--bg-1);border:1px solid var(--yellow);border-radius:8px;padding:24px;max-width:480px;width:90%;color:var(--text-1)">'
+      + '<h3 style="margin:0 0 12px;color:var(--yellow)">Initialize High-Efficiency Pipeline</h3>'
+      + '<p style="margin:0 0 10px;line-height:1.5;color:var(--text-2)">This mode enables analysis of models up to 3B parameters by using disk-backed storage for weight deltas.</p>'
+      + '<p style="margin:0 0 10px;line-height:1.5;color:var(--text-2)">To free disk space, this will:</p>'
+      + '<div style="margin:0 0 12px;padding:8px 12px;background:var(--bg-2);border-radius:4px;line-height:1.6;color:var(--text-1)">'
+      + '• Clear the HuggingFace model cache (' + hfGB + ' GB)<br>'
+      + '• Remove any existing mmap delta files<br>'
+      + '• Reset the current pipeline and session'
+      + '</div>'
+      + '<p style="margin:0 0 10px;line-height:1.5;color:var(--text-2)">All cached model weights will need to be re-downloaded. Probe-dependent modules will require re-embedding (~15-20 min at 3B).</p>'
+      + '<div style="margin:0 0 16px;padding:8px 10px;background:var(--bg-2);border-radius:4px;color:var(--text-2)">'
+      + 'After cleanup: ~' + freeAfter + ' GB free disk'
+      + '</div>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+      + '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="document.getElementById(\'hepConfirmOverlay\').remove()">Cancel</button>'
+      + '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--bg-1);background:var(--yellow);font-weight:600" onclick="confirmInitHep()">Confirm</button>'
+      + '</div></div>';
+
+    document.body.appendChild(overlay);
+  });
+}
+
+async function confirmInitHep() {
+  var overlay = $('hepConfirmOverlay');
+  if (overlay) overlay.remove();
+
+  log('Initializing High-Efficiency Pipeline...');
+  try {
+    var r = await(await fetch('/api/hep/initialize', {method: 'POST'})).json();
+    if (r.ok) {
+      modelLoaded = false;
+      sessionResults = [];
+      dashResults = [];
+      _promptTotal = 0;
+      setStatus('idle', 'IDLE');
+      $('analyzeBtn').disabled = true;
+      $('batchBtn').disabled = true;
+      updateSessionBadge();
+      var freedGB = ((r.hf_freed.bytes_freed + r.mmap_freed.bytes_freed) / 1e9).toFixed(1);
+      log('HEP initialized. Freed ' + freedGB + ' GB. Load a model to begin.', 'done');
+      loadHepStatus();
+    } else {
+      log('HEP init failed: ' + (r.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    log('HEP init error: ' + e.message, 'error');
+  }
+}
+
+async function deactivateHep() {
+  if (!confirm('Deactivate High-Efficiency Pipeline?\n\nThis will reset the pipeline and return to standard memory mode.')) return;
+  try {
+    var r = await(await fetch('/api/hep/deactivate', {method: 'POST'})).json();
+    if (r.ok) {
+      modelLoaded = false;
+      sessionResults = [];
+      setStatus('idle', 'IDLE');
+      $('analyzeBtn').disabled = true;
+      $('batchBtn').disabled = true;
+      log('HEP deactivated. Standard memory mode.', 'done');
+      loadHepStatus();
+    }
+  } catch(e) { log('HEP deactivate error: ' + e.message, 'error'); }
+}
+
 var _probeFiles = [];
 
 async function applyProbeSet(){
@@ -2376,7 +2497,7 @@ function playChime() {
     // Initialize SSE event stream before anything else.
     initEventSource();
 
-    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();loadHepStatus();
     if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tagm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}

@@ -171,3 +171,97 @@ def _safe_filename(name: str) -> str:
     )
     safe = safe.strip().replace(" ", "_")
     return safe[:200] or "unnamed"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# HEP utilities — cache cleanup and system resource reporting
+# ═══════════════════════════════════════════════════════════════════
+
+def get_hf_cache_dir() -> Path:
+    """Locate the HuggingFace hub cache directory."""
+    import os
+    hf_home = os.environ.get("HF_HOME")
+    if hf_home:
+        return Path(hf_home) / "hub"
+    return Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def hf_cache_size() -> int:
+    """Total bytes used by the HuggingFace model cache."""
+    cache_dir = get_hf_cache_dir()
+    if not cache_dir.exists():
+        return 0
+    return sum(p.stat().st_size for p in cache_dir.rglob("*") if p.is_file())
+
+
+def clear_hf_cache() -> dict:
+    """Remove all cached model files from the HuggingFace hub cache.
+
+    Removes models--* directories (model weight files). Preserves
+    non-model files (tokens, settings, version).
+
+    Returns dict with bytes_freed, n_removed, errors.
+    """
+    import shutil
+    cache_dir = get_hf_cache_dir()
+    result = {"bytes_freed": 0, "n_removed": 0, "errors": []}
+    if not cache_dir.exists():
+        return result
+
+    for entry in cache_dir.iterdir():
+        if entry.is_dir() and entry.name.startswith("models--"):
+            try:
+                size = sum(p.stat().st_size for p in entry.rglob("*") if p.is_file())
+                shutil.rmtree(entry)
+                result["bytes_freed"] += size
+                result["n_removed"] += 1
+            except Exception as e:
+                result["errors"].append(f"{entry.name}: {e}")
+
+    return result
+
+
+def clear_mmap_deltas() -> dict:
+    """Remove all mmap delta files."""
+    delta_dir = Path.home() / ".tagm" / "cache" / "deltas"
+    result = {"bytes_freed": 0, "n_removed": 0}
+    if not delta_dir.exists():
+        return result
+    for f in delta_dir.glob("*.tagm"):
+        try:
+            result["bytes_freed"] += f.stat().st_size
+            f.unlink()
+            result["n_removed"] += 1
+        except Exception:
+            pass
+    return result
+
+
+def system_resources() -> dict:
+    """Return current disk and memory usage. No external dependencies."""
+    import shutil
+
+    # Disk
+    disk = shutil.disk_usage("/")
+
+    # RAM (Linux /proc/meminfo)
+    ram_total = 0
+    ram_available = 0
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    ram_total = int(line.split()[1]) * 1024
+                elif line.startswith("MemAvailable:"):
+                    ram_available = int(line.split()[1]) * 1024
+    except Exception:
+        pass
+
+    return {
+        "disk_total": disk.total,
+        "disk_used": disk.used,
+        "disk_free": disk.free,
+        "ram_total": ram_total,
+        "ram_available": ram_available,
+        "hf_cache_bytes": hf_cache_size(),
+    }

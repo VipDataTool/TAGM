@@ -187,6 +187,88 @@ async def set_inference_model(request: Request):
 async def reset():
     return api_reset_handler()
 
+
+# ═══════════════════════════════════════════════════════════════
+# High-Efficiency Pipeline (HEP)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/hep/status")
+async def hep_status():
+    """Return HEP state, disk/memory usage, and mmap info."""
+    from tagm.engine import config as engine_config
+    from tagm.core.cache import system_resources, hf_cache_size
+    from pathlib import Path
+
+    res = system_resources()
+    mmap_dir = Path.home() / ".tagm" / "cache" / "deltas"
+    mmap_files = list(mmap_dir.glob("*.tagm")) if mmap_dir.exists() else []
+    mmap_size = sum(f.stat().st_size for f in mmap_files)
+
+    return {
+        "active": bool(engine_config.get("hep_active")),
+        "delta_backend": engine_config.get("delta_backend"),
+        "mmap_file": str(mmap_files[0]) if mmap_files else None,
+        "mmap_size_bytes": mmap_size,
+        "evict_base_cache": bool(engine_config.get("hep_evict_base_cache")),
+        **res,
+    }
+
+@app.post("/api/hep/initialize")
+async def init_hep(request: Request):
+    """Initialize the High-Efficiency Pipeline.
+
+    Clears HF cache, removes old mmap files, resets pipeline,
+    configures delta_backend to mmap.
+    """
+    from tagm.engine import config as engine_config
+    from tagm.core.cache import clear_hf_cache, clear_mmap_deltas, system_resources
+
+    # Reset pipeline first
+    api_reset_handler()
+
+    # Clear caches
+    hf_result = clear_hf_cache()
+    mmap_result = clear_mmap_deltas()
+
+    # Configure HEP
+    engine_config.update({
+        "delta_backend": "mmap",
+        "hep_active": True,
+    })
+
+    res = system_resources()
+    total_freed = hf_result["bytes_freed"] + mmap_result["bytes_freed"]
+
+    state.progress("ready", f"HEP initialized: freed {total_freed / 1e9:.1f} GB")
+    broker.publish("progress", {
+        "stage": "ready",
+        "message": f"High-Efficiency Pipeline active. Freed {total_freed / 1e9:.1f} GB.",
+    })
+
+    return {
+        "ok": True,
+        "hf_freed": hf_result,
+        "mmap_freed": mmap_result,
+        "disk_free": res["disk_free"],
+        "ram_available": res["ram_available"],
+    }
+
+@app.post("/api/hep/deactivate")
+async def deactivate_hep():
+    """Deactivate HEP and return to standard memory mode."""
+    from tagm.engine import config as engine_config
+    from tagm.core.cache import clear_mmap_deltas
+
+    api_reset_handler()
+    clear_mmap_deltas()
+    engine_config.update({
+        "delta_backend": "memory",
+        "hep_active": False,
+    })
+
+    state.progress("ready", "High-Efficiency Pipeline deactivated")
+    return {"ok": True}
+
 @app.post("/api/analyze")
 async def analyze(request: Request):
     return await api_analyze_handler(request)

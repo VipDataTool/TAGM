@@ -38,7 +38,8 @@ def compute_deltas_from_disk(
     layer_filter: Optional[list[int]] = None,
     hf_token: Optional[str] = None,
     progress: Optional[ProgressCallback] = None,
-) -> DeltaStore:
+    store: Optional["DeltaStore"] = None,
+) -> "DeltaStore":
     """Compute weight deltas (instruct - base) for projection weights.
 
     Args:
@@ -93,7 +94,12 @@ def compute_deltas_from_disk(
         n_layers=n_layers,
         n_deltas=0,  # updated below
     )
-    store = DeltaStore(adapter, metadata)
+    if store is None:
+        store = DeltaStore(adapter, metadata)
+    else:
+        # Caller provided a pre-created store (e.g. MmapDeltaStore).
+        # Update its metadata to match this computation.
+        store._metadata = metadata
 
     # ── Identify the safetensors file layout ────────────────────────
     index_path = local_path / "model.safetensors.index.json"

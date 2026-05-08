@@ -13,6 +13,7 @@ Lifecycle:
 from __future__ import annotations
 
 import gc
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import torch
@@ -105,6 +106,32 @@ class Pipeline:
             self.instruct_model_id, hf_token=self.hf_token)
 
         log("deltas", "Computing weight deltas from base model")
+
+        # Select delta store backend
+        from tagm.engine import config as engine_config
+        delta_backend = engine_config.get("delta_backend")
+        pre_store = None
+
+        if delta_backend == "mmap":
+            from tagm.core.deltas.store import MmapDeltaStore, DeltaStoreMetadata
+            safe_id = self.instruct_model_id.replace("/", "__").replace("\\", "__")
+            cache_dir = Path.home() / ".tagm" / "cache" / "deltas"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            mmap_path = cache_dir / f"{safe_id}.tagm"
+            # Remove stale file from a previous load
+            if mmap_path.exists():
+                mmap_path.unlink()
+            placeholder_meta = DeltaStoreMetadata(
+                base_model_id=self.base_model_id,
+                instruct_model_id=self.instruct_model_id,
+                adapter_family=self.adapter.family_id,
+                dtype=str(self.dtype).replace("torch.", ""),
+                layer_filter=None, n_layers=0, n_deltas=0,
+            )
+            pre_store = MmapDeltaStore(
+                self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
+            log("deltas", f"Using mmap delta store: {mmap_path.name}")
+
         self.delta_store = compute_deltas_from_disk(
             base_model_id=self.base_model_id,
             instruct_model=self.instruct_model,
@@ -113,7 +140,12 @@ class Pipeline:
             layer_filter=layer_filter,
             hf_token=self.hf_token,
             progress=progress,
+            store=pre_store,
         )
+
+        # If mmap, finalize the file and reopen in read mode
+        if delta_backend == "mmap" and hasattr(self.delta_store, 'reopen_readonly'):
+            self.delta_store.reopen_readonly()
 
         if compute_spectral:
             log("spectral", "Computing delta spectral profile")
@@ -159,6 +191,12 @@ class Pipeline:
             del self.instruct_model
             self.instruct_model = None
         self.unload_base()
+        # Close mmap delta store if applicable
+        if self.delta_store is not None and hasattr(self.delta_store, 'close'):
+            try:
+                self.delta_store.close()
+            except Exception:
+                pass
         self.delta_store = None
         self.tokenizer = None
         self.adapter = None
