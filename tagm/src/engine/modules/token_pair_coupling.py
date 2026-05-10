@@ -1,19 +1,20 @@
-"""Token Pair Coupling — Strongly Interacting Token Pairs in the Correction Field.
+"""Token Pair Coupling — Strongly Coupled Prompt–Counterfactual Token Pairs.
 
-Identifies per-position token pairs where the alignment correction field
-actively redirects probability mass: tokens the base model favored that
-the instruct model suppresses (demoted), and tokens the instruct model
-promotes that the base model didn't favor (promoted).  The pairs
-(demoted → promoted) are the field's vocabulary-level action.
+At each position in a prompt, the actual token is T.  The instruct and
+base models each predict a ranked set of counterfactual candidates — what
+they think *should* be at that position.  When a model assigns high
+probability to a candidate C != T, the pair (T -> C) is a strong
+interaction: the model wants to redirect that position.
 
-Observations accumulate in a persistent JSON cache across sessions,
-models, and prompt categories.  Over many sessions, recurring pairs
-separate from noise and compose into correction pathways — chains of
-redirections that describe the field's strategy.
+This module extracts all (prompt_token, counterfactual) pairs above a
+configurable threshold from both model variants, records them with full
+context, and accumulates observations in a persistent JSON cache across
+sessions.  Over many sessions, recurring pairs reveal where and how
+models consistently disagree with prompt content.
 
-Data source: reads only from the session result dicts.  No cross-module
-dependencies.  Requires LTP (for instruct counterfactuals) and base
-model data (for base counterfactuals) to be present in the results.
+Data source: reads only from the session result dicts — specifically
+ltp.counterfactual_tokens (instruct) and base_counterfactual_tokens
+(base).  No cross-module dependencies.
 
 Cache location: ~/.tagm/token_pair_cache.json
 """
@@ -36,12 +37,12 @@ _CACHE_PATH = Path.home() / ".tagm" / "token_pair_cache.json"
 class TokenPairCoupling(TASMModule):
     name = "token_pair_coupling"
     display_name = "Token Pair Coupling"
-    version = "0.1.0"
+    version = "0.2.0"
     description = (
-        "Identifies strongly interacting token pairs from the correction "
-        "field — tokens the base model favored that the instruct model "
-        "suppresses, paired with tokens the instruct model promotes. "
-        "Observations accumulate in a persistent cache across sessions."
+        "Identifies strongly coupled (prompt token -> counterfactual) pairs "
+        "where models predict a different token at a given position with "
+        "high probability. Observations accumulate in a persistent cache "
+        "across sessions."
     )
 
     parameters = [
@@ -49,9 +50,10 @@ class TokenPairCoupling(TASMModule):
             name="min_interaction_score",
             display_name="Minimum interaction score",
             description=(
-                "Minimum geometric-mean probability for a (demoted, promoted) "
-                "pair to be recorded.  Lower values capture weaker interactions "
-                "but increase noise.  Score = sqrt(p_base(demoted) * p_instruct(promoted))."
+                "Minimum probability for a counterfactual candidate to be "
+                "recorded as a coupled pair. A candidate at probability 0.10 "
+                "means the model assigns 10% chance to that token instead of "
+                "the actual prompt token at that position."
             ),
             type="float", default=0.04, min_val=0.001, max_val=0.5,
         ),
@@ -90,7 +92,6 @@ class TokenPairCoupling(TASMModule):
     # ── Cache I/O ───────────────────────────────────────────────────
 
     def _load_cache(self) -> list:
-        """Load the persistent cache from disk."""
         if self._cache is not None:
             return self._cache
         if _CACHE_PATH.exists():
@@ -107,14 +108,12 @@ class TokenPairCoupling(TASMModule):
         return self._cache
 
     def _save_cache(self, cache: list) -> None:
-        """Write the cache to disk."""
         _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_CACHE_PATH, "w") as f:
             json.dump(cache, f, indent=1)
         self._cache = cache
 
     def _get_cache_summary(self) -> dict:
-        """Summary statistics for the current cache."""
         cache = self._load_cache()
         if not cache:
             return {
@@ -126,7 +125,7 @@ class TokenPairCoupling(TASMModule):
         models = set()
         categories = set()
         for obs in cache:
-            pairs.add((obs.get("source"), obs.get("dest")))
+            pairs.add((obs.get("prompt_token"), obs.get("counterfactual")))
             sessions.add(obs.get("session_id", ""))
             models.add(obs.get("model", ""))
             categories.add(obs.get("category", ""))
@@ -140,7 +139,6 @@ class TokenPairCoupling(TASMModule):
 
     @staticmethod
     def reset_cache() -> dict:
-        """Clear the persistent cache.  Returns summary of what was cleared."""
         if _CACHE_PATH.exists():
             try:
                 with open(_CACHE_PATH, "r") as f:
@@ -156,11 +154,12 @@ class TokenPairCoupling(TASMModule):
 
     def run(self, session_results: list[dict], params: dict,
             progress: Optional[Callable] = None) -> dict:
-        """Process session results and merge new observations into the cache.
+        """Extract (prompt_token -> counterfactual) pairs from session results.
 
-        For each result that has both instruct and base counterfactual
-        tokens, identifies (demoted → promoted) pairs at each position
-        and records those exceeding the interaction threshold.
+        For each position in each prompt, looks at both the instruct and
+        base model's counterfactual candidate lists.  Any candidate with
+        probability >= min_interaction_score is recorded as a coupled pair
+        with the actual prompt token at that position.
         """
         min_score = params.get("min_interaction_score", 0.04)
         k_depth = params.get("top_k_depth", 8)
@@ -181,61 +180,54 @@ class TokenPairCoupling(TASMModule):
             instruct_cf = ltp.get("counterfactual_tokens", []) if isinstance(ltp, dict) else []
             base_cf = result.get("base_counterfactual_tokens", [])
 
-            if not instruct_cf or not base_cf:
+            if not instruct_cf and not base_cf:
                 n_skipped += 1
                 continue
 
             prompt = result.get("prompt", "")
             category = result.get("category", "")
             model = self._model_id or result.get("model", "")
-            n_positions = min(len(instruct_cf), len(base_cf))
             tokens = result.get("tokens", [])
 
-            for pos in range(n_positions):
-                i_alts = instruct_cf[pos][:k_depth]
-                b_alts = base_cf[pos][:k_depth]
+            # Process both model variants
+            cf_sources = []
+            if instruct_cf:
+                cf_sources.append(("instruct", instruct_cf))
+            if base_cf:
+                cf_sources.append(("base", base_cf))
 
-                if not i_alts or not b_alts:
-                    continue
+            for variant, cf_list in cf_sources:
+                n_positions = min(len(cf_list), len(tokens)) if tokens else len(cf_list)
 
-                # Build token → probability maps
-                inst_map = {t: p for t, p in i_alts}
-                base_map = {t: p for t, p in b_alts}
+                for pos in range(n_positions):
+                    candidates = cf_list[pos][:k_depth]
+                    if not candidates:
+                        continue
 
-                # Identify promoted and demoted tokens
-                promoted = set(inst_map) - set(base_map)  # in instruct, not in base
-                demoted = set(base_map) - set(inst_map)    # in base, not in instruct
+                    # The actual prompt token at this position
+                    prompt_token = tokens[pos] if pos < len(tokens) else ""
+                    if not prompt_token:
+                        continue
 
-                if not promoted or not demoted:
-                    continue
+                    # Position bin
+                    pos_bin = min(int(pos / max(n_positions, 1) * n_bins), n_bins - 1)
+                    pos_label = ["early", "mid", "late"][pos_bin] if n_bins == 3 else f"bin_{pos_bin}"
 
-                # Position bin (0 = early, n_bins-1 = late)
-                pos_bin = min(int(pos / n_positions * n_bins), n_bins - 1)
-                pos_label = ["early", "mid", "late"][pos_bin] if n_bins == 3 else f"bin_{pos_bin}"
-
-                # Context token at this position
-                ctx_token = tokens[pos] if pos < len(tokens) else ""
-
-                # Generate all (demoted → promoted) pairs above threshold
-                for src in demoted:
-                    src_prob = base_map[src]
-                    for dst in promoted:
-                        dst_prob = inst_map[dst]
-                        # Interaction score: geometric mean of the two probabilities
-                        score = math.sqrt(src_prob * dst_prob)
-                        if score < min_score:
+                    # Record all candidates above threshold
+                    for cf_token, cf_prob in candidates:
+                        if cf_prob < min_score:
                             continue
+                        if cf_token == prompt_token:
+                            continue  # skip self-coupling
 
                         new_observations.append({
-                            "source": src,
-                            "dest": dst,
-                            "score": round(score, 6),
-                            "source_prob": round(src_prob, 6),
-                            "dest_prob": round(dst_prob, 6),
+                            "prompt_token": prompt_token,
+                            "counterfactual": cf_token,
+                            "score": round(cf_prob, 6),
+                            "variant": variant,
                             "position": pos,
                             "position_bin": pos_label,
-                            "context_token": ctx_token,
-                            "prompt": prompt[:200],  # truncate for storage
+                            "prompt": prompt[:200],
                             "category": category,
                             "model": model,
                             "session_id": session_id,
@@ -244,17 +236,18 @@ class TokenPairCoupling(TASMModule):
 
             n_processed += 1
 
-        # Merge into persistent cache (deduplicate)
-        # Key: (source, dest, position, prompt_snippet, model)
+        # Deduplicate against existing cache
         existing_keys = set()
         for obs in cache:
-            k = (obs.get("source"), obs.get("dest"), obs.get("position"),
+            k = (obs.get("prompt_token"), obs.get("counterfactual"),
+                 obs.get("position"), obs.get("variant"),
                  obs.get("prompt", "")[:80], obs.get("model"))
             existing_keys.add(k)
 
         n_dupes = 0
         for obs in new_observations:
-            k = (obs["source"], obs["dest"], obs["position"],
+            k = (obs["prompt_token"], obs["counterfactual"],
+                 obs["position"], obs["variant"],
                  obs["prompt"][:80], obs["model"])
             if k in existing_keys:
                 n_dupes += 1
@@ -265,22 +258,24 @@ class TokenPairCoupling(TASMModule):
         self._save_cache(cache)
 
         if progress:
-            progress(f"Done: {len(new_observations) - n_dupes} new pairs from {n_processed} prompts ({n_dupes} duplicates skipped)")
+            progress(f"Done: {len(new_observations) - n_dupes} new pairs "
+                     f"from {n_processed} prompts "
+                     f"({n_dupes} duplicates skipped)")
 
-        # ── Build summary results ───────────────────────────────────
+        # ── Aggregate results ───────────────────────────────────────
 
-        # Aggregate pairs across all observations (including historical)
         pair_agg = {}
         for obs in cache:
-            key = (obs["source"], obs["dest"])
+            key = (obs["prompt_token"], obs["counterfactual"])
             if key not in pair_agg:
                 pair_agg[key] = {
-                    "source": obs["source"],
-                    "dest": obs["dest"],
+                    "prompt_token": obs["prompt_token"],
+                    "counterfactual": obs["counterfactual"],
                     "count": 0,
                     "scores": [],
                     "categories": set(),
                     "models": set(),
+                    "variants": set(),
                     "position_bins": [],
                     "prompts": [],
                 }
@@ -289,29 +284,29 @@ class TokenPairCoupling(TASMModule):
             entry["scores"].append(obs["score"])
             entry["categories"].add(obs["category"])
             entry["models"].add(obs["model"])
+            entry["variants"].add(obs["variant"])
             entry["position_bins"].append(obs["position_bin"])
-            if len(entry["prompts"]) < 5:  # keep up to 5 example prompts
+            if len(entry["prompts"]) < 5:
                 entry["prompts"].append(obs["prompt"][:100])
 
-        # Build ranked pair table
         pair_table = []
         for key, entry in pair_agg.items():
             scores = entry["scores"]
             pair_table.append({
-                "source": entry["source"],
-                "dest": entry["dest"],
+                "prompt_token": entry["prompt_token"],
+                "counterfactual": entry["counterfactual"],
                 "count": entry["count"],
                 "mean_score": round(sum(scores) / len(scores), 6),
                 "max_score": round(max(scores), 6),
                 "categories": sorted(entry["categories"]),
                 "models": sorted(entry["models"]),
+                "variants": sorted(entry["variants"]),
                 "position_tendency": _mode(entry["position_bins"]),
                 "example_prompts": entry["prompts"],
             })
 
         pair_table.sort(key=lambda x: (-x["count"], -x["mean_score"]))
 
-        # Cache summary
         cache_summary = self._get_cache_summary()
 
         return {
@@ -322,7 +317,7 @@ class TokenPairCoupling(TASMModule):
             "prompts_skipped": n_skipped,
             "skip_reason": "missing LTP or base counterfactual data" if n_skipped else None,
             "cache_summary": cache_summary,
-            "top_pairs": pair_table[:50],  # top 50 for display
+            "top_pairs": pair_table[:50],
             "all_pairs_count": len(pair_table),
             "parameters": {
                 "min_interaction_score": min_score,
@@ -333,7 +328,6 @@ class TokenPairCoupling(TASMModule):
 
 
 def _mode(values: list) -> str:
-    """Most common value in a list."""
     if not values:
         return ""
     counts = {}
