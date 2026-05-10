@@ -58,12 +58,9 @@ def export_session_split(session, path: Union[str, Path],
                          module_results: dict = None) -> Path:
     """Write a session as a zip: lean JSON + embedding CSVs + module reports.
 
-    The zip contains:
-      session.json.gz              Scalar/structural data (no embeddings)
-      embeddings_domain.csv.gz     Per-token hidden states at domain layer
-      embeddings_escalation.csv.gz Per-token hidden states at escalation layer
-      embeddings_final.csv.gz      Per-token hidden states at final layer
-      modules/_{name}.json.gz       Module analytical reports (one per module)
+    Streams results from the database one at a time. Peak memory is
+    proportional to one result, not the full session — safe for large
+    batches on memory-constrained hardware.
 
     float_precision controls significant digits in the embedding CSV (default 12).
     module_results is {name: results_dict} from ModuleRunner.collect_results().
@@ -75,70 +72,100 @@ def export_session_split(session, path: Union[str, Path],
         p = p.with_suffix(".zip")
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    results = list(session.results)
+    n_total = len(session.results)
+    page_size = 20  # process 20 results at a time
 
-    # Detect embedding dimensionality from first result that has embeddings
+    # First pass (one page): detect embedding dimensionality
     n_dims = 0
-    for r in results:
+    first_page = session.get_results_page(0, 1)
+    if first_page:
         for field in _EMBEDDING_FIELDS:
-            emb = r.get(field)
+            emb = first_page[0].get(field)
             if emb and len(emb) > 0 and len(emb[0]) > 0:
                 n_dims = len(emb[0])
                 break
-        if n_dims > 0:
-            break
-
-    # Build lean results (strip embedding fields)
-    lean_results = []
-    for r in results:
-        lean = {k: v for k, v in r.items() if k not in _EMBEDDING_FIELDS}
-        lean_results.append(lean)
 
     # Module report filenames
     module_results = module_results or {}
     module_files = {name: f"modules/{name}.json.gz" for name in module_results}
 
-    session_data = {
-        "session_id": getattr(session, "session_id", ""),
-        "model": getattr(session, "model_name", ""),
-        "n_results": len(lean_results),
-        "results": lean_results,
-        "_embedding_files": list(_EMB_CSV_NAMES.values()),
-        "_embedding_dims": n_dims,
-        "_module_files": module_files,
-    }
+    fmt = f"%.{float_precision}g"
 
     with zipfile.ZipFile(p, "w", compression=zipfile.ZIP_DEFLATED,
                          compresslevel=6) as zf:
-        # Write the lean JSON (gzip inside zip for max compression)
-        json_buf = io.BytesIO()
-        with gzip.open(json_buf, "wt", encoding="utf-8") as gf:
-            json.dump(session_data, gf, indent=1, default=_json_default)
-        zf.writestr("session.json.gz", json_buf.getvalue())
 
-        # Write each embedding layer as a gzipped CSV
+        # ── Pass 1: build lean JSON + embedding CSVs simultaneously ──
+        # Lean results (no embeddings) are small enough to hold in RAM.
+        # Embeddings are written to CSV buffers as we go.
+
+        lean_results = []
+
+        # Prepare CSV buffers for each embedding layer
+        emb_buffers = {}
+        emb_gzips = {}
+        emb_writers = {}
         if n_dims > 0:
             header = ["prompt_index", "token_index"] + [
                 f"dim_{i}" for i in range(n_dims)
             ]
-
             for field, csv_name in _EMB_CSV_NAMES.items():
-                csv_buf = io.BytesIO()
-                fmt = f"%.{float_precision}g"
-                with gzip.open(csv_buf, "wt", encoding="utf-8",
-                               newline="") as gf:
-                    writer = csv.writer(gf)
-                    writer.writerow(header)
-                    for pi, r in enumerate(results):
+                buf = io.BytesIO()
+                gz = gzip.open(buf, "wt", encoding="utf-8", newline="")
+                writer = csv.writer(gz)
+                writer.writerow(header)
+                emb_buffers[field] = buf
+                emb_gzips[field] = gz
+                emb_writers[field] = writer
+
+        # Stream results in pages
+        for offset in range(0, n_total, page_size):
+            page = session.get_results_page(offset, page_size)
+            for local_i, r in enumerate(page):
+                pi = offset + local_i
+
+                # Build lean result (strip embeddings)
+                lean = {k: v for k, v in r.items()
+                        if k not in _EMBEDDING_FIELDS}
+                lean_results.append(lean)
+
+                # Write embeddings to CSV writers
+                if n_dims > 0:
+                    for field in _EMBEDDING_FIELDS:
                         emb = r.get(field)
                         if not emb:
                             continue
+                        writer = emb_writers.get(field)
+                        if writer is None:
+                            continue
                         for ti, vec in enumerate(emb):
-                            row = [pi, ti] + [
-                                fmt % v for v in vec
-                            ]
+                            row = [pi, ti] + [fmt % v for v in vec]
                             writer.writerow(row)
-                zf.writestr(csv_name, csv_buf.getvalue())
+
+                # Let the page's results be GC'd after processing
+            del page
+
+        # Close gzip streams and write to zip
+        if n_dims > 0:
+            for field, csv_name in _EMB_CSV_NAMES.items():
+                emb_gzips[field].close()
+                zf.writestr(csv_name, emb_buffers[field].getvalue())
+                emb_buffers[field].close()
+
+        # Write the lean JSON
+        session_data = {
+            "session_id": getattr(session, "session_id", ""),
+            "model": getattr(session, "model_name", ""),
+            "n_results": len(lean_results),
+            "results": lean_results,
+            "_embedding_files": list(_EMB_CSV_NAMES.values()),
+            "_embedding_dims": n_dims,
+            "_module_files": module_files,
+        }
+
+        json_buf = io.BytesIO()
+        with gzip.open(json_buf, "wt", encoding="utf-8") as gf:
+            json.dump(session_data, gf, indent=1, default=_json_default)
+        zf.writestr("session.json.gz", json_buf.getvalue())
 
         # Write module reports
         for name, mod_data in module_results.items():
@@ -146,6 +173,8 @@ def export_session_split(session, path: Union[str, Path],
             with gzip.open(mod_buf, "wt", encoding="utf-8") as gf:
                 json.dump(mod_data, gf, indent=1, default=_json_default)
             zf.writestr(f"modules/{name}.json.gz", mod_buf.getvalue())
+
+    return p
 
     return p
 
