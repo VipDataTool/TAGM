@@ -981,8 +981,9 @@ async def export_session(request: Request):
         broker.publish("export_ready", {"filename": p.name})
 
     _export_ready = False
-    await run_in_threadpool(_do_export)
-    return {"ok": True, "ready": True}
+    import threading
+    threading.Thread(target=_do_export, daemon=True).start()
+    return {"ok": True, "ready": False}
 
 @app.get("/api/export/download")
 async def export_download():
