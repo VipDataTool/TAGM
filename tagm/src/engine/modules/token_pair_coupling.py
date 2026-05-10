@@ -46,32 +46,32 @@ class TokenPairCoupling(TASMModule):
 
     parameters = [
         ModuleParameter(
-            key="min_interaction_score",
-            label="Minimum interaction score",
+            name="min_interaction_score",
+            display_name="Minimum interaction score",
             description=(
                 "Minimum geometric-mean probability for a (demoted, promoted) "
                 "pair to be recorded.  Lower values capture weaker interactions "
-                "but increase noise.  Score = sqrt(p_base(demoted) × p_instruct(promoted))."
+                "but increase noise.  Score = sqrt(p_base(demoted) * p_instruct(promoted))."
             ),
-            type="float", default=0.04, min=0.001, max=0.5,
+            type="float", default=0.04, min_val=0.001, max_val=0.5,
         ),
         ModuleParameter(
-            key="top_k_depth",
-            label="Top-k depth",
+            name="top_k_depth",
+            display_name="Top-k depth",
             description=(
                 "How deep into each model's ranked candidate list to look "
                 "for interactions.  Must not exceed the k used during analysis."
             ),
-            type="int", default=8, min=3, max=20,
+            type="int", default=8, min_val=3, max_val=20,
         ),
         ModuleParameter(
-            key="position_bins",
-            label="Position bins",
+            name="position_bins",
+            display_name="Position bins",
             description=(
                 "Number of bins for discretizing token position within the "
                 "prompt (early / mid / late).  Used for aggregation."
             ),
-            type="int", default=3, min=2, max=10,
+            type="int", default=3, min_val=2, max_val=10,
         ),
     ]
 
