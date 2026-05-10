@@ -795,12 +795,8 @@ async function exportSession(){
       } else {
         log('Downloading ZIP...');
         try {
-          var dr = await fetch('/api/export/download');
-          if (dr.ok) {
-            var b = await dr.blob(); var u = URL.createObjectURL(b);
-            var a = document.createElement('a'); a.href = u; a.download = 'tagm_session.zip'; a.click();
-            URL.revokeObjectURL(u); log('Download complete', 'done');
-          } else { log('Download failed: HTTP ' + dr.status, 'error'); }
+          var a = document.createElement('a'); a.href = '/api/export/download'; a.download = 'tagm_session.zip'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          log('Download started', 'done');
         } catch(de) { log('Download error: ' + de.message, 'error'); }
       }
     }
