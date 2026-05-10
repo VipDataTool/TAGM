@@ -161,7 +161,7 @@ class ModuleRunner:
             module_name = filepath.stem
             try:
                 # Import relative to tagm.engine.modules
-                mod = importlib.import_module(f".{module_name}", package="tagm.engine.modules")
+                mod = importlib.import_module(f".{module_name}", package="src.engine.modules")
                 for attr_name in dir(mod):
                     attr = getattr(mod, attr_name)
                     if (isinstance(attr, type)
