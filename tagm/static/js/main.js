@@ -3130,6 +3130,8 @@ function renderModuleResults(name, results) {
     if (results && results.chat_url) popoutChat();
   } else if (name === 'arditi_benchmarks') {
     container.innerHTML = renderArditiBenchmarksResults(results);
+  } else if (name === 'token_pair_coupling') {
+    container.innerHTML = renderTokenPairResults(results);
   } else {
     // Generic JSON dump fallback
     container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
@@ -3175,6 +3177,111 @@ function popoutChat() {
 // Renders the results of the arditi_benchmarks module: a summary banner
 // plus collapsible panels for each sub-benchmark (causal/steering/scan).
 // Follows the conventions of renderMIInstrumentationResults.
+
+// ─── Token Pair Coupling Results Renderer ──────────────────────
+
+function renderTokenPairResults(r) {
+  if (!r) return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--text-3)">No results yet.</div></div>';
+  if (r.error) return '<div class="mod-results"><div class="mod-results-body" style="padding:16px;color:var(--orange)">' + escHtml(r.error) + '</div></div>';
+
+  var cs = r.cache_summary || {};
+  var h = '<div class="mod-results">';
+
+  // Session summary
+  h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">';
+  h += '<div class="metrics-grid">';
+  h += mc('Pairs found', r.session_pairs_found, null, function(v){ return v; });
+  h += mc('New added', r.session_pairs_added, null, function(v){ return v; });
+  h += mc('Duplicates', r.duplicates_skipped, null, function(v){ return v || '0'; });
+  h += mc('Prompts', r.prompts_processed, null, function(v){ return v; });
+  h += mc('Skipped', r.prompts_skipped, null, function(v){ return v || '0'; });
+  h += mc('Cache total', cs.n_observations, null, function(v){ return v || '0'; });
+  h += mc('Unique pairs', cs.n_unique_pairs, null, function(v){ return v || '0'; });
+  h += mc('Sessions', cs.n_sessions, null, function(v){ return v || '0'; });
+  h += '</div>';
+  if (r.prompts_skipped > 0 && r.skip_reason) {
+    h += '<div style="margin-top:6px;font-size:11px;color:var(--orange)">Skipped: ' + escHtml(r.skip_reason) + '</div>';
+  }
+  if (cs.models && cs.models.length > 0) {
+    h += '<div style="margin-top:6px;font-size:11px;color:var(--text-2)">Models: ' + cs.models.map(function(m){ return escHtml(m.split('/').pop()); }).join(', ') + '</div>';
+  }
+  h += '</div>';
+
+  // Cache management buttons
+  h += '<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">';
+  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
+  h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="confirmResetTokenPairCache()">Reset Cache</button>';
+  h += '<span style="flex:1"></span>';
+  h += '<span style="font-size:11px;color:var(--text-3)">Cache persists across sessions and resets</span>';
+  h += '</div>';
+
+  // Top pairs table
+  var pairs = r.top_pairs || [];
+  if (pairs.length > 0) {
+    h += '<div style="padding:12px 16px">';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--text-1);margin-bottom:8px">Strongly Coupled Pairs (' + (r.all_pairs_count || pairs.length) + ' total)</div>';
+    h += '<div style="overflow-x:auto;max-height:500px;overflow-y:auto">';
+    h += '<table style="width:100%;font-size:11px;border-collapse:collapse">';
+    h += '<thead><tr style="border-bottom:1px solid var(--border);color:var(--text-2);text-align:left">';
+    h += '<th style="padding:4px 8px">Suppressed</th>';
+    h += '<th style="padding:4px 8px">→</th>';
+    h += '<th style="padding:4px 8px">Promoted</th>';
+    h += '<th style="padding:4px 8px;text-align:right">Count</th>';
+    h += '<th style="padding:4px 8px;text-align:right">Mean Score</th>';
+    h += '<th style="padding:4px 8px;text-align:right">Max Score</th>';
+    h += '<th style="padding:4px 8px">Position</th>';
+    h += '<th style="padding:4px 8px">Categories</th>';
+    h += '</tr></thead><tbody>';
+
+    for (var i = 0; i < pairs.length; i++) {
+      var p = pairs[i];
+      var rowBg = i % 2 === 0 ? '' : 'background:var(--bg-0);';
+      h += '<tr style="border-bottom:1px solid var(--border-dim);' + rowBg + '">';
+      h += '<td style="padding:4px 8px;color:var(--red);font-family:var(--mono)">' + escHtml(p.source) + '</td>';
+      h += '<td style="padding:4px 8px;color:var(--text-3)">→</td>';
+      h += '<td style="padding:4px 8px;color:var(--green);font-family:var(--mono)">' + escHtml(p.dest) + '</td>';
+      h += '<td style="padding:4px 8px;text-align:right;font-weight:600">' + p.count + '</td>';
+      h += '<td style="padding:4px 8px;text-align:right">' + (p.mean_score || 0).toFixed(4) + '</td>';
+      h += '<td style="padding:4px 8px;text-align:right">' + (p.max_score || 0).toFixed(4) + '</td>';
+      h += '<td style="padding:4px 8px;color:var(--text-2)">' + (p.position_tendency || '') + '</td>';
+      h += '<td style="padding:4px 8px">' + (p.categories || []).map(function(c){ return '<span class="pill ' + pillClass(c) + '" style="font-size:9px">' + c.substr(0,4) + '</span>'; }).join(' ') + '</td>';
+      h += '</tr>';
+    }
+
+    h += '</tbody></table></div></div>';
+  } else {
+    h += '<div style="padding:16px;color:var(--text-3)">No pairs above threshold. Try lowering the minimum interaction score or running more prompts with LTP and KL divergence enabled.</div>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
+function confirmResetTokenPairCache() {
+  var overlay = document.createElement('div');
+  overlay.id = 'tpcResetOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = '<div style="background:var(--bg-1);border:1px solid var(--red);border-radius:8px;padding:24px;max-width:420px;width:90%;color:var(--text-1)">'
+    + '<h3 style="margin:0 0 12px;color:var(--red)">Reset Token Pair Cache</h3>'
+    + '<p style="margin:0 0 16px;line-height:1.5;color:var(--text-2)">This will permanently delete all accumulated token pair observations across all sessions. This action cannot be undone.</p>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+    + '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="document.getElementById(\'tpcResetOverlay\').remove()">Cancel</button>'
+    + '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--bg-1);background:var(--red);font-weight:600" onclick="executeResetTokenPairCache()">Delete All Observations</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+}
+
+async function executeResetTokenPairCache() {
+  var overlay = $('tpcResetOverlay');
+  if (overlay) overlay.remove();
+  try {
+    var r = await(await fetch('/api/modules/token_pair_coupling/reset_cache', {method: 'POST'})).json();
+    if (r.ok) {
+      log('Token pair cache cleared: ' + r.observations_removed + ' observations removed', 'done');
+      fetchModuleResults('token_pair_coupling');
+    }
+  } catch(e) { log('Cache reset error: ' + e.message, 'error'); }
+}
 
 function renderArditiBenchmarksResults(r) {
   if (r && r.error) {

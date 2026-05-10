@@ -480,6 +480,35 @@ async def download_module_log(module_name: str):
     return FileResponse(log_path, media_type="application/json")
 
 
+# ─── Token Pair Coupling — cache management ─────────────────────
+
+@app.get("/api/modules/token_pair_coupling/cache_status")
+async def token_pair_cache_status():
+    mod = _module_runner.get_module("token_pair_coupling")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    return {"ok": True, **mod._get_cache_summary()}
+
+@app.post("/api/modules/token_pair_coupling/reset_cache")
+async def token_pair_reset_cache():
+    from src.engine.modules.token_pair_coupling import TokenPairCoupling
+    result = TokenPairCoupling.reset_cache()
+    # Clear the in-memory cache reference on the live instance
+    mod = _module_runner.get_module("token_pair_coupling")
+    if mod is not None:
+        mod._cache = None
+    return {"ok": True, **result}
+
+@app.get("/api/modules/token_pair_coupling/export_cache")
+async def token_pair_export_cache():
+    cache_path = Path.home() / ".tagm" / "token_pair_cache.json"
+    if not cache_path.exists():
+        raise HTTPException(status_code=404, detail="No cache file.")
+    return FileResponse(
+        str(cache_path), media_type="application/json",
+        filename="token_pair_cache.json")
+
+
 # ═══════════════════════════════════════════════════════════════
 # Probe sets
 # ═══════════════════════════════════════════════════════════════
