@@ -31,4 +31,4 @@ echo "   Log file: tagm.log"
 echo ""
 
 cd "$(dirname "$0")"
-exec python -m tagm --host 0.0.0.0 --port 8000 "$@"
+exec python -m src --host 0.0.0.0 --port 8000 "$@"
