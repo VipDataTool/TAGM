@@ -2907,6 +2907,10 @@ function renderModuleCard(m) {
   if (m.name === 'probe_generator') {
     h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutProbeDiagnostic()" title="Inspect lattice properties of the active probe set">↗ Probe Diagnostics</button>';
   }
+  if (m.name === 'token_pair_coupling') {
+    h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
+    h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="event.stopPropagation();confirmResetTokenPairCache()">Reset Cache</button>';
+  }
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 

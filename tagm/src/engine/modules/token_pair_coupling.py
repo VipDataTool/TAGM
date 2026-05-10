@@ -125,6 +125,8 @@ class TokenPairCoupling(TASMModule):
         models = set()
         categories = set()
         for obs in cache:
+            if "prompt_token" not in obs or "counterfactual" not in obs:
+                continue
             pairs.add((obs.get("prompt_token"), obs.get("counterfactual")))
             sessions.add(obs.get("session_id", ""))
             models.add(obs.get("model", ""))
@@ -266,6 +268,9 @@ class TokenPairCoupling(TASMModule):
 
         pair_agg = {}
         for obs in cache:
+            # Skip v0.1.0 entries with old schema
+            if "prompt_token" not in obs or "counterfactual" not in obs:
+                continue
             key = (obs["prompt_token"], obs["counterfactual"])
             if key not in pair_agg:
                 pair_agg[key] = {
