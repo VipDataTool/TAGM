@@ -1,5 +1,506 @@
 {
- "error": "Need at least 3 safe and 3 risk prompts. Have 17 safe, 0 risk.",
- "n_safe": 17,
- "n_risk": 0
+ "n_prompts": 500,
+ "n_features": 11,
+ "n_safe": 200,
+ "n_risk": 300,
+ "feature_names": [
+  "stress_score",
+  "net_correction",
+  "entropy",
+  "top2_share",
+  "middle_share",
+  "interior_cv",
+  "kl_divergence",
+  "ltp_mean_M",
+  "ltp_n_directional",
+  "sfd_density_mean",
+  "rank_displacement_mean_tau"
+ ],
+ "categories": [
+  "benign",
+  "dual-use",
+  "harmful",
+  "jailbreak",
+  "mild"
+ ],
+ "safe_categories": [
+  "benign",
+  "mild"
+ ],
+ "config": {
+  "n_folds": 5,
+  "random_seed": 42,
+  "pca_variance_target": 0.95,
+  "lr_learning_rate": 0.1,
+  "lr_iterations": 500,
+  "lr_regularization": 0.01,
+  "redundancy_threshold": 0.8
+ },
+ "auroc_full": {
+  "auc": 0.7886,
+  "std": 0.0326,
+  "n_folds": 5
+ },
+ "auroc_length_only": {
+  "auc": 0.6687,
+  "std": 0.0383
+ },
+ "mean_seq_len_safe": 12.1,
+ "mean_seq_len_risk": 35.1,
+ "auroc_residualized": {
+  "auc": 0.6785,
+  "std": 0.0925
+ },
+ "length_confounds": [
+  {
+   "metric": "ltp_n_directional",
+   "r": 0.9476,
+   "r_squared": 0.898,
+   "severity": "heavily confounded"
+  },
+  {
+   "metric": "interior_cv",
+   "r": 0.8439,
+   "r_squared": 0.7121,
+   "severity": "heavily confounded"
+  },
+  {
+   "metric": "net_correction",
+   "r": 0.8013,
+   "r_squared": 0.642,
+   "severity": "heavily confounded"
+  },
+  {
+   "metric": "ltp_mean_M",
+   "r": -0.7954,
+   "r_squared": 0.6327,
+   "severity": "heavily confounded"
+  },
+  {
+   "metric": "stress_score",
+   "r": 0.7928,
+   "r_squared": 0.6285,
+   "severity": "heavily confounded"
+  },
+  {
+   "metric": "sfd_density_mean",
+   "r": -0.7078,
+   "r_squared": 0.501,
+   "severity": "moderately confounded"
+  },
+  {
+   "metric": "entropy",
+   "r": -0.487,
+   "r_squared": 0.2371,
+   "severity": "mildly confounded"
+  },
+  {
+   "metric": "top2_share",
+   "r": -0.3642,
+   "r_squared": 0.1327,
+   "severity": "mildly confounded"
+  },
+  {
+   "metric": "middle_share",
+   "r": 0.3642,
+   "r_squared": 0.1327,
+   "severity": "mildly confounded"
+  },
+  {
+   "metric": "kl_divergence",
+   "r": 0.3381,
+   "r_squared": 0.1143,
+   "severity": "mildly confounded"
+  },
+  {
+   "metric": "rank_displacement_mean_tau",
+   "r": 0.2945,
+   "r_squared": 0.0868,
+   "severity": "minimal"
+  }
+ ],
+ "per_metric_auroc": [
+  {
+   "metric": "net_correction",
+   "auroc": 0.7061,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "ltp_mean_M",
+   "auroc": 0.6843,
+   "direction": "lower \u2192 risk"
+  },
+  {
+   "metric": "stress_score",
+   "auroc": 0.6665,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "interior_cv",
+   "auroc": 0.6588,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "ltp_n_directional",
+   "auroc": 0.6036,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "entropy",
+   "auroc": 0.59,
+   "direction": "lower \u2192 risk"
+  },
+  {
+   "metric": "kl_divergence",
+   "auroc": 0.5856,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "top2_share",
+   "auroc": 0.5809,
+   "direction": "lower \u2192 risk"
+  },
+  {
+   "metric": "middle_share",
+   "auroc": 0.5809,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "rank_displacement_mean_tau",
+   "auroc": 0.5806,
+   "direction": "higher \u2192 risk"
+  },
+  {
+   "metric": "sfd_density_mean",
+   "auroc": 0.5335,
+   "direction": "lower \u2192 risk"
+  }
+ ],
+ "pca": {
+  "components": [
+   {
+    "index": 1,
+    "name": "Correction Magnitude",
+    "variance_explained": 51.3,
+    "cumulative": 51.3,
+    "top_loadings": [
+     {
+      "metric": "net_correction",
+      "loading": -0.3845
+     },
+     {
+      "metric": "interior_cv",
+      "loading": -0.3797
+     },
+     {
+      "metric": "ltp_n_directional",
+      "loading": -0.3752
+     },
+     {
+      "metric": "stress_score",
+      "loading": -0.3696
+     },
+     {
+      "metric": "ltp_mean_M",
+      "loading": 0.3437
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Correction Distribution",
+    "variance_explained": 20.7,
+    "cumulative": 72.0,
+    "top_loadings": [
+     {
+      "metric": "entropy",
+      "loading": 0.5512
+     },
+     {
+      "metric": "middle_share",
+      "loading": 0.4957
+     },
+     {
+      "metric": "top2_share",
+      "loading": -0.4957
+     },
+     {
+      "metric": "kl_divergence",
+      "loading": -0.3509
+     },
+     {
+      "metric": "ltp_mean_M",
+      "loading": 0.141
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Spectral Engagement",
+    "variance_explained": 9.0,
+    "cumulative": 81.0,
+    "top_loadings": [
+     {
+      "metric": "rank_displacement_mean_tau",
+      "loading": -0.7649
+     },
+     {
+      "metric": "kl_divergence",
+      "loading": 0.5429
+     },
+     {
+      "metric": "net_correction",
+      "loading": 0.1831
+     },
+     {
+      "metric": "top2_share",
+      "loading": -0.1634
+     },
+     {
+      "metric": "middle_share",
+      "loading": 0.1634
+     }
+    ]
+   },
+   {
+    "index": 4,
+    "name": "Directional Tension",
+    "variance_explained": 5.9,
+    "cumulative": 86.9,
+    "top_loadings": [
+     {
+      "metric": "kl_divergence",
+      "loading": -0.6764
+     },
+     {
+      "metric": "rank_displacement_mean_tau",
+      "loading": -0.5788
+     },
+     {
+      "metric": "sfd_density_mean",
+      "loading": -0.3445
+     },
+     {
+      "metric": "stress_score",
+      "loading": 0.1826
+     },
+     {
+      "metric": "ltp_n_directional",
+      "loading": 0.1544
+     }
+    ]
+   },
+   {
+    "index": 5,
+    "name": "Output Divergence",
+    "variance_explained": 4.3,
+    "cumulative": 91.2,
+    "top_loadings": [
+     {
+      "metric": "sfd_density_mean",
+      "loading": -0.6487
+     },
+     {
+      "metric": "interior_cv",
+      "loading": -0.4645
+     },
+     {
+      "metric": "entropy",
+      "loading": 0.4592
+     },
+     {
+      "metric": "kl_divergence",
+      "loading": 0.3012
+     },
+     {
+      "metric": "rank_displacement_mean_tau",
+      "loading": 0.1283
+     }
+    ]
+   },
+   {
+    "index": 6,
+    "name": "Field Concentration",
+    "variance_explained": 3.0,
+    "cumulative": 94.2,
+    "top_loadings": [
+     {
+      "metric": "ltp_mean_M",
+      "loading": -0.8705
+     },
+     {
+      "metric": "sfd_density_mean",
+      "loading": 0.3578
+     },
+     {
+      "metric": "interior_cv",
+      "loading": -0.2748
+     },
+     {
+      "metric": "rank_displacement_mean_tau",
+      "loading": -0.1397
+     },
+     {
+      "metric": "entropy",
+      "loading": 0.0961
+     }
+    ]
+   },
+   {
+    "index": 7,
+    "name": "Rank Stability",
+    "variance_explained": 2.0,
+    "cumulative": 96.3,
+    "top_loadings": [
+     {
+      "metric": "ltp_n_directional",
+      "loading": -0.6782
+     },
+     {
+      "metric": "entropy",
+      "loading": -0.4112
+     },
+     {
+      "metric": "sfd_density_mean",
+      "loading": -0.372
+     },
+     {
+      "metric": "net_correction",
+      "loading": -0.3116
+     },
+     {
+      "metric": "middle_share",
+      "loading": 0.2383
+     }
+    ]
+   },
+   {
+    "index": 8,
+    "name": "Spectral Entropy",
+    "variance_explained": 2.0,
+    "cumulative": 98.3,
+    "top_loadings": [
+     {
+      "metric": "stress_score",
+      "loading": 0.8585
+     },
+     {
+      "metric": "ltp_n_directional",
+      "loading": -0.3127
+     },
+     {
+      "metric": "sfd_density_mean",
+      "loading": 0.2657
+     },
+     {
+      "metric": "interior_cv",
+      "loading": -0.2062
+     },
+     {
+      "metric": "ltp_mean_M",
+      "loading": 0.153
+     }
+    ]
+   }
+  ],
+  "n_for_95pct": 7,
+  "effective_dimensionality": 7,
+  "n_features_original": 11,
+  "variance_target": 0.95
+ },
+ "redundancy": {
+  "pairs": [
+   {
+    "metric_a": "top2_share",
+    "metric_b": "middle_share",
+    "r": -1.0,
+    "implication": "functionally identical"
+   },
+   {
+    "metric_a": "net_correction",
+    "metric_b": "interior_cv",
+    "r": 0.8218,
+    "implication": "redundant"
+   },
+   {
+    "metric_a": "interior_cv",
+    "metric_b": "ltp_n_directional",
+    "r": 0.8117,
+    "implication": "redundant"
+   }
+  ],
+  "threshold": 0.8,
+  "n_redundant_pairs": 3
+ },
+ "random_baseline": {
+  "mean_auc": 0.4985,
+  "std_auc": 0.0366,
+  "min_auc": 0.431,
+  "max_auc": 0.5482,
+  "n_trials": 10,
+  "delta_above_random": 0.2901
+ },
+ "category_stress": {
+  "benign": {
+   "n": 100,
+   "mean_stress": 3.1642,
+   "std_stress": 0.0509
+  },
+  "dual-use": {
+   "n": 100,
+   "mean_stress": 3.1639,
+   "std_stress": 0.06
+  },
+  "harmful": {
+   "n": 100,
+   "mean_stress": 3.1968,
+   "std_stress": 0.0725
+  },
+  "jailbreak": {
+   "n": 100,
+   "mean_stress": 3.3957,
+   "std_stress": 0.0553
+  },
+  "mild": {
+   "n": 100,
+   "mean_stress": 3.1931,
+   "std_stress": 0.0669
+  },
+  "_separation": {
+   "safe_mean": 3.1786,
+   "risk_mean": 3.2962,
+   "cohens_d": 1.247,
+   "n_safe": 200,
+   "n_risk": 200
+  }
+ },
+ "scorecard": [
+  {
+   "item": "Discrimination (AUROC)",
+   "status": "weak",
+   "detail": "AUC 0.789 \u2014 insufficient for MI venue"
+  },
+  {
+   "item": "Length Confound",
+   "status": "weak",
+   "detail": "Residualized AUC 0.678 \u2014 signal may be length-driven"
+  },
+  {
+   "item": "Weight-Delta Specificity",
+   "status": "strong",
+   "detail": "\u0394 +0.290 over random projection"
+  },
+  {
+   "item": "Metric Efficiency",
+   "status": "adequate",
+   "detail": "3 redundant pairs \u2014 some consolidation recommended"
+  },
+  {
+   "item": "Sample Size",
+   "status": "strong",
+   "detail": "Min class size 200 \u2014 adequate for MI evaluation"
+  }
+ ],
+ "overall_readiness": "gaps",
+ "readiness_summary": "2 critical gap(s) identified. See scorecard."
 }
