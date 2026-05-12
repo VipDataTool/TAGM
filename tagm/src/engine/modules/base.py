@@ -196,6 +196,7 @@ class ModuleRunner:
         DISPLAY_ORDER = [
             # Infrastructure
             ("model_dialogue",                "infrastructure"),
+            ("roundtable_lma",                "infrastructure"),
             ("probe_generator",               "infrastructure"),
             # Showpieces (cyan border in UI)
             ("domain_surface",                "showpiece"),

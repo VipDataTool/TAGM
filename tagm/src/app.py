@@ -101,7 +101,8 @@ async def favicon():
 
 for _viz in ("chat", "domain_surface_viz",
              "correction_prism_viz",
-             "probe_diagnostic_viz"):
+             "probe_diagnostic_viz",
+             "roundtable"):
     def _make_viz_route(name):
         async def handler():
             p = _static_dir / f"{name}.html"
@@ -507,6 +508,232 @@ async def token_pair_export_cache():
     return FileResponse(
         str(cache_path), media_type="application/json",
         filename="token_pair_cache.json")
+
+
+# ─── Roundtable LMA — participant, template & config management ──
+
+@app.get("/api/roundtable/config")
+async def roundtable_get_config():
+    from src.engine.modules.roundtable_lma import load_config
+    cfg = load_config()
+    return {"ok": True, **cfg.to_dict()}
+
+@app.get("/api/roundtable/participants")
+async def roundtable_list_participants():
+    from src.engine.modules.roundtable_lma import list_participants
+    return {"ok": True, "participants": list_participants()}
+
+@app.post("/api/roundtable/participants")
+async def roundtable_upsert_participant(request: Request):
+    from src.engine.modules.roundtable_lma import upsert_participant
+    data = await request.json()
+    p = upsert_participant(data)
+    return {"ok": True, "participant": p}
+
+@app.delete("/api/roundtable/participants/{pid}")
+async def roundtable_remove_participant(pid: str):
+    from src.engine.modules.roundtable_lma import remove_participant
+    removed = remove_participant(pid)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Participant not found.")
+    return {"ok": True}
+
+@app.post("/api/roundtable/participants/reorder")
+async def roundtable_reorder_participants(request: Request):
+    from src.engine.modules.roundtable_lma import reorder_participants
+    data = await request.json()
+    ordered = reorder_participants(data.get("ids", []))
+    return {"ok": True, "participants": ordered}
+
+@app.post("/api/roundtable/topic")
+async def roundtable_set_topic(request: Request):
+    from src.engine.modules.roundtable_lma import update_default_topic
+    data = await request.json()
+    topic = update_default_topic(data.get("topic", ""))
+    return {"ok": True, "topic": topic}
+
+@app.get("/api/roundtable/methods")
+async def roundtable_list_methods():
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    return {"ok": True, "methods": mod.list_methods()}
+
+@app.get("/api/roundtable/tools")
+async def roundtable_list_tools():
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    return {"ok": True, "tools": mod.list_tools()}
+
+@app.post("/api/roundtable/template/upload")
+async def roundtable_upload_template(file: UploadFile = File(...)):
+    """Upload a CSV workflow template.  Validates parse, stores to disk."""
+    from src.engine.modules.roundtable_lma import parse_template, load_config
+    content = (await file.read()).decode("utf-8")
+    cfg = load_config()
+    try:
+        wf = parse_template(content, cfg.participants)
+    except Exception as e:
+        return {"ok": False, "error": f"Template parse error: {e}"}
+    # Save to templates directory
+    templates_dir = _PACKAGE_DIR / "roundtable_templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    dest = templates_dir / file.filename
+    with open(dest, "w") as f:
+        f.write(content)
+    return {
+        "ok": True,
+        "filename": file.filename,
+        "workflow": wf.to_dict(),
+    }
+
+@app.get("/api/roundtable/template/list")
+async def roundtable_list_templates():
+    templates_dir = _PACKAGE_DIR / "roundtable_templates"
+    if not templates_dir.exists():
+        return {"ok": True, "templates": []}
+    templates = []
+    for p in sorted(templates_dir.glob("*.csv")):
+        templates.append({"filename": p.name, "size": p.stat().st_size})
+    return {"ok": True, "templates": templates}
+
+@app.get("/api/roundtable/template/download/{filename}")
+async def roundtable_download_template(filename: str):
+    templates_dir = _PACKAGE_DIR / "roundtable_templates"
+    path = templates_dir / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Template not found.")
+    return FileResponse(str(path), media_type="text/csv",
+                        filename=filename)
+
+@app.get("/api/roundtable/transcripts")
+async def roundtable_list_transcripts():
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    return {"ok": True, "transcripts": mod.list_transcripts()}
+
+@app.get("/api/roundtable/transcripts/{filename}")
+async def roundtable_get_transcript(filename: str):
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found.")
+    data = mod.get_transcript(filename)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Transcript not found.")
+    return {"ok": True, "transcript": data}
+
+@app.post("/api/roundtable/transcripts/clear")
+async def roundtable_clear_transcripts():
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    count = mod.clear_transcripts()
+    return {"ok": True, "deleted": count}
+
+@app.get("/api/roundtable/transcripts/export/{run_id}")
+async def roundtable_export_chain(run_id: str):
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        raise HTTPException(status_code=404, detail="Module not found.")
+    chain = mod.export_full_chain(run_id)
+    if chain is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    return {"ok": True, "chain": chain}
+
+
+# ─── Roundtable LMA — interactive session ───────────────────────
+
+@app.post("/api/roundtable/interactive/start")
+async def roundtable_interactive_start(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    topic = data.get("topic", "")
+    if not topic.strip():
+        return {"ok": False, "error": "Topic required."}
+    gen_config = data.get("gen_config", {})
+    session = _interactive_manager.start(topic, gen_config)
+    return {"ok": True, "session": session}
+
+@app.get("/api/roundtable/interactive/session")
+async def roundtable_interactive_session():
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    session = _interactive_manager.get_session()
+    if session is None:
+        return {"ok": False, "error": "No active interactive session."}
+    return {"ok": True, "session": session}
+
+@app.post("/api/roundtable/interactive/send")
+async def roundtable_interactive_send(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    message = data.get("message", "")
+    if not message.strip():
+        return {"ok": False, "error": "Empty message."}
+    return _interactive_manager.send_user_message(message)
+
+@app.post("/api/roundtable/interactive/apply_persona")
+async def roundtable_interactive_apply_persona(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    result = await run_in_threadpool(
+        _interactive_manager.apply_persona,
+        participant_id=data.get("participant_id"),
+        inline_seed=data.get("seed"),
+    )
+    return result
+
+@app.post("/api/roundtable/interactive/apply_method")
+async def roundtable_interactive_apply_method(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    result = await run_in_threadpool(
+        _interactive_manager.apply_method,
+        method_name=data.get("method", "synthesize"),
+        system_prompt=data.get("system_prompt"),
+    )
+    return result
+
+@app.post("/api/roundtable/interactive/apply_tool")
+async def roundtable_interactive_apply_tool(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    result = await run_in_threadpool(
+        _interactive_manager.apply_tool,
+        tool_name=data.get("tool", "export_json"),
+        params=data.get("params", {}),
+    )
+    return result
+
+@app.post("/api/roundtable/interactive/new_stage")
+async def roundtable_interactive_new_stage(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    return _interactive_manager.new_stage(
+        stage_type=data.get("stage_type", "PANEL"),
+        label=data.get("label", ""),
+    )
+
+@app.post("/api/roundtable/interactive/config")
+async def roundtable_interactive_config(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    data = await request.json()
+    return _interactive_manager.update_config(data)
+
+@app.get("/api/roundtable/interactive/export")
+async def roundtable_interactive_export():
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    export = _interactive_manager.export()
+    if export is None:
+        raise HTTPException(status_code=404,
+                            detail="No active interactive session.")
+    return {"ok": True, "export": export}
+
+@app.post("/api/roundtable/interactive/reset")
+async def roundtable_interactive_reset():
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    return _interactive_manager.reset()
 
 
 # ═══════════════════════════════════════════════════════════════
