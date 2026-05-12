@@ -472,6 +472,29 @@ class RoundtableLMAModule(TASMModule):
 
     parameters = [
         ModuleParameter(
+            name="template_csv",
+            display_name="Workflow Template (CSV)",
+            description=(
+                "Upload a CSV template to run a batch pipeline.  "
+                "Columns are stages (PANEL / ANALYSIS / TOOL), "
+                "rows are agent seeds.  Leave empty to open the "
+                "interactive roundtable window instead."
+            ),
+            type="file",
+            default="",
+        ),
+        ModuleParameter(
+            name="topic",
+            display_name="Discussion Topic",
+            description=(
+                "The inquiry or subject for the roundtable.  "
+                "Required for batch mode; in interactive mode "
+                "you type it directly into the chat."
+            ),
+            type="textarea",
+            default="",
+        ),
+        ModuleParameter(
             name="n_roundtables",
             display_name="Roundtables (no-template mode)",
             description=(
@@ -609,16 +632,49 @@ class RoundtableLMAModule(TASMModule):
     # ── Run ─────────────────────────────────────────────────────
 
     def run(self, session_results, params, progress=None):
-        """Save roundtable configuration. The frontend opens the
-        roundtable window.  Batch runs via CSV template are triggered
-        from within the roundtable page itself."""
+        """If a CSV template was uploaded, run batch pipeline.
+        Otherwise save config and open the interactive roundtable."""
+        template = params.get("template_csv", "")
+
+        if template:
+            return self._run_with_template(template, params, progress)
+
+        return self._run_interactive(params, progress)
+
+    def _run_with_template(self, template_ref, params, progress=None):
+        """Resolve the uploaded template and run batch."""
+        def prog(msg):
+            if progress:
+                progress(msg)
+
+        # Frontend uploads file → passes filename.  Resolve from
+        # the templates directory.  If the string looks like CSV
+        # content rather than a filename, use it directly.
+        csv_text = ""
+        if "\n" in template_ref or "," in template_ref:
+            csv_text = template_ref
+        else:
+            template_path = (Path(__file__).parent.parent.parent.parent
+                             / "templates" / template_ref)
+            if template_path.exists():
+                prog(f"Loading template: {template_ref}")
+                csv_text = template_path.read_text(encoding="utf-8")
+            else:
+                prog(f"Template file not found: {template_ref}")
+                return {"error": f"Template not found: {template_ref}"}
+
+        params = dict(params)
+        params["template_csv"] = csv_text
+        return self.run_batch(params, progress)
+
+    def _run_interactive(self, params, progress=None):
+        """Save config and return chat_url for the frontend to open."""
         def prog(msg):
             if progress:
                 progress(msg)
 
         cfg = load_config()
 
-        # Persist any param overrides into the roundtable config
         topic = params.get("topic", "")
         if topic and topic.strip():
             cfg.default_topic = topic.strip()
@@ -634,7 +690,6 @@ class RoundtableLMAModule(TASMModule):
             "save_transcripts": bool(params.get("save_transcripts", True)),
         }
 
-        # Store config for the roundtable page to read
         config_path = (Path(__file__).parent.parent.parent.parent
                        / "roundtable_chat_config.json")
         try:
@@ -663,7 +718,7 @@ class RoundtableLMAModule(TASMModule):
                        "to start.",
         }
 
-    # ── Batch run (called from roundtable page, not module panel) ─
+    # ── Batch run ───────────────────────────────────────────────
 
     def run_batch(self, params, progress=None):
         """Execute a full batch pipeline (CSV template or auto-built)."""
