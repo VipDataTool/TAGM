@@ -603,68 +603,69 @@ class RoundtableLMAModule(TASMModule):
     # ── Validate ────────────────────────────────────────────────
 
     def validate(self, session_results, params):
-        if self._pipeline is None or not self._pipeline.loaded:
-            return False, "No model loaded.  Load a model pair first."
-
-        mode = params.get("mode", "interactive")
-
-        if mode == "interactive":
-            # Interactive mode: no topic or template needed upfront
-            return True, "OK"
-
-        # Batch mode: need template or participants + topic
-        template_csv = params.get("template_csv", "")
-        if not template_csv:
-            cfg = load_config()
-            active = [p for p in cfg.participants if p.active]
-            if not active:
-                return False, (
-                    "No CSV template provided and no active participants "
-                    "in the registry.  Upload a template or add "
-                    "participants first."
-                )
-
-        topic = params.get("topic") or load_config().default_topic
-        if not topic or not topic.strip():
-            return False, "No discussion topic set."
-
+        # No session data required — roundtable creates its own
         return True, "OK"
 
     # ── Run ─────────────────────────────────────────────────────
 
     def run(self, session_results, params, progress=None):
-        mode = params.get("mode", "interactive")
-
-        if mode == "interactive":
-            return self._run_interactive(params, progress)
-        else:
-            return self._run_batch(params, progress)
-
-    def _run_interactive(self, params, progress=None):
-        """Configure and open the interactive roundtable chat window."""
+        """Save roundtable configuration. The frontend opens the
+        roundtable window.  Batch runs via CSV template are triggered
+        from within the roundtable page itself."""
         def prog(msg):
             if progress:
                 progress(msg)
 
+        cfg = load_config()
+
+        # Persist any param overrides into the roundtable config
+        topic = params.get("topic", "")
+        if topic and topic.strip():
+            cfg.default_topic = topic.strip()
+            save_config(cfg)
+
         config = {
-            "temperature": float(params.get("temperature", 0.7)),
-            "max_tokens": int(params.get("max_tokens", 256)),
-            "top_p": float(params.get("top_p", 0.9)),
+            "temperature": float(params.get("temperature", 0)) or 0.7,
+            "max_tokens": int(params.get("max_tokens", 0)) or 256,
+            "top_p": 0.9,
+            "n_roundtables": int(params.get("n_roundtables", 2)),
+            "participants_per_roundtable": int(params.get(
+                "participants_per_roundtable", 3)),
+            "save_transcripts": bool(params.get("save_transcripts", True)),
         }
 
-        prog("Interactive roundtable configured — open chat window")
+        # Store config for the roundtable page to read
+        config_path = (Path(__file__).parent.parent.parent.parent
+                       / "roundtable_chat_config.json")
+        try:
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+            prog(f"Roundtable configured: temp={config['temperature']}, "
+                 f"max_tokens={config['max_tokens']}, "
+                 f"panels={config['n_roundtables']}")
+        except Exception as e:
+            logger.warning(f"Failed to save roundtable config: {e}")
+
+        active = [p for p in cfg.participants if p.active]
+        prog(f"Registry: {len(active)} active participants")
+        prog("Ready — open roundtable window")
 
         return {
-            "mode": "interactive",
             "config": config,
-            "chat_url": "/roundtable-chat",
-            "participants": list_participants(),
-            "methods": self.list_methods(),
-            "message": "Interactive roundtable ready.  Open the chat "
-                       "window and type your inquiry to begin.",
+            "chat_url": "/roundtable",
+            "participants": [p.to_dict() for p in active],
+            "n_participants": len(active),
+            "topic": cfg.default_topic,
+            "methods": [m["name"] for m in self.list_methods()],
+            "tools": [t["name"] for t in self.list_tools()],
+            "stage_types": list(self._stage_handlers.keys()),
+            "message": "Roundtable configured. Click 'Open Roundtable' "
+                       "to start.",
         }
 
-    def _run_batch(self, params, progress=None):
+    # ── Batch run (called from roundtable page, not module panel) ─
+
+    def run_batch(self, params, progress=None):
         """Execute a full batch pipeline (CSV template or auto-built)."""
         def prog(msg):
             if progress:

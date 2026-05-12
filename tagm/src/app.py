@@ -735,6 +735,24 @@ async def roundtable_interactive_reset():
     from src.engine.modules.roundtable_lma import _interactive_manager
     return _interactive_manager.reset()
 
+@app.post("/api/roundtable/batch")
+async def roundtable_run_batch(request: Request):
+    """Run a batch roundtable pipeline from a CSV template."""
+    mod = _module_runner.get_module("roundtable_lma")
+    if mod is None:
+        return {"ok": False, "error": "Module not found."}
+    if state.pipeline is None or not state.pipeline.loaded:
+        return {"ok": False, "error": "No model loaded."}
+    data = await request.json()
+    params = data.get("params", data)
+    try:
+        result = await run_in_threadpool(mod.run_batch, params,
+                                         lambda msg: None)
+        return {"ok": True, "result": result}
+    except Exception as e:
+        logger.exception("Roundtable batch failed")
+        return {"ok": False, "error": str(e)}
+
 
 # ═══════════════════════════════════════════════════════════════
 # Probe sets

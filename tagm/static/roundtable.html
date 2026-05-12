@@ -470,7 +470,7 @@ async function loadTemplate(input){
   busy=true;
 
   try{
-    const r=await(await fetch('/api/modules/roundtable_lma/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({params:{mode:'batch',template_csv:text,topic:topic}})})).json();
+    const r=await(await fetch('/api/roundtable/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_csv:text,topic:topic})})).json();
     if(r.ok||r.result){
       const res=r.result||r;
       addMsg('system','Template complete: '+res.n_stages+' stages, '+res.n_total_generations+' generations in '+res.elapsed_seconds+'s');

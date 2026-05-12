@@ -1,53 +1,38 @@
 {
- "mode": "interactive",
  "config": {
-  "temperature": 0.0,
-  "max_tokens": 0,
-  "top_p": 0.9
+  "temperature": 0.7,
+  "max_tokens": 256,
+  "top_p": 0.9,
+  "n_roundtables": 2,
+  "participants_per_roundtable": 3,
+  "save_transcripts": true
  },
- "chat_url": "/roundtable-chat",
+ "chat_url": "/roundtable",
  "participants": [],
+ "n_participants": 0,
+ "topic": "",
  "methods": [
-  {
-   "name": "synthesize",
-   "description": "Model-based synthesis of prior stage output",
-   "has_default_prompt": true
-  },
-  {
-   "name": "analyze",
-   "description": "Qualitative coding analysis of discussion",
-   "has_default_prompt": true
-  },
-  {
-   "name": "evaluate",
-   "description": "Critical evaluation and scoring of contributions",
-   "has_default_prompt": true
-  },
-  {
-   "name": "extract",
-   "description": "Extract key themes, claims, and evidence",
-   "has_default_prompt": true
-  },
-  {
-   "name": "report",
-   "description": "Generate a structured report from accumulated material",
-   "has_default_prompt": true
-  },
-  {
-   "name": "custom",
-   "description": "Generation with a user-defined system prompt",
-   "has_default_prompt": true
-  },
-  {
-   "name": "passthrough",
-   "description": "Forward prior output without modification",
-   "has_default_prompt": false
-  },
-  {
-   "name": "aggregate",
-   "description": "Structural aggregation: word counts, response stats (no model generation)",
-   "has_default_prompt": false
-  }
+  "synthesize",
+  "analyze",
+  "evaluate",
+  "extract",
+  "report",
+  "custom",
+  "passthrough",
+  "aggregate"
  ],
- "message": "Interactive roundtable ready.  Open the chat window and type your inquiry to begin."
+ "tools": [
+  "export_json",
+  "snapshot",
+  "truncate",
+  "prepend",
+  "append",
+  "word_count"
+ ],
+ "stage_types": [
+  "PANEL",
+  "ANALYSIS",
+  "TOOL"
+ ],
+ "message": "Roundtable configured. Click 'Open Roundtable' to start."
 }
