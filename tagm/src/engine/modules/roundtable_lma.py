@@ -1,72 +1,15 @@
-"""Roundtable LMA — Configurable Language Model Array Pipeline.
+"""Roundtable LMA — configurable Language Model Array pipeline.
 
-A data-transformation pipeline built on the ClownCar.AI Language Model
-Array concept.  The workflow is a sequence of *stages*, each defined by
-its type.  Two core stage types ship with the module:
+Two execution paths through the same infrastructure:
 
-  **PANEL**    — a roundtable of N agents, each with individual seed
-                 parameters, generating responses sequentially.  Each
-                 agent sees the *accumulating* transcript of the current
-                 panel (deliberative pressure) but *never* sees prior
-                 panel transcripts (blank-canvas isolation).
+1. **Interactive** — click Run (no template) → chat window opens at
+   /roundtable.  User types inquiry, selects personas, runs methods,
+   manages stages step by step.
 
-  **ANALYSIS** — an intermediate processing node that transforms the
-                 prior stage's output.  The ``method`` field selects
-                 from a registry of built-in methods (synthesize,
-                 analyze, evaluate, extract, aggregate, passthrough)
-                 or a user-defined system prompt.  This is the point
-                 where the recursive roundtable cycle breaks and
-                 new workflows commence.
-
-Workflow definition
--------------------
-Three tiers, highest-priority first:
-
-  1. **UI parameters** — global overrides (temperature, max_tokens).
-  2. **CSV template**  — full topology + per-agent seeds.  Columns are
-     stages, rows are agents, cells contain JSON seed dicts.  Column
-     headers use ``TYPE:Label`` syntax (e.g. ``PANEL:Ethics Review``).
-  3. **Internal defaults** — built-in method prompts and fallback
-     generation settings.
-
-CSV template format
--------------------
-::
-
-    PANEL:Round 1,ANALYSIS:Synthesize,PANEL:Round 2,ANALYSIS:Final Report
-    {"name":"Dr.X","system_prompt":"...","temperature":0.7},{"method":"synthesize","system_prompt":"..."},{"ref":"ethicist"},{"method":"evaluate","system_prompt":"..."}
-    {"name":"Prof.Z","temperature":0.9},,,
-    {"ref":"skeptic","max_tokens":512},,,
-
-- **Header row**: ``TYPE:Label`` per column.  TYPE dispatches execution.
-- **Data rows**: JSON dicts (agent seeds) or empty cells.
-- **Reference cells**: ``{"ref":"<id_or_name>", ...}`` merges with the
-  persistent participant registry entry, with cell overrides winning.
-- Empty cells are skipped; a PANEL column's agent count = its non-empty
-  cell count.  An ANALYSIS column typically has one cell.
-
-Extending
----------
-Add a new analysis method::
-
-    @RoundtableLMAModule.register_method("my_method",
-        description="Does something novel",
-        default_prompt="You are a specialist who...")
-    def _method_mine(module, prior_output, seed, context, progress):
-        return _generate(module._pipeline, seed["system_prompt"],
-                         prior_output, seed.get("temperature", 0.7), ...)
-
-Add a new stage type::
-
-    @RoundtableLMAModule.register_stage("VOTE")
-    def _stage_vote(module, stage, context, progress):
-        ...
-        return {"type": "VOTE", "output": ..., "n_generations": 0}
-
-Persistent state
-----------------
-``~/.tagm/roundtable_config.json`` — participant registry + config.
-``~/.tagm/roundtable_transcripts/`` — per-run transcript archives.
+2. **Batch** — upload a CSV template via the file picker in the module
+   panel → pipeline executes automatically.  Columns are stages
+   (PANEL / ANALYSIS / TOOL), rows are agent seeds, cells are JSON
+   dicts.  The module marches through columns left to right.
 
 Original concept: Ostrander (2024) — ClownCar.AI / alice.ipynb LMA.
 """
@@ -84,7 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from uuid import uuid4
 
-from src.engine.modules.base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter
 
 try:
     from src.engine import config as engine_config
@@ -93,1734 +36,624 @@ except ImportError:
 
 logger = logging.getLogger("src")
 
-# ── Persistent storage ──────────────────────────────────────────
-
 _CONFIG_DIR = Path.home() / ".tagm"
 _CONFIG_PATH = _CONFIG_DIR / "roundtable_config.json"
 _TRANSCRIPT_DIR = _CONFIG_DIR / "roundtable_transcripts"
-
 _gen_lock = threading.Lock()
 
-# ────────────────────────────────────────────────────────────────
-#  Data structures
-# ────────────────────────────────────────────────────────────────
+
+# ================================================================
+#  1. Participant registry
+# ================================================================
 
 @dataclass
 class Participant:
-    """A reusable participant identity in the persistent registry."""
-    id: str
-    name: str
-    role: str
-    system_prompt: str
-    active: bool = True
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
+    id: str; name: str; role: str; system_prompt: str; active: bool = True
+    def to_dict(self): return asdict(self)
     @classmethod
-    def from_dict(cls, d: dict) -> "Participant":
-        return cls(
-            id=d.get("id", str(uuid4())[:8]),
-            name=d.get("name", "Unnamed"),
-            role=d.get("role", "Participant"),
-            system_prompt=d.get("system_prompt",
-                                "You are a helpful roundtable participant."),
-            active=d.get("active", True),
-        )
-
-
-@dataclass
-class WorkflowStage:
-    """One column in the template: a typed stage with agent seeds."""
-    stage_type: str                    # PANEL, ANALYSIS, etc.
-    label: str                         # human-readable label
-    seeds: list[dict] = field(default_factory=list)
-
-
-@dataclass
-class Workflow:
-    """A complete pipeline parsed from a template or built programmatically."""
-    stages: list[WorkflowStage] = field(default_factory=list)
-    topic: str = ""
-
-    def to_dict(self) -> dict:
-        return {
-            "topic": self.topic,
-            "stages": [
-                {
-                    "stage_type": s.stage_type,
-                    "label": s.label,
-                    "n_agents": len(s.seeds),
-                    "seeds": s.seeds,
-                }
-                for s in self.stages
-            ],
-        }
-
+    def from_dict(cls, d):
+        return cls(d.get("id",str(uuid4())[:8]), d.get("name","Unnamed"),
+                   d.get("role",""), d.get("system_prompt","You are a helpful roundtable participant."),
+                   d.get("active",True))
 
 @dataclass
 class RoundtableConfig:
-    """Persistent configuration: participant registry + defaults."""
     participants: list[Participant] = field(default_factory=list)
     default_topic: str = ""
-
-    def to_dict(self) -> dict:
-        return {
-            "participants": [p.to_dict() for p in self.participants],
-            "default_topic": self.default_topic,
-        }
-
+    def to_dict(self):
+        return {"participants":[p.to_dict() for p in self.participants], "default_topic":self.default_topic}
     @classmethod
-    def from_dict(cls, d: dict) -> "RoundtableConfig":
-        return cls(
-            participants=[Participant.from_dict(p)
-                          for p in d.get("participants", [])],
-            default_topic=d.get("default_topic", ""),
-        )
+    def from_dict(cls, d):
+        return cls([Participant.from_dict(p) for p in d.get("participants",[])], d.get("default_topic",""))
 
-
-# ────────────────────────────────────────────────────────────────
-#  Config persistence + participant CRUD
-# ────────────────────────────────────────────────────────────────
-
-def load_config() -> RoundtableConfig:
+def load_config():
     if _CONFIG_PATH.exists():
         try:
-            with open(_CONFIG_PATH) as f:
-                return RoundtableConfig.from_dict(json.load(f))
-        except Exception as e:
-            logger.warning(f"[ROUNDTABLE] Config load failed: {e}")
+            with open(_CONFIG_PATH) as f: return RoundtableConfig.from_dict(json.load(f))
+        except Exception: pass
     return RoundtableConfig()
 
-def save_config(cfg: RoundtableConfig) -> None:
+def save_config(cfg):
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(_CONFIG_PATH, "w") as f:
-        json.dump(cfg.to_dict(), f, indent=2)
+    with open(_CONFIG_PATH,"w") as f: json.dump(cfg.to_dict(), f, indent=2)
 
-def list_participants() -> list[dict]:
-    return [p.to_dict() for p in load_config().participants]
+def list_participants(): return [p.to_dict() for p in load_config().participants]
 
-def get_participant(pid: str) -> Optional[dict]:
-    for p in load_config().participants:
-        if p.id == pid:
-            return p.to_dict()
-    return None
-
-def upsert_participant(data: dict) -> dict:
-    cfg = load_config()
-    pid = data.get("id")
+def upsert_participant(data):
+    cfg = load_config(); pid = data.get("id")
     if pid:
-        for i, p in enumerate(cfg.participants):
+        for i,p in enumerate(cfg.participants):
             if p.id == pid:
-                cfg.participants[i] = Participant.from_dict(
-                    {**p.to_dict(), **data})
-                save_config(cfg)
-                return cfg.participants[i].to_dict()
-    if not pid:
-        data["id"] = str(uuid4())[:8]
+                cfg.participants[i] = Participant.from_dict({**p.to_dict(), **data})
+                save_config(cfg); return cfg.participants[i].to_dict()
+    if not pid: data["id"] = str(uuid4())[:8]
     cfg.participants.append(Participant.from_dict(data))
-    save_config(cfg)
-    return cfg.participants[-1].to_dict()
+    save_config(cfg); return cfg.participants[-1].to_dict()
 
-def remove_participant(pid: str) -> bool:
-    cfg = load_config()
-    before = len(cfg.participants)
+def remove_participant(pid):
+    cfg = load_config(); n = len(cfg.participants)
     cfg.participants = [p for p in cfg.participants if p.id != pid]
-    if len(cfg.participants) < before:
-        save_config(cfg)
-        return True
+    if len(cfg.participants) < n: save_config(cfg); return True
     return False
 
-def reorder_participants(ordered_ids: list[str]) -> list[dict]:
-    cfg = load_config()
-    by_id = {p.id: p for p in cfg.participants}
-    reordered = [by_id[pid] for pid in ordered_ids if pid in by_id]
-    seen = set(ordered_ids)
-    for p in cfg.participants:
-        if p.id not in seen:
-            reordered.append(p)
-    cfg.participants = reordered
-    save_config(cfg)
-    return [p.to_dict() for p in cfg.participants]
-
-def update_default_topic(topic: str) -> str:
-    cfg = load_config()
-    cfg.default_topic = topic
-    save_config(cfg)
-    return cfg.default_topic
+def update_default_topic(topic):
+    cfg = load_config(); cfg.default_topic = topic; save_config(cfg); return topic
 
 
-# ────────────────────────────────────────────────────────────────
-#  Generation
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  2. Workflow dataclasses
+# ================================================================
 
-def _generate(pipeline, system_prompt: str, user_content: str,
-              temperature: float = 0.7, top_p: float = 0.9,
-              max_tokens: int = 256) -> str:
-    """Single generation via the loaded instruct model."""
-    import torch
+@dataclass
+class WorkflowStage:
+    stage_type: str   # PANEL, ANALYSIS, TOOL
+    label: str
+    seeds: list[dict] = field(default_factory=list)
 
-    model = pipeline.instruct_model
-    tokenizer = pipeline.tokenizer
-    device = pipeline.device
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content},
-    ]
-
-    with _gen_lock:
-        try:
-            inputs = tokenizer.apply_chat_template(
-                messages, return_tensors="pt",
-                add_generation_prompt=True, return_dict=True,
-            )
-        except Exception:
-            text = f"system: {system_prompt}\nuser: {user_content}\nassistant:"
-            inputs = tokenizer(
-                text, return_tensors="pt",
-                add_special_tokens=(engine_config.get("add_special_tokens")
-                                    if engine_config else False),
-            )
-
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        prompt_len = inputs["input_ids"].shape[1]
-
-        with torch.no_grad():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                do_sample=True,
-                temperature=max(temperature, 0.01),
-                top_p=top_p,
-                pad_token_id=tokenizer.eos_token_id,
-            )
-
-        reply = tokenizer.decode(out[0, prompt_len:],
-                                 skip_special_tokens=True).strip()
-    return reply
+@dataclass
+class Workflow:
+    stages: list[WorkflowStage] = field(default_factory=list)
+    topic: str = ""
+    def to_dict(self):
+        return {"topic":self.topic, "stages":[
+            {"stage_type":s.stage_type,"label":s.label,"n_agents":len(s.seeds),"seeds":s.seeds}
+            for s in self.stages]}
 
 
-# ────────────────────────────────────────────────────────────────
-#  CSV template parser
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  3. CSV template parser
+# ================================================================
 
-def parse_template(csv_text: str, registry: list[Participant] = None
-                   ) -> Workflow:
-    """Parse a CSV template string into a Workflow.
-
-    Header format: ``TYPE:Label`` or just ``TYPE``.
-    Cell format:   JSON dict, or empty to skip.
-    Reference:     ``{"ref": "<id_or_name>", ...}`` merges with registry.
-    """
+def parse_template(csv_text, registry=None):
+    """Parse CSV → Workflow.  Headers: TYPE or TYPE:Label.  Cells: JSON dicts."""
     registry = registry or []
-    reg_by_id = {p.id: p for p in registry}
-    reg_by_name = {p.name.lower(): p for p in registry}
+    by_id = {p.id: p for p in registry}
+    by_name = {p.name.lower(): p for p in registry}
 
-    reader = csv.reader(io.StringIO(csv_text))
-    rows = list(reader)
+    rows = list(csv.reader(io.StringIO(csv_text)))
     if len(rows) < 2:
-        raise ValueError("Template must have a header row and at least "
-                         "one data row.")
+        raise ValueError("Template needs a header row and at least one data row.")
 
-    # ── Parse header ────────────────────────────────────────────
-    headers = rows[0]
-    stages: list[WorkflowStage] = []
-    for h in headers:
+    stages = []
+    for h in rows[0]:
         h = h.strip()
-        if ":" in h:
-            stype, label = h.split(":", 1)
-        else:
-            stype, label = h, h
-        stages.append(WorkflowStage(
-            stage_type=stype.strip().upper(),
-            label=label.strip(),
-        ))
+        stype, label = (h.split(":",1) if ":" in h else (h, h))
+        stages.append(WorkflowStage(stype.strip().upper(), label.strip()))
 
-    # ── Parse data rows ─────────────────────────────────────────
     for row in rows[1:]:
-        for col_idx, cell in enumerate(row):
-            if col_idx >= len(stages):
-                break
+        for col, cell in enumerate(row):
+            if col >= len(stages): break
             cell = cell.strip()
-            if not cell:
-                continue
-
-            try:
-                seed = json.loads(cell)
-            except json.JSONDecodeError:
-                logger.warning(f"[ROUNDTABLE] Skipping malformed cell: "
-                               f"{cell[:80]}")
-                continue
-
-            if not isinstance(seed, dict):
-                continue
-
-            # Resolve references
+            if not cell: continue
+            try: seed = json.loads(cell)
+            except json.JSONDecodeError: continue
+            if not isinstance(seed, dict): continue
             ref = seed.pop("ref", None)
             if ref:
-                participant = reg_by_id.get(ref)
-                if not participant:
-                    participant = reg_by_name.get(ref.lower())
-                if participant:
-                    base = participant.to_dict()
-                    base.update(seed)
-                    seed = base
-                else:
-                    logger.warning(f"[ROUNDTABLE] Ref '{ref}' not found "
-                                   f"in registry, using cell as-is.")
-
-            stages[col_idx].seeds.append(seed)
+                p = by_id.get(ref) or by_name.get(ref.lower())
+                if p: base = p.to_dict(); base.update(seed); seed = base
+            stages[col].seeds.append(seed)
 
     return Workflow(stages=stages)
 
 
-def workflow_to_csv(workflow: Workflow) -> str:
-    """Serialize a Workflow back to CSV template text."""
-    if not workflow.stages:
-        return ""
+# ================================================================
+#  4. Generation
+# ================================================================
 
-    headers = []
-    for s in workflow.stages:
-        if s.label and s.label != s.stage_type:
-            headers.append(f"{s.stage_type}:{s.label}")
-        else:
-            headers.append(s.stage_type)
-
-    max_rows = max((len(s.seeds) for s in workflow.stages), default=0)
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(headers)
-
-    for row_idx in range(max_rows):
-        row = []
-        for stage in workflow.stages:
-            if row_idx < len(stage.seeds):
-                row.append(json.dumps(stage.seeds[row_idx],
-                                      ensure_ascii=False))
-            else:
-                row.append("")
-        writer.writerow(row)
-
-    return buf.getvalue()
+def _generate(pipeline, system_prompt, user_content,
+              temperature=0.7, top_p=0.9, max_tokens=256):
+    import torch
+    model, tok, dev = pipeline.instruct_model, pipeline.tokenizer, pipeline.device
+    msgs = [{"role":"system","content":system_prompt},{"role":"user","content":user_content}]
+    with _gen_lock:
+        try:
+            inp = tok.apply_chat_template(msgs, return_tensors="pt",
+                      add_generation_prompt=True, return_dict=True)
+        except Exception:
+            inp = tok(f"system: {system_prompt}\nuser: {user_content}\nassistant:",
+                      return_tensors="pt",
+                      add_special_tokens=engine_config.get("add_special_tokens") if engine_config else False)
+        inp = {k:v.to(dev) for k,v in inp.items()}
+        pl = inp["input_ids"].shape[1]
+        with torch.no_grad():
+            out = model.generate(**inp, max_new_tokens=max_tokens, do_sample=True,
+                      temperature=max(temperature,0.01), top_p=top_p,
+                      pad_token_id=tok.eos_token_id)
+        return tok.decode(out[0,pl:], skip_special_tokens=True).strip()
 
 
-# ────────────────────────────────────────────────────────────────
-#  Default prompts for built-in analysis methods
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  5. Default prompts
+# ================================================================
 
-_DEFAULT_PROMPTS = {
-    "synthesize": (
-        "You are a skilled moderator and analyst.  You have just observed "
-        "a roundtable discussion.  Synthesize the participants' "
-        "contributions into a coherent analysis that identifies key "
-        "themes, areas of agreement and disagreement, novel insights, "
-        "and open questions.  Be thorough but concise."
-    ),
-    "analyze": (
-        "You are a qualitative research analyst.  Examine the following "
-        "discussion transcript and perform a systematic qualitative "
-        "coding analysis.  Identify emergent codes, group them into "
-        "themes, note frequency and co-occurrence patterns, and "
-        "summarize your findings."
-    ),
-    "evaluate": (
-        "You are a critical evaluator.  Review the following discussion "
-        "and assess the quality, rigor, and completeness of each "
-        "contribution.  Rate each participant's argument on clarity, "
-        "evidence, and originality.  Summarize overall strengths and "
-        "weaknesses."
-    ),
-    "extract": (
-        "You are an information extraction specialist.  From the "
-        "following discussion, extract: (1) key claims and assertions, "
-        "(2) supporting evidence cited, (3) areas of consensus, "
-        "(4) unresolved questions, (5) actionable recommendations.  "
-        "Present each category clearly."
-    ),
-    "report": (
-        "You are a technical writer.  Produce a structured report from "
-        "the following material.  Include an executive summary, key "
-        "findings, detailed analysis, and conclusions.  Use clear "
-        "headings and professional tone."
-    ),
+_PROMPTS = {
+    "synthesize": "You are a skilled analyst. Synthesize the discussion: key themes, agreement, disagreement, open questions.",
+    "analyze": "You are a qualitative researcher. Code the discussion: emergent themes, frequency, co-occurrence.",
+    "evaluate": "You are a critical evaluator. Assess each contribution for clarity, evidence, originality.",
+    "extract": "Extract: (1) key claims, (2) evidence, (3) consensus, (4) open questions, (5) recommendations.",
+    "report": "Produce a structured report: executive summary, findings, analysis, conclusions.",
 }
 
 
-# ────────────────────────────────────────────────────────────────
-#  Module
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  6. Module class
+# ================================================================
 
 class RoundtableLMAModule(TASMModule):
     name = "roundtable_lma"
     display_name = "Roundtable LMA"
     description = (
-        "Configurable Language Model Array pipeline.  Define workflows "
-        "via CSV templates: columns are stages (PANEL or ANALYSIS), "
-        "rows are agents, cells contain JSON seed parameters.  Each "
-        "panel is a fresh roundtable; intermediate analysis stages "
-        "transform and route data between panels.  Manage participant "
-        "identities and templates via the Roundtable Configuration panel."
+        "Configurable Language Model Array pipeline. Define workflows "
+        "via CSV templates: columns are stages (PANEL, ANALYSIS, or TOOL), "
+        "rows are agents, cells contain JSON seed parameters. Each panel "
+        "is a fresh roundtable; intermediate stages transform and route "
+        "data between panels. Click Run to open the interactive roundtable, "
+        "or upload a CSV template for batch execution."
     )
     version = "2.0.0"
-
     min_results = 0
     requires_sfd = False
     requires_ltp = False
     requires_rd = False
 
     parameters = [
-        ModuleParameter(
-            name="template_csv",
-            display_name="Workflow Template (CSV)",
-            description=(
-                "Upload a CSV template to run a batch pipeline.  "
-                "Columns are stages (PANEL / ANALYSIS / TOOL), "
-                "rows are agent seeds.  Leave empty to open the "
-                "interactive roundtable window instead."
-            ),
-            type="file",
-            default="",
-        ),
-        ModuleParameter(
-            name="topic",
-            display_name="Discussion Topic",
-            description=(
-                "The inquiry or subject for the roundtable.  "
-                "Required for batch mode; in interactive mode "
-                "you type it directly into the chat."
-            ),
-            type="textarea",
-            default="",
-        ),
-        ModuleParameter(
-            name="n_roundtables",
-            display_name="Roundtables (no-template mode)",
-            description=(
-                "Number of PANEL stages when running without a CSV "
-                "template.  Ignored when a template is provided."
-            ),
-            type="int",
-            default=2,
-            min_val=1,
-            max_val=20,
-        ),
-        ModuleParameter(
-            name="participants_per_roundtable",
-            display_name="Participants per Roundtable",
-            description=(
-                "Agents per panel in no-template mode.  Draws from "
-                "active participant registry entries."
-            ),
-            type="int",
-            default=3,
-            min_val=1,
-            max_val=20,
-        ),
-        ModuleParameter(
-            name="temperature",
-            display_name="Temperature (global override)",
-            description=(
-                "Global temperature applied to all agents unless a "
-                "per-agent seed specifies its own.  0 = use per-seed "
-                "values only."
-            ),
-            type="float",
-            default=0.0,
-        ),
-        ModuleParameter(
-            name="max_tokens",
-            display_name="Max Tokens (global override)",
-            description=(
-                "Global max-tokens override.  0 = use per-seed values."
-            ),
-            type="int",
-            default=0,
-        ),
-        ModuleParameter(
-            name="save_transcripts",
-            display_name="Save Transcripts to Disk",
-            description="Persist transcripts to ~/.tagm/roundtable_transcripts/.",
-            type="bool",
-            default=True,
-        ),
+        ModuleParameter("template_csv","Workflow Template (CSV)",
+            "Upload a CSV template for batch execution. Leave empty to open "
+            "the interactive roundtable window instead.", "file", ""),
+        ModuleParameter("topic","Discussion Topic",
+            "The inquiry for the roundtable. Required for batch mode; "
+            "in interactive mode you type it into the chat.", "textarea", ""),
+        ModuleParameter("temperature","Temperature",
+            "Sampling temperature.", "float", 0.7),
+        ModuleParameter("max_tokens","Max Tokens",
+            "Max tokens per generation.", "int", 256),
     ]
 
-    # ── Registries (class-level, populated by decorators below) ─
     _stage_handlers: dict[str, Callable] = {}
     _analysis_methods: dict[str, dict] = {}
 
     def __init__(self):
         self._pipeline = None
-        self._project_root = None
 
     def set_pipeline(self, pipeline):
         self._pipeline = pipeline
         _interactive_manager.set_pipeline(pipeline)
 
-    def set_project_root(self, root):
-        self._project_root = root
-
-    # ── Extension decorators ────────────────────────────────────
-
-    @classmethod
-    def register_stage(cls, stage_type: str):
-        """Decorator: register a handler for a new stage type.
-
-        Handler signature::
-
-            (module, stage: WorkflowStage, context: dict,
-             progress: Callable) -> dict
-
-        The returned dict must include ``"output"`` (str) and
-        ``"n_generations"`` (int).
-        """
-        def decorator(fn):
-            cls._stage_handlers[stage_type.upper()] = fn
-            return fn
-        return decorator
-
-    @classmethod
-    def register_method(cls, method_name: str, description: str = "",
-                        default_prompt: str = ""):
-        """Decorator: register a new analysis method.
-
-        Handler signature::
-
-            (module, prior_output: str, seed: dict,
-             context: dict, progress: Callable) -> str
-        """
-        def decorator(fn):
-            cls._analysis_methods[method_name] = {
-                "handler": fn,
-                "description": description,
-                "default_prompt": default_prompt,
-            }
-            return fn
-        return decorator
-
-    # ── Seed resolution ─────────────────────────────────────────
-
-    def _resolve_seed(self, seed: dict, global_overrides: dict) -> dict:
-        """Merge: seed > global overrides > defaults."""
-        resolved = dict(seed)
-
-        g_temp = global_overrides.get("temperature", 0)
-        g_maxt = global_overrides.get("max_tokens", 0)
-
-        if "temperature" not in resolved and g_temp > 0:
-            resolved["temperature"] = g_temp
-        if "max_tokens" not in resolved and g_maxt > 0:
-            resolved["max_tokens"] = g_maxt
-
-        resolved.setdefault("temperature", 0.7)
-        resolved.setdefault("max_tokens", 256)
-        resolved.setdefault("top_p", 0.9)
-        resolved.setdefault("name", "Agent")
-        resolved.setdefault("role", "")
-        resolved.setdefault("system_prompt",
-                            "You are a helpful roundtable participant.")
-        return resolved
-
-    # ── Validate ────────────────────────────────────────────────
-
     def validate(self, session_results, params):
-        # No session data required — roundtable creates its own
         return True, "OK"
 
-    # ── Run ─────────────────────────────────────────────────────
-
     def run(self, session_results, params, progress=None):
-        """If a CSV template was uploaded, run batch pipeline.
-        Otherwise save config and open the interactive roundtable."""
+        """Template uploaded → batch.  No template → open chat window."""
         template = params.get("template_csv", "")
-
         if template:
-            return self._run_with_template(template, params, progress)
-
+            return self._run_batch(template, params, progress)
         return self._run_interactive(params, progress)
 
-    def _run_with_template(self, template_ref, params, progress=None):
-        """Resolve the uploaded template and run batch."""
-        def prog(msg):
-            if progress:
-                progress(msg)
-
-        # Frontend uploads file → passes filename.  Resolve from
-        # the templates directory.  If the string looks like CSV
-        # content rather than a filename, use it directly.
-        csv_text = ""
-        if "\n" in template_ref or "," in template_ref:
-            csv_text = template_ref
-        else:
-            template_path = (Path(__file__).parent.parent.parent.parent
-                             / "templates" / template_ref)
-            if template_path.exists():
-                prog(f"Loading template: {template_ref}")
-                csv_text = template_path.read_text(encoding="utf-8")
-            else:
-                prog(f"Template file not found: {template_ref}")
-                return {"error": f"Template not found: {template_ref}"}
-
-        params = dict(params)
-        params["template_csv"] = csv_text
-        return self.run_batch(params, progress)
+    # ── Interactive: save config, return chat_url ───────────────
 
     def _run_interactive(self, params, progress=None):
-        """Save config and return chat_url for the frontend to open."""
-        def prog(msg):
-            if progress:
-                progress(msg)
-
+        if progress: progress("Configuring roundtable")
         cfg = load_config()
-
-        topic = params.get("topic", "")
+        topic = params.get("topic","")
         if topic and topic.strip():
-            cfg.default_topic = topic.strip()
-            save_config(cfg)
-
-        config = {
-            "temperature": float(params.get("temperature", 0)) or 0.7,
-            "max_tokens": int(params.get("max_tokens", 0)) or 256,
-            "top_p": 0.9,
-            "n_roundtables": int(params.get("n_roundtables", 2)),
-            "participants_per_roundtable": int(params.get(
-                "participants_per_roundtable", 3)),
-            "save_transcripts": bool(params.get("save_transcripts", True)),
-        }
-
-        config_path = (Path(__file__).parent.parent.parent.parent
-                       / "roundtable_chat_config.json")
+            cfg.default_topic = topic.strip(); save_config(cfg)
+        config = {"temperature":float(params.get("temperature",0.7)),
+                  "max_tokens":int(params.get("max_tokens",256))}
+        config_path = Path(__file__).parent.parent.parent.parent / "roundtable_chat_config.json"
         try:
-            with open(config_path, "w") as f:
-                json.dump(config, f, indent=2)
-            prog(f"Roundtable configured: temp={config['temperature']}, "
-                 f"max_tokens={config['max_tokens']}, "
-                 f"panels={config['n_roundtables']}")
-        except Exception as e:
-            logger.warning(f"Failed to save roundtable config: {e}")
-
+            with open(config_path,"w") as f: json.dump(config, f, indent=2)
+        except Exception: pass
         active = [p for p in cfg.participants if p.active]
-        prog(f"Registry: {len(active)} active participants")
-        prog("Ready — open roundtable window")
+        if progress: progress(f"{len(active)} participants, ready")
+        return {"config":config, "chat_url":"/roundtable",
+                "participants":[p.to_dict() for p in active],
+                "n_participants":len(active), "topic":cfg.default_topic,
+                "message":"Roundtable configured. Click 'Open Roundtable' to start."}
 
-        return {
-            "config": config,
-            "chat_url": "/roundtable",
-            "participants": [p.to_dict() for p in active],
-            "n_participants": len(active),
-            "topic": cfg.default_topic,
-            "methods": [m["name"] for m in self.list_methods()],
-            "tools": [t["name"] for t in self.list_tools()],
-            "stage_types": list(self._stage_handlers.keys()),
-            "message": "Roundtable configured. Click 'Open Roundtable' "
-                       "to start.",
-        }
+    # ── Batch: resolve template, execute pipeline ──────────────
 
-    # ── Batch run ───────────────────────────────────────────────
+    def _run_batch(self, template_ref, params, progress=None):
+        def prog(m):
+            if progress: progress(m)
 
-    def run_batch(self, params, progress=None):
-        """Execute a full batch pipeline (CSV template or auto-built)."""
-        def prog(msg):
-            if progress:
-                progress(msg)
-
-        t0 = time.time()
-        cfg = load_config()
-
-        # ── Resolve topic ───────────────────────────────────────
-        topic = (params.get("topic") or cfg.default_topic).strip()
-        if topic:
-            cfg.default_topic = topic
-            save_config(cfg)
-
-        # ── Build workflow ──────────────────────────────────────
-        template_csv = params.get("template_csv", "")
-        if template_csv:
-            prog("Parsing CSV template")
-            workflow = parse_template(template_csv, cfg.participants)
+        # Resolve: filename from upload → read file.  Or raw CSV text.
+        if "\n" not in template_ref and "," not in template_ref:
+            path = Path(__file__).parent.parent.parent.parent / "templates" / template_ref
+            if path.exists():
+                prog(f"Loading template: {template_ref}")
+                csv_text = path.read_text(encoding="utf-8")
+            else:
+                return {"error": f"Template not found: {template_ref}"}
         else:
-            prog("Building workflow from active participants")
-            workflow = self._workflow_from_params(params, cfg)
+            csv_text = template_ref
+
+        cfg = load_config()
+        topic = (params.get("topic","") or cfg.default_topic).strip()
+        if not topic:
+            return {"error": "No topic set. Enter a topic before running batch."}
+
+        prog("Parsing template")
+        try:
+            workflow = parse_template(csv_text, cfg.participants)
+        except Exception as e:
+            return {"error": f"Template parse error: {e}"}
 
         workflow.topic = topic
-
         if not workflow.stages:
-            return {"error": "Workflow has no stages."}
+            return {"error": "Template has no stages."}
 
-        prog(f"Workflow: {len(workflow.stages)} stages — "
-             + " → ".join(f"{s.stage_type}:{s.label}"
-                          for s in workflow.stages))
+        prog(f"Pipeline: {len(workflow.stages)} stages — " +
+             " → ".join(f"{s.stage_type}:{s.label}" for s in workflow.stages))
 
-        # ── Global overrides ────────────────────────────────────
-        global_overrides = {
-            "temperature": float(params.get("temperature", 0)),
-            "max_tokens": int(params.get("max_tokens", 0)),
-        }
-        save_transcripts = bool(params.get("save_transcripts", True))
-
-        # ── Execute stages ──────────────────────────────────────
-        run_id = time.strftime("%Y%m%d_%H%M%S")
-        context = {
-            "topic": topic,
-            "prior_output": None,
-            "prior_type": None,
-            "run_id": run_id,
-            "stage_index": 0,
-            "global_overrides": global_overrides,
-        }
-
+        # ── Execute column by column ────────────────────────────
+        t0 = time.time()
+        overrides = {"temperature":float(params.get("temperature",0.7)),
+                     "max_tokens":int(params.get("max_tokens",256))}
+        context = {"topic":topic, "prior_output":None, "stage_index":0, "overrides":overrides}
         stage_results = []
+
         for idx, stage in enumerate(workflow.stages):
             context["stage_index"] = idx
-            prog(f"Stage {idx + 1}/{len(workflow.stages)}: "
-                 f"{stage.stage_type}:{stage.label}")
+            prog(f"Stage {idx+1}/{len(workflow.stages)}: {stage.stage_type}:{stage.label}")
 
             handler = self._stage_handlers.get(stage.stage_type)
-            if handler is None:
-                msg = (f"Unknown stage type '{stage.stage_type}'.  "
-                       f"Registered: {list(self._stage_handlers.keys())}")
-                logger.error(f"[ROUNDTABLE] {msg}")
-                stage_results.append({
-                    "stage_index": idx,
-                    "stage_type": stage.stage_type,
-                    "label": stage.label,
-                    "error": msg,
-                    "output": context.get("prior_output", ""),
-                    "n_generations": 0,
-                })
+            if not handler:
+                stage_results.append({"stage_type":stage.stage_type,"label":stage.label,
+                                      "error":f"Unknown stage type '{stage.stage_type}'",
+                                      "output":"","n_generations":0})
                 continue
 
             result = handler(self, stage, context, prog)
             stage_results.append(result)
+            context["prior_output"] = result.get("output","")
 
-            context["prior_output"] = result.get("output", "")
-            context["prior_type"] = stage.stage_type
-
-            if save_transcripts:
-                _TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
-                fname = (f"rt_{run_id}_{idx:02d}"
-                         f"_{stage.stage_type.lower()}.json")
-                try:
-                    with open(_TRANSCRIPT_DIR / fname, "w") as f:
-                        json.dump(result, f, indent=2)
-                except Exception as e:
-                    logger.warning(
-                        f"[ROUNDTABLE] Transcript save failed: {e}")
-
-        # ── Assemble result ─────────────────────────────────────
-        elapsed = time.time() - t0
-        prog(f"Pipeline complete in {elapsed:.1f}s")
-
-        n_gen = sum(r.get("n_generations", 0) for r in stage_results)
-
-        return {
-            "run_id": run_id,
-            "topic": topic,
-            "workflow": workflow.to_dict(),
-            "stages": stage_results,
-            "final_output": context.get("prior_output", ""),
-            "n_stages": len(workflow.stages),
-            "n_total_generations": n_gen,
-            "elapsed_seconds": round(elapsed, 2),
-            "template_csv": template_csv or None,
-        }
-
-    # ── Workflow from UI params (no template) ───────────────────
-
-    def _workflow_from_params(self, params, cfg):
-        n_rt = int(params.get("n_roundtables", 2))
-        n_per = int(params.get("participants_per_roundtable", 3))
-        active = [p for p in cfg.participants if p.active]
-        if n_per > len(active):
-            n_per = len(active)
-
-        synth_prompt = params.get("intermediate_prompt",
-                                  _DEFAULT_PROMPTS["synthesize"])
-        stages = []
-        for i in range(n_rt):
-            seeds = [p.to_dict() for p in active[:n_per]]
-            stages.append(WorkflowStage("PANEL", f"Round {i + 1}", seeds))
-            if i < n_rt - 1:
-                stages.append(WorkflowStage("ANALYSIS", f"Synthesis {i + 1}", [{
-                    "method": "synthesize",
-                    "system_prompt": synth_prompt,
-                }]))
-
-        return Workflow(stages=stages)
-
-    # ── Transcript management ───────────────────────────────────
-
-    @staticmethod
-    def list_transcripts() -> list[dict]:
-        if not _TRANSCRIPT_DIR.exists():
-            return []
-        result = []
-        for p in sorted(_TRANSCRIPT_DIR.glob("rt_*.json"), reverse=True):
+            # Save transcript
+            _TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+            run_id = time.strftime("%Y%m%d_%H%M%S")
             try:
-                with open(p) as f:
-                    data = json.load(f)
-                result.append({
-                    "filename": p.name,
-                    "stage_type": data.get("stage_type"),
-                    "label": data.get("label"),
-                    "n_agents": len(data.get("responses", [])),
-                })
-            except Exception:
-                result.append({"filename": p.name, "error": True})
-        return result
+                fname = f"rt_{run_id}_{idx:02d}_{stage.stage_type.lower()}.json"
+                with open(_TRANSCRIPT_DIR / fname,"w") as f: json.dump(result, f, indent=2)
+            except Exception: pass
+
+        elapsed = round(time.time()-t0, 2)
+        n_gen = sum(r.get("n_generations",0) for r in stage_results)
+        prog(f"Complete: {n_gen} generations in {elapsed}s")
+
+        return {"topic":topic, "workflow":workflow.to_dict(), "stages":stage_results,
+                "final_output":context.get("prior_output",""),
+                "n_stages":len(workflow.stages), "n_total_generations":n_gen,
+                "elapsed_seconds":elapsed}
+
+    # ── Seed resolution ────────────────────────────────────────
+
+    def _resolve_seed(self, seed, overrides):
+        r = dict(seed)
+        if "temperature" not in r: r["temperature"] = overrides.get("temperature",0.7)
+        if "max_tokens" not in r: r["max_tokens"] = overrides.get("max_tokens",256)
+        r.setdefault("top_p", 0.9)
+        r.setdefault("name","Agent"); r.setdefault("role","")
+        r.setdefault("system_prompt","You are a helpful roundtable participant.")
+        return r
+
+    @classmethod
+    def register_stage(cls, stage_type):
+        def dec(fn): cls._stage_handlers[stage_type.upper()] = fn; return fn
+        return dec
+
+    @classmethod
+    def register_method(cls, name, description="", default_prompt=""):
+        def dec(fn): cls._analysis_methods[name] = {"handler":fn,"description":description,"default_prompt":default_prompt}; return fn
+        return dec
 
     @staticmethod
-    def get_transcript(filename: str) -> Optional[dict]:
-        path = _TRANSCRIPT_DIR / filename
-        if not path.exists() or not path.name.startswith("rt_"):
-            return None
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception:
-            return None
+    def list_methods():
+        return [{"name":n,"description":i.get("description","")} for n,i in RoundtableLMAModule._analysis_methods.items()]
 
     @staticmethod
-    def clear_transcripts() -> int:
-        if not _TRANSCRIPT_DIR.exists():
-            return 0
-        count = 0
-        for p in _TRANSCRIPT_DIR.glob("rt_*.json"):
-            try:
-                p.unlink()
-                count += 1
-            except Exception:
-                pass
-        return count
-
-    @staticmethod
-    def export_full_chain(run_id: str) -> Optional[dict]:
-        if not _TRANSCRIPT_DIR.exists():
-            return None
-        parts = sorted(_TRANSCRIPT_DIR.glob(f"rt_{run_id}_*.json"))
-        if not parts:
-            return None
-        stages = []
-        for p in parts:
-            try:
-                with open(p) as f:
-                    stages.append(json.load(f))
-            except Exception:
-                pass
-        return {"run_id": run_id, "n_stages": len(stages), "stages": stages}
-
-    @staticmethod
-    def list_methods() -> list[dict]:
-        """Return metadata for all registered analysis methods."""
-        return [
-            {
-                "name": name,
-                "description": info.get("description", ""),
-                "has_default_prompt": bool(info.get("default_prompt")),
-            }
-            for name, info in RoundtableLMAModule._analysis_methods.items()
-        ]
-
-    @staticmethod
-    def list_tools() -> list[dict]:
-        """Return metadata for all registered TOOL functions."""
-        return [
-            {
-                "name": name,
-                "description": getattr(fn, "_tool_meta", {}).get(
-                    "description", ""),
-            }
-            for name, fn in _TOOL_REGISTRY.items()
-        ]
+    def list_tools():
+        return [{"name":n,"description":getattr(fn,"_meta",{}).get("description","")} for n,fn in _TOOL_REGISTRY.items()]
 
 
-# ────────────────────────────────────────────────────────────────
-#  Built-in stage handlers
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  7. Stage handlers
+# ================================================================
 
 @RoundtableLMAModule.register_stage("PANEL")
-def _stage_panel(module, stage: WorkflowStage, context: dict,
-                 progress: Callable) -> dict:
-    """Execute a roundtable panel.
-
-    Each agent sees the *accumulating* transcript of this panel only.
-    Prior panel transcripts are never exposed — blank-canvas isolation.
-    """
+def _stage_panel(module, stage, context, progress):
+    """Multi-agent roundtable.  Each agent sees accumulating transcript.
+    Blank-canvas isolation: no prior panel transcripts exposed."""
     topic = context["topic"]
     prior = context.get("prior_output")
-    overrides = context.get("global_overrides", {})
-    stage_idx = context["stage_index"]
+    idx = context["stage_index"]
+    panel_input = prior if (prior and idx > 0) else topic
 
-    # Panel input: prior stage output if it exists, else raw topic
-    panel_input = prior if (prior and stage_idx > 0) else topic
+    transcript_parts = []; responses = []; n_gen = 0
 
-    transcript_parts = []
-    responses = []
-    n_gen = 0
+    for a_idx, raw in enumerate(stage.seeds):
+        seed = module._resolve_seed(raw, context["overrides"])
+        progress(f"  {stage.label} — {seed['name']} ({a_idx+1}/{len(stage.seeds)})")
 
-    for a_idx, raw_seed in enumerate(stage.seeds):
-        seed = module._resolve_seed(raw_seed, overrides)
-        agent_label = seed["name"]
-        agent_role = seed["role"]
-        progress(f"  {stage.label} — {agent_label} "
-                 f"({a_idx + 1}/{len(stage.seeds)})")
-
-        # Build user content: panel input + transcript so far
         if transcript_parts:
-            user_content = (
-                f"Discussion topic:\n{panel_input}\n\n"
-                f"Transcript so far:\n"
-                + "\n".join(transcript_parts)
-                + "\n\nPlease contribute your perspective."
-            )
+            uc = f"Discussion topic:\n{panel_input}\n\nTranscript so far:\n" + "\n".join(transcript_parts) + "\n\nPlease contribute your perspective."
         else:
-            user_content = panel_input
+            uc = panel_input
 
         try:
-            response = _generate(
-                module._pipeline,
-                system_prompt=seed["system_prompt"],
-                user_content=user_content,
-                temperature=seed["temperature"],
-                top_p=seed["top_p"],
-                max_tokens=seed["max_tokens"],
-            )
+            resp = _generate(module._pipeline, seed["system_prompt"], uc,
+                             seed["temperature"], seed["top_p"], seed["max_tokens"])
             n_gen += 1
         except Exception as e:
-            logger.error(f"[ROUNDTABLE] {agent_label} failed: {e}")
-            response = f"[Generation error: {e}]"
+            resp = f"[Generation error: {e}]"
 
-        responses.append({
-            "agent_index": a_idx,
-            "name": agent_label,
-            "role": agent_role,
-            "response": response,
-            "seed": {k: v for k, v in seed.items()
-                     if k != "system_prompt"},
-        })
-
-        role_tag = (f"{agent_label} — {agent_role}"
-                    if agent_role else agent_label)
-        transcript_parts.append(f"[{role_tag}]\n{response}\n")
+        tag = f"{seed['name']} — {seed['role']}" if seed["role"] else seed["name"]
+        responses.append({"name":seed["name"],"role":seed["role"],"response":resp})
+        transcript_parts.append(f"[{tag}]\n{resp}\n")
 
     transcript = "\n".join(transcript_parts)
-
-    return {
-        "stage_index": stage_idx,
-        "stage_type": "PANEL",
-        "label": stage.label,
-        "input_preview": panel_input[:500],
-        "responses": responses,
-        "transcript": transcript,
-        "output": transcript,
-        "n_generations": n_gen,
-    }
+    return {"stage_type":"PANEL","label":stage.label,"responses":responses,
+            "transcript":transcript,"output":transcript,"n_generations":n_gen}
 
 
 @RoundtableLMAModule.register_stage("ANALYSIS")
-def _stage_analysis(module, stage: WorkflowStage, context: dict,
-                    progress: Callable) -> dict:
-    """Execute an analysis / transformation stage.
-
-    Dispatches to the method named in each seed's ``method`` field.
-    Multiple seeds in one ANALYSIS column are chained: each processes
-    the prior's output in sequence.
-    """
-    prior = context.get("prior_output", "")
-    overrides = context.get("global_overrides", {})
-
+def _stage_analysis(module, stage, context, progress):
+    """Method-based processing.  Dispatches by 'method' field in seed."""
+    prior = context.get("prior_output","")
     if not stage.seeds:
-        return {
-            "stage_index": context["stage_index"],
-            "stage_type": "ANALYSIS",
-            "label": stage.label,
-            "method_chain": ["passthrough"],
-            "output": prior,
-            "n_generations": 0,
-        }
+        return {"stage_type":"ANALYSIS","label":stage.label,"output":prior,"n_generations":0}
 
-    outputs = []
-    current = prior
-    n_gen = 0
+    current = prior; n_gen = 0; chain = []
 
-    for s_idx, raw_seed in enumerate(stage.seeds):
-        seed = module._resolve_seed(raw_seed, overrides)
-        method_name = raw_seed.get("method", "custom")
-        progress(f"  {stage.label} — method:{method_name} "
-                 f"({s_idx + 1}/{len(stage.seeds)})")
+    for raw in stage.seeds:
+        seed = module._resolve_seed(raw, context["overrides"])
+        method_name = raw.get("method","custom")
+        progress(f"  {stage.label} — {method_name}")
 
-        method_info = module._analysis_methods.get(method_name)
-        if method_info is None:
-            logger.warning(f"[ROUNDTABLE] Unknown method '{method_name}', "
-                           f"falling back to 'custom'.")
-            method_info = module._analysis_methods.get("custom")
+        mi = module._analysis_methods.get(method_name)
+        if not mi: mi = module._analysis_methods.get("custom")
 
-        handler = method_info["handler"]
+        if "system_prompt" not in raw and mi.get("default_prompt"):
+            seed["system_prompt"] = mi["default_prompt"]
 
-        # Apply default prompt if seed doesn't specify one
-        if ("system_prompt" not in raw_seed
-                and method_info.get("default_prompt")):
-            seed["system_prompt"] = method_info["default_prompt"]
+        current = mi["handler"](module, current, seed, context, progress)
+        chain.append(method_name)
+        if method_name not in ("passthrough","aggregate"): n_gen += 1
 
-        result_text = handler(module, current, seed, context, progress)
-        outputs.append({"method": method_name, "output": result_text})
-
-        # Count model-based methods as generations
-        if method_name not in ("passthrough", "aggregate"):
-            n_gen += 1
-
-        current = result_text
-
-    return {
-        "stage_index": context["stage_index"],
-        "stage_type": "ANALYSIS",
-        "label": stage.label,
-        "method_chain": [o["method"] for o in outputs],
-        "outputs": outputs,
-        "output": current,
-        "n_generations": n_gen,
-    }
+    return {"stage_type":"ANALYSIS","label":stage.label,"method_chain":chain,
+            "output":current,"n_generations":n_gen}
 
 
 @RoundtableLMAModule.register_stage("TOOL")
-def _stage_tool(module, stage: WorkflowStage, context: dict,
-                progress: Callable) -> dict:
-    """Execute a programmatic tool stage — no model generation.
-
-    Dispatches to registered tool functions by the ``tool`` field in
-    the seed dict.  Tools operate on the pipeline state (prior output,
-    context, run_id) and produce structured output or side effects
-    (file export, external API calls, data transforms).
-    """
-    prior = context.get("prior_output", "")
-    run_id = context.get("run_id", "unknown")
-    stage_idx = context["stage_index"]
-
+def _stage_tool(module, stage, context, progress):
+    """Programmatic functions — no model generation."""
+    prior = context.get("prior_output","")
     if not stage.seeds:
-        return {
-            "stage_index": stage_idx,
-            "stage_type": "TOOL",
-            "label": stage.label,
-            "tool_chain": ["passthrough"],
-            "output": prior,
-            "n_generations": 0,
-        }
+        return {"stage_type":"TOOL","label":stage.label,"output":prior,"n_generations":0}
 
-    outputs = []
-    current = prior
+    current = prior; chain = []
 
-    for s_idx, seed in enumerate(stage.seeds):
-        tool_name = seed.get("tool", "export_json")
-        progress(f"  {stage.label} — tool:{tool_name} "
-                 f"({s_idx + 1}/{len(stage.seeds)})")
-
+    for raw in stage.seeds:
+        tool_name = raw.get("tool","export_json")
+        progress(f"  {stage.label} — tool:{tool_name}")
         handler = _TOOL_REGISTRY.get(tool_name)
-        if handler is None:
-            msg = (f"Unknown tool '{tool_name}'.  "
-                   f"Available: {list(_TOOL_REGISTRY.keys())}")
-            logger.warning(f"[ROUNDTABLE] {msg}")
-            outputs.append({"tool": tool_name, "error": msg})
-            continue
-
+        if not handler: chain.append(f"{tool_name}(unknown)"); continue
         try:
-            result = handler(current, seed, context, progress)
+            result = handler(current, raw, context, progress)
+            if isinstance(result, dict) and "output" in result: current = result["output"]
+            elif isinstance(result, str): current = result
         except Exception as e:
-            logger.error(f"[ROUNDTABLE] Tool {tool_name} failed: {e}")
-            result = {"error": str(e)}
+            logger.error(f"[RT] Tool {tool_name}: {e}")
+        chain.append(tool_name)
 
-        outputs.append({"tool": tool_name, "result": result})
-
-        # Tools that produce text output update current for downstream
-        if isinstance(result, dict) and "output" in result:
-            current = result["output"]
-        elif isinstance(result, str):
-            current = result
-
-    return {
-        "stage_index": stage_idx,
-        "stage_type": "TOOL",
-        "label": stage.label,
-        "tool_chain": [o["tool"] for o in outputs],
-        "outputs": outputs,
-        "output": current,
-        "n_generations": 0,
-    }
+    return {"stage_type":"TOOL","label":stage.label,"tool_chain":chain,
+            "output":current,"n_generations":0}
 
 
-# ── Tool registry ──────────────────────────────────────────────
+# ================================================================
+#  8. Analysis methods
+# ================================================================
+
+def _gen_method(mod, prior, seed, ctx, prog):
+    return _generate(mod._pipeline, seed["system_prompt"], prior,
+                     seed["temperature"], seed.get("top_p",0.9), seed["max_tokens"])
+
+for _n, _d, _p in [
+    ("synthesize","Model-based synthesis",_PROMPTS["synthesize"]),
+    ("analyze","Qualitative coding analysis",_PROMPTS["analyze"]),
+    ("evaluate","Critical evaluation",_PROMPTS["evaluate"]),
+    ("extract","Extract themes and claims",_PROMPTS["extract"]),
+    ("report","Structured report",_PROMPTS["report"]),
+    ("custom","Custom system prompt","Process the following input."),
+]:
+    RoundtableLMAModule._analysis_methods[_n] = {
+        "handler": _gen_method, "description": _d, "default_prompt": _p}
+
+RoundtableLMAModule._analysis_methods["passthrough"] = {
+    "handler": lambda mod,prior,seed,ctx,prog: prior,
+    "description": "Forward without modification", "default_prompt": ""}
+
+RoundtableLMAModule._analysis_methods["aggregate"] = {
+    "handler": lambda mod,prior,seed,ctx,prog: (
+        f"Words: {len(prior.lower().split())} | "
+        f"Unique: {len(set(prior.lower().split()))}\n"
+        f"Top 20: {', '.join(f'{w}({c})' for w,c in Counter(prior.lower().split()).most_common(20))}"
+    ), "description": "Word counts and stats (no model)", "default_prompt": ""}
+
+
+# ================================================================
+#  9. Tool registry
+# ================================================================
 
 _TOOL_REGISTRY: dict[str, Callable] = {}
 
+def register_tool(name, description=""):
+    def dec(fn): _TOOL_REGISTRY[name] = fn; fn._meta = {"description":description}; return fn
+    return dec
 
-def register_tool(name: str, description: str = ""):
-    """Decorator to register a TOOL-stage function.
-
-    Handler signature::
-        (prior_output: str, seed: dict, context: dict,
-         progress: Callable) -> dict | str
-    """
-    def decorator(fn):
-        _TOOL_REGISTRY[name] = fn
-        fn._tool_meta = {"name": name, "description": description}
-        return fn
-    return decorator
-
-
-@register_tool("export_json", "Export current context as a JSON file")
-def _tool_export_json(prior_output, seed, context, progress):
-    """Write the accumulated pipeline state to a JSON file."""
-    run_id = context.get("run_id", "export")
-    fname = seed.get("filename", f"roundtable_{run_id}.json")
-    path = _TRANSCRIPT_DIR / fname
+@register_tool("export_json","Export context as JSON file")
+def _t_export(prior, seed, ctx, prog):
+    path = _TRANSCRIPT_DIR / f"roundtable_{ctx.get('run_id','export')}.json"
     _TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(path,"w") as f: json.dump({"topic":ctx.get("topic",""),"output":prior},f,indent=2)
+    return {"output":prior,"file":str(path)}
 
-    payload = {
-        "run_id": run_id,
-        "topic": context.get("topic", ""),
-        "stage_index": context.get("stage_index"),
-        "output": prior_output,
-    }
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
-
-    progress(f"    Exported to {path}")
-    return {"output": prior_output, "file": str(path)}
-
-
-@register_tool("snapshot", "Save a named checkpoint of the current output")
-def _tool_snapshot(prior_output, seed, context, progress):
-    """Save current output as a named snapshot for later reference."""
-    label = seed.get("label", f"snapshot_{context.get('stage_index', 0)}")
-    snapshots = context.setdefault("_snapshots", {})
-    snapshots[label] = prior_output
-    progress(f"    Snapshot saved: {label}")
-    return {"output": prior_output, "snapshot": label}
-
-
-@register_tool("truncate", "Trim the output to a max character length")
-def _tool_truncate(prior_output, seed, context, progress):
-    max_chars = int(seed.get("max_chars", 2000))
-    if len(prior_output) > max_chars:
-        trimmed = prior_output[:max_chars] + "\n\n[... truncated]"
-        progress(f"    Truncated {len(prior_output)} → {max_chars} chars")
-        return trimmed
-    return prior_output
-
-
-@register_tool("prepend", "Prepend fixed text to the output")
-def _tool_prepend(prior_output, seed, context, progress):
-    text = seed.get("text", "")
-    return text + "\n\n" + prior_output
-
-
-@register_tool("append", "Append fixed text to the output")
-def _tool_append(prior_output, seed, context, progress):
-    text = seed.get("text", "")
-    return prior_output + "\n\n" + text
-
-
-@register_tool("word_count", "Count words and basic stats (like ClownCar.AI)")
-def _tool_word_count(prior_output, seed, context, progress):
-    """ClownCar.AI-style word counting on the current output."""
-    words = prior_output.lower().split()
+@register_tool("word_count","Word frequency analysis")
+def _t_wc(prior, seed, ctx, prog):
+    words = prior.lower().split()
     freq = Counter(words).most_common(30)
-    lines = [
-        f"Total words: {len(words)}",
-        f"Unique words: {len(set(words))}",
-        f"Top 30: " + ", ".join(f"{w}({c})" for w, c in freq),
-    ]
-    report = "\n".join(lines)
-    return {"output": report, "total": len(words), "unique": len(set(words))}
+    return {"output":f"Words: {len(words)}, Unique: {len(set(words))}\n{', '.join(f'{w}({c})' for w,c in freq)}"}
+
+@register_tool("snapshot","Save checkpoint of current output")
+def _t_snap(prior, seed, ctx, prog):
+    ctx.setdefault("_snapshots",{})[seed.get("label","snap")] = prior
+    return {"output":prior}
+
+@register_tool("truncate","Trim output to max_chars")
+def _t_trunc(prior, seed, ctx, prog):
+    mc = int(seed.get("max_chars",2000))
+    return prior[:mc] + "\n[truncated]" if len(prior) > mc else prior
 
 
-# ────────────────────────────────────────────────────────────────
-#  Built-in analysis methods
-# ────────────────────────────────────────────────────────────────
-
-@RoundtableLMAModule.register_method(
-    "synthesize",
-    description="Model-based synthesis of prior stage output",
-    default_prompt=_DEFAULT_PROMPTS["synthesize"],
-)
-def _method_synthesize(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "analyze",
-    description="Qualitative coding analysis of discussion",
-    default_prompt=_DEFAULT_PROMPTS["analyze"],
-)
-def _method_analyze(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "evaluate",
-    description="Critical evaluation and scoring of contributions",
-    default_prompt=_DEFAULT_PROMPTS["evaluate"],
-)
-def _method_evaluate(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "extract",
-    description="Extract key themes, claims, and evidence",
-    default_prompt=_DEFAULT_PROMPTS["extract"],
-)
-def _method_extract(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "report",
-    description="Generate a structured report from accumulated material",
-    default_prompt=_DEFAULT_PROMPTS["report"],
-)
-def _method_report(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "custom",
-    description="Generation with a user-defined system prompt",
-    default_prompt="You are a helpful analyst.  Process the following input.",
-)
-def _method_custom(module, prior_output, seed, context, progress):
-    return _generate(
-        module._pipeline, seed["system_prompt"], prior_output,
-        seed["temperature"], seed["top_p"], seed["max_tokens"],
-    )
-
-
-@RoundtableLMAModule.register_method(
-    "passthrough",
-    description="Forward prior output without modification",
-)
-def _method_passthrough(module, prior_output, seed, context, progress):
-    return prior_output
-
-
-@RoundtableLMAModule.register_method(
-    "aggregate",
-    description="Structural aggregation: word counts, response stats "
-                "(no model generation)",
-)
-def _method_aggregate(module, prior_output, seed, context, progress):
-    """Non-model processing: structural statistics."""
-    lines = prior_output.strip().split("\n")
-
-    # Identify agent blocks by [Name] headers
-    blocks = []
-    current_block = None
-    for line in lines:
-        if line.startswith("[") and "]" in line:
-            if current_block:
-                blocks.append(current_block)
-            current_block = {"header": line, "text": ""}
-        elif current_block is not None:
-            current_block["text"] += line + "\n"
-    if current_block:
-        blocks.append(current_block)
-
-    # Per-block stats
-    block_stats = []
-    all_words = []
-    for b in blocks:
-        words = b["text"].lower().split()
-        all_words.extend(words)
-        block_stats.append({
-            "agent": b["header"],
-            "word_count": len(words),
-            "char_count": len(b["text"]),
-            "sentence_count": (b["text"].count(".")
-                               + b["text"].count("!")
-                               + b["text"].count("?")),
-        })
-
-    word_freq = Counter(all_words).most_common(20)
-
-    report_lines = [
-        "=== Aggregation Report ===",
-        f"Total responses: {len(blocks)}",
-        f"Total words: {len(all_words)}",
-        f"Average words per response: "
-        f"{len(all_words) / max(len(blocks), 1):.0f}",
-        "",
-        "--- Per-Agent Statistics ---",
-    ]
-    for bs in block_stats:
-        report_lines.append(
-            f"  {bs['agent']}: {bs['word_count']} words, "
-            f"{bs['sentence_count']} sentences"
-        )
-    report_lines.extend([
-        "",
-        "--- Top 20 Words ---",
-        ", ".join(f"{w}({c})" for w, c in word_freq),
-    ])
-
-    return "\n".join(report_lines)
-
-
-# ────────────────────────────────────────────────────────────────
-#  Interactive Session — user-driven roundtable from a chat window
-# ────────────────────────────────────────────────────────────────
+# ================================================================
+#  10. Interactive session manager
+# ================================================================
 
 @dataclass
-class InteractiveTurn:
-    """One turn in the interactive transcript."""
-    turn_type: str              # "user", "persona", "method"
-    name: str                   # user name or persona name or method name
-    role: str                   # persona role or "" for user/method
-    content: str                # the message text
-    timestamp: float = 0.0     # epoch seconds
-    seed: Optional[dict] = None # persona seed used (sans system_prompt)
-    stage_label: str = ""       # which stage this turn belongs to
-
-    def to_dict(self) -> dict:
-        d = {
-            "turn_type": self.turn_type,
-            "name": self.name,
-            "role": self.role,
-            "content": self.content,
-            "timestamp": self.timestamp,
-            "stage_label": self.stage_label,
-        }
-        if self.seed:
-            d["seed"] = self.seed
-        return d
-
+class _Turn:
+    turn_type: str; name: str; role: str; content: str
+    timestamp: float = 0.0; stage_label: str = ""
+    def to_dict(self):
+        return {"turn_type":self.turn_type,"name":self.name,"role":self.role,
+                "content":self.content,"timestamp":self.timestamp,"stage_label":self.stage_label}
 
 @dataclass
-class InteractiveSession:
-    """In-memory state for a user-driven roundtable session."""
-    session_id: str
-    topic: str
-    turns: list[InteractiveTurn] = field(default_factory=list)
-    stages: list[dict] = field(default_factory=list)
+class _Session:
+    session_id: str; topic: str
+    turns: list = field(default_factory=list)
+    stages: list = field(default_factory=list)
     current_stage_label: str = "Panel 1"
     current_stage_type: str = "PANEL"
     stage_counter: int = 1
-    gen_config: dict = field(default_factory=lambda: {
-        "temperature": 0.7,
-        "max_tokens": 256,
-        "top_p": 0.9,
-    })
+    gen_config: dict = field(default_factory=lambda: {"temperature":0.7,"max_tokens":256,"top_p":0.9})
 
-    def transcript_text(self, current_stage_only: bool = True) -> str:
-        """Build readable transcript.
+    def transcript(self, current_only=True):
+        turns = [t for t in self.turns if t.stage_label == self.current_stage_label] if current_only else self.turns
+        return "\n".join(f"[{t.name}]\n{t.content}\n" for t in turns)
 
-        If current_stage_only=True, returns only the current stage's
-        turns (blank-canvas isolation between panels).
-        """
-        turns = self.turns
-        if current_stage_only:
-            turns = [t for t in turns
-                     if t.stage_label == self.current_stage_label]
-
-        lines = []
-        for t in turns:
-            if t.turn_type == "user":
-                lines.append(f"[User]")
-            elif t.turn_type == "persona":
-                tag = f"{t.name} — {t.role}" if t.role else t.name
-                lines.append(f"[{tag}]")
-            elif t.turn_type == "method":
-                lines.append(f"[{t.name} — analysis]")
-            lines.append(t.content)
-            lines.append("")
-        return "\n".join(lines)
-
-    def full_transcript_text(self) -> str:
-        """Full transcript across all stages, with stage headers."""
-        if not self.turns:
-            return ""
-        lines = []
-        current_label = None
-        for t in self.turns:
-            if t.stage_label != current_label:
-                current_label = t.stage_label
-                lines.append(f"\n{'='*40}")
-                lines.append(f"  {current_label}")
-                lines.append(f"{'='*40}\n")
-            if t.turn_type == "user":
-                lines.append("[User]")
-            elif t.turn_type == "persona":
-                tag = f"{t.name} — {t.role}" if t.role else t.name
-                lines.append(f"[{tag}]")
-            elif t.turn_type == "method":
-                lines.append(f"[{t.name} — analysis]")
-            lines.append(t.content)
-            lines.append("")
-        return "\n".join(lines)
-
-    def mark_new_stage(self, stage_type: str = "PANEL",
-                       label: str = "") -> dict:
-        """Close the current stage and start a new one."""
-        # Save current stage summary
-        current_turns = [t for t in self.turns
-                         if t.stage_label == self.current_stage_label]
-        self.stages.append({
-            "stage_type": self.current_stage_type,
-            "label": self.current_stage_label,
-            "n_turns": len(current_turns),
-            "transcript": self.transcript_text(current_stage_only=True),
-        })
-
+    def mark_new_stage(self, stype, label=""):
+        cur = [t for t in self.turns if t.stage_label == self.current_stage_label]
+        self.stages.append({"type":self.current_stage_type,"label":self.current_stage_label,"n_turns":len(cur)})
         self.stage_counter += 1
-        if not label:
-            label = f"{stage_type.title()} {self.stage_counter}"
-        self.current_stage_label = label
-        self.current_stage_type = stage_type.upper()
+        self.current_stage_label = label or f"{stype.title()} {self.stage_counter}"
+        self.current_stage_type = stype.upper()
+        return {"stage_type":self.current_stage_type,"label":self.current_stage_label}
 
-        return {
-            "stage_index": len(self.stages),
-            "stage_type": self.current_stage_type,
-            "label": self.current_stage_label,
-        }
+    def to_dict(self):
+        return {"session_id":self.session_id,"topic":self.topic,
+                "current_stage":{"type":self.current_stage_type,"label":self.current_stage_label},
+                "n_turns":len(self.turns),"turns":[t.to_dict() for t in self.turns],"gen_config":self.gen_config}
 
-    def to_dict(self) -> dict:
-        return {
-            "session_id": self.session_id,
-            "topic": self.topic,
-            "current_stage": {
-                "type": self.current_stage_type,
-                "label": self.current_stage_label,
-            },
-            "n_turns": len(self.turns),
-            "n_stages_completed": len(self.stages),
-            "turns": [t.to_dict() for t in self.turns],
-            "stages": self.stages,
-            "gen_config": self.gen_config,
-        }
-
-    def export(self) -> dict:
-        """Full export for download/archival."""
-        # Close current stage into the summary
-        current_turns = [t for t in self.turns
-                         if t.stage_label == self.current_stage_label]
-        all_stages = list(self.stages) + [{
-            "stage_type": self.current_stage_type,
-            "label": self.current_stage_label,
-            "n_turns": len(current_turns),
-            "transcript": self.transcript_text(current_stage_only=True),
-        }]
-
-        return {
-            "session_id": self.session_id,
-            "topic": self.topic,
-            "stages": all_stages,
-            "full_transcript": self.full_transcript_text(),
-            "turns": [t.to_dict() for t in self.turns],
-            "gen_config": self.gen_config,
-            "n_total_turns": len(self.turns),
-        }
+    def export(self):
+        cur = [t for t in self.turns if t.stage_label == self.current_stage_label]
+        all_s = self.stages + [{"type":self.current_stage_type,"label":self.current_stage_label,"n_turns":len(cur)}]
+        full = "\n".join(f"[{t.name}]\n{t.content}\n" for t in self.turns)
+        return {"session_id":self.session_id,"topic":self.topic,"stages":all_s,
+                "full_transcript":full,"turns":[t.to_dict() for t in self.turns],"n_total_turns":len(self.turns)}
 
 
 class InteractiveSessionManager:
-    """Thread-safe manager for the active interactive session.
-
-    Only one interactive session exists at a time (matches the
-    single-model, single-user TAGM deployment model).
-    """
-
     def __init__(self):
-        self._session: Optional[InteractiveSession] = None
-        self._lock = threading.Lock()
-        self._pipeline = None
+        self._session = None; self._lock = threading.Lock(); self._pipeline = None
+    def set_pipeline(self, p): self._pipeline = p
 
-    def set_pipeline(self, pipeline):
-        self._pipeline = pipeline
-
-    @property
-    def active(self) -> bool:
-        return self._session is not None
-
-    def start(self, topic: str, gen_config: dict = None) -> dict:
-        """Start a new interactive session."""
+    def start(self, topic, gen_config=None):
         with self._lock:
-            sid = time.strftime("%Y%m%d_%H%M%S")
-            self._session = InteractiveSession(
-                session_id=sid,
-                topic=topic,
-            )
-            if gen_config:
-                self._session.gen_config.update(gen_config)
-
-            # Record the user's opening inquiry as the first turn
-            self._session.turns.append(InteractiveTurn(
-                turn_type="user",
-                name="User",
-                role="",
-                content=topic,
-                timestamp=time.time(),
-                stage_label=self._session.current_stage_label,
-            ))
-
+            self._session = _Session(session_id=time.strftime("%Y%m%d_%H%M%S"), topic=topic)
+            if gen_config: self._session.gen_config.update(gen_config)
+            self._session.turns.append(_Turn("user","User","",topic,time.time(),self._session.current_stage_label))
             return self._session.to_dict()
 
-    def get_session(self) -> Optional[dict]:
+    def get_session(self):
+        with self._lock: return self._session.to_dict() if self._session else None
+
+    def send_user_message(self, msg):
         with self._lock:
-            if self._session is None:
-                return None
-            return self._session.to_dict()
+            if not self._session: return {"ok":False,"error":"No session"}
+            self._session.turns.append(_Turn("user","User","",msg,time.time(),self._session.current_stage_label))
+            return {"ok":True,"n_turns":len(self._session.turns)}
 
-    def send_user_message(self, message: str) -> dict:
-        """Add a user message to the transcript."""
+    def apply_persona(self, participant_id=None, inline_seed=None):
+        if not self._pipeline: return {"ok":False,"error":"No model loaded"}
         with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            self._session.turns.append(InteractiveTurn(
-                turn_type="user",
-                name="User",
-                role="",
-                content=message,
-                timestamp=time.time(),
-                stage_label=self._session.current_stage_label,
-            ))
-            return {"ok": True, "n_turns": len(self._session.turns)}
-
-    def apply_persona(self, participant_id: str = None,
-                      inline_seed: dict = None) -> dict:
-        """Generate a response from a specific persona.
-
-        Either provide a participant_id to look up from registry,
-        or an inline_seed dict with name/role/system_prompt.
-        """
-        if self._pipeline is None:
-            return {"ok": False, "error": "No model loaded."}
-
+            if not self._session: return {"ok":False,"error":"No session"}
+            s = self._session
+        seed = dict(inline_seed) if inline_seed else {}
+        if participant_id and not inline_seed:
+            p = next((x for x in load_config().participants if x.id == participant_id), None)
+            if not p: return {"ok":False,"error":"Participant not found"}
+            seed = p.to_dict()
+        seed.setdefault("temperature", s.gen_config.get("temperature",0.7))
+        seed.setdefault("max_tokens", s.gen_config.get("max_tokens",256))
+        seed.setdefault("system_prompt","You are a helpful roundtable participant.")
+        seed.setdefault("name","Agent"); seed.setdefault("role","")
+        tr = s.transcript(current_only=True)
+        uc = f"Discussion topic:\n{s.topic}\n\nTranscript so far:\n{tr}\n\nPlease contribute." if tr.strip() else s.topic
+        try: resp = _generate(self._pipeline, seed["system_prompt"], uc, seed["temperature"], seed.get("top_p",0.9), seed["max_tokens"])
+        except Exception as e: return {"ok":False,"error":str(e)}
         with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            session = self._session
+            s.turns.append(_Turn("persona",seed["name"],seed["role"],resp,time.time(),s.current_stage_label))
+        return {"ok":True,"name":seed["name"],"role":seed["role"],"response":resp,"n_turns":len(s.turns)}
 
-        # Resolve persona seed
-        if inline_seed:
-            seed = dict(inline_seed)
-        elif participant_id:
-            p = get_participant(participant_id)
-            if p is None:
-                return {"ok": False,
-                        "error": f"Participant '{participant_id}' not found."}
-            seed = dict(p)
-        else:
-            return {"ok": False, "error": "No persona specified."}
-
-        # Apply session gen_config as defaults
-        seed.setdefault("temperature", session.gen_config.get("temperature", 0.7))
-        seed.setdefault("max_tokens", session.gen_config.get("max_tokens", 256))
-        seed.setdefault("top_p", session.gen_config.get("top_p", 0.9))
-        seed.setdefault("system_prompt", "You are a helpful roundtable participant.")
-        seed.setdefault("name", "Agent")
-        seed.setdefault("role", "")
-
-        # Build user content: topic + current stage transcript
-        transcript = session.transcript_text(current_stage_only=True)
-        if transcript.strip():
-            user_content = (
-                f"Discussion topic:\n{session.topic}\n\n"
-                f"Transcript so far:\n{transcript}\n\n"
-                f"Please contribute your perspective."
-            )
-        else:
-            user_content = session.topic
-
-        # Generate
-        try:
-            response = _generate(
-                self._pipeline,
-                system_prompt=seed["system_prompt"],
-                user_content=user_content,
-                temperature=seed["temperature"],
-                top_p=seed["top_p"],
-                max_tokens=seed["max_tokens"],
-            )
-        except Exception as e:
-            return {"ok": False, "error": f"Generation failed: {e}"}
-
-        # Record turn
+    def apply_method(self, method_name="synthesize", system_prompt=None):
+        if not self._pipeline and method_name not in ("passthrough","aggregate"):
+            return {"ok":False,"error":"No model loaded"}
         with self._lock:
-            seed_display = {k: v for k, v in seed.items()
-                           if k != "system_prompt"}
-            session.turns.append(InteractiveTurn(
-                turn_type="persona",
-                name=seed["name"],
-                role=seed["role"],
-                content=response,
-                timestamp=time.time(),
-                seed=seed_display,
-                stage_label=session.current_stage_label,
-            ))
-
-        return {
-            "ok": True,
-            "name": seed["name"],
-            "role": seed["role"],
-            "response": response,
-            "n_turns": len(session.turns),
-        }
-
-    def apply_method(self, method_name: str,
-                     system_prompt: str = None) -> dict:
-        """Run an analysis method on the current stage's transcript."""
-        if self._pipeline is None and method_name not in ("passthrough",
-                                                          "aggregate"):
-            return {"ok": False, "error": "No model loaded."}
-
+            if not self._session: return {"ok":False,"error":"No session"}
+            s = self._session
+        mi = RoundtableLMAModule._analysis_methods.get(method_name)
+        if not mi: return {"ok":False,"error":f"Unknown method '{method_name}'"}
+        tr = s.transcript(current_only=True)
+        if not tr.strip(): return {"ok":False,"error":"No transcript content"}
+        seed = {"temperature":s.gen_config.get("temperature",0.7),"max_tokens":s.gen_config.get("max_tokens",256),
+                "top_p":0.9,"system_prompt":system_prompt or mi.get("default_prompt","Process this input.")}
+        class _S: pass
+        stub = _S(); stub._pipeline = self._pipeline
+        try: result = mi["handler"](stub, tr, seed, {}, lambda m: None)
+        except Exception as e: return {"ok":False,"error":str(e)}
         with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            session = self._session
+            s.turns.append(_Turn("method",method_name,"analysis",result,time.time(),s.current_stage_label))
+        return {"ok":True,"method":method_name,"output":result,"n_turns":len(s.turns)}
 
-        method_info = RoundtableLMAModule._analysis_methods.get(method_name)
-        if method_info is None:
-            return {"ok": False,
-                    "error": f"Unknown method '{method_name}'. "
-                    f"Available: {list(RoundtableLMAModule._analysis_methods.keys())}"}
-
-        handler = method_info["handler"]
-
-        # Build seed
-        seed = {
-            "temperature": session.gen_config.get("temperature", 0.7),
-            "max_tokens": session.gen_config.get("max_tokens", 256),
-            "top_p": session.gen_config.get("top_p", 0.9),
-            "system_prompt": (system_prompt
-                              or method_info.get("default_prompt")
-                              or "Process the following input."),
-        }
-
-        # Use current stage transcript as input
-        transcript = session.transcript_text(current_stage_only=True)
-        if not transcript.strip():
-            return {"ok": False, "error": "No transcript content to process."}
-
-        # Create a minimal module-like object for the handler
-        class _Stub:
-            pass
-        stub = _Stub()
-        stub._pipeline = self._pipeline
-
-        try:
-            result = handler(stub, transcript, seed, {}, lambda m: None)
-        except Exception as e:
-            return {"ok": False, "error": f"Method failed: {e}"}
-
-        # Record turn
+    def new_stage(self, stype="PANEL", label=""):
         with self._lock:
-            session.turns.append(InteractiveTurn(
-                turn_type="method",
-                name=method_name,
-                role="analysis",
-                content=result,
-                timestamp=time.time(),
-                stage_label=session.current_stage_label,
-            ))
+            if not self._session: return {"ok":False,"error":"No session"}
+            return {"ok":True, **self._session.mark_new_stage(stype, label)}
 
-        return {
-            "ok": True,
-            "method": method_name,
-            "output": result,
-            "n_turns": len(session.turns),
-        }
+    def export(self):
+        with self._lock: return self._session.export() if self._session else None
 
-    def apply_tool(self, tool_name: str, params: dict = None) -> dict:
-        """Run a TOOL-stage function on the current transcript."""
-        with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            session = self._session
+    def reset(self):
+        with self._lock: had = self._session is not None; self._session = None
+        return {"ok":True,"had_session":had}
 
-        handler = _TOOL_REGISTRY.get(tool_name)
-        if handler is None:
-            return {"ok": False,
-                    "error": f"Unknown tool '{tool_name}'. "
-                    f"Available: {list(_TOOL_REGISTRY.keys())}"}
-
-        transcript = session.transcript_text(current_stage_only=True)
-        if not transcript.strip():
-            return {"ok": False, "error": "No transcript content."}
-
-        seed = params or {}
-        context = {
-            "run_id": session.session_id,
-            "topic": session.topic,
-            "stage_index": len(session.stages),
-        }
-
-        try:
-            result = handler(transcript, seed, context, lambda m: None)
-        except Exception as e:
-            return {"ok": False, "error": f"Tool failed: {e}"}
-
-        # Record turn
-        output_text = result if isinstance(result, str) else json.dumps(result)
-        with self._lock:
-            session.turns.append(InteractiveTurn(
-                turn_type="method",
-                name=f"tool:{tool_name}",
-                role="tool",
-                content=output_text,
-                timestamp=time.time(),
-                stage_label=session.current_stage_label,
-            ))
-
-        return {
-            "ok": True,
-            "tool": tool_name,
-            "result": result,
-            "n_turns": len(session.turns),
-        }
-
-    def new_stage(self, stage_type: str = "PANEL",
-                  label: str = "") -> dict:
-        """Close current stage, start a new one (blank canvas)."""
-        with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            info = self._session.mark_new_stage(stage_type, label)
-            return {"ok": True, **info}
-
-    def update_config(self, config: dict) -> dict:
-        """Update generation config for the session."""
-        with self._lock:
-            if self._session is None:
-                return {"ok": False, "error": "No active session."}
-            self._session.gen_config.update(config)
-            return {"ok": True, "gen_config": self._session.gen_config}
-
-    def export(self) -> Optional[dict]:
-        with self._lock:
-            if self._session is None:
-                return None
-            return self._session.export()
-
-    def reset(self) -> dict:
-        with self._lock:
-            had = self._session is not None
-            self._session = None
-            return {"ok": True, "had_session": had}
-
-
-# Module-level singleton
 _interactive_manager = InteractiveSessionManager()

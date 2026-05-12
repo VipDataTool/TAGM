@@ -7,523 +7,212 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg-0:#121212;--bg-1:#1E1E1E;--bg-2:#252525;--bg-3:#2d2d2d;--bg-4:#363636;
-  --border:#333;--border-h:#555;
-  --text-0:#DEE2E6;--text-1:#9CA3AF;--text-2:#6B7280;--text-3:#4B5563;
-  --blue:#58a6ff;--green:#009E73;--orange:#E69F00;--red:#D55E00;--cyan:#56B4E9;
-  --purple:#bc8cff;--amber:#f0883e;
-  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
-}
+:root{--bg-0:#121212;--bg-1:#1E1E1E;--bg-2:#252525;--bg-3:#2d2d2d;--border:#333;--text-0:#DEE2E6;--text-1:#9CA3AF;--text-2:#6B7280;--text-3:#4B5563;--blue:#58a6ff;--green:#009E73;--orange:#E69F00;--red:#D55E00;--cyan:#56B4E9;--purple:#bc8cff;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg-0);color:var(--text-0);font-family:var(--sans);font-size:14px;height:100vh;display:flex;flex-direction:column}
-
-/* ── Header ──────────────────────────────── */
-header{padding:8px 16px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
-header h1{font-size:15px;font-weight:500}
+header{padding:10px 16px;background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+header h1{font-size:16px;font-weight:500}
 header a{color:var(--text-2);font-size:12px;text-decoration:none}
 header a:hover{color:var(--text-0)}
-.stage-pill{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:10px;font-weight:500;margin-left:auto}
-.stage-pill.panel{background:#58a6ff20;color:var(--blue);border:1px solid #58a6ff40}
-.stage-pill.analysis{background:#bc8cff20;color:var(--purple);border:1px solid #bc8cff40}
-.stage-pill.tool{background:#f0883e20;color:var(--amber);border:1px solid #f0883e40}
-
-/* ── Layout ──────────────────────────────── */
-.main{flex:1;display:flex;overflow:hidden}
-.chat-col{flex:1;display:flex;flex-direction:column;min-width:0}
-.sidebar{width:280px;background:var(--bg-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
-.sidebar.collapsed{width:0;border:none}
-
-/* ── Messages ────────────────────────────── */
+.pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:8px;font-weight:500}
+.pill-panel{background:#58a6ff20;color:var(--blue);border:1px solid #58a6ff40}
+.pill-analysis{background:#bc8cff20;color:var(--purple);border:1px solid #bc8cff40}
+.controls{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:12px;flex-wrap:wrap}
+select{background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-family:var(--sans);font-size:12px;outline:none}
+.btn{padding:4px 12px;border-radius:4px;font-family:var(--sans);font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg-3);color:var(--text-0)}
+.btn:hover{background:#363636}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary{background:var(--blue);color:#000;border-color:var(--blue)}
+.btn-primary:hover{background:#79bbff}
+.sep{width:1px;height:18px;background:var(--border)}
 .messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
-.msg{max-width:82%;padding:10px 14px;border-radius:8px;line-height:1.55;font-size:13px;word-wrap:break-word;white-space:pre-wrap}
+.msg{max-width:80%;padding:10px 14px;border-radius:8px;line-height:1.5;font-size:13px;word-wrap:break-word;white-space:pre-wrap}
 .msg.user{align-self:flex-end;background:var(--bg-3);border:1px solid var(--border)}
 .msg.persona{align-self:flex-start;background:var(--bg-2)}
 .msg.method{align-self:center;background:var(--bg-2);border:1px solid #bc8cff30;max-width:90%;font-size:12px}
-.msg.tool-msg{align-self:center;background:var(--bg-2);border:1px solid #f0883e30;max-width:90%;font-size:12px}
-.msg.system{align-self:center;color:var(--text-2);font-size:11px;font-style:italic;padding:4px 10px}
+.msg.system{align-self:center;color:var(--text-2);font-size:11px;font-style:italic;padding:4px}
 .msg.error{align-self:center;color:var(--red);font-size:12px}
-
-.msg-label{font-family:var(--mono);font-size:10px;font-weight:600;margin-bottom:4px;letter-spacing:0.4px}
-.msg-label.user-label{color:var(--text-2)}
-.msg-label.persona-label{color:var(--blue)}
-.msg-label.method-label{color:var(--purple)}
-.msg-label.tool-label{color:var(--amber)}
-
-.stage-divider{display:flex;align-items:center;gap:10px;padding:8px 0;color:var(--text-3);font-size:11px;font-family:var(--mono)}
-.stage-divider::before,.stage-divider::after{content:'';flex:1;border-top:1px dashed var(--border)}
-
-/* ── Control bar ─────────────────────────── */
-.control-bar{padding:8px 16px;background:var(--bg-1);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
-.ctl-group{display:flex;align-items:center;gap:4px}
-.ctl-label{font-size:10px;color:var(--text-2);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px}
-.ctl-select{background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-family:var(--sans);font-size:12px;min-width:140px;outline:none}
-.ctl-select:focus{border-color:var(--cyan)}
-.ctl-btn{padding:5px 14px;border-radius:4px;font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--bg-3);color:var(--text-0);transition:all 0.15s}
-.ctl-btn:hover{background:var(--bg-4);border-color:var(--border-h)}
-.ctl-btn:disabled{opacity:0.35;cursor:not-allowed}
-.ctl-btn.primary{background:var(--blue);color:#000;border-color:var(--blue)}
-.ctl-btn.primary:hover{background:#79bbff}
-.ctl-sep{width:1px;height:20px;background:var(--border);margin:0 4px}
-
-/* ── Input row ───────────────────────────── */
+.msg-tag{font-family:var(--mono);font-size:10px;font-weight:600;margin-bottom:3px;letter-spacing:.3px}
+.tag-persona{color:var(--blue)}.tag-method{color:var(--purple)}.tag-user{color:var(--text-2)}
+.divider{display:flex;align-items:center;gap:10px;padding:6px 0;color:var(--text-3);font-size:10px;font-family:var(--mono)}
+.divider::before,.divider::after{content:'';flex:1;border-top:1px dashed var(--border)}
 .input-row{padding:10px 16px;background:var(--bg-1);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
 .input-row textarea{flex:1;background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--sans);font-size:13px;resize:none;min-height:42px;max-height:100px;outline:none}
 .input-row textarea:focus{border-color:var(--cyan)}
-.input-row button{padding:8px 16px;font-size:13px}
-
-/* ── Sidebar ─────────────────────────────── */
-.sb-header{padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.sb-section{padding:10px 14px;border-bottom:1px solid var(--border)}
-.sb-section h3{font-size:11px;color:var(--text-2);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
-.sb-list{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto}
-.sb-item{padding:6px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:border-color 0.15s}
-.sb-item:hover{border-color:var(--blue)}
-.sb-item.active{border-color:var(--blue);background:#58a6ff10}
-.sb-item .name{font-weight:500;color:var(--text-0)}
-.sb-item .role{color:var(--text-2);font-size:10px;font-family:var(--mono)}
-.sb-item .del{color:var(--text-3);cursor:pointer;font-size:14px;padding:0 4px}
-.sb-item .del:hover{color:var(--red)}
-.sb-input{width:100%;background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font-size:12px;font-family:var(--sans);outline:none;margin-bottom:6px}
-.sb-input:focus{border-color:var(--cyan)}
-.sb-textarea{width:100%;background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font-size:11px;font-family:var(--mono);outline:none;resize:vertical;min-height:48px;margin-bottom:6px}
-.sb-textarea:focus{border-color:var(--cyan)}
-.sb-btn{padding:4px 10px;font-size:11px;font-family:var(--sans);cursor:pointer;border:1px solid var(--border);background:var(--bg-3);color:var(--text-0);border-radius:3px}
-.sb-btn:hover{background:var(--bg-4)}
 .status{font-size:10px;color:var(--text-3);padding:4px 16px;font-family:var(--mono);flex-shrink:0}
-
-/* ── File input ──────────────────────────── */
-.file-label{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--text-1);background:var(--bg-2)}
-.file-label:hover{border-color:var(--border-h);color:var(--text-0)}
-.file-label input{display:none}
 </style>
 </head>
 <body>
-
 <header>
+  <h1>TAGM Roundtable</h1>
   <a href="/">← Analyzer</a>
-  <a href="/chat">Chat</a>
-  <h1>Roundtable LMA</h1>
-  <div class="stage-pill panel" id="stagePill">PANEL 1</div>
-  <button class="ctl-btn" onclick="toggleSidebar()" style="margin-left:8px;font-size:11px;padding:3px 8px">☰</button>
+  <span class="pill pill-panel" id="stagePill">PANEL 1</span>
+  <div class="controls">
+    <select id="personaSelect"><option value="">Persona…</option></select>
+    <button class="btn btn-primary" id="applyBtn" onclick="applyPersona()">Apply</button>
+    <span class="sep"></span>
+    <select id="methodSelect"><option value="">Method…</option></select>
+    <button class="btn" onclick="applyMethod()">Run</button>
+    <span class="sep"></span>
+    <select id="stageType"><option>PANEL</option><option>ANALYSIS</option></select>
+    <button class="btn" onclick="newStage()">New Stage</button>
+    <span class="sep"></span>
+    <button class="btn" onclick="exportSession()">Export</button>
+    <button class="btn" style="color:var(--red)" onclick="resetSession()">Reset</button>
+    <span class="sep"></span>
+    <label class="btn" style="cursor:pointer">📄 CSV
+      <input type="file" accept=".csv" onchange="loadTemplate(this)" style="display:none">
+    </label>
+  </div>
 </header>
-
-<div class="main">
-  <div class="chat-col">
-    <div class="messages" id="messages"></div>
-    <div class="status" id="status">No session — type your inquiry to begin</div>
-
-    <div class="control-bar" id="controlBar">
-      <div class="ctl-group">
-        <span class="ctl-label">Persona</span>
-        <select class="ctl-select" id="personaSelect"><option value="">— select —</option></select>
-      </div>
-      <button class="ctl-btn primary" id="applyBtn" onclick="applyPersona()" disabled>Apply</button>
-
-      <div class="ctl-sep"></div>
-
-      <div class="ctl-group">
-        <span class="ctl-label">Method</span>
-        <select class="ctl-select" id="methodSelect" style="min-width:110px">
-          <option value="">— select —</option>
-        </select>
-      </div>
-      <button class="ctl-btn" onclick="applyMethod()">Run</button>
-
-      <div class="ctl-sep"></div>
-
-      <div class="ctl-group">
-        <span class="ctl-label">Tool</span>
-        <select class="ctl-select" id="toolSelect" style="min-width:110px">
-          <option value="">— select —</option>
-        </select>
-      </div>
-      <button class="ctl-btn" onclick="applyTool()">Run</button>
-
-      <div class="ctl-sep"></div>
-
-      <select class="ctl-select" id="newStageType" style="min-width:80px">
-        <option value="PANEL">PANEL</option>
-        <option value="ANALYSIS">ANALYSIS</option>
-        <option value="TOOL">TOOL</option>
-      </select>
-      <button class="ctl-btn" onclick="newStage()">New Stage</button>
-
-      <div class="ctl-sep"></div>
-
-      <label class="file-label">
-        CSV Template
-        <input type="file" accept=".csv" onchange="loadTemplate(this)">
-      </label>
-
-      <button class="ctl-btn" onclick="exportSession()">Export</button>
-      <button class="ctl-btn" onclick="resetSession()" style="color:var(--red)">Reset</button>
-    </div>
-
-    <div class="input-row">
-      <textarea id="input" rows="1" placeholder="Type your inquiry..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
-      <button class="ctl-btn primary" id="sendBtn" onclick="sendMessage()">Send</button>
-    </div>
-  </div>
-
-  <div class="sidebar" id="sidebar">
-    <div class="sb-header">
-      Participants
-      <button class="sb-btn" onclick="showAddForm()">+ Add</button>
-    </div>
-
-    <div class="sb-section" id="addForm" style="display:none">
-      <h3>New Participant</h3>
-      <input class="sb-input" id="pName" placeholder="Name">
-      <input class="sb-input" id="pRole" placeholder="Role">
-      <textarea class="sb-textarea" id="pPrompt" placeholder="System prompt (You are...)"></textarea>
-      <div style="display:flex;gap:4px">
-        <button class="sb-btn" onclick="saveParticipant()">Save</button>
-        <button class="sb-btn" onclick="hideAddForm()">Cancel</button>
-      </div>
-    </div>
-
-    <div class="sb-section">
-      <h3>Registry</h3>
-      <div class="sb-list" id="participantList"></div>
-    </div>
-
-    <div class="sb-section">
-      <h3>Topic</h3>
-      <textarea class="sb-textarea" id="topicInput" placeholder="Discussion topic..." rows="2"></textarea>
-      <button class="sb-btn" onclick="saveTopic()">Save Topic</button>
-    </div>
-
-    <div class="sb-section">
-      <h3>Generation</h3>
-      <div style="display:flex;gap:8px;margin-bottom:4px">
-        <div style="flex:1">
-          <label style="font-size:10px;color:var(--text-2)">Temp</label>
-          <input class="sb-input" id="cfgTemp" type="number" step="0.1" min="0.01" max="2" value="0.7">
-        </div>
-        <div style="flex:1">
-          <label style="font-size:10px;color:var(--text-2)">Max Tok</label>
-          <input class="sb-input" id="cfgMaxTok" type="number" step="32" min="32" max="2048" value="256">
-        </div>
-      </div>
-    </div>
-
-    <div class="sb-section" style="border:none">
-      <h3>Transcripts</h3>
-      <div class="sb-list" id="transcriptList" style="max-height:120px"></div>
-    </div>
-  </div>
+<div class="messages" id="messages"></div>
+<div class="status" id="status">Type your inquiry to begin</div>
+<div class="input-row">
+  <textarea id="input" rows="1" placeholder="Type your inquiry…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+  <button class="btn btn-primary" onclick="send()">Send</button>
 </div>
-
 <script>
-const $=id=>document.getElementById(id);
-let busy=false;
-let sessionActive=false;
+var busy=false, sessionActive=false;
 
-// ── Init ──────────────────────────────────
 async function init(){
-  await Promise.all([loadParticipants(),loadMethods(),loadTools(),loadTranscripts(),loadConfig()]);
+  try{
+    var r=await(await fetch('/api/roundtable/participants')).json();
+    if(r.ok) r.participants.forEach(function(p){
+      if(!p.active) return;
+      var o=document.createElement('option'); o.value=p.id;
+      o.textContent=p.name+(p.role?' ('+p.role+')':'');
+      document.getElementById('personaSelect').appendChild(o);
+    });
+  }catch(e){}
+  try{
+    var r2=await(await fetch('/api/roundtable/methods')).json();
+    if(r2.ok&&r2.methods) r2.methods.forEach(function(m){
+      var o=document.createElement('option'); o.value=m.name; o.textContent=m.name;
+      document.getElementById('methodSelect').appendChild(o);
+    });
+  }catch(e){}
 }
 init();
 
-async function loadConfig(){
-  try{
-    const r=await(await fetch('/api/roundtable/config')).json();
-    if(r.ok&&r.default_topic) $('topicInput').value=r.default_topic;
-  }catch(e){}
-}
-
-async function loadParticipants(){
-  try{
-    const r=await(await fetch('/api/roundtable/participants')).json();
-    if(!r.ok)return;
-    const list=$('participantList');
-    const sel=$('personaSelect');
-    list.innerHTML='';
-    // Keep first option
-    sel.innerHTML='<option value="">— select —</option>';
-    r.participants.forEach(p=>{
-      // Sidebar list
-      const item=document.createElement('div');
-      item.className='sb-item'+(p.active?'':' style="opacity:0.5"');
-      item.innerHTML=`<div><span class="name">${esc(p.name)}</span><br><span class="role">${esc(p.role)}</span></div><span class="del" onclick="event.stopPropagation();deleteParticipant('${p.id}')">&times;</span>`;
-      list.appendChild(item);
-      // Dropdown
-      if(p.active){
-        const opt=document.createElement('option');
-        opt.value=p.id;
-        opt.textContent=p.name+(p.role?' ('+p.role+')':'');
-        sel.appendChild(opt);
-      }
-    });
-    $('applyBtn').disabled=false;
-  }catch(e){console.error('loadParticipants',e)}
-}
-
-async function loadMethods(){
-  try{
-    const r=await(await fetch('/api/roundtable/methods')).json();
-    if(!r.ok)return;
-    const sel=$('methodSelect');
-    sel.innerHTML='<option value="">— select —</option>';
-    r.methods.forEach(m=>{
-      const opt=document.createElement('option');
-      opt.value=m.name;
-      opt.textContent=m.name;
-      sel.appendChild(opt);
-    });
-  }catch(e){}
-}
-
-async function loadTools(){
-  try{
-    const r=await(await fetch('/api/roundtable/tools')).json();
-    if(!r.ok)return;
-    const sel=$('toolSelect');
-    sel.innerHTML='<option value="">— select —</option>';
-    r.tools.forEach(t=>{
-      const opt=document.createElement('option');
-      opt.value=t.name;
-      opt.textContent=t.name;
-      sel.appendChild(opt);
-    });
-  }catch(e){}
-}
-
-async function loadTranscripts(){
-  try{
-    const r=await(await fetch('/api/roundtable/transcripts')).json();
-    if(!r.ok)return;
-    const list=$('transcriptList');
-    list.innerHTML='';
-    r.transcripts.slice(0,10).forEach(t=>{
-      const item=document.createElement('div');
-      item.className='sb-item';
-      item.innerHTML=`<span class="name" style="font-size:11px">${esc(t.filename)}</span>`;
-      item.onclick=()=>window.open('/api/roundtable/transcripts/'+t.filename);
-      list.appendChild(item);
-    });
-    if(!r.transcripts.length) list.innerHTML='<div style="font-size:11px;color:var(--text-3)">No transcripts yet</div>';
-  }catch(e){}
-}
-
-// ── Participant CRUD ──────────────────────
-function showAddForm(){$('addForm').style.display='block'}
-function hideAddForm(){$('addForm').style.display='none';$('pName').value='';$('pRole').value='';$('pPrompt').value=''}
-
-async function saveParticipant(){
-  const data={name:$('pName').value,role:$('pRole').value,system_prompt:$('pPrompt').value};
-  if(!data.name)return;
-  await fetch('/api/roundtable/participants',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  hideAddForm();
-  loadParticipants();
-}
-
-async function deleteParticipant(id){
-  await fetch('/api/roundtable/participants/'+id,{method:'DELETE'});
-  loadParticipants();
-}
-
-async function saveTopic(){
-  const topic=$('topicInput').value.trim();
-  if(!topic)return;
-  await fetch('/api/roundtable/topic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic})});
-  setStatus('Topic saved');
-}
-
-// ── Session management ────────────────────
 async function ensureSession(topic){
-  if(sessionActive)return true;
-  const config={temperature:parseFloat($('cfgTemp').value),max_tokens:parseInt($('cfgMaxTok').value)};
+  if(sessionActive) return true;
   try{
-    const r=await(await fetch('/api/roundtable/interactive/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,gen_config:config})})).json();
-    if(r.ok){sessionActive=true;updateStagePill('PANEL','Panel 1');return true}
-    addMsg('error',r.error);return false;
-  }catch(e){addMsg('error','Failed to start session: '+e.message);return false}
+    var r=await(await fetch('/api/roundtable/interactive/start',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:topic})})).json();
+    if(r.ok){sessionActive=true; return true}
+    addMsg('error',r.error); return false;
+  }catch(e){addMsg('error',e.message); return false}
 }
 
-async function sendMessage(){
+async function send(){
   if(busy)return;
-  const text=$('input').value.trim();
-  if(!text)return;
-  $('input').value='';
-
+  var t=document.getElementById('input').value.trim(); if(!t)return;
+  document.getElementById('input').value='';
   if(!sessionActive){
-    if(!await ensureSession(text))return;
-    addMsg('user',text,'User');
-    setStatus('Session started — select a persona and click Apply');
-    return;
+    if(!await ensureSession(t)) return;
+    addMsg('user',t,'User'); setStatus('Session started — select a persona and click Apply'); return;
   }
-
-  busy=true;
-  addMsg('user',text,'User');
-  try{
-    await fetch('/api/roundtable/interactive/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
-    setStatus('Message added');
-  }catch(e){addMsg('error',e.message)}
-  busy=false;
+  busy=true; addMsg('user',t,'User');
+  await fetch('/api/roundtable/interactive/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:t})});
+  busy=false; setStatus('Message added');
 }
 
 async function applyPersona(){
-  const pid=$('personaSelect').value;
-  if(!pid){addMsg('system','Select a persona first');return}
-  if(!sessionActive){addMsg('system','Send an inquiry first to start the session');return}
-  if(busy)return;
-  busy=true;
-  $('applyBtn').disabled=true;
-  const thinking=addMsg('system','generating...');
-  setStatus('Generating...');
-
+  var pid=document.getElementById('personaSelect').value;
+  if(!pid||!sessionActive||busy) return;
+  busy=true; document.getElementById('applyBtn').disabled=true;
+  var th=addMsg('system','generating…'); setStatus('Generating…');
   try{
-    const r=await(await fetch('/api/roundtable/interactive/apply_persona',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({participant_id:pid})})).json();
-    thinking.remove();
-    if(r.ok){
-      addMsg('persona',r.response,r.name,r.role);
-      setStatus(r.name+' responded — '+r.n_turns+' turns');
-    }else{addMsg('error',r.error)}
-  }catch(e){thinking.remove();addMsg('error',e.message)}
-  busy=false;
-  $('applyBtn').disabled=false;
+    var r=await(await fetch('/api/roundtable/interactive/apply_persona',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({participant_id:pid})})).json();
+    th.remove();
+    if(r.ok){addMsg('persona',r.response,r.name,r.role); setStatus(r.name+' responded');}
+    else addMsg('error',r.error);
+  }catch(e){th.remove();addMsg('error',e.message)}
+  busy=false; document.getElementById('applyBtn').disabled=false;
 }
 
 async function applyMethod(){
-  const method=$('methodSelect').value;
-  if(!method)return;
-  if(!sessionActive){addMsg('system','No active session');return}
-  if(busy)return;
-  busy=true;
-  const thinking=addMsg('system','running '+method+'...');
-
+  var m=document.getElementById('methodSelect').value;
+  if(!m||!sessionActive||busy) return;
+  busy=true; var th=addMsg('system','running '+m+'…');
   try{
-    const r=await(await fetch('/api/roundtable/interactive/apply_method',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method})})).json();
-    thinking.remove();
-    if(r.ok){addMsg('method',r.output,method);setStatus(method+' complete')}
-    else{addMsg('error',r.error)}
-  }catch(e){thinking.remove();addMsg('error',e.message)}
-  busy=false;
-}
-
-async function applyTool(){
-  const tool=$('toolSelect').value;
-  if(!tool)return;
-  if(!sessionActive){addMsg('system','No active session');return}
-  if(busy)return;
-  busy=true;
-  const thinking=addMsg('system','running '+tool+'...');
-
-  try{
-    const r=await(await fetch('/api/roundtable/interactive/apply_tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool})})).json();
-    thinking.remove();
-    if(r.ok){
-      const output=typeof r.result==='string'?r.result:JSON.stringify(r.result,null,2);
-      addMsg('tool-msg',output,'tool:'+tool);
-      setStatus(tool+' complete');
-    }else{addMsg('error',r.error)}
-  }catch(e){thinking.remove();addMsg('error',e.message)}
+    var r=await(await fetch('/api/roundtable/interactive/apply_method',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({method:m})})).json();
+    th.remove();
+    if(r.ok){addMsg('method',r.output,m); setStatus(m+' complete');}
+    else addMsg('error',r.error);
+  }catch(e){th.remove();addMsg('error',e.message)}
   busy=false;
 }
 
 async function newStage(){
-  if(!sessionActive)return;
-  const type=$('newStageType').value;
-  try{
-    const r=await(await fetch('/api/roundtable/interactive/new_stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage_type:type})})).json();
-    if(r.ok){
-      addDivider(r.label);
-      updateStagePill(type,r.label);
-      setStatus('New stage: '+r.label);
-    }
-  }catch(e){addMsg('error',e.message)}
+  if(!sessionActive) return;
+  var t=document.getElementById('stageType').value;
+  var r=await(await fetch('/api/roundtable/interactive/new_stage',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({stage_type:t})})).json();
+  if(r.ok){addDivider(r.label); updatePill(t,r.label); setStatus('New stage: '+r.label);}
 }
 
 async function exportSession(){
-  if(!sessionActive){addMsg('system','No active session');return}
-  try{
-    const r=await(await fetch('/api/roundtable/interactive/export')).json();
-    if(r.ok){
-      const blob=new Blob([JSON.stringify(r.export,null,2)],{type:'application/json'});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download='roundtable_'+r.export.session_id+'.json';
-      a.click();
-      setStatus('Exported');
-    }
-  }catch(e){addMsg('error',e.message)}
+  if(!sessionActive) return;
+  var r=await(await fetch('/api/roundtable/interactive/export')).json();
+  if(r.ok&&r.export){
+    var b=new Blob([JSON.stringify(r.export,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='roundtable_'+r.export.session_id+'.json'; a.click();
+  }
 }
 
 async function resetSession(){
   await fetch('/api/roundtable/interactive/reset',{method:'POST'});
-  sessionActive=false;
-  $('messages').innerHTML='';
-  updateStagePill('PANEL','Panel 1');
-  setStatus('Session reset');
-  loadTranscripts();
+  sessionActive=false; document.getElementById('messages').innerHTML='';
+  updatePill('PANEL','Panel 1'); setStatus('Reset');
 }
 
 async function loadTemplate(input){
-  const file=input.files[0];
-  if(!file)return;
-  const text=await file.text();
-  const topic=$('topicInput').value.trim()||'Roundtable discussion';
+  var file=input.files[0]; if(!file)return;
+  var text=await file.text();
+  var topic=prompt('Discussion topic for batch run:','Roundtable discussion');
+  if(!topic) return;
   addMsg('system','Running template: '+file.name);
-  setStatus('Running template...');
-  busy=true;
-
+  setStatus('Running batch…'); busy=true;
   try{
-    const r=await(await fetch('/api/roundtable/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_csv:text,topic:topic})})).json();
-    if(r.ok||r.result){
-      const res=r.result||r;
-      addMsg('system','Template complete: '+res.n_stages+' stages, '+res.n_total_generations+' generations in '+res.elapsed_seconds+'s');
-      if(res.final_output) addMsg('method',res.final_output.substring(0,2000),'Final Output');
-      loadTranscripts();
-    }else{addMsg('error',r.error||'Template run failed')}
+    var r=await(await fetch('/api/roundtable/batch',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({template_csv:text,topic:topic,temperature:0.7,max_tokens:256})})).json();
+    if(r.ok&&r.result){
+      var res=r.result;
+      addMsg('system','Batch complete: '+res.n_stages+' stages, '+res.n_total_generations+' generations, '+res.elapsed_seconds+'s');
+      if(res.final_output) addMsg('method',res.final_output.substring(0,3000),'Final Output');
+    } else addMsg('error',r.error||'Batch failed');
   }catch(e){addMsg('error',e.message)}
-  busy=false;
-  input.value='';
+  busy=false; input.value='';
 }
 
-// ── UI helpers ────────────────────────────
 function addMsg(type,text,name,role){
-  const d=document.createElement('div');
-  d.className='msg '+type;
+  var d=document.createElement('div'); d.className='msg '+type;
   if(name&&type!=='system'&&type!=='error'){
-    const label=document.createElement('div');
-    const labelCls=type==='user'?'user-label':type==='persona'?'persona-label':type==='tool-msg'?'tool-label':'method-label';
-    label.className='msg-label '+labelCls;
-    label.textContent=name+(role?' — '+role:'');
-    d.appendChild(label);
+    var tag=document.createElement('div');
+    tag.className='msg-tag '+(type==='persona'?'tag-persona':type==='method'?'tag-method':'tag-user');
+    tag.textContent=name+(role?' — '+role:''); d.appendChild(tag);
   }
-  const span=document.createElement('span');
-  span.textContent=text;
-  d.appendChild(span);
-  $('messages').appendChild(d);
-  $('messages').scrollTop=$('messages').scrollHeight;
-  return d;
+  var s=document.createElement('span'); s.textContent=text; d.appendChild(s);
+  document.getElementById('messages').appendChild(d);
+  document.getElementById('messages').scrollTop=9999999; return d;
 }
-
 function addDivider(label){
-  const d=document.createElement('div');
-  d.className='stage-divider';
-  d.textContent=label;
-  $('messages').appendChild(d);
+  var d=document.createElement('div'); d.className='divider'; d.textContent=label;
+  document.getElementById('messages').appendChild(d);
 }
-
-function updateStagePill(type,label){
-  const pill=$('stagePill');
-  pill.textContent=label;
-  pill.className='stage-pill '+type.toLowerCase();
+function updatePill(type,label){
+  var p=document.getElementById('stagePill'); p.textContent=label;
+  p.className='pill '+(type==='ANALYSIS'?'pill-analysis':'pill-panel');
 }
+function setStatus(m){document.getElementById('status').textContent=m}
 
-function setStatus(msg){$('status').textContent=msg}
-function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
-
-function toggleSidebar(){
-  $('sidebar').classList.toggle('collapsed');
-}
-
-$('input').addEventListener('input',function(){
-  this.style.height='42px';
-  this.style.height=Math.min(this.scrollHeight,100)+'px';
+document.getElementById('input').addEventListener('input',function(){
+  this.style.height='42px'; this.style.height=Math.min(this.scrollHeight,100)+'px';
 });
 </script>
 </body>

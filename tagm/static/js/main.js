@@ -2907,9 +2907,6 @@ function renderModuleCard(m) {
     h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
     h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="event.stopPropagation();confirmResetTokenPairCache()">Reset Cache</button>';
   }
-  if (m.name === 'roundtable_lma') {
-    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutRoundtable()" title="Open interactive roundtable chat window">↗ Open Roundtable</button>';
-  }
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
@@ -3139,23 +3136,8 @@ function renderModuleResults(name, results) {
   } else if (name === 'token_pair_coupling') {
     container.innerHTML = renderTokenPairResults(results);
   } else {
-    // Generic fallback — detect chat_url for chat-like modules
-    var fh = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-    if (results && results.chat_url) {
-      var popFn = results.chat_url === '/chat' ? 'popoutChat' : 'popoutRoundtable';
-      fh += 'Configuration';
-      fh += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();' + popFn + '()">↗ Open ' + (results.chat_url === '/chat' ? 'Chat' : 'Roundtable') + '</button>';
-    } else {
-      fh += 'Results';
-    }
-    fh += '</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
-    container.innerHTML = fh;
-    if (results && results.chat_url) {
-      var u = results.chat_url;
-      var pw = u === '/chat' ? 640 : 960, ph = u === '/chat' ? 720 : 760;
-      var left = Math.round((screen.width - pw) / 2), top = Math.round((screen.height - ph) / 2);
-      window.open(u, '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
-    }
+    // Generic JSON dump fallback
+    container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
   }
 }
 
@@ -3198,132 +3180,31 @@ function popoutChat() {
 function renderRoundtableLMAResults(r) {
   var cfg = r.config || {};
   var parts = r.participants || [];
-  var methods = r.methods || [];
-  var tools = r.tools || [];
-  var topic = r.topic || '(not set)';
   var h = '<div class="mod-results">';
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
   h += 'Roundtable Configuration';
   h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutRoundtable()">↗ Open Roundtable</button>';
   h += '</div>';
   h += '<div class="mod-results-body">';
-
-  // Config table
   h += '<table style="font-size:12px;border-collapse:collapse;width:100%">';
   h += '<tr><td style="padding:4px 12px;color:var(--text-2)">Temperature</td><td style="padding:4px 12px;font-weight:600">' + (cfg.temperature || 0.7) + '</td>';
   h += '<td style="padding:4px 12px;color:var(--text-2)">Max Tokens</td><td style="padding:4px 12px;font-weight:600">' + (cfg.max_tokens || 256) + '</td>';
   h += '<td style="padding:4px 12px;color:var(--text-2)">Panels</td><td style="padding:4px 12px;font-weight:600">' + (cfg.n_roundtables || 2) + '</td></tr>';
   h += '</table>';
-
-  // Topic
-  h += '<div style="margin-top:10px;padding:8px 12px;background:var(--bg-0);border-radius:4px;font-size:12px">';
-  h += '<span style="color:var(--text-2)">Topic:</span> <span style="color:var(--text-0)">' + escHtml(topic) + '</span>';
-  h += '</div>';
-
-  // Participants
-  h += '<div style="margin-top:8px;padding:8px 12px;background:var(--bg-0);border-radius:4px;font-size:12px">';
+  h += '<div style="margin-top:8px;padding:6px 12px;background:var(--bg-0);border-radius:4px;font-size:12px">';
   h += '<span style="color:var(--text-2)">Participants (' + parts.length + '):</span> ';
   if (parts.length === 0) {
-    h += '<span style="color:var(--orange)">None registered — add participants in the Roundtable window</span>';
+    h += '<span style="color:var(--orange)">None — add participants in the Roundtable window</span>';
   } else {
     h += parts.map(function(p) { return '<span style="color:var(--cyan)">' + escHtml(p.name) + '</span>'; }).join(', ');
   }
   h += '</div>';
-
-  // Capabilities
-  h += '<div style="margin-top:8px;padding:8px 12px;background:var(--bg-0);border-radius:4px;font-size:11px;color:var(--text-2)">';
-  h += '<span style="color:var(--text-2)">Stage types:</span> ' + (r.stage_types || ['PANEL','ANALYSIS','TOOL']).map(function(s) {
-    var c = s === 'PANEL' ? '--cyan' : s === 'TOOL' ? '--orange' : '--purple';
-    return '<span style="color:var(' + c + ');font-family:var(--mono);font-weight:600">' + s + '</span>';
-  }).join(' · ') + ' &nbsp;│&nbsp; ';
-  h += '<span style="color:var(--text-2)">Methods:</span> ' + methods.join(', ') + ' &nbsp;│&nbsp; ';
-  h += '<span style="color:var(--text-2)">Tools:</span> ' + tools.join(', ');
-  h += '</div>';
-
-  // Help text
-  h += '<div style="margin-top:10px;padding:8px;background:var(--bg-0);border-radius:4px;font-size:11px;color:var(--text-2)">';
+  h += '<div style="margin-top:8px;padding:6px;background:var(--bg-0);border-radius:4px;font-size:11px;color:var(--text-2)">';
   h += 'Click <strong>Open Roundtable</strong> to launch the interactive panel. ';
-  h += 'Type your inquiry, select personas, and build the discussion step by step. ';
-  h += 'Or upload a CSV template below for automated batch execution.';
+  h += 'Type your inquiry, select personas, run methods. Or upload a CSV template for batch execution.';
   h += '</div>';
-
-  // Template upload + batch run
-  h += '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-  h += '<label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:12px;color:var(--text-1)">';
-  h += '<input type="file" accept=".csv" onchange="rtSelectTemplate(this)" style="display:none">';
-  h += '📄 Choose Template CSV';
-  h += '</label>';
-  h += '<span id="rtTemplateFile" style="font-size:11px;color:var(--text-2);font-family:var(--mono)">no file selected</span>';
-  h += '<button onclick="runRoundtableBatch()" style="margin-left:auto;padding:5px 14px;background:var(--cyan);color:#000;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">Run Batch</button>';
-  h += '</div>';
-  h += '<div id="rtBatchOutput" style="margin-top:8px"></div>';
-
   h += '</div></div>';
   return h;
-}
-
-var _rtTemplateText = null;
-
-function rtSelectTemplate(input) {
-  var file = input.files[0];
-  if (!file) return;
-  var el = document.getElementById('rtTemplateFile');
-  if (el) el.textContent = file.name;
-  var reader = new FileReader();
-  reader.onload = function() { _rtTemplateText = reader.result; };
-  reader.readAsText(file);
-}
-
-function runRoundtableBatch() {
-  if (!_rtTemplateText) {
-    var out = document.getElementById('rtBatchOutput');
-    if (out) out.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--orange)">Select a CSV template first.</div>';
-    return;
-  }
-  var topic = '';
-  // Try to read topic from the config
-  try { topic = document.querySelector('#topicInput') ? document.querySelector('#topicInput').value : ''; } catch(e) {}
-  if (!topic) topic = 'Roundtable discussion';
-
-  var out = document.getElementById('rtBatchOutput');
-  if (out) out.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-2);font-family:var(--mono)">Running batch pipeline...</div>';
-
-  fetch('/api/roundtable/batch', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({template_csv: _rtTemplateText, topic: topic})
-  }).then(function(r) { return r.json(); }).then(function(data) {
-    if (!out) return;
-    if (data.ok && data.result) {
-      var res = data.result;
-      var h = '<div style="padding:10px;background:var(--bg-0);border:1px solid var(--border);border-radius:4px">';
-      h += '<div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">✓ Batch complete — '
-           + res.n_stages + ' stages, ' + res.n_total_generations + ' generations, ' + res.elapsed_seconds + 's</div>';
-      // Stage summary
-      if (res.stages) {
-        res.stages.forEach(function(s, i) {
-          var c = s.stage_type === 'PANEL' ? '--cyan' : s.stage_type === 'TOOL' ? '--orange' : '--purple';
-          h += '<div style="font-size:11px;padding:2px 0;color:var(--text-1)">';
-          h += '<span style="color:var(' + c + ');font-family:var(--mono);font-weight:600">' + s.stage_type + '</span>';
-          h += ' <span style="color:var(--text-2)">' + (s.label || '') + '</span>';
-          if (s.n_generations) h += ' · ' + s.n_generations + ' gen';
-          h += '</div>';
-        });
-      }
-      // Final output preview
-      if (res.final_output) {
-        h += '<div style="margin-top:8px;padding:8px;background:var(--bg-1);border-radius:4px;font-size:11px;font-family:var(--mono);color:var(--text-1);max-height:200px;overflow:auto;white-space:pre-wrap">';
-        h += escHtml(res.final_output.substring(0, 3000));
-        h += '</div>';
-      }
-      h += '</div>';
-      out.innerHTML = h;
-    } else {
-      out.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--red)">' + escHtml(data.error || 'Batch failed') + '</div>';
-    }
-  }).catch(function(e) {
-    if (out) out.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--red)">Error: ' + escHtml(e.message) + '</div>';
-  });
 }
 
 function popoutRoundtable() {

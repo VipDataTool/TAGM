@@ -1,38 +1,11 @@
 {
  "config": {
   "temperature": 0.7,
-  "max_tokens": 256,
-  "top_p": 0.9,
-  "n_roundtables": 2,
-  "participants_per_roundtable": 3,
-  "save_transcripts": true
+  "max_tokens": 256
  },
  "chat_url": "/roundtable",
  "participants": [],
  "n_participants": 0,
  "topic": "",
- "methods": [
-  "synthesize",
-  "analyze",
-  "evaluate",
-  "extract",
-  "report",
-  "custom",
-  "passthrough",
-  "aggregate"
- ],
- "tools": [
-  "export_json",
-  "snapshot",
-  "truncate",
-  "prepend",
-  "append",
-  "word_count"
- ],
- "stage_types": [
-  "PANEL",
-  "ANALYSIS",
-  "TOOL"
- ],
  "message": "Roundtable configured. Click 'Open Roundtable' to start."
 }
