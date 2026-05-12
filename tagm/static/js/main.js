@@ -2907,6 +2907,9 @@ function renderModuleCard(m) {
     h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
     h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="event.stopPropagation();confirmResetTokenPairCache()">Reset Cache</button>';
   }
+  if (m.name === 'roundtable_lma') {
+    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutRoundtable()" title="Open interactive roundtable chat window">↗ Open Roundtable</button>';
+  }
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
   h += '</div>';
 
@@ -3136,8 +3139,23 @@ function renderModuleResults(name, results) {
   } else if (name === 'token_pair_coupling') {
     container.innerHTML = renderTokenPairResults(results);
   } else {
-    // Generic JSON dump fallback
-    container.innerHTML = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Results</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
+    // Generic fallback — detect chat_url for chat-like modules
+    var fh = '<div class="mod-results"><div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
+    if (results && results.chat_url) {
+      var popFn = results.chat_url === '/chat' ? 'popoutChat' : 'popoutRoundtable';
+      fh += 'Configuration';
+      fh += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();' + popFn + '()">↗ Open ' + (results.chat_url === '/chat' ? 'Chat' : 'Roundtable') + '</button>';
+    } else {
+      fh += 'Results';
+    }
+    fh += '</div><div class="mod-results-body"><pre style="padding:12px;font-size:11px;color:var(--text-1);overflow:auto;max-height:400px">' + escHtml(JSON.stringify(results, null, 2).substring(0, 5000)) + '</pre></div></div>';
+    container.innerHTML = fh;
+    if (results && results.chat_url) {
+      var u = results.chat_url;
+      var pw = u === '/chat' ? 640 : 960, ph = u === '/chat' ? 720 : 760;
+      var left = Math.round((screen.width - pw) / 2), top = Math.round((screen.height - ph) / 2);
+      window.open(u, '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
+    }
   }
 }
 
