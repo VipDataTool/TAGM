@@ -528,6 +528,11 @@ async def rt_remove_participant(pid: str):
     from src.engine.modules.roundtable_lma import remove_participant
     return {"ok": remove_participant(pid)}
 
+@app.post("/api/roundtable/participants/reset")
+async def rt_reset_participants():
+    from src.engine.modules.roundtable_lma import reset_to_defaults
+    return {"ok": True, "participants": reset_to_defaults()}
+
 @app.post("/api/roundtable/topic")
 async def rt_set_topic(request: Request):
     from src.engine.modules.roundtable_lma import update_default_topic
@@ -577,6 +582,18 @@ async def rt_new_stage(request: Request):
     from src.engine.modules.roundtable_lma import _interactive_manager
     d = await request.json()
     return _interactive_manager.new_stage(d.get("stage_type","PANEL"), d.get("label",""))
+
+@app.post("/api/roundtable/interactive/config")
+async def rt_config(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    return _interactive_manager.update_config(await request.json())
+
+@app.post("/api/roundtable/interactive/apply_tool")
+async def rt_apply_tool(request: Request):
+    from src.engine.modules.roundtable_lma import _interactive_manager
+    d = await request.json()
+    return await run_in_threadpool(_interactive_manager.apply_tool,
+        tool_name=d.get("tool","export_json"), params=d.get("params",{}))
 
 @app.get("/api/roundtable/interactive/export")
 async def rt_export():
