@@ -571,6 +571,16 @@ class CorrectionPrismModule(TASMModule):
                         op_pr = self._make_circuit_operator(probe_circuit, ℓ)
                         if op_p is None or op_pr is None:
                             continue
+                        # Lift GQA-sized operators (kv_dim, d_model) to
+                        # (d_model, d_model) so matmul with beam/prism_dirs works.
+                        for label, op in [("prompt", op_p), ("probe", op_pr)]:
+                            if op.shape[0] != d_model and d_model % op.shape[0] == 0:
+                                expanded = np.repeat(
+                                    op, d_model // op.shape[0], axis=0)
+                                if label == "prompt":
+                                    op_p = expanded
+                                else:
+                                    op_pr = expanded
                     else:
                         op_p = self._make_circuit_operator(c, ℓ)
                         if op_p is None:
