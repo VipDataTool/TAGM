@@ -15,8 +15,8 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
 .ladder-controls .toggle { display:flex; align-items:center; gap:5px; }
 .ladder-controls input[type=range] { width:120px; }
 .ladder-controls .k-display { font-variant-numeric:tabular-nums; min-width:24px; color:var(--text); }
-#ladderSvgWrap { position:relative; border:1px solid var(--border); border-radius:6px; background:var(--bg); overflow:hidden; }
-#ladderSvg { display:block; width:100%; }
+#ladderSvgWrap { position:relative; border:1px solid var(--border); border-radius:6px; background:var(--bg); overflow:auto; max-height:85vh; }
+#ladderSvg { display:block; transform-origin:top left; transition:transform 0.15s ease; }
 #ladderTip { display:none; position:absolute; background:#2D333B; border:1px solid var(--cyan); border-radius:6px; padding:8px 10px; pointer-events:none; min-width:260px; max-width:380px; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,.5); font-size:11px; line-height:1.5; }
 #ladderTip .tip-row { margin-bottom:4px; }
 #ladderTip .tip-label { color:var(--text2); font-size:10px; }
@@ -30,13 +30,26 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
 .ladder-ray.dimmed { opacity:0.08 !important; }
 .ladder-ray.pinned { stroke-width:3 !important; opacity:1 !important; filter:drop-shadow(0 0 4px rgba(255,255,255,0.55)); }
 .ladder-ray.pinned:hover { stroke-width:3 !important; }
-#ladderPinnedTip { display:none; position:absolute; top:8px; right:8px; background:#2D333B; border:2px solid var(--cyan); border-radius:6px; padding:24px 12px 10px 12px; min-width:240px; max-width:320px; z-index:11; font-size:11px; line-height:1.5; box-shadow:0 6px 16px rgba(0,0,0,.6); }
-#ladderPinnedTip .tip-row { margin-bottom:4px; }
-#ladderPinnedTip .tip-label { color:var(--text2); font-size:10px; }
-#ladderPinnedTip .tip-val { color:var(--text); }
-#ladderPinnedTip .pin-header { font-size:10px; color:var(--cyan); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #444; }
-.ladder-pin-close { position:absolute; top:2px; right:6px; background:transparent; border:none; color:var(--text2); cursor:pointer; font-size:18px; padding:0 4px; line-height:1; font-family:inherit; }
-.ladder-pin-close:hover { color:var(--text); }
+#ladderPinnedTip { display:none; } /* legacy, hidden */
+.compare-tray { position:fixed; bottom:0; left:0; right:0; display:none; z-index:20; padding:8px 16px; background:rgba(28,33,40,0.95); border-top:2px solid var(--cyan); backdrop-filter:blur(8px); }
+.compare-tray.visible { display:flex; gap:12px; justify-content:center; }
+.compare-panel { flex:0 1 380px; background:#2D333B; border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.5; position:relative; min-height:60px; }
+.compare-panel.empty { border-style:dashed; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:10px; }
+.compare-panel .slot-label { position:absolute; top:4px; left:8px; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--cyan); }
+.compare-panel .slot-close { position:absolute; top:2px; right:6px; background:transparent; border:none; color:var(--text2); cursor:pointer; font-size:16px; padding:0 4px; line-height:1; font-family:inherit; }
+.compare-panel .slot-close:hover { color:var(--text); }
+.compare-panel .tip-row { margin-bottom:4px; }
+.compare-panel .tip-label { color:var(--text2); font-size:10px; }
+.compare-panel .tip-val { color:var(--text); }
+.compare-panel .metric-both { margin-top:4px; padding-top:4px; border-top:1px solid #444; display:flex; gap:16px; }
+.compare-panel .metric-col { flex:1; }
+.compare-panel .metric-col .metric-name { font-size:9px; color:var(--text2); text-transform:uppercase; letter-spacing:.3px; }
+.compare-panel .metric-col .metric-val { font-size:13px; color:var(--text); font-weight:600; }
+.compare-panel .metric-col .metric-rank { font-size:9px; color:var(--text2); }
+.zoom-controls { display:flex; align-items:center; gap:4px; }
+.zoom-btn { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; width:24px; height:24px; cursor:pointer; font-family:inherit; font-size:14px; display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
+.zoom-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+.zoom-level { font-size:10px; color:var(--text2); min-width:36px; text-align:center; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -71,6 +84,12 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
       <label for="ladTopK">Top-k <span id="ladTopKVal" class="k-display">5</span></label>
       <input type="range" id="ladTopK" min="1" max="50" value="5">
     </span>
+    <span class="zoom-controls">
+      <button class="zoom-btn" id="zoomOut" title="Zoom out">&minus;</button>
+      <span class="zoom-level" id="zoomLevel">100%</span>
+      <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+      <button class="zoom-btn" id="zoomFit" title="Fit to view" style="font-size:10px;width:auto;padding:0 6px">Fit</button>
+    </span>
   </div>
   <div id="ladderSvgWrap">
     <svg id="ladderSvg" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -79,6 +98,10 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
   </div>
 
   <div id="dsErr"></div>
+</div>
+<div id="compareTray" class="compare-tray">
+  <div id="compareA" class="compare-panel empty"><span>Click a ray to pin (A)</span></div>
+  <div id="compareB" class="compare-panel empty"><span>Click another to compare (B)</span></div>
 </div>
 <script>
 (function(){try{
@@ -301,17 +324,138 @@ function ladderRender(){
 
   svg.innerHTML = s;
 
-  // Pin state — clicking a ray freezes its details in a corner panel
-  // so you can hover other rays and compare side-by-side. Pinning
-  // resets on each render (rays are rebuilt).
+  // ── Dual compare slots ──
+  // Click rays to fill slot A, then B. Both metrics shown side by side.
+  // Panels float at bottom of viewport — no scrolling to compare.
+  var compareSlots = [
+    { ray: null, el: document.getElementById("compareA"), data: null },
+    { ray: null, el: document.getElementById("compareB"), data: null }
+  ];
+  var compareTray = document.getElementById("compareTray");
+  var nextSlot = 0;
+
+  function updateTrayVisibility() {
+    var anyFilled = compareSlots.some(function(s){ return s.ray !== null; });
+    if (anyFilled) {
+      compareTray.classList.add("visible");
+      document.body.style.paddingBottom = "180px";
+    } else {
+      compareTray.classList.remove("visible");
+      document.body.style.paddingBottom = "";
+    }
+  }
+
+  function buildCompareBody(rid, lid, score, rank, slotLabel) {
+    var rItem = rightItems.find(function(x){ return String(x.id) === rid; });
+    var lItem = leftItems.find(function(x){ return String(x.id) === lid; });
+    if (!rItem || !lItem) return '';
+
+    var engRec = engagements.find(function(e){ return String(e.right_id) === rid; });
+    var rayRec = engRec ? engRec.ranked.find(function(r){
+      return String(r.left_id) === lid;
+    }) : null;
+
+    var html = '<span class="slot-label">' + slotLabel + '</span>';
+
+    var rCol = ladderState.aggPrompts
+      ? (CAT_COLORS_LAD[rItem.id] || "#888")
+      : (CAT_COLORS_LAD[rItem.category] || "#888");
+    html += '<div class="tip-row" style="border-left:3px solid ' + rCol + ';padding-left:6px;margin-top:12px">';
+    html += '<div class="tip-label">' + (ladderState.aggPrompts ? "Category" : "Prompt") + '</div>';
+    html += '<div class="tip-val">' + ladderEscapeText(rItem.label, 80) + '</div>';
+    if (rItem.n_prompts != null)
+      html += '<div class="tip-label">' + rItem.n_prompts + ' prompts</div>';
+    else if (rItem.n_tokens != null)
+      html += '<div class="tip-label">' + rItem.n_tokens + ' tokens</div>';
+    html += '</div>';
+
+    var lCol = SUBJ_COLORS[(lItem.subject_idx || 0) % SUBJ_COLORS.length];
+    html += '<div class="tip-row" style="border-left:3px solid ' + lCol + ';padding-left:6px;margin-top:6px">';
+    html += '<div class="tip-label">' + (ladderState.aggProbes ? "Cell" : "Probe") + '</div>';
+    html += '<div class="tip-val">' + ladderEscapeText(lItem.label, 80) + '</div>';
+    if (lItem.n_probes != null)
+      html += '<div class="tip-label">' + lItem.n_probes + ' probes</div>';
+    html += '</div>';
+
+    // Both metrics side by side
+    var countScore = rayRec ? rayRec.score : score;
+    var proxScore = rayRec && rayRec.score_proximity != null ? rayRec.score_proximity : null;
+    var countRank = rayRec ? rayRec.rank : rank;
+    var proxRank = "\u2014";
+    if (engRec && proxScore != null) {
+      var sorted = engRec.ranked.slice().sort(function(a,b){
+        return (b.score_proximity || 0) - (a.score_proximity || 0);
+      });
+      for (var i = 0; i < sorted.length; i++) {
+        if (String(sorted[i].left_id) === lid) { proxRank = i + 1; break; }
+      }
+    }
+
+    html += '<div class="metric-both">';
+    html += '<div class="metric-col"><div class="metric-name">Count</div>';
+    html += '<div class="metric-val">' + (typeof countScore === 'number' ? countScore.toFixed(3) : '\u2014') + '</div>';
+    html += '<div class="metric-rank">rank ' + countRank + '</div></div>';
+    html += '<div class="metric-col"><div class="metric-name">Proximity</div>';
+    html += '<div class="metric-val">' + (proxScore != null ? proxScore.toFixed(4) : '\u2014') + '</div>';
+    html += '<div class="metric-rank">rank ' + proxRank + '</div></div>';
+    html += '</div>';
+
+    if (rayRec && rayRec.contributors && rayRec.contributors.length){
+      html += '<div class="tip-row" style="margin-top:6px;border-top:1px solid #444;padding-top:4px"><div class="tip-label">Contributors</div>';
+      rayRec.contributors.forEach(function(c){
+        var cl = c.label || ("#" + (c.probe_idx != null ? c.probe_idx : c.prompt_idx));
+        html += '<div class="tip-val" style="font-size:10px">'
+             +  ladderEscapeText(cl, 60) + ' <span class="tip-label">(' + c.score + ')</span></div>';
+      });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function clearSlot(idx) {
+    var slot = compareSlots[idx];
+    if (slot.ray) slot.ray.classList.remove("pinned");
+    slot.ray = null;
+    slot.data = null;
+    slot.el.className = "compare-panel empty";
+    slot.el.innerHTML = '<span>' + (idx === 0 ? 'Click a ray to pin (A)' : 'Click another to compare (B)') + '</span>';
+    updateTrayVisibility();
+  }
+
+  function fillSlot(idx, rayEl, rid, lid, score, rank) {
+    var slot = compareSlots[idx];
+    if (slot.ray) slot.ray.classList.remove("pinned");
+    slot.ray = rayEl;
+    slot.data = { rid: rid, lid: lid, score: score, rank: rank };
+    rayEl.classList.add("pinned");
+
+    var label = idx === 0 ? "A" : "B";
+    var body = buildCompareBody(rid, lid, score, rank, label);
+    slot.el.className = "compare-panel";
+    slot.el.innerHTML = '<button class="slot-close" data-slot="' + idx + '">\u00D7</button>' + body;
+    slot.el.querySelector(".slot-close").addEventListener("click", function(ev) {
+      ev.stopPropagation();
+      clearSlot(idx);
+    });
+    updateTrayVisibility();
+  }
+
+  function findSlotForRay(rayEl) {
+    for (var i = 0; i < compareSlots.length; i++) {
+      if (compareSlots[i].ray === rayEl) return i;
+    }
+    return -1;
+  }
+
+  // Legacy compat — keep pinnedRayEl reference for dimming logic
   var pinnedRayEl = null;
   var pinnedTip = document.getElementById("ladderPinnedTip");
   pinnedTip.style.display = "none";
-
   function unpinRay(){
-    if (pinnedRayEl) pinnedRayEl.classList.remove("pinned");
+    clearSlot(0);
+    clearSlot(1);
+    nextSlot = 0;
     pinnedRayEl = null;
-    pinnedTip.style.display = "none";
   }
 
   // Build the body of a tooltip for a given ray. Used by both hover
@@ -376,19 +520,19 @@ function ladderRender(){
   var rays = svg.querySelectorAll(".ladder-ray");
   rays.forEach(function(rayEl){
     rayEl.addEventListener("mouseenter", function(e){
-      // Don't double-display: pinned ray's info is already in the panel
-      if (rayEl === pinnedRayEl) return;
+      // Don't double-display: pinned ray's info is already in a compare panel
+      if (findSlotForRay(rayEl) >= 0) return;
 
       var rid = rayEl.dataset.rightId;
       var lid = rayEl.dataset.leftId;
       var score = parseFloat(rayEl.dataset.score);
       var rank = parseInt(rayEl.dataset.rank, 10);
 
-      // Dim non-related rays — but never dim the pinned one
+      // Dim non-related rays — but never dim pinned ones
       rays.forEach(function(r){
         if (r === rayEl) return;
         if (r.dataset.rightId === rid || r.dataset.leftId === lid) return;
-        if (r === pinnedRayEl) return;
+        if (findSlotForRay(r) >= 0) return;
         r.classList.add("dimmed");
       });
 
@@ -407,45 +551,36 @@ function ladderRender(){
       tip.style.display = "none";
     });
     rayEl.addEventListener("mousemove", function(e){
-      if (rayEl === pinnedRayEl) return;
+      if (findSlotForRay(rayEl) >= 0) return;
       var wrapRect = wrap.getBoundingClientRect();
       tip.style.left = (e.clientX - wrapRect.left + 14) + "px";
       tip.style.top  = (e.clientY - wrapRect.top + 8) + "px";
     });
     rayEl.addEventListener("click", function(e){
       e.stopPropagation();
-      // Toggle: clicking the pinned ray again unpins it
-      if (rayEl === pinnedRayEl){
-        unpinRay();
+
+      // If this ray is already in a slot, unpin it
+      var existingSlot = findSlotForRay(rayEl);
+      if (existingSlot >= 0) {
+        clearSlot(existingSlot);
+        pinnedRayEl = compareSlots[0].ray || compareSlots[1].ray;
+        tip.style.display = "none";
+        rays.forEach(function(r){ r.classList.remove("dimmed"); });
         return;
       }
-      // Replace any prior pin
-      if (pinnedRayEl) pinnedRayEl.classList.remove("pinned");
-      pinnedRayEl = rayEl;
-      rayEl.classList.add("pinned");
 
       var rid = rayEl.dataset.rightId;
       var lid = rayEl.dataset.leftId;
       var score = parseFloat(rayEl.dataset.score);
       var rank = parseInt(rayEl.dataset.rank, 10);
-      var body = buildRayTipBody(rid, lid, score, rank);
-      if (!body) return;
 
-      pinnedTip.innerHTML =
-        '<button class="ladder-pin-close" aria-label="Unpin" title="Unpin (or click ray again)">\u00D7</button>'
-        + '<div class="pin-header">Pinned</div>'
-        + body;
-      pinnedTip.style.display = "block";
-      var closeBtn = pinnedTip.querySelector(".ladder-pin-close");
-      if (closeBtn) closeBtn.addEventListener("click", function(ev){
-        ev.stopPropagation();
-        unpinRay();
-      });
+      // Fill the next available slot, or cycle
+      var target = nextSlot;
+      fillSlot(target, rayEl, rid, lid, score, rank);
+      nextSlot = (target + 1) % 2;
+      pinnedRayEl = rayEl;
 
-      // Hide the cursor-following tip — the pinned panel now shows
-      // this ray. Hovering other rays will surface the hover tip again.
       tip.style.display = "none";
-      // Also clear any dim from the prior hover state
       rays.forEach(function(r){ r.classList.remove("dimmed"); });
     });
   });
@@ -477,6 +612,47 @@ function ladderRender(){
     topKVal.textContent = ladderState.topK;
     ladderRender();
   });
+
+  // Zoom controls
+  var zoomScale = 1.0;
+  var zoomLevelEl = document.getElementById("zoomLevel");
+  var svgEl = document.getElementById("ladderSvg");
+  var wrapEl = document.getElementById("ladderSvgWrap");
+
+  function applyZoom() {
+    svgEl.style.transform = "scale(" + zoomScale + ")";
+    svgEl.style.width = (100 / zoomScale) + "%";
+    zoomLevelEl.textContent = Math.round(zoomScale * 100) + "%";
+  }
+
+  document.getElementById("zoomIn").addEventListener("click", function(){
+    zoomScale = Math.min(3.0, zoomScale + 0.1);
+    applyZoom();
+  });
+  document.getElementById("zoomOut").addEventListener("click", function(){
+    zoomScale = Math.max(0.1, zoomScale - 0.1);
+    applyZoom();
+  });
+  document.getElementById("zoomFit").addEventListener("click", function(){
+    var svgH = svgEl.getBoundingClientRect().height / zoomScale;
+    var wrapH = wrapEl.clientHeight;
+    if (svgH > 0 && wrapH > 0) {
+      zoomScale = Math.min(1.0, wrapH / svgH);
+      zoomScale = Math.max(0.05, zoomScale);
+    } else {
+      zoomScale = 1.0;
+    }
+    applyZoom();
+  });
+
+  // Ctrl+scroll zoom
+  wrapEl.addEventListener("wheel", function(e){
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? -0.05 : 0.05;
+    zoomScale = Math.max(0.05, Math.min(3.0, zoomScale + delta));
+    applyZoom();
+  }, { passive: false });
 })();
 
 // Re-render ladder on window resize
