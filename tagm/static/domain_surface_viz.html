@@ -31,13 +31,14 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
 .ladder-ray.pinned { stroke-width:3 !important; opacity:1 !important; filter:drop-shadow(0 0 4px rgba(255,255,255,0.55)); }
 .ladder-ray.pinned:hover { stroke-width:3 !important; }
 #ladderPinnedTip { display:none; } /* legacy, hidden */
-.compare-tray { position:fixed; bottom:0; left:0; right:0; display:none; z-index:20; padding:8px 16px; background:rgba(28,33,40,0.95); border-top:2px solid var(--cyan); backdrop-filter:blur(8px); }
+.compare-tray { position:fixed; bottom:12px; left:0; right:0; display:none; z-index:20; padding:0 16px; pointer-events:none; }
 .compare-tray.visible { display:flex; gap:12px; justify-content:center; }
-.compare-panel { flex:0 1 380px; background:#2D333B; border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.5; position:relative; min-height:60px; }
-.compare-panel.empty { border-style:dashed; display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:10px; }
+.compare-panel { flex:0 1 380px; background:rgba(45,51,59,0.95); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.5; position:relative; min-height:60px; pointer-events:auto; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.5); max-height:50vh; display:flex; flex-direction:column; }
+.compare-panel.empty { border-style:dashed; align-items:center; justify-content:center; color:var(--text2); font-size:10px; }
 .compare-panel .slot-label { position:absolute; top:4px; left:8px; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--cyan); }
 .compare-panel .slot-close { position:absolute; top:2px; right:6px; background:transparent; border:none; color:var(--text2); cursor:pointer; font-size:16px; padding:0 4px; line-height:1; font-family:inherit; }
 .compare-panel .slot-close:hover { color:var(--text); }
+.compare-panel .panel-body { overflow-y:auto; flex:1; min-height:0; }
 .compare-panel .tip-row { margin-bottom:4px; }
 .compare-panel .tip-label { color:var(--text2); font-size:10px; }
 .compare-panel .tip-val { color:var(--text); }
@@ -46,6 +47,7 @@ body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",mono
 .compare-panel .metric-col .metric-name { font-size:9px; color:var(--text2); text-transform:uppercase; letter-spacing:.3px; }
 .compare-panel .metric-col .metric-val { font-size:13px; color:var(--text); font-weight:600; }
 .compare-panel .metric-col .metric-rank { font-size:9px; color:var(--text2); }
+.compare-panel .contributors-scroll { max-height:140px; overflow-y:auto; margin-top:4px; }
 .zoom-controls { display:flex; align-items:center; gap:4px; }
 .zoom-btn { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; width:24px; height:24px; cursor:pointer; font-family:inherit; font-size:14px; display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
 .zoom-btn:hover { border-color:var(--cyan); color:var(--cyan); }
@@ -356,6 +358,7 @@ function ladderRender(){
     }) : null;
 
     var html = '<span class="slot-label">' + slotLabel + '</span>';
+    html += '<div class="panel-body">';
 
     var rCol = ladderState.aggPrompts
       ? (CAT_COLORS_LAD[rItem.id] || "#888")
@@ -402,13 +405,15 @@ function ladderRender(){
 
     if (rayRec && rayRec.contributors && rayRec.contributors.length){
       html += '<div class="tip-row" style="margin-top:6px;border-top:1px solid #444;padding-top:4px"><div class="tip-label">Contributors</div>';
+      html += '<div class="contributors-scroll">';
       rayRec.contributors.forEach(function(c){
         var cl = c.label || ("#" + (c.probe_idx != null ? c.probe_idx : c.prompt_idx));
         html += '<div class="tip-val" style="font-size:10px">'
              +  ladderEscapeText(cl, 60) + ' <span class="tip-label">(' + c.score + ')</span></div>';
       });
-      html += '</div>';
+      html += '</div></div>';
     }
+    html += '</div>'; // close panel-body
     return html;
   }
 
