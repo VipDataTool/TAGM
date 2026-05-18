@@ -178,12 +178,20 @@ function ladderRender(){
     return;
   }
 
-  // Map right_id -> ranked top-k slice
+  // Map right_id -> ranked top-k slice, sorted by active metric
   var topK = ladderState.topK;
+  var useProximity = ladderState.metric === "mean_proximity";
   var raysByRight = {};
   engagements.forEach(function(e){
-    var ranked = (e.ranked || []).slice(0, topK);
-    raysByRight[String(e.right_id)] = ranked;
+    var ranked = (e.ranked || []).map(function(r){
+      // Resolve active score; fall back to count if proximity missing
+      var activeScore = useProximity
+        ? (r.score_proximity != null ? r.score_proximity : r.score)
+        : r.score;
+      return Object.assign({}, r, { _active: activeScore });
+    });
+    ranked.sort(function(a, b){ return b._active - a._active; });
+    raysByRight[String(e.right_id)] = ranked.slice(0, topK);
   });
 
   // Geometry
@@ -259,7 +267,7 @@ function ladderRender(){
   var maxScore = 0;
   rightItems.forEach(function(rit){
     var rays = raysByRight[String(rit.id)] || [];
-    rays.forEach(function(r){ if (r.score > maxScore) maxScore = r.score; });
+    rays.forEach(function(r){ if (r._active > maxScore) maxScore = r._active; });
   });
   if (maxScore <= 0) maxScore = 1;
 
@@ -272,7 +280,7 @@ function ladderRender(){
       var ly = leftY(li);
       var col = ladderColorFor(rit,
                   leftItems[li] || {subject_idx: 0});
-      var op = 0.25 + 0.75 * Math.min(1, ray.score / maxScore);
+      var op = 0.25 + 0.75 * Math.min(1, ray._active / maxScore);
       // Bezier curve for visual flow
       var cx1 = rayStartX + (rayEndX - rayStartX) * 0.4;
       var cx2 = rayStartX + (rayEndX - rayStartX) * 0.6;
@@ -286,7 +294,7 @@ function ladderRender(){
         +  'opacity="' + op.toFixed(3) + '" '
         +  'data-right-id="' + ladderEscapeText(rit.id, 80) + '" '
         +  'data-left-id="' + ladderEscapeText(ray.left_id, 80) + '" '
-        +  'data-score="' + ray.score + '" '
+        +  'data-score="' + ray._active + '" '
         +  'data-rank="' + ray.rank + '"/>';
     });
   });

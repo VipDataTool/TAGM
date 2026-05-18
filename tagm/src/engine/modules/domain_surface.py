@@ -408,7 +408,7 @@ def _stratification(obs, subjects):
 
 
 def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
-                   top_k_storage=100, contributors_max=5):
+                   contributors_max=5):
     """Build the ladder-graph payload from the bipartite engagement matrix.
 
     bipartite:    dict[(prompt_idx, probe_idx)] -> {"distances": [float, ...]}
@@ -503,13 +503,12 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
             "n_prompts": len(cat_to_prompts[cat]),
         })
 
-    # ── Step 3: Helper to rank+slice a flat dict[left_id -> score] ──
-    def _rank_slice(scores, top_k):
+    # ── Step 3: Helper to rank a flat dict[left_id -> score] ──
+    def _rank_slice(scores):
         """scores: dict[left_id -> float]. Returns sorted [(id, score), ...]."""
         if not scores:
             return []
-        items = sorted(scores.items(), key=lambda x: -x[1])
-        return items[:top_k]
+        return sorted(scores.items(), key=lambda x: -x[1])
 
     # Tooltip metadata helpers — populate both metrics regardless of which
     # is the displayed score, so swapping metrics in the popout doesn't
@@ -525,10 +524,11 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
     for pi in range(n_prompts):
         scores = by_prompt_count.get(pi, {})
         ranked = []
-        for rank, (bi, score) in enumerate(_rank_slice(scores, top_k_storage), 1):
+        for rank, (bi, score) in enumerate(_rank_slice(scores), 1):
             ranked.append({
                 "left_id":      bi,
                 "score":        float(score),
+                "score_proximity": round(by_prompt_sim.get(pi, {}).get(bi, 0.0), 4),
                 "rank":         rank,
                 "tooltip_meta": _tooltip_meta_individual(pi, bi),
             })
@@ -539,29 +539,38 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
     PI_PA = []
     for pi in range(n_prompts):
         prompt_scores = by_prompt_count.get(pi, {})
+        prompt_sims = by_prompt_sim.get(pi, {})
         if not prompt_scores:
             PI_PA.append({"right_id": pi, "ranked": []})
             continue
         cell_scores = {}
+        cell_prox = {}
         cell_contributors = defaultdict(list)  # cell_id -> [(bi, score)]
         for (si, li), bis in cell_to_probes.items():
             cell_id = f"{si}_{li}"
             total = 0.0
+            sims_in_cell = []
             for bi in bis:
                 s = prompt_scores.get(bi, 0)
                 if s > 0:
                     total += s
                     cell_contributors[cell_id].append((bi, s))
+                sim = prompt_sims.get(bi)
+                if sim is not None:
+                    sims_in_cell.append(sim)
             if total > 0:
                 cell_scores[cell_id] = total
+            if sims_in_cell:
+                cell_prox[cell_id] = sum(sims_in_cell) / len(sims_in_cell)
         ranked = []
         for rank, (cell_id, score) in enumerate(
-                _rank_slice(cell_scores, top_k_storage), 1):
+                _rank_slice(cell_scores), 1):
             contribs = sorted(cell_contributors[cell_id], key=lambda x: -x[1])
             contribs = contribs[:contributors_max]
             ranked.append({
                 "left_id": cell_id,
                 "score":   float(score),
+                "score_proximity": round(cell_prox.get(cell_id, 0.0), 4),
                 "rank":    rank,
                 "contributors": [
                     {
@@ -586,24 +595,32 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
         for pi in member_pids:
             all_bids.update(by_prompt_count.get(pi, {}).keys())
         probe_scores = {}
+        probe_prox = {}
         probe_contributors = defaultdict(list)  # bi -> [(pi, score)]
         for bi in all_bids:
             scores_per_pi = []
+            sims_per_pi = []
             for pi in member_pids:
                 s = by_prompt_count.get(pi, {}).get(bi, 0)
                 scores_per_pi.append(s)
                 if s > 0:
                     probe_contributors[bi].append((pi, s))
+                sim = by_prompt_sim.get(pi, {}).get(bi)
+                if sim is not None:
+                    sims_per_pi.append(sim)
             if scores_per_pi:
                 probe_scores[bi] = sum(scores_per_pi) / len(scores_per_pi)
+            if sims_per_pi:
+                probe_prox[bi] = sum(sims_per_pi) / len(sims_per_pi)
         ranked = []
         for rank, (bi, score) in enumerate(
-                _rank_slice(probe_scores, top_k_storage), 1):
+                _rank_slice(probe_scores), 1):
             contribs = sorted(probe_contributors[bi], key=lambda x: -x[1])
             contribs = contribs[:contributors_max]
             ranked.append({
                 "left_id": bi,
                 "score":   round(float(score), 4),
+                "score_proximity": round(probe_prox.get(bi, 0.0), 4),
                 "rank":    rank,
                 "contributors": [
                     {
@@ -626,6 +643,7 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
             PA_PA.append({"right_id": cat, "ranked": []})
             continue
         cell_score_per_pi = defaultdict(list)  # cell_id -> [score per pi]
+        cell_prox_per_pi = defaultdict(list)   # cell_id -> [prox per pi]
         cell_contributors = defaultdict(list)  # cell_id -> [(pi, score)]
         for (si, li), bis in cell_to_probes.items():
             cell_id = f"{si}_{li}"
@@ -635,20 +653,30 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
                 cell_score_per_pi[cell_id].append(total)
                 if total > 0:
                     cell_contributors[cell_id].append((pi, total))
+                pm = by_prompt_sim.get(pi, {})
+                sims = [pm[bi] for bi in bis if bi in pm]
+                if sims:
+                    cell_prox_per_pi[cell_id].append(
+                        sum(sims) / len(sims))
         cell_scores = {}
+        cell_prox = {}
         for cell_id, vals in cell_score_per_pi.items():
             if vals:
                 m = sum(vals) / len(vals)
                 if m > 0:
                     cell_scores[cell_id] = m
+        for cell_id, vals in cell_prox_per_pi.items():
+            if vals:
+                cell_prox[cell_id] = sum(vals) / len(vals)
         ranked = []
         for rank, (cell_id, score) in enumerate(
-                _rank_slice(cell_scores, top_k_storage), 1):
+                _rank_slice(cell_scores), 1):
             contribs = sorted(cell_contributors[cell_id], key=lambda x: -x[1])
             contribs = contribs[:contributors_max]
             ranked.append({
                 "left_id": cell_id,
                 "score":   round(float(score), 4),
+                "score_proximity": round(cell_prox.get(cell_id, 0.0), 4),
                 "rank":    rank,
                 "contributors": [
                     {
@@ -695,7 +723,6 @@ def _build_ladder(bipartite, probes, prompts_meta, subjects, level_names,
             "PA_PI": PA_PI,
             "PA_PA": PA_PA,
         },
-        "top_k_storage":      top_k_storage,
         "contributors_max":   contributors_max,
     }
 
