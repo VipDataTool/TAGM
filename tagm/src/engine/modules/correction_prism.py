@@ -164,6 +164,35 @@ class CorrectionPrismModule(TASMModule):
             type="bool",
             default=True,
         ),
+        ModuleParameter(
+            name="prompt_circuit",
+            display_name="Prompt Circuit (grafting)",
+            description=(
+                "Override the circuit operator for the prompt beam only. "
+                "When set to a value different from 'circuit', the prism "
+                "grafts: prompt is projected through this operator while "
+                "probes are projected through 'probe_circuit'. Set both to "
+                "'(same as circuit)' to disable grafting. Typical graft: "
+                "prompt_circuit='qk', probe_circuit='vo'."
+            ),
+            type="select",
+            default="(same as circuit)",
+            options=["(same as circuit)", "full", "q", "k", "v", "o", "qk", "vo"],
+        ),
+        ModuleParameter(
+            name="probe_circuit",
+            display_name="Probe Circuit (grafting)",
+            description=(
+                "Override the circuit operator for probe directions only. "
+                "When set to a value different from 'circuit', the prism "
+                "grafts: probes are projected through this operator while "
+                "the prompt beam uses 'prompt_circuit'. Typical graft: "
+                "prompt_circuit='qk', probe_circuit='vo'."
+            ),
+            type="select",
+            default="(same as circuit)",
+            options=["(same as circuit)", "full", "q", "k", "v", "o", "qk", "vo"],
+        ),
     ]
 
     def __init__(self):
@@ -334,19 +363,26 @@ class CorrectionPrismModule(TASMModule):
         finally:
             cap.remove()
 
-    def _prism_response(self, beam, prism_dirs, op, metric):
-        """Project beam through op, then take the prism decomposition.
+    def _prism_response(self, beam, prism_dirs, op_prompt, metric,
+                         op_probe=None):
+        """Project beam through op_prompt and probes through op_probe,
+        then compute the prism decomposition.
 
         beam:        (d_model,) for mean/last, or (T, d_model) for rowspace
         prism_dirs:  (n_probes, d_model)  — Δp_i directions, L2-normalized
-        op:          (d_in, d_out)         — circuit operator (d_in == d_model)
+        op_prompt:   (d_in, d_out)  — circuit operator for the prompt beam
+        op_probe:    (d_in, d_out)  — circuit operator for the probes
+                     (defaults to op_prompt when None — existing behavior)
 
         Returns (n_probes,) signed responses.
         """
+        if op_probe is None:
+            op_probe = op_prompt
+
         if beam.ndim == 1:
-            field = beam @ op                         # (d_out,)
-            probes_field = prism_dirs @ op            # (n_probes, d_out)
-            dots = probes_field @ field               # (n_probes,)
+            field = beam @ op_prompt                    # (d_out,)
+            probes_field = prism_dirs @ op_probe        # (n_probes, d_out)
+            dots = probes_field @ field                 # (n_probes,)
             if metric == "signed_dot":
                 return dots
             pf_norms = np.linalg.norm(probes_field, axis=1)
@@ -358,15 +394,15 @@ class CorrectionPrismModule(TASMModule):
             return out
 
         # rowspace: beam is (T, d_model); the field is a subspace.
-        field_mat = beam @ op                         # (T, d_out)
-        probes_field = prism_dirs @ op                # (n_probes, d_out)
-        sims = probes_field @ field_mat.T             # (n_probes, T)
+        field_mat = beam @ op_prompt                    # (T, d_out)
+        probes_field = prism_dirs @ op_probe            # (n_probes, d_out)
+        sims = probes_field @ field_mat.T               # (n_probes, T)
         if metric == "signed_dot":
             idx = np.argmax(np.abs(sims), axis=1)
             return sims[np.arange(sims.shape[0]), idx]
         pf_norms = np.linalg.norm(probes_field, axis=1, keepdims=True)
         rm_norms = np.linalg.norm(field_mat, axis=1, keepdims=True)
-        denom = pf_norms * rm_norms.T                 # (n_probes, T)
+        denom = pf_norms * rm_norms.T                   # (n_probes, T)
         cosines = np.zeros_like(sims)
         mask = denom > 1e-12
         cosines[mask] = sims[mask] / denom[mask]
@@ -387,6 +423,13 @@ class CorrectionPrismModule(TASMModule):
         cell_agg = params.get("cell_aggregation", "sum")
         prompt_agg = params.get("prompt_aggregation", "mean")
         include_baseline = bool(params.get("include_baseline", True))
+
+        # Grafting: separate circuit operators for prompt and probes
+        _pc = params.get("prompt_circuit", "(same as circuit)")
+        _prc = params.get("probe_circuit", "(same as circuit)")
+        prompt_circuit = circuit if _pc == "(same as circuit)" else _pc
+        probe_circuit = circuit if _prc == "(same as circuit)" else _prc
+        grafting = (prompt_circuit != probe_circuit)
 
         active = get_active_probe_set(self._project_root)
         if active is None:
@@ -501,7 +544,12 @@ class CorrectionPrismModule(TASMModule):
         decomposition = {}
 
         for c in circuits_to_run:
-            prog(f"Computing prism response: {c}")
+            if grafting and c != "_baseline":
+                prog(f"Computing prism response: {c} "
+                     f"(grafting: prompt={prompt_circuit}, "
+                     f"probe={probe_circuit})")
+            else:
+                prog(f"Computing prism response: {c}")
             per_prompt_response = np.zeros((n_prompts, len(raw_probes)),
                                             dtype=np.float64)
             per_prompt_layer_count = np.zeros(n_prompts, dtype=np.int64)
@@ -518,14 +566,22 @@ class CorrectionPrismModule(TASMModule):
             else:
                 layer_responses = [[] for _ in range(n_prompts)]
                 for ℓ in signal_layers:
-                    op = self._make_circuit_operator(c, ℓ)
-                    if op is None:
-                        continue
+                    if grafting:
+                        op_p = self._make_circuit_operator(prompt_circuit, ℓ)
+                        op_pr = self._make_circuit_operator(probe_circuit, ℓ)
+                        if op_p is None or op_pr is None:
+                            continue
+                    else:
+                        op_p = self._make_circuit_operator(c, ℓ)
+                        if op_p is None:
+                            continue
+                        op_pr = None  # _prism_response will use op_p for both
                     for pi, beam in enumerate(beams):
                         if beam is None:
                             continue
                         resp = self._prism_response(
-                            beam, prism_dirs, op, prism_metric)
+                            beam, prism_dirs, op_p, prism_metric,
+                            op_probe=op_pr)
                         layer_responses[pi].append(resp)
 
                 for pi, layer_list in enumerate(layer_responses):
