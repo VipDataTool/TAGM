@@ -633,7 +633,7 @@ table.tok tr:hover{background:#ffffff08}
     var panel = document.getElementById("tab-decomp");
     var html = '<div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6">' +
                'All circuits computed for this run, side-by-side. Each tile uses its own ' +
-               'symmetric scale (so weak circuits aren\'t washed out by strong ones). Click a ' +
+               'relative scale (so weak circuits aren\'t washed out by strong ones). Click a ' +
                'cell in any tile to inspect its probe composition.</div>';
 
     if (!CIRC_ORDER.length){
@@ -663,7 +663,16 @@ table.tok tr:hover{background:#ffffff08}
       html += renderHeatmap(dAgg, dSc, (function(circ){
         return function(si, li){ return si + "_" + li; };
       })(ck), 3);
-      html += '<div class="mini-legend">scale: ±' + dSc.vmax.toFixed(3) + '</div>';
+      var rangeStr = '';
+      if (dSc.negMin !== null && dSc.posMax !== null)
+        rangeStr = dSc.negMin.toFixed(3) + ' to +' + dSc.posMax.toFixed(3);
+      else if (dSc.posMax !== null)
+        rangeStr = '+' + (dSc.posMin || 0).toFixed(3) + ' to +' + dSc.posMax.toFixed(3);
+      else if (dSc.negMin !== null)
+        rangeStr = dSc.negMin.toFixed(3) + ' to ' + (dSc.negMax || 0).toFixed(3);
+      else
+        rangeStr = '0';
+      html += '<div class="mini-legend">scale: ' + rangeStr + '</div>';
       html += '</div>';
     }
     html += '</div>';
