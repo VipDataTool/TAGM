@@ -420,36 +420,82 @@ table.tok tr:hover{background:#ffffff08}
     }
   }
 
-  // ── Diverging colormap ─────────────────────────────────────
+  // ── Relative-intensity colormap ──────────────────────────────
+  // Sign → hue (positive=red, negative=blue).
+  // Intensity → relative position within the positive or negative
+  // subset of displayed values. The least extreme value in each
+  // sign group gets the lightest shade; the most extreme gets full
+  // saturation. This ensures the heatmap always shows internal
+  // structure even when all values share the same sign.
   function scale(grid){
-    var vmax = 0;
+    var posVals = [], negVals = [], vmax = 0;
     for (var si=0; si<grid.length; si++){
       var row = grid[si] || [];
       for (var li=0; li<row.length; li++){
-        var a = Math.abs(row[li] || 0);
+        var v = row[li] || 0;
+        var a = Math.abs(v);
         if (a > vmax) vmax = a;
+        if (v > 1e-10) posVals.push(v);
+        else if (v < -1e-10) negVals.push(v);
       }
     }
     if (vmax < 1e-10) vmax = 1e-10;
-    return {vmax: vmax};
+    var posMin = null, posMax = null, negMin = null, negMax = null;
+    if (posVals.length > 0){
+      posMin = Math.min.apply(null, posVals);
+      posMax = Math.max.apply(null, posVals);
+    }
+    if (negVals.length > 0){
+      negMin = Math.min.apply(null, negVals);  // most negative
+      negMax = Math.max.apply(null, negVals);   // closest to zero
+    }
+    return {vmax: vmax, posMin: posMin, posMax: posMax,
+            negMin: negMin, negMax: negMax,
+            mixed: (posVals.length > 0 && negVals.length > 0)};
   }
   function color(val, sc){
-    var t = Math.max(-1, Math.min(1, val / sc.vmax));
-    if (t > 0){
+    if (Math.abs(val) < 1e-10) return 'rgb(30,30,36)';
+
+    // Relative intensity: 0 = lightest, 1 = most saturated
+    var t;
+    if (val > 0){
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin)
+                ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10)
+        ? (val - sc.posMin) / range : 1;
+      t = Math.max(0, Math.min(1, t));
       return 'rgb(' + Math.round(30 + t*200) + ',' +
                       Math.round(30 + t*30)  + ',' +
                       Math.round(36 + t*20)  + ')';
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;  // closest to zero
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;  // most negative
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10)
+        ? (absVal - absNegMax) / nRange : 1;
+      t = Math.max(0, Math.min(1, t));
+      return 'rgb(' + Math.round(30 + t*30)  + ',' +
+                      Math.round(30 + t*80)  + ',' +
+                      Math.round(36 + t*200) + ')';
     }
-    if (t < 0){
-      var s = -t;
-      return 'rgb(' + Math.round(30 + s*30)  + ',' +
-                      Math.round(30 + s*80)  + ',' +
-                      Math.round(36 + s*200) + ')';
-    }
-    return 'rgb(30,30,36)';
   }
   function textColor(val, sc){
-    return (Math.abs(val) / sc.vmax) > 0.45 ? '#fff' : 'var(--text2)';
+    if (Math.abs(val) < 1e-10) return 'var(--text2)';
+    var t;
+    if (val > 0){
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin)
+                ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10)
+        ? (val - sc.posMin) / range : 1;
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10) ? (absVal - absNegMax) / nRange : 1;
+    }
+    return t > 0.3 ? '#fff' : 'var(--text2)';
   }
 
   // ── Grid for current view ──────────────────────────────────
@@ -507,14 +553,28 @@ table.tok tr:hover{background:#ffffff08}
   }
 
   function renderLegendBar(sc, label){
+    // Build gradient from actual data range
+    var lo, hi;
+    if (sc.mixed) {
+      lo = sc.negMin || 0;
+      hi = sc.posMax || 0;
+    } else if (sc.posMax !== null) {
+      lo = sc.posMin || 0;
+      hi = sc.posMax || 0;
+    } else if (sc.negMin !== null) {
+      lo = sc.negMin || 0;
+      hi = sc.negMax || 0;
+    } else {
+      lo = 0; hi = 0;
+    }
     var stops = '';
     for (var i=0; i<13; i++){
-      var v = -sc.vmax + (2 * sc.vmax * i / 12);
+      var v = lo + (hi - lo) * i / 12;
       stops += '<div style="flex:1;background:' + color(v, sc) + '"></div>';
     }
-    var html = '<span class="lbl">' + esc('−' + sc.vmax.toFixed(3)) + ' opposed</span>';
+    var html = '<span class="lbl">' + esc((lo >= 0 ? '+' : '') + lo.toFixed(3)) + '</span>';
     html += '<div class="bar">' + stops + '</div>';
-    html += '<span class="lbl">+' + sc.vmax.toFixed(3) + ' excited</span>';
+    html += '<span class="lbl">' + esc((hi >= 0 ? '+' : '') + hi.toFixed(3)) + '</span>';
     if (label) html += '<span class="lbl" style="margin-left:12px;color:var(--text3)">' + esc(label) + '</span>';
     return html;
   }
