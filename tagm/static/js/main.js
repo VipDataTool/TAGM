@@ -4117,8 +4117,9 @@ async function embedActiveProbes(filename){
 // Renders the signed heatmap from correction_prism. Each cell carries
 // a signed scalar (sum of per-probe responses by default); positive =
 // the correction excites the probes in that cell, negative = it opposes
-// them. Diverging blue↔white↔red colormap with autoscale ±vmax so
-// white sits at exactly zero.
+// them. Relative-intensity colormap: sign determines hue (red/blue),
+// intensity reflects relative position within the positive or negative
+// value range so internal structure is always visible.
 //
 // The per-cell composition panel exposes the dispersion that the cell
 // scalar hides — n_excited / n_opposed / n_neutral counts and the
@@ -4155,45 +4156,76 @@ function renderCorrectionPrismResults(r) {
     h += '</div>';
   }
 
-  // Symmetric scale around zero so white = exactly 0.
+  // Relative-intensity scale: sign → hue, intensity → position within
+  // the positive or negative subset of displayed values.
   function divergingScale(grid) {
-    var vmax = 0;
+    var posVals = [], negVals = [], vmax = 0;
     for (var si = 0; si < grid.length; si++) {
       var row = grid[si] || [];
       for (var li = 0; li < row.length; li++) {
-        var a = Math.abs(row[li] || 0);
+        var v = row[li] || 0;
+        var a = Math.abs(v);
         if (a > vmax) vmax = a;
+        if (v > 1e-10) posVals.push(v);
+        else if (v < -1e-10) negVals.push(v);
       }
     }
     if (vmax < 1e-10) vmax = 1e-10;
-    return {vmax: vmax};
+    var posMin = null, posMax = null, negMin = null, negMax = null;
+    if (posVals.length > 0) {
+      posMin = Math.min.apply(null, posVals);
+      posMax = Math.max.apply(null, posVals);
+    }
+    if (negVals.length > 0) {
+      negMin = Math.min.apply(null, negVals);
+      negMax = Math.max.apply(null, negVals);
+    }
+    return {vmax: vmax, posMin: posMin, posMax: posMax,
+            negMin: negMin, negMax: negMax,
+            mixed: (posVals.length > 0 && negVals.length > 0)};
   }
 
-  // Blue (negative) ↔ neutral (zero) ↔ red (positive).
-  // RGB stops chosen to match the existing dark-themed UI palette.
   function divergingColor(val, sc) {
-    var t = Math.max(-1, Math.min(1, val / sc.vmax));
-    if (t > 0) {
-      // 0 → near-bg, 1 → saturated red
-      var r1 = Math.round(30 + t * 200);
-      var g1 = Math.round(30 + t * 30);
-      var b1 = Math.round(36 + t * 20);
-      return 'rgb(' + r1 + ',' + g1 + ',' + b1 + ')';
+    if (Math.abs(val) < 1e-10) return 'rgb(30,30,36)';
+    var t;
+    if (val > 0) {
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin)
+                ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10)
+        ? (val - sc.posMin) / range : 1;
+      t = Math.max(0, Math.min(1, t));
+      return 'rgb(' + Math.round(30 + t*200) + ',' +
+                      Math.round(30 + t*30)  + ',' +
+                      Math.round(36 + t*20)  + ')';
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10) ? (absVal - absNegMax) / nRange : 1;
+      t = Math.max(0, Math.min(1, t));
+      return 'rgb(' + Math.round(30 + t*30)  + ',' +
+                      Math.round(30 + t*80)  + ',' +
+                      Math.round(36 + t*200) + ')';
     }
-    if (t < 0) {
-      // 0 → near-bg, -1 → saturated blue
-      var s = -t;
-      var r2 = Math.round(30 + s * 30);
-      var g2 = Math.round(30 + s * 80);
-      var b2 = Math.round(36 + s * 200);
-      return 'rgb(' + r2 + ',' + g2 + ',' + b2 + ')';
-    }
-    return 'rgb(30,30,36)';
   }
 
   function divergingTextColor(val, sc) {
-    var t = Math.abs(val) / sc.vmax;
-    return t > 0.45 ? '#fff' : 'var(--text-2)';
+    if (Math.abs(val) < 1e-10) return 'var(--text-2)';
+    var t;
+    if (val > 0) {
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin)
+                ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10)
+        ? (val - sc.posMin) / range : 1;
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10) ? (absVal - absNegMax) / nRange : 1;
+    }
+    return t > 0.3 ? '#fff' : 'var(--text-2)';
   }
 
   // Render one signed heatmap. Cells are clickable and emit a JS call
@@ -4229,21 +4261,33 @@ function renderCorrectionPrismResults(r) {
     return th;
   }
 
-  // Color legend strip showing the diverging scale.
+  // Color legend strip showing the relative-intensity scale.
   function renderLegend(sc) {
+    var lo, hi;
+    if (sc.mixed) {
+      lo = sc.negMin || 0;
+      hi = sc.posMax || 0;
+    } else if (sc.posMax !== null) {
+      lo = sc.posMin || 0;
+      hi = sc.posMax || 0;
+    } else if (sc.negMin !== null) {
+      lo = sc.negMin || 0;
+      hi = sc.negMax || 0;
+    } else {
+      lo = 0; hi = 0;
+    }
     var stops = '';
     var n = 11;
     for (var i = 0; i < n; i++) {
-      var v = -sc.vmax + (2 * sc.vmax * i / (n - 1));
+      var v = lo + (hi - lo) * i / (n - 1);
       stops += '<div style="flex:1;height:8px;background:'
             + divergingColor(v, sc) + '"></div>';
     }
     var leg = '<div style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--text-2);font-family:var(--mono);margin-top:4px;max-width:240px">';
     leg += '<div style="display:flex">' + stops + '</div>';
     leg += '<div style="display:flex;justify-content:space-between">';
-    leg += '<span>−' + sc.vmax.toFixed(3) + ' (opposed)</span>';
-    leg += '<span>0</span>';
-    leg += '<span>+' + sc.vmax.toFixed(3) + ' (excited)</span>';
+    leg += '<span>' + (lo >= 0 ? '+' : '') + lo.toFixed(3) + '</span>';
+    leg += '<span>' + (hi >= 0 ? '+' : '') + hi.toFixed(3) + '</span>';
     leg += '</div></div>';
     return leg;
   }
@@ -4520,32 +4564,55 @@ function prismSwitchView(view, btn) {
   // Self-contained color/scale helpers (mirror the closure-scoped ones in
   // renderCorrectionPrismResults so the toggle doesn't depend on its closure).
   function _scale(g) {
-    var vmax = 0;
+    var posVals = [], negVals = [], vmax = 0;
     for (var si = 0; si < g.length; si++) {
       var r = g[si] || [];
       for (var li = 0; li < r.length; li++) {
-        var a = Math.abs(r[li] || 0);
+        var v = r[li] || 0;
+        var a = Math.abs(v);
         if (a > vmax) vmax = a;
+        if (v > 1e-10) posVals.push(v);
+        else if (v < -1e-10) negVals.push(v);
       }
     }
     if (vmax < 1e-10) vmax = 1e-10;
-    return {vmax: vmax};
+    var posMin = null, posMax = null, negMin = null, negMax = null;
+    if (posVals.length > 0) { posMin = Math.min.apply(null, posVals); posMax = Math.max.apply(null, posVals); }
+    if (negVals.length > 0) { negMin = Math.min.apply(null, negVals); negMax = Math.max.apply(null, negVals); }
+    return {vmax: vmax, posMin: posMin, posMax: posMax, negMin: negMin, negMax: negMax, mixed: (posVals.length > 0 && negVals.length > 0)};
   }
   function _color(val, sc) {
-    var t = Math.max(-1, Math.min(1, val / sc.vmax));
-    if (t > 0) return 'rgb(' + Math.round(30 + t * 200) + ','
-                       + Math.round(30 + t * 30) + ','
-                       + Math.round(36 + t * 20) + ')';
-    if (t < 0) {
-      var s = -t;
-      return 'rgb(' + Math.round(30 + s * 30) + ','
-                    + Math.round(30 + s * 80) + ','
-                    + Math.round(36 + s * 200) + ')';
+    if (Math.abs(val) < 1e-10) return 'rgb(30,30,36)';
+    var t;
+    if (val > 0) {
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin) ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10) ? (val - sc.posMin) / range : 1;
+      t = Math.max(0, Math.min(1, t));
+      return 'rgb(' + Math.round(30 + t * 200) + ',' + Math.round(30 + t * 30) + ',' + Math.round(36 + t * 20) + ')';
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10) ? (absVal - absNegMax) / nRange : 1;
+      t = Math.max(0, Math.min(1, t));
+      return 'rgb(' + Math.round(30 + t * 30) + ',' + Math.round(30 + t * 80) + ',' + Math.round(36 + t * 200) + ')';
     }
-    return 'rgb(30,30,36)';
   }
   function _textColor(val, sc) {
-    return (Math.abs(val) / sc.vmax) > 0.45 ? '#fff' : 'var(--text-2)';
+    if (Math.abs(val) < 1e-10) return 'var(--text-2)';
+    var t;
+    if (val > 0) {
+      var range = (sc.posMax !== null && sc.posMax !== sc.posMin) ? (sc.posMax - sc.posMin) : 1;
+      t = (sc.posMin !== null && range > 1e-10) ? (val - sc.posMin) / range : 1;
+    } else {
+      var absVal = Math.abs(val);
+      var absNegMax = sc.negMax !== null ? Math.abs(sc.negMax) : 0;
+      var absNegMin = sc.negMin !== null ? Math.abs(sc.negMin) : 0;
+      var nRange = absNegMin - absNegMax;
+      t = (nRange > 1e-10) ? (absVal - absNegMax) / nRange : 1;
+    }
+    return t > 0.3 ? '#fff' : 'var(--text-2)';
   }
 
   var sc = _scale(grid);
@@ -4578,17 +4645,21 @@ function prismSwitchView(view, btn) {
   document.getElementById('prism-primary-heatmap').innerHTML = th;
 
   // Legend
+  var lo, hi;
+  if (sc.mixed) { lo = sc.negMin || 0; hi = sc.posMax || 0; }
+  else if (sc.posMax !== null) { lo = sc.posMin || 0; hi = sc.posMax || 0; }
+  else if (sc.negMin !== null) { lo = sc.negMin || 0; hi = sc.negMax || 0; }
+  else { lo = 0; hi = 0; }
   var stops = '';
   for (var i = 0; i < 11; i++) {
-    var v = -sc.vmax + (2 * sc.vmax * i / 10);
+    var v = lo + (hi - lo) * i / 10;
     stops += '<div style="flex:1;height:8px;background:' + _color(v, sc) + '"></div>';
   }
   var legHtml = '<div style="display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--text-2);font-family:var(--mono);margin-top:4px;max-width:240px">';
   legHtml += '<div style="display:flex">' + stops + '</div>';
   legHtml += '<div style="display:flex;justify-content:space-between">';
-  legHtml += '<span>−' + sc.vmax.toFixed(3) + '</span>';
-  legHtml += '<span>0</span>';
-  legHtml += '<span>+' + sc.vmax.toFixed(3) + '</span>';
+  legHtml += '<span>' + (lo >= 0 ? '+' : '') + lo.toFixed(3) + '</span>';
+  legHtml += '<span>' + (hi >= 0 ? '+' : '') + hi.toFixed(3) + '</span>';
   legHtml += '</div></div>';
   document.getElementById('prism-primary-legend').innerHTML = legHtml;
 
