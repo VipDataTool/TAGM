@@ -235,6 +235,7 @@ async def init_hep(request: Request):
     engine_config.update({
         "delta_backend": "mmap",
         "hep_active": True,
+        "hep_evict_base_cache": True,
     })
 
     res = system_resources()

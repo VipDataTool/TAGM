@@ -147,6 +147,18 @@ class Pipeline:
         if delta_backend == "mmap" and hasattr(self.delta_store, 'reopen_readonly'):
             self.delta_store.reopen_readonly()
 
+        # HEP: evict base model from HF cache after deltas are computed.
+        # The base weights were only needed for subtraction; the mmap file
+        # now holds the deltas. Evicting frees ~6GB of disk for 3B models.
+        if delta_backend == "mmap" and engine_config.get("hep_evict_base_cache"):
+            from src.core.cache import evict_hf_model
+            evict_result = evict_hf_model(self.base_model_id)
+            if evict_result["removed"]:
+                freed_gb = evict_result["bytes_freed"] / 1e9
+                log("deltas", f"HEP: evicted base model cache "
+                              f"({self.base_model_id}), freed {freed_gb:.1f} GB")
+            gc.collect()
+
         if compute_spectral:
             log("spectral", "Computing delta spectral profile")
             compute_spectral_profile(

@@ -221,6 +221,36 @@ def clear_hf_cache() -> dict:
     return result
 
 
+def evict_hf_model(model_id: str) -> dict:
+    """Remove a specific model from the HuggingFace hub cache.
+
+    HF caches models in directories named models--{org}--{name},
+    e.g. Qwen/Qwen2.5-3B → models--Qwen--Qwen2.5-3B.
+
+    Returns dict with bytes_freed, removed (bool), error.
+    """
+    import shutil
+    cache_dir = get_hf_cache_dir()
+    result = {"bytes_freed": 0, "removed": False, "model_id": model_id, "error": None}
+    if not cache_dir.exists():
+        return result
+
+    # HF cache directory name: org/model → models--org--model
+    dir_name = "models--" + model_id.replace("/", "--")
+    target = cache_dir / dir_name
+
+    if target.exists() and target.is_dir():
+        try:
+            size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
+            shutil.rmtree(target)
+            result["bytes_freed"] = size
+            result["removed"] = True
+        except Exception as e:
+            result["error"] = str(e)
+
+    return result
+
+
 def clear_mmap_deltas() -> dict:
     """Remove all mmap delta files."""
     delta_dir = Path.home() / ".tagm" / "cache" / "deltas"

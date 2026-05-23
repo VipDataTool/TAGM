@@ -1549,7 +1549,7 @@ function showHepConfirm() {
       + '</div>'
       + '<div style="display:flex;gap:10px;justify-content:flex-end">'
       + '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="document.getElementById(\'hepConfirmOverlay\').remove()">Cancel</button>'
-      + '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--bg-1);background:var(--yellow);font-weight:600" onclick="confirmInitHep()">Confirm</button>'
+      + '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:#000;background:#E0D74B;font-weight:600" onclick="confirmInitHep()">Confirm</button>'
       + '</div></div>';
 
     document.body.appendChild(overlay);
