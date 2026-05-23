@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Correction Field Topology — TAGM</title>
+<style>
+:root {
+  --bg: #0c0c12;
+  --bg2: rgba(8,8,18,.75);
+  --text: #c2c0b6;
+  --text2: #8a8a96;
+  --border: rgba(255,255,255,.12);
+  --cyan: #56B4E9;
+  --green: rgba(0,158,115,0.85);
+  --vermillion: rgba(213,94,0,0.85);
+  --cream: rgba(240,237,228,1.0);
+  --spine-blue: rgba(86,180,233,1.0);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; }
+
+/* ── Canvas ── */
+#canvas { position:absolute; inset:0; width:100%; height:100%; cursor:grab; }
+#canvas:active { cursor:grabbing; }
+
+/* ── Top info bar ── */
+#info {
+  position:absolute; top:8px; left:8px; right:8px;
+  font-size:11px; font-family:'IBM Plex Mono',ui-monospace,monospace;
+  color:var(--text2); background:var(--bg2);
+  padding:4px 10px; border-radius:6px; z-index:5;
+  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+}
+#info .tag { color:var(--cyan); }
+
+/* ── Bottom controls bar ── */
+#controls {
+  position:absolute; bottom:8px; left:8px; right:8px;
+  display:flex; flex-wrap:wrap; gap:4px; align-items:center;
+  background:var(--bg2); padding:4px 8px; border-radius:6px; z-index:5;
+}
+#controls select, #controls button, #controls input {
+  font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:11px; border-radius:4px;
+}
+#controls select {
+  background:rgba(255,255,255,.05); border:1px solid var(--border);
+  color:#ccc; padding:3px 6px; cursor:pointer; max-width:220px;
+}
+#controls button {
+  background:transparent; border:1px solid var(--border);
+  color:#888; padding:3px 10px; cursor:pointer;
+}
+#controls button:hover { background:rgba(255,255,255,.05); }
+#controls button.on { border-color:var(--cyan); color:var(--spine-blue); }
+#controls .sep { color:var(--border); margin:0 2px; font-size:11px; }
+#controls label { font-size:10px; color:var(--text2); }
+#controls input[type=range] { width:36px; vertical-align:middle; }
+
+/* ── Legend ── */
+#legend {
+  position:absolute; bottom:48px; right:8px;
+  background:var(--bg2); padding:4px 8px; border-radius:6px; z-index:5;
+  display:flex; flex-direction:column; gap:2px;
+}
+#legend canvas { border-radius:2px; }
+#legend span { font-size:10px; color:var(--text2); font-family:'IBM Plex Mono',ui-monospace,monospace; }
+
+/* ── Loading / Error ── */
+#status {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:var(--text2); z-index:10; background:var(--bg);
+}
+#status.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<div id="status">Loading topology data…</div>
+<canvas id="canvas"></canvas>
+
+<div id="info" style="display:none">
+  <span id="infoTokens"></span>
+  <span id="infoMeasure"></span>
+  <span id="infoChannels"></span>
+</div>
+
+<div id="controls" style="display:none">
+  <select id="catSelect" title="Category"></select>
+  <span class="sep">|</span>
+  <select id="promptSelect" title="Prompt"></select>
+  <button id="btnPrev">Prev</button>
+  <button id="btnPlay">Play</button>
+  <button id="btnNext">Next</button>
+  <input type="range" id="speedSlider" min="1" max="10" value="4" title="Slideshow speed">
+  <span class="sep">|</span>
+  <select id="paletteSelect" title="Color palette"></select>
+  <span class="sep">|</span>
+  <label>Aa</label>
+  <input type="range" id="labelSlider" min="5" max="40" value="20" title="Label size">
+  <span class="sep">|</span>
+  <button id="btnRotate">Rotate</button>
+  <input type="range" id="rotateSlider" min="1" max="20" value="3" title="Rotate speed">
+  <span class="sep">|</span>
+  <button id="btnReset">Reset</button>
+</div>
+
+<div id="legend" style="display:none">
+  <div style="display:flex;gap:4px;align-items:center">
+    <span id="legMin">0</span>
+    <canvas id="legCanvas" width="200" height="18"></canvas>
+    <span id="legMax">1</span>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// Correction Field Topology Viewer — Standalone
+// Three.js terrain with channel-mapped visual encodings and
+// logistic normalization into a fixed shoebox volume.
+// ═══════════════════════════════════════════════════════════════
+
+(function() {
+'use strict';
+
+// ── Geometry constants (shoebox) ─────────────────────────────
+var K = 8;           // ranks per bank
+var COLS = K*2+1;    // base bank + spine + instruct bank
+var SCX = 0.55;      // column spacing
+var X_MAX = K*SCX;
+var FY = -2.2;       // floor Y
+var CEILING_RATIO = 1.0;
+var CEILING = CEILING_RATIO * K * SCX;
+var BG = [.047,.047,.07];
+var OFF = 0.032;     // grid/spine offset above surface
+
+// ── Color ramps ──────────────────────────────────────────────
+
+function stops(t,s){
+  for(var i=0;i<s.length-1;i++){
+    if(t<=s[i+1][0]){
+      var f=(t-s[i][0])/(s[i+1][0]-s[i][0]);
+      return s[i][1].map(function(v,j){return v+(s[i+1][1][j]-v)*f});
+    }
+  }
+  return s[s.length-1][1];
+}
+
+var PALETTES = {
+  dual: {
+    label:'Dual (Base ↔ Instruct)',
+    base:function(t){return stops(t,[[0,[.01,.02,.12]],[.15,[.02,.08,.32]],[.30,[.04,.20,.52]],[.45,[.06,.38,.68]],[.58,[.10,.56,.78]],[.70,[.22,.72,.84]],[.82,[.48,.85,.88]],[.92,[.72,.94,.96]],[1,[.90,.98,.99]]])},
+    inst:function(t){return stops(t,[[0,[.12,.02,.01]],[.15,[.32,.06,.02]],[.30,[.52,.12,.02]],[.45,[.72,.28,.04]],[.58,[.86,.44,.06]],[.70,[.94,.60,.08]],[.82,[.98,.76,.18]],[.92,[.99,.88,.42]],[1,[1,.96,.72]]])},
+    spine:function(t){return stops(t,[[0,[.06,.05,.06]],[.30,[.20,.18,.16]],[.60,[.50,.46,.38]],[.80,[.78,.72,.60]],[1,[.96,.92,.80]]])}
+  },
+  vivid: {
+    label:'Vivid (shared)',
+    base:function(t){return stops(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]])},
+    inst:null, spine:null
+  },
+  ember: {
+    label:'Ember (shared)',
+    base:function(t){return stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]])},
+    inst:null, spine:null
+  }
+};
+
+// ── Accent colors (Okabe-Ito adjacent) ───────────────────────
+var ACCENT = {
+  promoted: {underline:'rgba(0,158,115,0.85)', text:'rgba(120,220,175,1.0)'},
+  demoted:  {underline:'rgba(213,94,0,0.85)',  text:'rgba(245,165,115,1.0)'},
+  matched:  {underline:'rgba(160,160,170,0.45)',text:'rgba(220,218,208,1.0)'}
+};
+
+
+// ── Normalization ────────────────────────────────────────────
+
+function logisticNormalize(values) {
+  if (!values || values.length === 0) return [];
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] < min) min = values[i];
+    if (values[i] > max) max = values[i];
+  }
+  var range = max - min;
+  if (range < 1e-12) return values.map(function(){return 0.5});
+  var mid = (min + max) / 2;
+  var steepness = 2.944 / (max - mid); // ln(19) ≈ 2.944 → maps max to ~0.95
+  return values.map(function(v) {
+    return 1.0 / (1.0 + Math.exp(-steepness * (v - mid)));
+  });
+}
+
+function minMaxNormalize(values) {
+  if (!values || values.length === 0) return [];
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] < min) min = values[i];
+    if (values[i] > max) max = values[i];
+  }
+  var range = max - min;
+  if (range < 1e-12) return values.map(function(){return 0.5});
+  return values.map(function(v){return (v - min) / range});
+}
+
+
+// ── Transform payload → renderer data ────────────────────────
+
+function transformPayload(payload) {
+  var cats = {};
+  var prompts = payload.prompts || [];
+  var cc = (payload.launch_params||{}).channel_config || payload.channel_config || {};
+  var heightMeasure = cc.height || payload.height_measure || 'rank_displacement';
+  var brightnessChannel = cc.brightness || 'none';
+  var barChannel = cc.bar_length || 'none';
+  var filterChannel = cc.filter || 'none';
+
+  for (var pi = 0; pi < prompts.length; pi++) {
+    var p = prompts[pi];
+    var cat = p.category || 'unknown';
+    var toks = p.tokens || [];
+    var nT = toks.length;
+    if (nT === 0) continue;
+
+    var banks = (p.banks || {})[heightMeasure];
+    if (!banks) continue;
+    var primary = banks.primary || [];
+    var iBank = banks.instruct_bank || [];
+    var bBank = banks.base_bank || [];
+    nT = Math.min(nT, iBank.length);
+    toks = toks.slice(0, nT);
+
+    // Collect bank and primary values SEPARATELY for logistic
+    var allBankVals = [];
+    for (var i = 0; i < nT; i++) {
+      var ib = iBank[i]||[], bb = bBank[i]||[];
+      for (var j = 0; j < K; j++) {
+        allBankVals.push(ib[j] != null ? ib[j] : 0);
+        allBankVals.push(bb[j] != null ? bb[j] : 0);
+      }
+    }
+    var allPrimVals = [];
+    for (var i = 0; i < nT; i++) allPrimVals.push(primary[i] != null ? primary[i] : 0);
+
+    var normBanks = logisticNormalize(allBankVals);
+    var normPrims = logisticNormalize(allPrimVals);
+
+    var idx = 0;
+    var normI = [], normB = [];
+    for (var i = 0; i < nT; i++) {
+      var ni = [], nb = [];
+      for (var j = 0; j < K; j++) { ni.push(normBanks[idx++]); nb.push(normBanks[idx++]); }
+      normI.push(ni); normB.push(nb);
+    }
+
+    // Normalize scalar channels
+    var scalars = p.scalars || {};
+    var normScalars = {};
+    for (var sn in scalars) {
+      if (scalars.hasOwnProperty(sn)) normScalars[sn] = minMaxNormalize(scalars[sn]);
+    }
+
+    var brightArr = (brightnessChannel !== 'none' && normScalars[brightnessChannel]) || null;
+    var barArr = (barChannel !== 'none' && normScalars[barChannel]) || null;
+    var filterArr = (filterChannel !== 'none' && normScalars[filterChannel]) || null;
+
+    // Status and labels
+    var status = p.status || {};
+    var iStatus = status.instruct_status || [];
+    var bStatus = status.base_status || [];
+    var labels = p.labels || {};
+    var cf = labels.counterfactual_tokens || [];
+    var baseCf = labels.base_counterfactual_tokens || [];
+
+    // Build rows
+    var rows = [];
+    for (var i = 0; i < nT; i++) {
+      // Base bank reversed for lattice ordering
+      var bm = [];
+      for (var j = K-1; j >= 0; j--) bm.push(normB[i][j]);
+      var im = normI[i];
+
+      // Counterfactual labels: instruct then base reversed
+      var ctoks = [];
+      var cands = cf[i]||[], baseCands = baseCf[i]||[];
+      for (var j = 0; j < K; j++) {
+        if (j < cands.length && cands[j]) ctoks.push(Array.isArray(cands[j]) ? cands[j][0]||'' : String(cands[j]));
+        else ctoks.push('');
+      }
+      for (var j = K-1; j >= 0; j--) {
+        if (j < baseCands.length && baseCands[j]) {
+          var nm = Array.isArray(baseCands[j]) ? baseCands[j][0]||'' : String(baseCands[j]);
+          ctoks.push('\u00B7'+nm);
+        } else ctoks.push('\u00B7');
+      }
+
+      // Status row: instruct 0..K-1, then base reversed
+      var iSt = iStatus[i]||[], bSt = bStatus[i]||[];
+      var statusRow = [];
+      for (var j = 0; j < K; j++) statusRow.push(iSt[j]||'');
+      for (var j = K-1; j >= 0; j--) statusRow.push(bSt[j]||'');
+
+      rows.push({
+        bm: bm, im: im,
+        spine: normPrims[i],
+        brightness: brightArr ? brightArr[i] : null,
+        bar: barArr ? barArr[i] : null,
+        filter: filterArr ? filterArr[i] : null,
+        ctoks: ctoks,
+        statusRow: statusRow
+      });
+    }
+
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push({ prompt: p.prompt||'', tokens: toks, rows: rows });
+  }
+
+  return {
+    data: cats,
+    config: {
+      heightMeasure: heightMeasure,
+      brightnessChannel: brightnessChannel,
+      barChannel: barChannel,
+      filterChannel: filterChannel,
+      brightnessStrength: (payload.launch_params||{}).brightness_strength || 0.3,
+      accentMode: (payload.launch_params||{}).accent_mode || 'off',
+      showGrid: (payload.launch_params||{}).show_grid !== false,
+      showLabels: (payload.launch_params||{}).show_labels !== false,
+      showLegend: (payload.launch_params||{}).show_legend !== false,
+      showSpine: (payload.launch_params||{}).show_spine !== false,
+      showBars: (payload.launch_params||{}).show_bars !== false
+    }
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Scene
+// ═══════════════════════════════════════════════════════════════
+
+var canvas = document.getElementById('canvas');
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(44, 1, 0.1, 200);
+var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x0c0c12, 1);
+
+function resize() {
+  var w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+scene.add(new THREE.AmbientLight(0xaabbcc, 1.0));
+var dl1 = new THREE.DirectionalLight(0xccddff, 1.0); dl1.position.set(3,10,6); scene.add(dl1);
+var dl2 = new THREE.DirectionalLight(0x667788, 0.5); dl2.position.set(-4,5,-3); scene.add(dl2);
+
+
+// ═══════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════
+
+var D = null;         // category → [{ prompt, tokens, rows }]
+var CFG = null;       // config from payload
+var curCat = null;
+var curIdx = 0;
+var curPalette = 'dual';
+var labelScale = 2.0;
+var autoRotate = false;
+var rotateSpeed = 0.3;
+var slideshowPlaying = false;
+var slideshowSpeed = 4;
+var slideshowTimer = null;
+
+// Scene objects to dispose on rebuild
+var meshGroup = null;
+var labelSprites = [];
+
+function rampFor(colIdx) {
+  var p = PALETTES[curPalette];
+  if (colIdx === K && p.spine) return p.spine;
+  if (colIdx > K && p.inst) return p.inst;
+  return p.base;
+}
+
+function mixColor(normVal, brightnessT, xAbs, colIdx) {
+  var t = Math.max(0, Math.min(1, normVal));
+  var rgb = rampFor(colIdx)(t);
+  var r = rgb[0], g = rgb[1], b = rgb[2];
+  if (brightnessT != null) {
+    var boost = 1.0 + brightnessT * CFG.brightnessStrength;
+    r = Math.min(1, r * boost);
+    g = Math.min(1, g * boost);
+    b = Math.min(1, b * boost);
+  }
+  var fade = Math.pow(xAbs / X_MAX, 1.6);
+  r = r*(1-fade) + BG[0]*fade;
+  g = g*(1-fade) + BG[1]*fade;
+  b = b*(1-fade) + BG[2]*fade;
+  return new THREE.Color(r, g, b);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Build terrain
+// ═══════════════════════════════════════════════════════════════
+
+function clearScene() {
+  if (meshGroup) { scene.remove(meshGroup); meshGroup = null; }
+  labelSprites.forEach(function(s) {
+    scene.remove(s);
+    if (s.geometry) s.geometry.dispose();
+    if (s.material) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); }
+  });
+  labelSprites = [];
+}
+
+function buildTerrain() {
+  clearScene();
+  if (!D || !D[curCat]) return;
+  var entries = D[curCat];
+  if (!entries[curIdx]) return;
+  var entry = entries[curIdx];
+  var toks = entry.tokens, rows = entry.rows;
+  var nT = toks.length;
+  if (nT === 0) return;
+
+  meshGroup = new THREE.Group();
+  scene.add(meshGroup);
+
+  var scZ = SCX;
+  var zDepth = (nT-1) * scZ;
+  var zOff = zDepth / 2;
+
+  // Build vertex grid
+  var vtx = [];
+  var vsArr = [], csArr = [], ixArr = [];
+
+  for (var t = 0; t < nT; t++) {
+    vtx.push([]);
+    var row = rows[t];
+    var z = -t * scZ + zOff;
+
+    for (var c = 0; c < COLS; c++) {
+      var x, normVal;
+      if (c < K)       { x = (c - K) * SCX; normVal = row.bm[c]; }
+      else if (c === K) { x = 0;             normVal = row.spine; }
+      else              { x = (c - K) * SCX; normVal = row.im[c - K - 1]; }
+
+      var y = FY + normVal * CEILING;
+      vtx[t].push({ x:x, y:y, z:z });
+      vsArr.push(x, y, z);
+      var col = mixColor(normVal, row.brightness, Math.abs(x), c);
+      csArr.push(col.r, col.g, col.b);
+    }
+  }
+
+  // Filter dim
+  for (var t = 0; t < nT; t++) {
+    if (rows[t].filter != null && rows[t].filter < 0.5) {
+      for (var c = 0; c < COLS; c++) {
+        var i3 = (t * COLS + c) * 3;
+        csArr[i3] *= 0.15; csArr[i3+1] *= 0.15; csArr[i3+2] *= 0.15;
+      }
+    }
+  }
+
+  // Surface mesh
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(vsArr, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(csArr, 3));
+  for (var t = 0; t < nT-1; t++) {
+    for (var c = 0; c < COLS-1; c++) {
+      var a = t*COLS+c, b = a+1, cc2 = a+COLS, dd = cc2+1;
+      ixArr.push(a, b, cc2, b, dd, cc2);
+    }
+  }
+  geo.setIndex(ixArr);
+  geo.computeVertexNormals();
+  var mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+    vertexColors:true, side:THREE.DoubleSide,
+    shininess:30, emissive:0x444444, emissiveIntensity:0.35
+  }));
+  meshGroup.add(mesh);
+
+  // Floor
+  var floorGeo = new THREE.PlaneGeometry(COLS*SCX+1.2, nT*scZ+2);
+  floorGeo.rotateX(-Math.PI/2);
+  var floor = new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({
+    color:0x0c0c12, transparent:true, opacity:0.25, side:THREE.DoubleSide
+  }));
+  floor.position.set(0, FY-0.01, 0);
+  meshGroup.add(floor);
+
+  // Grid lines
+  if (CFG.showGrid) {
+    var gP = [], gC = [];
+    function seg(ax,ay,az,bx,by,bz,r,g,b) {
+      gP.push(ax,ay+OFF,az,bx,by+OFF,bz);
+      gC.push(r,g,b,r,g,b);
+    }
+    for (var t = 0; t < nT; t++) {
+      for (var c = 0; c < COLS-1; c++) {
+        var v0 = vtx[t][c], v1 = vtx[t][c+1];
+        var near = (c===K-1||c===K) ? 0.30 : 0.14;
+        seg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z, near*.55,near*.65,near);
+      }
+    }
+    for (var c = 0; c < COLS; c++) {
+      var isSpine = (c===K);
+      for (var t = 0; t < nT-1; t++) {
+        var v0 = vtx[t][c], v1 = vtx[t+1][c];
+        if (isSpine) seg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62);
+        else {
+          var fd = 1 - Math.pow(Math.abs(c-K)/K,.7);
+          seg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,fd*.22,fd*.26,fd*.38);
+        }
+      }
+    }
+    var gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gP,3));
+    gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gC,3));
+    meshGroup.add(new THREE.LineSegments(gGeo, new THREE.LineBasicMaterial({
+      vertexColors:true, transparent:true, opacity:0.92
+    })));
+  }
+
+  // Spine line + dots
+  if (CFG.showSpine) {
+    var spinePts = [];
+    for (var t = 0; t < nT; t++) {
+      var sv = vtx[t][K];
+      spinePts.push(new THREE.Vector3(sv.x, sv.y+OFF+0.04, sv.z));
+    }
+    var spGeo = new THREE.BufferGeometry().setFromPoints(spinePts);
+    meshGroup.add(new THREE.Line(spGeo, new THREE.LineBasicMaterial({
+      color:0xf0ede4, linewidth:2, transparent:true, opacity:0.85
+    })));
+    var dotGeo = new THREE.SphereGeometry(0.035,6,6);
+    var dotMat = new THREE.MeshBasicMaterial({color:0xf0ede4, transparent:true, opacity:0.7});
+    for (var t = 0; t < nT; t++) {
+      var sv = vtx[t][K];
+      var dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(sv.x, sv.y+OFF+0.04, sv.z);
+      meshGroup.add(dot);
+    }
+  }
+
+  // Labels
+  if (CFG.showLabels) {
+    var LW = Math.round(96*labelScale), LH = Math.round(24*labelScale);
+    var LSX = SCX*0.90*labelScale, LSY = LSX*(LH/LW);
+    var SB = 1.5; // spine boost
+    var SLW = Math.round(LW*SB), SLH = Math.round(LH*SB);
+    var SLSX = LSX*SB, SLSY = SLSX*(SLH/SLW);
+    var lfpx = Math.round(12*labelScale);
+    var sfpx = Math.round(12*labelScale*SB);
+    var texCache = {};
+
+    function makeLabel(str, isSpine, colIdx, status, barVal) {
+      var acKey = (CFG.accentMode==='promoted_demoted' && status) ? status : 'none';
+      var bBucket = Math.round((barVal||0)*8);
+      var key = str+'|'+bBucket+'|'+labelScale+'|'+(isSpine?'S':'C')+'|'+colIdx+'|'+acKey;
+      if (texCache[key]) return texCache[key];
+
+      var w = isSpine?SLW:LW, h = isSpine?SLH:LH, fpx = isSpine?sfpx:lfpx;
+      var S = 2, cv = document.createElement('canvas');
+      cv.width = w*S; cv.height = h*S;
+      var cx = cv.getContext('2d'); cx.scale(S,S);
+      cx.font = '700 '+fpx+'px system-ui,sans-serif';
+      cx.textAlign = 'center'; cx.textBaseline = 'middle';
+
+      // Text stroke + fill
+      cx.lineWidth = Math.max(isSpine?3:2, labelScale*(isSpine?2.2:1.5));
+      cx.strokeStyle = isSpine ? 'rgba(0,0,0,0.98)' : 'rgba(0,0,0,0.95)';
+      cx.strokeText(str, w/2, h/2);
+      if (isSpine) cx.fillStyle = 'rgba(86,180,233,1.0)';
+      else if (CFG.accentMode==='promoted_demoted' && status && ACCENT[status])
+        cx.fillStyle = ACCENT[status].text;
+      else cx.fillStyle = 'rgba(240,237,228,1.0)';
+      cx.fillText(str, w/2, h/2);
+
+      // Underline bar — driven by bar channel, colored by status
+      if (CFG.showBars && barVal != null) {
+        var ulLen = Math.max(4, Math.round((w-10)*barVal));
+        var ulColor, ulAlpha;
+        if (isSpine) { ulColor='rgba(86,180,233,0.8)'; ulAlpha=0.6; }
+        else if (CFG.accentMode==='promoted_demoted' && status && ACCENT[status]) {
+          ulColor = ACCENT[status].underline; ulAlpha = 0.85;
+        } else {
+          var rgb2 = rampFor(colIdx)(Math.max(.15, barVal*.75+.18));
+          ulColor = 'rgb('+Math.round(rgb2[0]*255)+','+Math.round(rgb2[1]*255)+','+Math.round(rgb2[2]*255)+')';
+          ulAlpha = 0.7;
+        }
+        cx.globalAlpha = ulAlpha;
+        cx.fillStyle = ulColor;
+        var ulOff = Math.round((isSpine?10:8)*labelScale*(isSpine?SB:1));
+        cx.fillRect((w-ulLen)/2, h/2+ulOff, ulLen, Math.max(2,Math.round(2*labelScale)));
+      }
+
+      texCache[key] = new THREE.CanvasTexture(cv);
+      return texCache[key];
+    }
+
+    for (var t = 0; t < nT; t++) {
+      var row = rows[t];
+      for (var c = 0; c < COLS; c++) {
+        var vv = vtx[t][c];
+        var isSpine = (c===K);
+        var str;
+        if (c < K) str = (row.ctoks[K+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        else if (isSpine) str = toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        else str = (row.ctoks[2*K-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        if (!str) str = '\u00B7';
+
+        var status = null;
+        if (!isSpine) {
+          if (c < K) status = row.statusRow[K+(K-1-c)] || null;
+          else status = row.statusRow[c-K-1] || null;
+        }
+
+        var tex = makeLabel(str, isSpine, c, status, row.bar);
+        var fd = isSpine ? 1.0 : Math.max(.28, 1-Math.pow(Math.abs(c-K)/K,1.2)*.68);
+        var sx = isSpine?SLSX:LSX, sy = isSpine?SLSY:LSY;
+        var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+          map:tex, transparent:true, depthTest:false, opacity:fd
+        }));
+        sp.position.set(vv.x, vv.y+OFF+(isSpine?.10:.06), vv.z);
+        sp.scale.set(sx, sy, 1);
+        scene.add(sp);
+        labelSprites.push(sp);
+      }
+    }
+  }
+
+  // Axis labels
+  if (CFG.showLegend) {
+    var frontZ = vtx[0][K].z + SCX*.6;
+    function axLabel(txt, xp, align) {
+      var ac = document.createElement('canvas'); ac.width=160; ac.height=22;
+      var ax = ac.getContext('2d');
+      ax.font = '500 10px system-ui,sans-serif';
+      ax.fillStyle = 'rgba(110,110,130,0.55)';
+      ax.textAlign = align||'center';
+      ax.fillText(txt, align==='right'?155:align==='left'?5:80, 14);
+      var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map:new THREE.CanvasTexture(ac), transparent:true, depthTest:false
+      }));
+      sp.position.set(xp, FY+.1, frontZ); sp.scale.set(1.3,.19,1);
+      scene.add(sp); labelSprites.push(sp);
+    }
+    axLabel('\u2190 base', -2.2, 'right');
+    axLabel('instruct \u2192', 2.2, 'left');
+  }
+
+  // Update info bar
+  document.getElementById('infoTokens').textContent = nT + ' tokens \u00B7 shoebox ' + K + '\u00D7' + nT;
+  document.getElementById('infoMeasure').innerHTML = 'height: <span class="tag">' + CFG.heightMeasure + '</span>';
+  var chParts = [];
+  if (CFG.brightnessChannel !== 'none') chParts.push('brightness: ' + CFG.brightnessChannel);
+  if (CFG.barChannel !== 'none') chParts.push('bar: ' + CFG.barChannel);
+  if (CFG.filterChannel !== 'none') chParts.push('filter: ' + CFG.filterChannel);
+  document.getElementById('infoChannels').textContent = chParts.join(' \u00B7 ') || 'logistic-normalized';
+
+  // Update legend
+  updateLegend();
+
+  // Reset camera
+  camTheta = 0.0; camPhi = 0.08;
+  var tw = COLS*SCX, td = zDepth;
+  camRad = Math.max(10, Math.max(tw, td)*0.8+4);
+  camTarget.set(0, FY + CEILING*0.4, 0);
+  updateCamera();
+}
+
+
+// ── Legend ────────────────────────────────────────────────────
+
+function updateLegend() {
+  var legC = document.getElementById('legCanvas');
+  var p = PALETTES[curPalette];
+  var hasDual = !!p.inst;
+  legC.width = hasDual ? 200 : 100;
+  legC.height = hasDual ? 18 : 6;
+  var ctx = legC.getContext('2d');
+  ctx.clearRect(0,0,legC.width,legC.height);
+  if (hasDual) {
+    var g1 = ctx.createLinearGradient(0,0,legC.width,0);
+    for (var i=0;i<=20;i++){var t=i/20;var rgb=p.base(t);g1.addColorStop(t,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')');}
+    ctx.fillStyle=g1;ctx.fillRect(0,0,legC.width,7);ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('base',2,6);
+    var g2 = ctx.createLinearGradient(0,0,legC.width,0);
+    for (var i=0;i<=20;i++){var t=i/20;var rgb=p.inst(t);g2.addColorStop(t,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')');}
+    ctx.fillStyle=g2;ctx.fillRect(0,11,legC.width,7);ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('inst',2,17);
+  } else {
+    var g = ctx.createLinearGradient(0,0,100,0);
+    for (var i=0;i<=20;i++){var t=i/20;var rgb=p.base(t);g.addColorStop(t,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')');}
+    ctx.fillStyle=g;ctx.fillRect(0,0,100,6);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Camera
+// ═══════════════════════════════════════════════════════════════
+
+var camTheta = 0.0, camPhi = 0.08, camRad = 14;
+var camTarget = new THREE.Vector3(0, FY+CEILING*0.4, 0);
+var dragging = false;
+
+function updateCamera() {
+  camera.position.set(
+    camTarget.x + camRad*Math.sin(camPhi)*Math.cos(camTheta),
+    camTarget.y + camRad*Math.cos(camPhi),
+    camTarget.z + camRad*Math.sin(camPhi)*Math.sin(camTheta)
+  );
+  camera.lookAt(camTarget);
+}
+
+var ptrs = {};
+canvas.addEventListener('contextmenu', function(e){e.preventDefault()});
+canvas.addEventListener('pointerdown', function(e){
+  canvas.setPointerCapture(e.pointerId);
+  ptrs[e.pointerId] = {btn:e.button, x:e.clientX, y:e.clientY};
+  dragging = true;
+});
+canvas.addEventListener('pointerup', function(e){
+  canvas.releasePointerCapture(e.pointerId);
+  delete ptrs[e.pointerId];
+  if (!Object.keys(ptrs).length) dragging = false;
+});
+canvas.addEventListener('pointermove', function(e){
+  var p = ptrs[e.pointerId]; if (!p) return;
+  var dx = e.clientX-p.x, dy = e.clientY-p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (p.btn === 0) {
+    camTheta += dx*0.008;
+    camPhi = Math.max(0.08, Math.min(1.55, camPhi - dy*0.008));
+  } else {
+    var speed = camRad*0.0012;
+    var right = new THREE.Vector3();
+    var dir = new THREE.Vector3(Math.sin(camPhi)*Math.cos(camTheta),Math.cos(camPhi),Math.sin(camPhi)*Math.sin(camTheta));
+    right.crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
+    var up = new THREE.Vector3().crossVectors(right, dir.normalize()).normalize();
+    camTarget.addScaledVector(right, -dx*speed);
+    camTarget.addScaledVector(up, -dy*speed);
+  }
+  updateCamera();
+});
+canvas.addEventListener('wheel', function(e){
+  e.preventDefault();
+  camRad = Math.max(4, Math.min(30, camRad + e.deltaY*0.012));
+  updateCamera();
+}, {passive:false});
+
+
+// ═══════════════════════════════════════════════════════════════
+// UI controls
+// ═══════════════════════════════════════════════════════════════
+
+function populateUI() {
+  // Category
+  var catSel = document.getElementById('catSelect');
+  catSel.innerHTML = '';
+  var cats = Object.keys(D);
+  cats.forEach(function(c) {
+    var o = document.createElement('option'); o.value = c; o.textContent = c;
+    if (c === curCat) o.selected = true;
+    catSel.appendChild(o);
+  });
+
+  // Prompts
+  refreshPromptSelect();
+
+  // Palettes
+  var palSel = document.getElementById('paletteSelect');
+  palSel.innerHTML = '';
+  for (var pk in PALETTES) {
+    var o = document.createElement('option'); o.value = pk; o.textContent = PALETTES[pk].label;
+    if (pk === curPalette) o.selected = true;
+    palSel.appendChild(o);
+  }
+}
+
+function refreshPromptSelect() {
+  var pSel = document.getElementById('promptSelect');
+  pSel.innerHTML = '';
+  var entries = D[curCat] || [];
+  entries.forEach(function(e, i) {
+    var o = document.createElement('option'); o.value = i;
+    o.textContent = e.prompt.slice(0,50);
+    if (i === curIdx) o.selected = true;
+    pSel.appendChild(o);
+  });
+}
+
+function stopSlideshow() {
+  slideshowPlaying = false;
+  if (slideshowTimer) { clearTimeout(slideshowTimer); slideshowTimer = null; }
+  document.getElementById('btnPlay').classList.remove('on');
+  document.getElementById('btnPlay').textContent = 'Play';
+}
+
+// Event handlers
+document.getElementById('catSelect').addEventListener('change', function(){
+  curCat = this.value; curIdx = 0; stopSlideshow();
+  refreshPromptSelect(); buildTerrain();
+});
+document.getElementById('promptSelect').addEventListener('change', function(){
+  curIdx = parseInt(this.value)||0; stopSlideshow(); buildTerrain();
+});
+document.getElementById('btnPrev').addEventListener('click', function(){
+  var entries = D[curCat]||[]; if (!entries.length) return;
+  curIdx = (curIdx-1+entries.length)%entries.length;
+  stopSlideshow(); refreshPromptSelect(); buildTerrain();
+});
+document.getElementById('btnNext').addEventListener('click', function(){
+  var entries = D[curCat]||[]; if (!entries.length) return;
+  curIdx = (curIdx+1)%entries.length;
+  stopSlideshow(); refreshPromptSelect(); buildTerrain();
+});
+document.getElementById('btnPlay').addEventListener('click', function(){
+  if (slideshowPlaying) { stopSlideshow(); return; }
+  slideshowPlaying = true;
+  this.classList.add('on'); this.textContent = 'Stop';
+  advance();
+});
+document.getElementById('speedSlider').addEventListener('input', function(){
+  slideshowSpeed = parseInt(this.value)||4;
+});
+document.getElementById('paletteSelect').addEventListener('change', function(){
+  curPalette = this.value; buildTerrain();
+});
+document.getElementById('labelSlider').addEventListener('input', function(){
+  labelScale = parseInt(this.value)/10; buildTerrain();
+});
+document.getElementById('btnRotate').addEventListener('click', function(){
+  autoRotate = !autoRotate;
+  this.classList.toggle('on', autoRotate);
+});
+document.getElementById('rotateSlider').addEventListener('input', function(){
+  rotateSpeed = parseInt(this.value)/10;
+});
+document.getElementById('btnReset').addEventListener('click', function(){
+  camTheta = 0.0; camPhi = 0.08;
+  var entries = D[curCat]||[];
+  var nT = entries[curIdx] ? entries[curIdx].tokens.length : 10;
+  camRad = Math.max(10, Math.max(COLS*SCX, (nT-1)*SCX)*0.8+4);
+  camTarget.set(0, FY+CEILING*0.4, 0);
+  updateCamera();
+});
+
+function advance() {
+  if (!slideshowPlaying) return;
+  var entries = D[curCat]||[];
+  if (!entries.length) { stopSlideshow(); return; }
+  curIdx = (curIdx+1)%entries.length;
+  if (curIdx === 0) {
+    var cats = Object.keys(D);
+    var ci = cats.indexOf(curCat);
+    if (cats.length > 1) { curCat = cats[(ci+1)%cats.length]; curIdx = 0; }
+  }
+  refreshPromptSelect(); buildTerrain();
+  var delay = Math.max(500, 4000-slideshowSpeed*350);
+  slideshowTimer = setTimeout(advance, delay);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Render loop
+// ═══════════════════════════════════════════════════════════════
+
+var lastTime = performance.now();
+function loop() {
+  requestAnimationFrame(loop);
+  var now = performance.now(), dt = (now-lastTime)/1000; lastTime = now;
+  if (autoRotate && !dragging) {
+    camTheta += rotateSpeed * Math.PI*2/60 * dt;
+    updateCamera();
+  }
+  renderer.render(scene, camera);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Init: fetch data and start
+// ═══════════════════════════════════════════════════════════════
+
+fetch('/api/modules/correction_field_topology/results')
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.ok || !d.results) throw new Error('No module results. Run Correction Field Topology first.');
+    var payload = d.results;
+    if (payload.error) throw new Error(payload.error);
+    if (!payload.prompts || !payload.prompts.length) throw new Error('No prompts in payload.');
+
+    var transformed = transformPayload(payload);
+    D = transformed.data;
+    CFG = transformed.config;
+
+    if (!Object.keys(D).length) throw new Error('No renderable categories.');
+
+    // Pick initial category
+    curCat = D['jailbreak'] ? 'jailbreak' : D['harmful'] ? 'harmful' : Object.keys(D)[0];
+    curIdx = 0;
+    curPalette = (payload.launch_params||{}).palette || 'dual';
+    autoRotate = !!(payload.launch_params||{}).auto_rotate;
+    rotateSpeed = (payload.launch_params||{}).rotate_speed || 0.3;
+
+    // Show UI
+    document.getElementById('status').classList.add('hidden');
+    document.getElementById('info').style.display = '';
+    document.getElementById('controls').style.display = '';
+    document.getElementById('legend').style.display = '';
+
+    populateUI();
+    updateCamera();
+    buildTerrain();
+    loop();
+  })
+  .catch(function(err){
+    document.getElementById('status').textContent = '\u274C ' + err.message;
+    console.error('Topology viz error:', err);
+  });
+
+})();
+</script>
+</body>
+</html>

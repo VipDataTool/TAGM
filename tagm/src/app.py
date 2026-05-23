@@ -101,7 +101,8 @@ async def favicon():
 
 for _viz in ("chat", "roundtable", "domain_surface_viz",
              "correction_prism_viz",
-             "probe_diagnostic_viz"):
+             "probe_diagnostic_viz",
+             "correction_field_topology_viz"):
     def _make_viz_route(name):
         async def handler():
             p = _static_dir / f"{name}.html"

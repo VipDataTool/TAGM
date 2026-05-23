@@ -1269,746 +1269,927 @@ document.addEventListener('click',e=>{
   if(chevron) chevron.textContent=body.classList.contains('collapsed')?'▶':'▼';
 });
 
-// ─── Alignment Terrain Viewer ──────────────────────────────────
+// ─── Alignment Terrain Viewer v3 — Channel-Mapped Architecture ──
+// Replaces the hardcoded data→visual bindings with configurable
+// channel mapping. All measures go through logistic normalization
+// into a fixed "shoebox" volume defined by the lattice geometry.
+
 let _terrainState = null;
 
-// Transforms the uniform module payload into the renderer's internal D shape.
-// Accepts the full result object from the correction_field_topology module.
-// Each row is [bm, im, kl, primary, ctoks]. Primary replaces the old
-// replacement_ratio slot and carries the per-token primary-signal value
-// that drives the spine ridge vertex.
-function _terrainFromPayload(payload){
-  const cats={};
-  const prompts=payload.prompts||[];
-  const targetMax=payload.target_max||0.008;
-  const accentAvailable=!!payload.accent_available;
+// ─── Logistic normalization ─────────────────────────────────────
+// Maps raw values into [0, 1] with sigmoid compression so that
+// extreme values saturate rather than dominating the terrain.
+// Parameterized per-prompt from the distribution's min/max.
 
-  for(const p of prompts){
-    const cat=p.category||'unknown';
-    const toks=p.tokens||[];
-    const nT=toks.length;
-    const primary=p.primary||[];
-    const kls=p.per_token_kl||[];
-    const iBank=p.instruct_bank||[];
-    const bBank=p.base_bank||[];
-    const iStatus=p.instruct_status||[];
-    const bStatus=p.base_status||[];
-    const cf=p.counterfactual_tokens||[];
-    const baseCf=p.base_counterfactual_tokens||[];
+function _logisticNormalize(values, floor, ceiling) {
+  // values: array of raw floats
+  // Returns: array of floats in [0, 1] representing position
+  //          within the shoebox vertical range.
+  if (!values || values.length === 0) return [];
 
-    // Per-prompt normalization with separate scale factors for the two
-    // axes of signal. The banks carry per-rank values whose variation
-    // across ranks is the source of the terrain's texture; the primary
-    // (spine) carries the per-token total, which is naturally an order
-    // of magnitude larger because it aggregates across ranks.
-    // Normalizing them jointly would crush the bank variation against
-    // the floor, so we compute two independent scale factors so each
-    // signal maps its own maximum onto target_max.
-    let bankMax=0, primaryMax=0;
-    for(let i=0;i<nT;i++){
-      if(primary[i]>primaryMax) primaryMax=primary[i];
-      const ip=iBank[i]||[],bp=bBank[i]||[];
-      for(let j=0;j<8;j++){
-        if(ip[j]>bankMax) bankMax=ip[j];
-        if(bp[j]>bankMax) bankMax=bp[j];
-      }
-    }
-    const bankScale=bankMax>1e-10?(targetMax/bankMax):1;
-    const primaryScale=primaryMax>1e-10?(targetMax/primaryMax):1;
-
-    if(!cats[cat]) cats[cat]=[];
-    const rows=[];
-
-    for(let i=0;i<nT;i++){
-      const kl=(kls[i]!=null)?kls[i]:0;
-      const primaryScaled=(primary[i]||0)*primaryScale;
-
-      // Per-rank magnitudes used by the label underline layer.
-      const iDisp=iBank[i]||[];
-      const im=[];
-      const imMag=[];
-      for(let j=0;j<8;j++){
-        const v=(iDisp[j]!=null?iDisp[j]:0);
-        im.push(v*bankScale);
-        imMag.push(v);
-      }
-      const bDisp=bBank[i]||[];
-      const bm=[];
-      const bmMag=new Array(8);
-      // Base bank is reversed so columns 9..16 in the lattice render
-      // highest-rank-first moving outward from the spine.
-      for(let j=7;j>=0;j--){
-        const v=(bDisp[j]!=null?bDisp[j]:0);
-        bm.push(v*bankScale);
-        bmMag[7-j]=v;
-      }
-
-      // Counterfactual labels
-      const cands=cf[i]||[];
-      const baseCands=baseCf[i]||[];
-      const ctoks=[];
-      for(let j=0;j<8;j++){
-        if(j<cands.length&&cands[j]){
-          ctoks.push(Array.isArray(cands[j])?cands[j][0]||'':String(cands[j]));
-        }else ctoks.push('');
-      }
-      if(baseCands.length>0){
-        for(let j=7;j>=0;j--){
-          if(j<baseCands.length&&baseCands[j]){
-            const nm=Array.isArray(baseCands[j])?baseCands[j][0]||'':String(baseCands[j]);
-            ctoks.push('\u00B7'+nm);
-          }else ctoks.push('\u00B7');
-        }
-      }else{
-        for(let j=0;j<8;j++) ctoks.push('');
-      }
-
-      // Per-rank status strings, reversed on the base side to match the
-      // lattice column ordering (column 9 = base rank 0).
-      const iSt=iStatus[i]||[];
-      const bSt=bStatus[i]||[];
-      const statusRow=[];
-      for(let j=0;j<8;j++) statusRow.push(iSt[j]||'');
-      for(let j=7;j>=0;j--) statusRow.push(bSt[j]||'');
-
-      // Row layout: [bm, im, kl, primary_scaled, ctoks, status_row, per_rank_magnitudes]
-      // per_rank_magnitudes runs in the same column order as ctoks and statusRow,
-      // i.e. imMag[0..7] for the instruct bank, bmMag[0..7] for the base bank.
-      const perRankMag=[...imMag];
-      for(let j=7;j>=0;j--) perRankMag.push(bmMag[j]);
-
-      rows.push([bm,im,Math.round(kl*1e4)/1e4,primaryScaled,ctoks,statusRow,perRankMag]);
-    }
-    cats[cat].push([p.prompt||'',toks,rows]);
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] < min) min = values[i];
+    if (values[i] > max) max = values[i];
   }
 
-  console.log('[Terrain] Payload transform: measure='+payload.measure+
-              ', target_max='+targetMax+
-              ', prompts='+prompts.length);
+  var range = max - min;
+  if (range < 1e-12) {
+    // Flat distribution — place at mid-height
+    return values.map(function() { return 0.5; });
+  }
+
+  // Sigmoid parameterization:
+  // midpoint = center of the distribution
+  // steepness chosen so that the max value maps to ~0.95
+  // and the min maps to ~0.05
+  var mid = (min + max) / 2;
+  // Solve: sigmoid(max) = 0.95 → steepness * (max - mid) = ln(0.95/0.05)
+  // ln(19) ≈ 2.944
+  var steepness = 2.944 / (max - mid);
+
+  return values.map(function(v) {
+    return 1.0 / (1.0 + Math.exp(-steepness * (v - mid)));
+  });
+}
+
+// Simpler min-max normalization for scalars that drive bars/brightness
+function _minMaxNormalize(values) {
+  if (!values || values.length === 0) return [];
+  var min = Infinity, max = -Infinity;
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] < min) min = values[i];
+    if (values[i] > max) max = values[i];
+  }
+  var range = max - min;
+  if (range < 1e-12) return values.map(function() { return 0.5; });
+  return values.map(function(v) {
+    return Math.max(0, Math.min(1, (v - min) / range));
+  });
+}
+
+
+// ─── Payload transform ──────────────────────────────────────────
+// Converts the v3 module payload into the renderer's internal shape.
+// Applies logistic normalization to height, min-max to scalars.
+
+function _terrainFromPayload(payload) {
+  var cats = {};
+  var prompts = payload.prompts || [];
+  var geo = payload.geometry || {};
+  var K = geo.k || 8;
+  var channelConfig = (payload.launch_params || {}).channel_config ||
+                       payload.channel_config || {};
+  var heightMeasure = channelConfig.height || payload.height_measure ||
+                      'rank_displacement';
+  var brightnessChannel = channelConfig.brightness || 'none';
+  var barChannel = channelConfig.bar_length || 'none';
+  var filterChannel = channelConfig.filter || 'none';
+
+  for (var pi = 0; pi < prompts.length; pi++) {
+    var p = prompts[pi];
+    var cat = p.category || 'unknown';
+    var toks = p.tokens || [];
+    var nT = toks.length;
+    if (nT === 0) continue;
+
+    // ── Extract the height measure's bank data ──
+    var banks = (p.banks || {})[heightMeasure];
+    if (!banks) continue;
+    var primary = banks.primary || [];
+    var iBank = banks.instruct_bank || [];
+    var bBank = banks.base_bank || [];
+    nT = Math.min(nT, iBank.length);
+    toks = toks.slice(0, nT);
+
+    // ── Collect bank and primary values SEPARATELY ──
+    // The primary (per-token aggregate) is naturally an order of
+    // magnitude larger than per-rank bank values because it sums
+    // across ranks. Pooling them would crush bank variation against
+    // the sigmoid midpoint. Separate pools preserve texture in both.
+    var allBankValues = [];
+    for (var i = 0; i < nT; i++) {
+      var ib = iBank[i] || [], bb = bBank[i] || [];
+      for (var j = 0; j < K; j++) {
+        allBankValues.push(ib[j] != null ? ib[j] : 0);
+        allBankValues.push(bb[j] != null ? bb[j] : 0);
+      }
+    }
+    var allPrimaryValues = [];
+    for (var i = 0; i < nT; i++) {
+      allPrimaryValues.push(primary[i] != null ? primary[i] : 0);
+    }
+
+    // Logistic-normalize each pool independently
+    var normalizedBanks = _logisticNormalize(allBankValues);
+    var normalizedPrimaries = _logisticNormalize(allPrimaryValues);
+
+    // Map normalized bank values back to per-token arrays
+    var idx = 0;
+    var normIBank = [], normBBank = [];
+    for (var i = 0; i < nT; i++) {
+      var ni = [], nb = [];
+      for (var j = 0; j < K; j++) {
+        ni.push(normalizedBanks[idx]); idx++;
+        nb.push(normalizedBanks[idx]); idx++;
+      }
+      normIBank.push(ni);
+      normBBank.push(nb);
+    }
+    var normPrimary = normalizedPrimaries;
+
+    // ── Extract and normalize scalar channels ──
+    var scalars = p.scalars || {};
+    var normScalars = {};
+    for (var sName in scalars) {
+      if (scalars.hasOwnProperty(sName)) {
+        normScalars[sName] = _minMaxNormalize(scalars[sName]);
+      }
+    }
+
+    // ── Build the scalar lookup for each channel ──
+    var brightnessArr = (brightnessChannel !== 'none' && normScalars[brightnessChannel])
+                        ? normScalars[brightnessChannel]
+                        : null;
+    var barArr = (barChannel !== 'none' && normScalars[barChannel])
+                 ? normScalars[barChannel]
+                 : null;
+    var filterArr = (filterChannel !== 'none' && normScalars[filterChannel])
+                    ? normScalars[filterChannel]
+                    : null;
+
+    // ── Status data ──
+    var status = p.status || {};
+    var iStatus = status.instruct_status || [];
+    var bStatus = status.base_status || [];
+
+    // ── Labels ──
+    var labels = p.labels || {};
+    var cf = labels.counterfactual_tokens || [];
+    var baseCf = labels.base_counterfactual_tokens || [];
+
+    // ── Build rows ──
+    // Row layout:
+    //   [0] bm: base bank normalized [K] (reversed for lattice ordering)
+    //   [1] im: instruct bank normalized [K]
+    //   [2] brightness: scalar [0,1] for this token (or null)
+    //   [3] primaryNorm: spine height [0,1]
+    //   [4] ctoks: counterfactual token labels [16]
+    //   [5] statusRow: per-column status strings [16]
+    //   [6] barValue: scalar [0,1] for underline bar (or null)
+    //   [7] filterValue: scalar [0,1] for dim/highlight (or null)
+
+    var rows = [];
+    for (var i = 0; i < nT; i++) {
+      // Instruct bank — direct order
+      var im = normIBank[i];
+
+      // Base bank — reversed so column 0 = farthest from spine
+      var bm = [];
+      for (var j = K - 1; j >= 0; j--) {
+        bm.push(normBBank[i][j]);
+      }
+
+      // Counterfactual labels: instruct first, then base reversed
+      var cands = cf[i] || [];
+      var baseCands = baseCf[i] || [];
+      var ctoks = [];
+      for (var j = 0; j < K; j++) {
+        if (j < cands.length && cands[j]) {
+          ctoks.push(Array.isArray(cands[j]) ? cands[j][0] || '' : String(cands[j]));
+        } else ctoks.push('');
+      }
+      for (var j = K - 1; j >= 0; j--) {
+        if (j < baseCands.length && baseCands[j]) {
+          var nm = Array.isArray(baseCands[j]) ? baseCands[j][0] || '' : String(baseCands[j]);
+          ctoks.push('\u00B7' + nm);
+        } else ctoks.push('\u00B7');
+      }
+
+      // Status row: instruct 0..7, then base reversed
+      var iSt = iStatus[i] || [];
+      var bSt = bStatus[i] || [];
+      var statusRow = [];
+      for (var j = 0; j < K; j++) statusRow.push(iSt[j] || '');
+      for (var j = K - 1; j >= 0; j--) statusRow.push(bSt[j] || '');
+
+      rows.push([
+        bm,
+        im,
+        brightnessArr ? brightnessArr[i] : null,
+        normPrimary[i],
+        ctoks,
+        statusRow,
+        barArr ? barArr[i] : null,
+        filterArr ? filterArr[i] : null
+      ]);
+    }
+
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push([p.prompt || '', toks, rows]);
+  }
+
+  console.log('[Terrain v3] Payload transform: height=' + heightMeasure +
+              ', brightness=' + brightnessChannel +
+              ', bar=' + barChannel +
+              ', prompts=' + prompts.length);
   return cats;
 }
 
-function _terrainRendererCore(container, D, opts){
-  // Self-contained terrain renderer — used by both the embedded viewer
-  // and the popout window (via .toString() serialization).
-  // Only external dependency: THREE.js must be loaded.
-  var charLimit=(opts&&opts.charLimit)||50;
 
-  // Color ramps — dual palette
-  function stops(t,s){for(let i=0;i<s.length-1;i++){if(t<=s[i+1][0]){const f=(t-s[i][0])/(s[i+1][0]-s[i][0]);return s[i][1].map((v,j)=>v+(s[i+1][1][j]-v)*f)}}return s[s.length-1][1]}
-  const BASES={
-    dual:{label:'Dual (Base \u2194 Instruct)',
-      base:function(t){return stops(t,[[0,[.01,.02,.12]],[.15,[.02,.08,.32]],[.30,[.04,.20,.52]],[.45,[.06,.38,.68]],[.58,[.10,.56,.78]],[.70,[.22,.72,.84]],[.82,[.48,.85,.88]],[.92,[.72,.94,.96]],[1,[.90,.98,.99]]])},
-      inst:function(t){return stops(t,[[0,[.12,.02,.01]],[.15,[.32,.06,.02]],[.30,[.52,.12,.02]],[.45,[.72,.28,.04]],[.58,[.86,.44,.06]],[.70,[.94,.60,.08]],[.82,[.98,.76,.18]],[.92,[.99,.88,.42]],[1,[1,.96,.72]]])},
-      spine:function(t){return stops(t,[[0,[.06,.05,.06]],[.30,[.20,.18,.16]],[.60,[.50,.46,.38]],[.80,[.78,.72,.60]],[1,[.96,.92,.80]]])}},
-    vivid:{label:'Vivid (shared)',
-      base:function(t){return stops(t,[[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]])},
-      inst:null,spine:null},
-    ember:{label:'Heat (shared)',
-      base:function(t){return stops(t,[[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]])},
-      inst:null,spine:null}
+// ─── Terrain renderer ───────────────────────────────────────────
+// Self-contained Three.js terrain renderer. Used by both the embedded
+// viewer and the popout window (via .toString() serialization).
+
+function _terrainRendererCore(container, D, opts) {
+  var charLimit = (opts && opts.charLimit) || 50;
+  var K = (opts && opts.K) || 8;
+  var COLS = K * 2 + 1; // base bank + spine + instruct bank
+
+  // Color ramps
+  function stops(t, s) {
+    for (var i = 0; i < s.length - 1; i++) {
+      if (t <= s[i + 1][0]) {
+        var f = (t - s[i][0]) / (s[i + 1][0] - s[i][0]);
+        return s[i][1].map(function(v, j) { return v + (s[i + 1][1][j] - v) * f; });
+      }
+    }
+    return s[s.length - 1][1];
+  }
+
+  var BASES = {
+    dual: {
+      label: 'Dual (Base \u2194 Instruct)',
+      base: function(t) { return stops(t, [[0,[.01,.02,.12]],[.15,[.02,.08,.32]],[.30,[.04,.20,.52]],[.45,[.06,.38,.68]],[.58,[.10,.56,.78]],[.70,[.22,.72,.84]],[.82,[.48,.85,.88]],[.92,[.72,.94,.96]],[1,[.90,.98,.99]]]); },
+      inst: function(t) { return stops(t, [[0,[.12,.02,.01]],[.15,[.32,.06,.02]],[.30,[.52,.12,.02]],[.45,[.72,.28,.04]],[.58,[.86,.44,.06]],[.70,[.94,.60,.08]],[.82,[.98,.76,.18]],[.92,[.99,.88,.42]],[1,[1,.96,.72]]]); },
+      spine: function(t) { return stops(t, [[0,[.06,.05,.06]],[.30,[.20,.18,.16]],[.60,[.50,.46,.38]],[.80,[.78,.72,.60]],[1,[.96,.92,.80]]]); }
+    },
+    vivid: {
+      label: 'Vivid (shared)',
+      base: function(t) { return stops(t, [[0,[.04,.02,.28]],[.08,[.10,.04,.48]],[.16,[.18,.06,.60]],[.24,[.06,.22,.72]],[.32,[.02,.42,.78]],[.40,[.02,.62,.68]],[.48,[.10,.75,.45]],[.56,[.38,.82,.22]],[.64,[.65,.86,.12]],[.72,[.88,.84,.08]],[.80,[.96,.68,.06]],[.88,[.98,.42,.06]],[.94,[.92,.18,.08]],[1,[.72,.04,.14]]]); },
+      inst: null, spine: null
+    },
+    ember: {
+      label: 'Heat (shared)',
+      base: function(t) { return stops(t, [[0,[.01,0,0]],[.28,[.20,.02,.01]],[.52,[.62,.10,0]],[.72,[.92,.44,0]],[.88,[.98,.78,.10]],[1,[1,.98,.80]]]); },
+      inst: null, spine: null
+    }
   };
 
-  const isPopout=!!(opts&&opts.isPopout);
-  let curCat=opts.cat||(Object.keys(D).includes('benign')?'benign':Object.keys(D)[0]);
-  let curIdx=opts.idx||0, curBase=opts.base||opts.palette||'dual', labelScale=opts.labelScale||2.0;
-  let renderMode='surface';
-  let dataFilter=opts.dataFilter||'all';
-  let slideshowPlaying=false, slideshowSpeed=4, slideshowTimer=null;
-  const BG=[.047,.047,.07];
-  const FY=-2.2, SCX=0.55, COLS=17, X_MAX=8*SCX;
-  const HSCALE=(opts&&opts.heightScale)||180;
-  const KL_BOOST=(opts&&opts.klBoost!=null)?opts.klBoost:0.3;
-  const ACCENT_MODE=(opts&&opts.accentMode)||'kl_brightness';
-  const SHOW_GRID=!opts||opts.showGrid!==false;
-  const SHOW_LABELS=!opts||opts.showLabels!==false;
-  const SHOW_LEGEND=!opts||opts.showLegend!==false;
-  const SHOW_SPINE=!opts||opts.showSpine!==false;
+  var isPopout = !!(opts && opts.isPopout);
+  var curCat = opts.cat || (Object.keys(D).includes('benign') ? 'benign' : Object.keys(D)[0]);
+  var curIdx = opts.idx || 0;
+  var curBase = opts.base || opts.palette || 'dual';
+  var labelScale = opts.labelScale || 2.0;
+  var renderMode = 'surface';
+  var slideshowPlaying = false, slideshowSpeed = 4, slideshowTimer = null;
+  var BG = [.047, .047, .07];
+  var SCX = 0.55;
+  var FY = -2.2;
+  var X_MAX = K * SCX;
+  // ── Shoebox geometry ──
+  // Ceiling height is proportional to bank width, defining a fixed
+  // vertical volume. All measures are logistic-normalized into [0,1]
+  // by the transform; the renderer scales [0,1] → [FY, FY+CEILING].
+  var CEILING = (opts && opts.ceilingRatio || 1.0) * K * SCX;
+  var BRIGHTNESS_STRENGTH = (opts && opts.brightnessStrength != null) ? opts.brightnessStrength : 0.3;
+  var ACCENT_MODE = (opts && opts.accentMode) || 'off';
+  var SHOW_GRID = !opts || opts.showGrid !== false;
+  var SHOW_LABELS = !opts || opts.showLabels !== false;
+  var SHOW_LEGEND = !opts || opts.showLegend !== false;
+  var SHOW_SPINE = !opts || opts.showSpine !== false;
+  var SHOW_BARS = !opts || opts.showBars !== false;
 
-  // Accent palette for promoted/demoted/matched label styling. Desaturated
-  // greens and vermillions to avoid collision with the warm-cool bank
-  // ramps. Okabe-Ito adjacent: bluish-green for promoted, vermillion for
-  // demoted, muted cream for matched so promoted/demoted come forward.
-  const ACCENT_COLORS={
-    promoted: {underline:'rgba(0,158,115,0.85)',  text:'rgba(120,220,175,1.0)'},
-    demoted:  {underline:'rgba(213,94,0,0.85)',   text:'rgba(245,165,115,1.0)'},
-    matched:  {underline:'rgba(160,160,170,0.45)',text:'rgba(220,218,208,1.0)'},
+  var ACCENT_COLORS = {
+    promoted: { underline: 'rgba(0,158,115,0.85)', text: 'rgba(120,220,175,1.0)' },
+    demoted:  { underline: 'rgba(213,94,0,0.85)',  text: 'rgba(245,165,115,1.0)' },
+    matched:  { underline: 'rgba(160,160,170,0.45)', text: 'rgba(220,218,208,1.0)' },
   };
 
-  function _rampFor(colIdx){
-    const profile=BASES[curBase];
-    if(colIdx===8 && profile.spine) return profile.spine;
-    if(colIdx>8 && profile.inst) return profile.inst;
+  function _rampFor(colIdx) {
+    var profile = BASES[curBase];
+    if (colIdx === K && profile.spine) return profile.spine;
+    if (colIdx > K && profile.inst) return profile.inst;
     return profile.base;
   }
 
   // Build DOM
-  container.innerHTML='<div class="terrain-wrap">'
-    +'<canvas id="tCv"></canvas>'
-    +'<div class="terrain-ui" id="tUI"></div>'
-    +'<div class="terrain-inf" id="tInf"></div>'
-    +'<div class="terrain-leg" id="tLeg">'
-    +'<div style="display:flex;gap:4px;align-items:center"><span id="tLegMin">0</span><canvas id="tLegBase"></canvas><span id="tLegMax">0</span></div>'
-    +'</div></div>';
+  container.innerHTML = '<div class="terrain-wrap">'
+    + '<canvas id="tCv"></canvas>'
+    + '<div class="terrain-ui" id="tUI"></div>'
+    + '<div class="terrain-inf" id="tInf"></div>'
+    + '<div class="terrain-leg" id="tLeg">'
+    + '<div style="display:flex;gap:4px;align-items:center"><span id="tLegMin">0</span><canvas id="tLegBase"></canvas><span id="tLegMax">1</span></div>'
+    + '</div></div>';
 
-  const cv=document.getElementById('tCv');
-  const wrap=cv.parentElement;
-  const sc=new THREE.Scene();
-  const cam=new THREE.PerspectiveCamera(44,1,.1,200);
-  const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-  ren.setPixelRatio(Math.min(devicePixelRatio,2));
-  ren.setClearColor(0x0c0c12,1);
-  function onResize(){
-    const w=wrap.clientWidth,h=wrap.clientHeight;
-    if(w<10||h<10)return;
-    ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();
+  var cv = document.getElementById('tCv');
+  var wrap = cv.parentElement;
+  var sc = new THREE.Scene();
+  var cam = new THREE.PerspectiveCamera(44, 1, .1, 200);
+  var ren = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+  ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+  ren.setClearColor(0x0c0c12, 1);
+  function onResize() {
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if (w < 10 || h < 10) return;
+    ren.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix();
   }
   onResize();
   new ResizeObserver(onResize).observe(wrap);
 
-  sc.add(new THREE.AmbientLight(0xaabbcc,1.0));
-  const dl=new THREE.DirectionalLight(0xccddff,1.0);dl.position.set(3,10,6);sc.add(dl);
-  const dl2=new THREE.DirectionalLight(0x667788,.5);dl2.position.set(-4,5,-3);sc.add(dl2);
+  sc.add(new THREE.AmbientLight(0xaabbcc, 1.0));
+  var dl = new THREE.DirectionalLight(0xccddff, 1.0); dl.position.set(3, 10, 6); sc.add(dl);
+  var dl2 = new THREE.DirectionalLight(0x667788, .5); dl2.position.set(-4, 5, -3); sc.add(dl2);
 
-  let msh=null,wir=null,flr=null,lbs=[];
+  var msh = null, wir = null, flr = null, lbs = [];
 
-  function mixColor(mag,mn,mx,klT,xAbs,colIdx){
-    const t=Math.max(0,Math.min(1,(mag-mn)/(mx-mn||1)));
-    const rampFn=_rampFor(colIdx);
-    var rgb=rampFn(t);
-    var r=rgb[0],g=rgb[1],b=rgb[2];
-    const klBoost=1.0+klT*KL_BOOST;
-    r=Math.min(1,r*klBoost);g=Math.min(1,g*klBoost);b=Math.min(1,b*klBoost);
-    const fade=Math.pow(xAbs/X_MAX,1.6);
-    r=r*(1-fade)+BG[0]*fade;g=g*(1-fade)+BG[1]*fade;b=b*(1-fade)+BG[2]*fade;
-    return new THREE.Color(r,g,b);
+  function mixColor(normVal, brightnessT, xAbs, colIdx) {
+    // normVal is already in [0,1] from logistic — drives both
+    // color ramp position and (implicitly) height.
+    var t = Math.max(0, Math.min(1, normVal));
+    var rampFn = _rampFor(colIdx);
+    var rgb = rampFn(t);
+    var r = rgb[0], g = rgb[1], b = rgb[2];
+
+    // Brightness modulation from the configured scalar channel
+    if (brightnessT != null) {
+      var boost = 1.0 + brightnessT * BRIGHTNESS_STRENGTH;
+      r = Math.min(1, r * boost);
+      g = Math.min(1, g * boost);
+      b = Math.min(1, b * boost);
+    }
+
+    // Edge fade — structural, distance from spine
+    var fade = Math.pow(xAbs / X_MAX, 1.6);
+    r = r * (1 - fade) + BG[0] * fade;
+    g = g * (1 - fade) + BG[1] * fade;
+    b = b * (1 - fade) + BG[2] * fade;
+    return new THREE.Color(r, g, b);
   }
 
-  function build(){
-    [msh,wir,flr].forEach(function(m){if(!m)return;sc.remove(m);m.geometry.dispose();m.material.dispose()});
-    lbs.forEach(function(s){sc.remove(s);if(s.geometry)s.geometry.dispose();if(s.material){if(s.material.map)s.material.map.dispose();s.material.dispose()}});
-    msh=wir=flr=null;lbs=[];
-    var entries=D[curCat];
-    if(!entries||!entries[curIdx])return;
-    var parts=entries[curIdx],prompt=parts[0],toks=parts[1],rows=parts[2];
-    var nT=toks.length,scZ=SCX;
-    var zDepth=(nT-1)*scZ;
-    var zOffset=zDepth/2;
-    // Magnitude pool is built from the bank values only. Pooling the
-    // spine primary here would dominate the mn/mx window (the primary
-    // is naturally an order of magnitude larger than the per-rank bank
-    // values) and flatten the bank variation that gives the terrain its
-    // texture. The transform already applies separate scale factors so
-    // the primary lands within target_max without needing to be pooled.
-    var allMags=[];
-    for(var ri=0;ri<rows.length;ri++){
-      var rr=rows[ri];
-      rr[0].forEach(function(v){allMags.push(v)});
-      rr[1].forEach(function(v){allMags.push(v)});
-    }
-    var mn=Math.min.apply(null,allMags),mx=Math.max.apply(null,allMags);
-    var klVals=rows.map(function(r){return r[2]});
-    var klMin=Math.min.apply(null,klVals),klMax=Math.max.apply(null,klVals);
+  function build() {
+    [msh, wir, flr].forEach(function(m) {
+      if (!m) return; sc.remove(m); m.geometry.dispose(); m.material.dispose();
+    });
+    lbs.forEach(function(s) {
+      sc.remove(s);
+      if (s.geometry) s.geometry.dispose();
+      if (s.material) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); }
+    });
+    msh = wir = flr = null; lbs = [];
 
-    // Surface
-    var vsArr=[],csArr=[],ixArr=[],vtx=[];
-    for(var t=0;t<nT;t++){
+    var entries = D[curCat];
+    if (!entries || !entries[curIdx]) return;
+    var parts = entries[curIdx], prompt = parts[0], toks = parts[1], rows = parts[2];
+    var nT = toks.length, scZ = SCX;
+    var zDepth = (nT - 1) * scZ;
+    var zOffset = zDepth / 2;
+
+    // ── Surface geometry ──
+    // All bank values are already logistic-normalized to [0,1] by the
+    // transform. We map [0,1] → [FY, FY+CEILING] for vertex Y.
+    var vsArr = [], csArr = [], ixArr = [], vtx = [];
+
+    for (var t = 0; t < nT; t++) {
       vtx.push([]);
-      var bm=rows[t][0],im=rows[t][1],kl=rows[t][2];
-      var z=-t*scZ+zOffset,klT=(kl-klMin)/(klMax-klMin||1);
-      // Spine vertex reads the per-token primary scalar from slot 3 of
-      // the row, which the client transform derives from the selected
-      // measure's natural per-token signal (rank-displacement total_disp,
-      // LTP tension magnitude, ASM stress, etc.). Previous versions
-      // synthesized this from the mean of the two banks, which made the
-      // spine a summary of its own context rather than a focal signal.
-      var spineMag=rows[t][3]!=null?rows[t][3]:0;
-      for(var c=0;c<COLS;c++){
-        var x,mag;
-        if(c<8){x=(c-8)*SCX;mag=bm[c]}
-        else if(c===8){x=0;mag=spineMag}
-        else{x=(c-8)*SCX;mag=im[c-9]}
-        var y=FY+(mag-mn)*HSCALE;
-        vtx[t].push({x:x,y:y,z:z});
-        vsArr.push(x,y,z);
-        var col=mixColor(mag,mn,mx,klT,Math.abs(x),c);
-        csArr.push(col.r,col.g,col.b);
-      }
-    }
-    // Filter mask
-    var klMean=klVals.reduce(function(a,v){return a+v},0)/klVals.length;
-    var allMagsSorted=allMags.slice().sort(function(a,b){return a-b});
-    var medianMag=allMagsSorted[Math.floor(allMagsSorted.length/2)];
-    var tokenVisible=[];
-    for(var t=0;t<nT;t++){
-      if(dataFilter==='highkl') tokenVisible.push(rows[t][2]>klMean);
-      else if(dataFilter==='hotspots'){
-        var tmB=rows[t][0],tmI=rows[t][1];
-        var tMean=(tmB.reduce(function(a,v){return a+v},0)+tmI.reduce(function(a,v){return a+v},0))/(tmB.length+tmI.length);
-        tokenVisible.push(tMean>medianMag);
-      }
-      else tokenVisible.push(true);
-    }
-    var dimFactor=0.15;
-    for(var t=0;t<nT;t++){
-      if(!tokenVisible[t]){
-        for(var c=0;c<COLS;c++){var i=(t*COLS+c)*3;csArr[i]*=dimFactor;csArr[i+1]*=dimFactor;csArr[i+2]*=dimFactor}
+      var bm = rows[t][0], im = rows[t][1];
+      var brightnessT = rows[t][2]; // null if no brightness channel
+      var spineMag = rows[t][3] != null ? rows[t][3] : 0;
+      var z = -t * scZ + zOffset;
+
+      for (var c = 0; c < COLS; c++) {
+        var x, normVal;
+        if (c < K) { x = (c - K) * SCX; normVal = bm[c]; }
+        else if (c === K) { x = 0; normVal = spineMag; }
+        else { x = (c - K) * SCX; normVal = im[c - K - 1]; }
+
+        var y = FY + normVal * CEILING;
+        vtx[t].push({ x: x, y: y, z: z });
+        vsArr.push(x, y, z);
+        var col = mixColor(normVal, brightnessT, Math.abs(x), c);
+        csArr.push(col.r, col.g, col.b);
       }
     }
 
-    // Render
-    var geo=new THREE.BufferGeometry();
-    geo.setAttribute('position',new THREE.Float32BufferAttribute(vsArr,3));
-    geo.setAttribute('color',new THREE.Float32BufferAttribute(csArr,3));
+    // ── Filter mask ──
+    var filterVisible = [];
+    for (var t = 0; t < nT; t++) {
+      var fv = rows[t][7]; // filterValue — null means show all
+      if (fv != null) {
+        filterVisible.push(fv > 0.5); // above-median threshold
+      } else {
+        filterVisible.push(true);
+      }
+    }
+    var dimFactor = 0.15;
+    for (var t = 0; t < nT; t++) {
+      if (!filterVisible[t]) {
+        for (var c = 0; c < COLS; c++) {
+          var idx = (t * COLS + c) * 3;
+          csArr[idx] *= dimFactor; csArr[idx + 1] *= dimFactor; csArr[idx + 2] *= dimFactor;
+        }
+      }
+    }
 
-    if(renderMode==='points'){
-      var sizes=new Float32Array(nT*COLS);
-      for(var t=0;t<nT;t++){var vis=tokenVisible[t];for(var c=0;c<COLS;c++){var ef=1-Math.pow(Math.abs(c-8)/8,0.8)*0.6;sizes[t*COLS+c]=vis?(0.06*ef):0.01}}
-      geo.setAttribute('size',new THREE.Float32BufferAttribute(sizes,1));
-      msh=new THREE.Points(geo,new THREE.PointsMaterial({vertexColors:true,size:0.08,sizeAttenuation:true,transparent:true,opacity:0.9}));
+    // ── Render mesh ──
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vsArr, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(csArr, 3));
+
+    if (renderMode === 'points') {
+      var sizes = new Float32Array(nT * COLS);
+      for (var t = 0; t < nT; t++) {
+        var vis = filterVisible[t];
+        for (var c = 0; c < COLS; c++) {
+          var ef = 1 - Math.pow(Math.abs(c - K) / K, 0.8) * 0.6;
+          sizes[t * COLS + c] = vis ? (0.06 * ef) : 0.01;
+        }
+      }
+      geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+      msh = new THREE.Points(geo, new THREE.PointsMaterial({
+        vertexColors: true, size: 0.08, sizeAttenuation: true,
+        transparent: true, opacity: 0.9
+      }));
       sc.add(msh);
-    }else{
-      for(var t=0;t<nT-1;t++)for(var c=0;c<COLS-1;c++){var a=t*COLS+c,b=a+1,cc=a+COLS,dd=cc+1;ixArr.push(a,b,cc,b,dd,cc)}
-      geo.setIndex(ixArr);geo.computeVertexNormals();
-      msh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30,emissive:0x444444,emissiveIntensity:0.35}));
+    } else {
+      for (var t = 0; t < nT - 1; t++) {
+        for (var c = 0; c < COLS - 1; c++) {
+          var a = t * COLS + c, b = a + 1, cc = a + COLS, dd = cc + 1;
+          ixArr.push(a, b, cc, b, dd, cc);
+        }
+      }
+      geo.setIndex(ixArr); geo.computeVertexNormals();
+      msh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({
+        vertexColors: true, side: THREE.DoubleSide,
+        shininess: 30, emissive: 0x444444, emissiveIntensity: 0.35
+      }));
       sc.add(msh);
     }
 
-    // Floor
-    var fG=new THREE.PlaneGeometry(COLS*SCX+1.2,nT*scZ+2);fG.rotateX(-Math.PI/2);
-    flr=new THREE.Mesh(fG,new THREE.MeshBasicMaterial({color:0x0c0c12,transparent:true,opacity:.25,side:THREE.DoubleSide}));
-    flr.position.set(0,FY-.01,0);sc.add(flr);
+    // ── Floor ──
+    var fG = new THREE.PlaneGeometry(COLS * SCX + 1.2, nT * scZ + 2);
+    fG.rotateX(-Math.PI / 2);
+    flr = new THREE.Mesh(fG, new THREE.MeshBasicMaterial({
+      color: 0x0c0c12, transparent: true, opacity: .25, side: THREE.DoubleSide
+    }));
+    flr.position.set(0, FY - .01, 0); sc.add(flr);
 
-    // Grid lines
-    var OFF=0.032;
-    if(renderMode==='surface' && SHOW_GRID){
-      var gridP=[],gridC=[];
-      var pushSeg=function(ax,ay,az,bx,by,bz,r,g,b){gridP.push(ax,ay+OFF,az,bx,by+OFF,bz);gridC.push(r,g,b,r,g,b)};
-      for(var t=0;t<nT;t++){for(var c=0;c<COLS-1;c++){var v0=vtx[t][c],v1=vtx[t][c+1];var near=(c===7||c===8)?.30:.14;pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,near*.55,near*.65,near)}}
-      for(var c=0;c<COLS;c++){var isSpine=(c===8);for(var t=0;t<nT-1;t++){var v0=vtx[t][c],v1=vtx[t+1][c];if(isSpine){pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,.75,.72,.62)}else{var fade=1-Math.pow(Math.abs(c-8)/8,.7);pushSeg(v0.x,v0.y,v0.z,v1.x,v1.y,v1.z,fade*.22,fade*.26,fade*.38)}}}
-      var gridGeo=new THREE.BufferGeometry();
-      gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridP,3));
-      gridGeo.setAttribute('color',new THREE.Float32BufferAttribute(gridC,3));
-      wir=new THREE.LineSegments(gridGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.92}));
+    // ── Grid lines ──
+    var OFF = 0.032;
+    if (renderMode === 'surface' && SHOW_GRID) {
+      var gridP = [], gridC = [];
+      var pushSeg = function(ax, ay, az, bx, by, bz, r, g, b) {
+        gridP.push(ax, ay + OFF, az, bx, by + OFF, bz);
+        gridC.push(r, g, b, r, g, b);
+      };
+      for (var t = 0; t < nT; t++) {
+        for (var c = 0; c < COLS - 1; c++) {
+          var v0 = vtx[t][c], v1 = vtx[t][c + 1];
+          var near = (c === K - 1 || c === K) ? .30 : .14;
+          pushSeg(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, near * .55, near * .65, near);
+        }
+      }
+      for (var c = 0; c < COLS; c++) {
+        var isSpine = (c === K);
+        for (var t = 0; t < nT - 1; t++) {
+          var v0 = vtx[t][c], v1 = vtx[t + 1][c];
+          if (isSpine) {
+            pushSeg(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, .75, .72, .62);
+          } else {
+            var fadeLine = 1 - Math.pow(Math.abs(c - K) / K, .7);
+            pushSeg(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z,
+                    fadeLine * .22, fadeLine * .26, fadeLine * .38);
+          }
+        }
+      }
+      var gridGeo = new THREE.BufferGeometry();
+      gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridP, 3));
+      gridGeo.setAttribute('color', new THREE.Float32BufferAttribute(gridC, 3));
+      wir = new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, opacity: .92
+      }));
       sc.add(wir);
     }
 
-    // Spine line + dots
-    if(SHOW_SPINE){
-      var spinePts=[];
-      for(var t=0;t<nT;t++){var sv=vtx[t][8];spinePts.push(new THREE.Vector3(sv.x,sv.y+OFF+0.04,sv.z))}
-      var spineGeo=new THREE.BufferGeometry().setFromPoints(spinePts);
-      var spineLine=new THREE.Line(spineGeo,new THREE.LineBasicMaterial({color:0xf0ede4,linewidth:2,transparent:true,opacity:0.85}));
-      sc.add(spineLine);lbs.push(spineLine);
-      var dotGeo=new THREE.SphereGeometry(0.035,6,6);
-      var dotMat=new THREE.MeshBasicMaterial({color:0xf0ede4,transparent:true,opacity:0.7});
-      for(var t=0;t<nT;t++){var sv=vtx[t][8];var dot=new THREE.Mesh(dotGeo,dotMat);dot.position.set(sv.x,sv.y+OFF+0.04,sv.z);sc.add(dot);lbs.push(dot)}
+    // ── Spine line + dots ──
+    if (SHOW_SPINE) {
+      var spinePts = [];
+      for (var t = 0; t < nT; t++) {
+        var sv = vtx[t][K];
+        spinePts.push(new THREE.Vector3(sv.x, sv.y + OFF + 0.04, sv.z));
+      }
+      var spineGeo = new THREE.BufferGeometry().setFromPoints(spinePts);
+      var spineLine = new THREE.Line(spineGeo, new THREE.LineBasicMaterial({
+        color: 0xf0ede4, linewidth: 2, transparent: true, opacity: 0.85
+      }));
+      sc.add(spineLine); lbs.push(spineLine);
+      var dotGeo = new THREE.SphereGeometry(0.035, 6, 6);
+      var dotMat = new THREE.MeshBasicMaterial({ color: 0xf0ede4, transparent: true, opacity: 0.7 });
+      for (var t = 0; t < nT; t++) {
+        var sv = vtx[t][K];
+        var dot = new THREE.Mesh(dotGeo, dotMat);
+        dot.position.set(sv.x, sv.y + OFF + 0.04, sv.z);
+        sc.add(dot); lbs.push(dot);
+      }
     }
 
-    // Labels at every vertex
-    if(SHOW_LABELS){
-      var LW=Math.round(96*labelScale),LH=Math.round(24*labelScale);
-      var LSX=SCX*0.90*labelScale,LSY=LSX*(LH/LW);
-      var SPINE_BOOST=1.5;
-      var SLW=Math.round(LW*SPINE_BOOST),SLH=Math.round(LH*SPINE_BOOST);
-      var SLSX=LSX*SPINE_BOOST,SLSY=SLSX*(SLH/SLW);
-      var labelFontPx=Math.round(12*labelScale);
-      var spineFontPx=Math.round(12*labelScale*SPINE_BOOST);
+    // ── Labels ──
+    if (SHOW_LABELS) {
+      var LW = Math.round(96 * labelScale), LH = Math.round(24 * labelScale);
+      var LSX = SCX * 0.90 * labelScale, LSY = LSX * (LH / LW);
+      var SPINE_BOOST = 1.5;
+      var SLW = Math.round(LW * SPINE_BOOST), SLH = Math.round(LH * SPINE_BOOST);
+      var SLSX = LSX * SPINE_BOOST, SLSY = SLSX * (SLH / SLW);
+      var labelFontPx = Math.round(12 * labelScale);
+      var spineFontPx = Math.round(12 * labelScale * SPINE_BOOST);
 
-      // Find max per-rank magnitude across the prompt so underline length
-      // in promoted_demoted mode is normalized to the prompt's range
-      // rather than to whatever KL range happens to exist.
-      var magMaxThis=1e-10;
-      for(var tt=0;tt<nT;tt++){
-        var mr=rows[tt][6]||[];
-        for(var jj=0;jj<mr.length;jj++) if(mr[jj]>magMaxThis) magMaxThis=mr[jj];
-      }
+      var texCache = {};
 
-      var texCache={};
-      // Label texture generator. In promoted_demoted mode the underline
-      // color encodes the set-membership status of the candidate at that
-      // rank (promoted / demoted / matched) and its length encodes the
-      // candidate's per-rank magnitude. In kl_brightness mode the previous
-      // behavior is preserved: underline color is sampled from the active
-      // palette and length tracks the token's normalized KL value. In
-      // off mode no underline is drawn at all.
-      var getTexture=function(str,klT,isSpine,colIdx,status,rankMagT){
-        var accentKey=(ACCENT_MODE==='promoted_demoted'&&status)?status:(ACCENT_MODE==='off'?'none':'kl');
-        var bucket=Math.round(klT*8);
-        var magBucket=Math.round((rankMagT||0)*8);
-        var key=str+'|'+bucket+'|'+magBucket+'|'+labelScale+'|'+(isSpine?'S':'C')+'|'+colIdx+'|'+accentKey;
-        if(texCache[key]) return texCache[key];
-        var w=isSpine?SLW:LW, h=isSpine?SLH:LH, fpx=isSpine?spineFontPx:labelFontPx;
-        var S=2,lc=document.createElement('canvas');lc.width=w*S;lc.height=h*S;
-        var lx=lc.getContext('2d');lx.scale(S,S);
-        lx.font='700 '+fpx+'px system-ui,sans-serif';lx.textAlign='center';lx.textBaseline='middle';
+      var getTexture = function(str, isSpine, colIdx, status, barValue) {
+        var accentKey = (ACCENT_MODE === 'promoted_demoted' && status) ? status : 'none';
+        var barBucket = Math.round((barValue || 0) * 8);
+        var key = str + '|' + barBucket + '|' + labelScale + '|' + (isSpine ? 'S' : 'C') + '|' + colIdx + '|' + accentKey;
+        if (texCache[key]) return texCache[key];
 
-        // Text stroke (always) plus text fill. Fill color depends on mode:
-        // promoted/demoted tints for bank tokens; matched and legacy modes
-        // stay with the existing cream; spine tokens always render blue.
-        lx.lineWidth=Math.max(isSpine?3:2,labelScale*(isSpine?2.2:1.5));
-        lx.strokeStyle=isSpine?'rgba(0,0,0,0.98)':'rgba(0,0,0,0.95)';
-        lx.strokeText(str,w/2,h/2);
-        if(isSpine){
-          lx.fillStyle='rgba(86,180,233,1.0)';
-        }else if(ACCENT_MODE==='promoted_demoted' && status && ACCENT_COLORS[status]){
-          lx.fillStyle=ACCENT_COLORS[status].text;
-        }else{
-          lx.fillStyle='rgba(240,237,228,1.0)';
+        var w = isSpine ? SLW : LW, h = isSpine ? SLH : LH;
+        var fpx = isSpine ? spineFontPx : labelFontPx;
+        var S = 2, lc = document.createElement('canvas');
+        lc.width = w * S; lc.height = h * S;
+        var lx = lc.getContext('2d');
+        lx.scale(S, S);
+        lx.font = '700 ' + fpx + 'px system-ui,sans-serif';
+        lx.textAlign = 'center'; lx.textBaseline = 'middle';
+
+        // Text stroke + fill
+        lx.lineWidth = Math.max(isSpine ? 3 : 2, labelScale * (isSpine ? 2.2 : 1.5));
+        lx.strokeStyle = isSpine ? 'rgba(0,0,0,0.98)' : 'rgba(0,0,0,0.95)';
+        lx.strokeText(str, w / 2, h / 2);
+        if (isSpine) {
+          lx.fillStyle = 'rgba(86,180,233,1.0)';
+        } else if (ACCENT_MODE === 'promoted_demoted' && status && ACCENT_COLORS[status]) {
+          lx.fillStyle = ACCENT_COLORS[status].text;
+        } else {
+          lx.fillStyle = 'rgba(240,237,228,1.0)';
         }
-        lx.fillText(str,w/2,h/2);
+        lx.fillText(str, w / 2, h / 2);
 
-        // Underline layer. Off suppresses it entirely; kl_brightness uses
-        // the legacy behavior; promoted_demoted uses the status color and
-        // the per-rank magnitude for length.
-        if(ACCENT_MODE!=='off'){
-          var ulLen, ulColor, ulAlpha, ulOffset;
-          if(isSpine){
-            ulLen=Math.max(4,Math.round((w-10)*klT));
-            ulColor='rgba(86,180,233,0.8)';
-            ulAlpha=0.6;
-            ulOffset=Math.round(10*labelScale*SPINE_BOOST);
-          }else if(ACCENT_MODE==='promoted_demoted' && status && ACCENT_COLORS[status]){
-            var lenT=Math.max(0,Math.min(1,rankMagT||0));
-            ulLen=Math.max(4,Math.round((w-10)*lenT));
-            ulColor=ACCENT_COLORS[status].underline;
-            ulAlpha=0.85;
-            ulOffset=Math.round(8*labelScale);
-          }else{
-            // kl_brightness legacy path
-            ulLen=Math.max(4,Math.round((w-10)*klT));
-            var rgb2=_rampFor(colIdx)(Math.max(.15,klT*.75+.18));
-            ulColor='rgb('+Math.round(rgb2[0]*255)+','+Math.round(rgb2[1]*255)+','+Math.round(rgb2[2]*255)+')';
-            ulAlpha=0.7;
-            ulOffset=Math.round(8*labelScale);
+        // ── Underline bar ──
+        // Driven by the bar channel scalar, NOT by the height measure.
+        // Color encodes status when available; neutral otherwise.
+        if (SHOW_BARS && barValue != null) {
+          var ulLen = Math.max(4, Math.round((w - 10) * barValue));
+          var ulColor, ulAlpha;
+          if (isSpine) {
+            ulColor = 'rgba(86,180,233,0.8)';
+            ulAlpha = 0.6;
+          } else if (ACCENT_MODE === 'promoted_demoted' && status && ACCENT_COLORS[status]) {
+            ulColor = ACCENT_COLORS[status].underline;
+            ulAlpha = 0.85;
+          } else {
+            // Neutral bar — use a desaturated palette sample
+            var rgb2 = _rampFor(colIdx)(Math.max(.15, barValue * .75 + .18));
+            ulColor = 'rgb(' + Math.round(rgb2[0] * 255) + ',' + Math.round(rgb2[1] * 255) + ',' + Math.round(rgb2[2] * 255) + ')';
+            ulAlpha = 0.7;
           }
-          lx.globalAlpha=ulAlpha;
-          lx.fillStyle=ulColor;
-          lx.fillRect((w-ulLen)/2,h/2+ulOffset,ulLen,Math.max(2,Math.round(2*labelScale)));
+          lx.globalAlpha = ulAlpha;
+          lx.fillStyle = ulColor;
+          var ulOffset = Math.round((isSpine ? 10 : 8) * labelScale * (isSpine ? SPINE_BOOST : 1));
+          lx.fillRect((w - ulLen) / 2, h / 2 + ulOffset, ulLen,
+                      Math.max(2, Math.round(2 * labelScale)));
         }
 
-        texCache[key]=new THREE.CanvasTexture(lc);return texCache[key];
+        texCache[key] = new THREE.CanvasTexture(lc);
+        return texCache[key];
       };
 
-      for(var t=0;t<nT;t++){
-        var ctoks=rows[t][4]||[];
-        var statusRow=rows[t][5]||[];
-        var rankMags=rows[t][6]||[];
-        var klT2=(rows[t][2]-klMin)/(klMax-klMin||1);
-        for(var c=0;c<COLS;c++){
-          var vv=vtx[t][c];
-          var isSpine=(c===8);
-          var str;
-          if(c<8) str=(ctoks[8+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-          else if(isSpine) str=toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-          else str=(ctoks[16-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-          if(!str) str='\u00B7';
+      for (var t = 0; t < nT; t++) {
+        var ctoks = rows[t][4] || [];
+        var statusRow = rows[t][5] || [];
+        var barValue = rows[t][6]; // per-token bar scalar (or null)
 
-          // Map lattice column to status-row index. Columns 0..7 are the
-          // base bank (reversed): column 0 = farthest from spine = base
-          // rank 7; column 7 = adjacent to spine = base rank 0. The
-          // status row from the transform lists instruct 0..7 first then
-          // base 7..0 (reversed), so column index maps directly for the
-          // instruct side (c=9..16 -> statusRow[c-9..c-16]... ).
-          var status=null, rankMag=0;
-          if(!isSpine){
-            if(c<8){
-              // Base bank. statusRow indices 8..15 hold base 7..0.
-              var baseStatusIdx=8+(7-c);
-              status=statusRow[baseStatusIdx]||null;
-              rankMag=rankMags[baseStatusIdx]||0;
-            }else{
-              // Instruct bank. statusRow indices 0..7 hold instruct 0..7.
-              var instIdx=c-9;
-              status=statusRow[instIdx]||null;
-              rankMag=rankMags[instIdx]||0;
+        for (var c = 0; c < COLS; c++) {
+          var vv = vtx[t][c];
+          var isSpine = (c === K);
+          var str;
+          if (c < K) str = (ctoks[K + c] || '').replace(/^[\s\u0120\u00c2]/, '').trim().slice(0, 12);
+          else if (isSpine) str = toks[t].replace(/^[\s\u0120\u00c2]/, '').trim().slice(0, 12);
+          else str = (ctoks[2 * K - c] || '').replace(/^[\s\u0120\u00c2]/, '').trim().slice(0, 12);
+          if (!str) str = '\u00B7';
+
+          // Status for this column
+          var status = null;
+          if (!isSpine) {
+            if (c < K) {
+              var baseStatusIdx = K + (K - 1 - c);
+              status = statusRow[baseStatusIdx] || null;
+            } else {
+              var instIdx = c - K - 1;
+              status = statusRow[instIdx] || null;
             }
           }
-          var rankMagT=magMaxThis>1e-10?(rankMag/magMaxThis):0;
 
-          var tex=getTexture(str,klT2,isSpine,c,status,rankMagT);
-          var fd=isSpine?1.0:Math.max(.28,1-Math.pow(Math.abs(c-8)/8,1.2)*.68);
-          var sx=isSpine?SLSX:LSX, sy=isSpine?SLSY:LSY;
-          var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,opacity:fd}));
-          sp.position.set(vv.x,vv.y+OFF+(isSpine?.10:.06),vv.z);sp.scale.set(sx,sy,1);
-          sc.add(sp);lbs.push(sp);
+          var tex = getTexture(str, isSpine, c, status, barValue);
+          var fd = isSpine ? 1.0 : Math.max(.28, 1 - Math.pow(Math.abs(c - K) / K, 1.2) * .68);
+          var sx = isSpine ? SLSX : LSX, sy = isSpine ? SLSY : LSY;
+          var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: tex, transparent: true, depthTest: false, opacity: fd
+          }));
+          sp.position.set(vv.x, vv.y + OFF + (isSpine ? .10 : .06), vv.z);
+          sp.scale.set(sx, sy, 1);
+          sc.add(sp); lbs.push(sp);
         }
       }
     }
 
-    // Axis labels
-    if(SHOW_LEGEND){
-      var frontZ=vtx[0][8].z+scZ*.6;
-      var makeAx=function(txt,xp,align){
-        var ac=document.createElement('canvas');ac.width=160;ac.height=22;
-        var ax=ac.getContext('2d');ax.font='500 10px system-ui,sans-serif';
-        ax.fillStyle='rgba(110,110,130,0.55)';ax.textAlign=align||'center';
-        ax.fillText(txt,align==='right'?155:align==='left'?5:80,14);
-        var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(ac),transparent:true,depthTest:false}));
-        sp.position.set(xp,FY+.1,frontZ);sp.scale.set(1.3,.19,1);sc.add(sp);lbs.push(sp);
+    // ── Axis labels ──
+    if (SHOW_LEGEND) {
+      var frontZ = vtx[0][K].z + SCX * .6;
+      var makeAx = function(txt, xp, align) {
+        var ac = document.createElement('canvas'); ac.width = 160; ac.height = 22;
+        var ax = ac.getContext('2d');
+        ax.font = '500 10px system-ui,sans-serif';
+        ax.fillStyle = 'rgba(110,110,130,0.55)';
+        ax.textAlign = align || 'center';
+        ax.fillText(txt, align === 'right' ? 155 : align === 'left' ? 5 : 80, 14);
+        var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: new THREE.CanvasTexture(ac), transparent: true, depthTest: false
+        }));
+        sp.position.set(xp, FY + .1, frontZ); sp.scale.set(1.3, .19, 1);
+        sc.add(sp); lbs.push(sp);
       };
-      makeAx('\u2190 base',-2.2,'right');
-      makeAx('instruct \u2192',2.2,'left');
+      makeAx('\u2190 base', -2.2, 'right');
+      makeAx('instruct \u2192', 2.2, 'left');
     }
 
-    // Info
-    var peakKl=Math.max.apply(null,klVals);
-    var peakTok=toks[klVals.indexOf(peakKl)].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,14);
-    var baseHasData=rows.some(function(r){return r[0].some(function(v){return v>0})});
-    var infEl=document.getElementById('tInf');
-    if(infEl) infEl.textContent=nT+' tokens \u00B7 tension '+(mn*1e3).toFixed(2)+'\u2013'+(mx*1e3).toFixed(2)+' \u00D710\u207B\u00B3 \u00B7 peak KL '+peakKl.toFixed(3)+' "'+peakTok+'" \u00B7 base: '+(baseHasData?'\u2705 data':'\u274C NO DATA');
+    // ── Info bar ──
+    var infEl = document.getElementById('tInf');
+    if (infEl) {
+      infEl.textContent = nT + ' tokens \u00B7 shoebox ' +
+        K + '\u00D7' + nT + ' \u00B7 logistic-normalized';
+    }
 
-    // Legend
-    var legC=document.getElementById('tLegBase');
-    if(legC){
-      var profile=BASES[curBase];var hasDual=!!profile.inst;
-      legC.width=hasDual?200:100;legC.height=hasDual?18:6;
-      var ctx=legC.getContext('2d');ctx.clearRect(0,0,legC.width,legC.height);
-      if(hasDual){
-        var g1=ctx.createLinearGradient(0,0,legC.width,0);for(var i=0;i<=20;i++){var tt=i/20;var rgb=profile.base(tt);g1.addColorStop(tt,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')')}
-        ctx.fillStyle=g1;ctx.fillRect(0,0,legC.width,7);ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('base',2,6);
-        var g2=ctx.createLinearGradient(0,0,legC.width,0);for(var i=0;i<=20;i++){var tt=i/20;var rgb=profile.inst(tt);g2.addColorStop(tt,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')')}
-        ctx.fillStyle=g2;ctx.fillRect(0,11,legC.width,7);ctx.fillStyle='#556';ctx.font='7px monospace';ctx.fillText('inst',2,17);
-      }else{
-        var g=ctx.createLinearGradient(0,0,100,0);for(var i=0;i<=20;i++){var tt=i/20;var rgb=profile.base(tt);g.addColorStop(tt,'rgb('+Math.round(rgb[0]*255)+','+Math.round(rgb[1]*255)+','+Math.round(rgb[2]*255)+')')}
-        ctx.fillStyle=g;ctx.fillRect(0,0,100,6);
+    // ── Legend ──
+    var legC = document.getElementById('tLegBase');
+    if (legC) {
+      var profile = BASES[curBase]; var hasDual = !!profile.inst;
+      legC.width = hasDual ? 200 : 100; legC.height = hasDual ? 18 : 6;
+      var ctx = legC.getContext('2d'); ctx.clearRect(0, 0, legC.width, legC.height);
+      if (hasDual) {
+        var g1 = ctx.createLinearGradient(0, 0, legC.width, 0);
+        for (var i = 0; i <= 20; i++) { var tt = i / 20; var rgb = profile.base(tt); g1.addColorStop(tt, 'rgb(' + Math.round(rgb[0] * 255) + ',' + Math.round(rgb[1] * 255) + ',' + Math.round(rgb[2] * 255) + ')'); }
+        ctx.fillStyle = g1; ctx.fillRect(0, 0, legC.width, 7);
+        ctx.fillStyle = '#556'; ctx.font = '7px monospace'; ctx.fillText('base', 2, 6);
+        var g2 = ctx.createLinearGradient(0, 0, legC.width, 0);
+        for (var i = 0; i <= 20; i++) { var tt = i / 20; var rgb = profile.inst(tt); g2.addColorStop(tt, 'rgb(' + Math.round(rgb[0] * 255) + ',' + Math.round(rgb[1] * 255) + ',' + Math.round(rgb[2] * 255) + ')'); }
+        ctx.fillStyle = g2; ctx.fillRect(0, 11, legC.width, 7);
+        ctx.fillStyle = '#556'; ctx.font = '7px monospace'; ctx.fillText('inst', 2, 17);
+      } else {
+        var g = ctx.createLinearGradient(0, 0, 100, 0);
+        for (var i = 0; i <= 20; i++) { var tt = i / 20; var rgb = profile.base(tt); g.addColorStop(tt, 'rgb(' + Math.round(rgb[0] * 255) + ',' + Math.round(rgb[1] * 255) + ',' + Math.round(rgb[2] * 255) + ')'); }
+        ctx.fillStyle = g; ctx.fillRect(0, 0, 100, 6);
       }
     }
-    var lMin=document.getElementById('tLegMin'),lMax=document.getElementById('tLegMax');
-    if(lMin)lMin.textContent=(mn*1e3).toFixed(1);
-    if(lMax)lMax.textContent=(mx*1e3).toFixed(1);
 
-    // Center camera on terrain — frame based on larger dimension
-    th=0.0;ph=0.08;
-    var terrainW=COLS*SCX;
-    rad=Math.max(10, Math.max(terrainW, zDepth)*0.8+4);
-    target.set(0,FY+1.0,0);
+    // ── Center camera ──
+    th = 0.0; ph = 0.08;
+    var terrainW = COLS * SCX;
+    rad = Math.max(10, Math.max(terrainW, zDepth) * 0.8 + 4);
+    target.set(0, FY + CEILING * 0.4, 0);
     updateCam();
   }
 
-  // UI controls
-  function buildUI(){
-    var ui=document.getElementById('tUI');
-    if(!ui) return;
-    var h='';
-    h+='<select onchange="window._terrainSelectCat(this.value)" style="min-width:80px">';
-    for(var c in D){if(D.hasOwnProperty(c))h+='<option value="'+c+'"'+(c===curCat?' selected':'')+'>'+c+'</option>'}
-    h+='</select><span class="tsep">|</span>';
-    h+='<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
-    var entries=D[curCat]||[];
-    entries.forEach(function(e,i){h+='<option value="'+i+'"'+(i===curIdx?' selected':'')+'>'+e[0].slice(0,charLimit)+'</option>'});
-    h+='</select>';
-    h+='<button class="tb" onclick="window._terrainPrev()">Prev</button>';
-    var playLabel=slideshowPlaying?'Stop':'Play';
-    h+='<button class="tb'+(slideshowPlaying?' on':'')+'" id="tPlayBtn" onclick="window._terrainPlayPause()">'+playLabel+'</button>';
-    h+='<button class="tb" onclick="window._terrainNext()">Next</button>';
-    h+='<input type="range" min="1" max="10" value="'+slideshowSpeed+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
-    h+='<span class="tsep">|</span>';
-    h+='<select onchange="window._terrainSetBase(this.value)" title="Color ramp">';
-    for(var k in BASES){if(BASES.hasOwnProperty(k))h+='<option value="'+k+'"'+(k===curBase?' selected':'')+'>'+BASES[k].label+'</option>'}
-    h+='</select>';
-    if(!isPopout){
-      h+='<select onchange="window._terrainSetMode(this.value)" title="Render mode">';
-      h+='<option value="surface"'+(renderMode==='surface'?' selected':'')+'>Surface</option>';
-      h+='<option value="points"'+(renderMode==='points'?' selected':'')+'>Points</option>';
-      h+='</select>';
-      h+='<select onchange="window._terrainSetFilter(this.value)" title="Data filter">';
-      h+='<option value="all"'+(dataFilter==='all'?' selected':'')+'>All tokens</option>';
-      h+='<option value="highkl"'+(dataFilter==='highkl'?' selected':'')+'>High KL</option>';
-      h+='<option value="hotspots"'+(dataFilter==='hotspots'?' selected':'')+'>Hot spots</option>';
-      h+='</select>';
+  // ── UI controls ──
+  function buildUI() {
+    var ui = document.getElementById('tUI');
+    if (!ui) return;
+    var h = '';
+    h += '<select onchange="window._terrainSelectCat(this.value)" style="min-width:80px">';
+    for (var c in D) { if (D.hasOwnProperty(c)) h += '<option value="' + c + '"' + (c === curCat ? ' selected' : '') + '>' + c + '</option>'; }
+    h += '</select><span class="tsep">|</span>';
+    h += '<select id="tPSel" onchange="window._terrainSelectPrompt(+this.value)">';
+    var entries = D[curCat] || [];
+    entries.forEach(function(e, i) { h += '<option value="' + i + '"' + (i === curIdx ? ' selected' : '') + '>' + e[0].slice(0, charLimit) + '</option>'; });
+    h += '</select>';
+    h += '<button class="tb" onclick="window._terrainPrev()">Prev</button>';
+    var playLabel = slideshowPlaying ? 'Stop' : 'Play';
+    h += '<button class="tb' + (slideshowPlaying ? ' on' : '') + '" id="tPlayBtn" onclick="window._terrainPlayPause()">' + playLabel + '</button>';
+    h += '<button class="tb" onclick="window._terrainNext()">Next</button>';
+    h += '<input type="range" min="1" max="10" value="' + slideshowSpeed + '" style="width:32px;vertical-align:middle" oninput="window._terrainSetSpeed(this.value)" title="Slideshow speed">';
+    h += '<span class="tsep">|</span>';
+    h += '<select onchange="window._terrainSetBase(this.value)" title="Color ramp">';
+    for (var k in BASES) { if (BASES.hasOwnProperty(k)) h += '<option value="' + k + '"' + (k === curBase ? ' selected' : '') + '>' + BASES[k].label + '</option>'; }
+    h += '</select>';
+    h += '<span class="tsep">|</span>';
+    h += '<span style="font-size:11px;color:#bbc">Aa</span><input type="range" min="5" max="40" value="' + Math.round(labelScale * 10) + '" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
+    h += '<span class="tsep">|</span>';
+    h += '<button class="tb' + (autoRotate ? ' on' : '') + '" onclick="window._terrainToggleRotate()">Rotate</button>';
+    h += '<input type="range" min="1" max="20" value="' + Math.round(rotateSpeed * 10) + '" style="width:28px;vertical-align:middle" oninput="window._terrainSetRotateSpeed(this.value)" title="Rotate speed">';
+    h += '<span class="tsep">|</span>';
+    h += '<button class="tb" onclick="window._terrainResetView()">Reset</button>';
+    if (!isPopout) h += '<button class="tb" onclick="window._terrainPopout()">Pop out</button>';
+    ui.innerHTML = h;
+  }
+
+  function refreshPromptSelect() {
+    var sel = document.getElementById('tPSel'); if (!sel) return; sel.innerHTML = '';
+    (D[curCat] || []).forEach(function(e, i) {
+      var o = document.createElement('option'); o.value = i;
+      o.textContent = e[0].slice(0, charLimit);
+      if (i === curIdx) o.selected = true; sel.appendChild(o);
+    });
+  }
+
+  window._terrainSelectCat = function(c) { curCat = c; curIdx = 0; if (slideshowPlaying) { slideshowPlaying = false; if (slideshowTimer) { clearTimeout(slideshowTimer); slideshowTimer = null; } } buildUI(); build(); };
+  window._terrainSelectPrompt = function(i) { curIdx = parseInt(i) || 0; if (slideshowPlaying) { slideshowPlaying = false; if (slideshowTimer) { clearTimeout(slideshowTimer); slideshowTimer = null; } } buildUI(); build(); };
+  window._terrainSetBase = function(k) { curBase = k; build(); };
+  window._terrainSetLabelScale = function(v) { labelScale = parseInt(v) / 10; build(); };
+  window._terrainToggleRotate = function() { autoRotate = !autoRotate; buildUI(); };
+  window._terrainSetRotateSpeed = function(v) { rotateSpeed = parseInt(v) / 10; };
+  window._terrainNext = function() { var entries = D[curCat] || []; if (!entries.length) return; curIdx = (curIdx + 1) % entries.length; buildUI(); build(); };
+  window._terrainPrev = function() { var entries = D[curCat] || []; if (!entries.length) return; curIdx = (curIdx - 1 + entries.length) % entries.length; buildUI(); build(); };
+  window._terrainPlayPause = function() { slideshowPlaying = !slideshowPlaying; buildUI(); if (slideshowPlaying) _terrainAutoAdvance(); else if (slideshowTimer) { clearTimeout(slideshowTimer); slideshowTimer = null; } };
+  window._terrainSetSpeed = function(v) { slideshowSpeed = parseInt(v) || 4; };
+  window._terrainResetView = function() { th = 0.0; ph = 0.08; var entries = D[curCat] || []; var nT = entries[curIdx] ? entries[curIdx][1].length : 10; var terrainW = COLS * SCX; var zDepth = (nT - 1) * SCX; rad = Math.max(10, Math.max(terrainW, zDepth) * 0.8 + 4); target.set(0, FY + CEILING * 0.4, 0); updateCam(); };
+
+  function _terrainAutoAdvance() {
+    if (!slideshowPlaying) return;
+    var entries = D[curCat] || [];
+    if (!entries.length) { slideshowPlaying = false; return; }
+    curIdx = (curIdx + 1) % entries.length;
+    if (curIdx === 0) {
+      var cats = Object.keys(D);
+      var ci = cats.indexOf(curCat);
+      if (cats.length > 1) { curCat = cats[(ci + 1) % cats.length]; curIdx = 0; }
     }
-    h+='<span class="tsep">|</span>';
-    h+='<span style="font-size:11px;color:#bbc">Aa</span><input type="range" min="5" max="40" value="'+Math.round(labelScale*10)+'" style="width:36px;vertical-align:middle" oninput="window._terrainSetLabelScale(this.value)" title="Label size">';
-    h+='<span class="tsep">|</span>';
-    h+='<button class="tb'+(autoRotate?' on':'')+'" onclick="window._terrainToggleRotate()">Rotate</button>';
-    h+='<input type="range" min="1" max="20" value="'+Math.round(rotateSpeed*10)+'" style="width:32px;vertical-align:middle" oninput="window._terrainSetRotateSpeed(this.value)" title="Rotation speed (RPM)">';
-    h+='<span class="tsep">|</span>';
-    h+='<button class="tb" onclick="window._terrainResetView()">Reset</button>';
-    if(!isPopout) h+='<button class="tb" onclick="window._terrainPopout()">Pop out</button>';
-    ui.innerHTML=h;
+    buildUI(); build();
+    var delay = Math.max(500, 4000 - slideshowSpeed * 350);
+    slideshowTimer = setTimeout(_terrainAutoAdvance, delay);
   }
 
-  function refreshPromptSelect(){
-    var sel=document.getElementById('tPSel');if(!sel)return;sel.innerHTML='';
-    (D[curCat]||[]).forEach(function(e,i){var o=document.createElement('option');o.value=i;o.textContent=e[0].slice(0,charLimit);if(i===curIdx)o.selected=true;sel.appendChild(o)});
+  // ── Camera ──
+  var th = 0.0, ph = 0.08, rad = 14;
+  var target = new THREE.Vector3(0, FY + CEILING * 0.4, 0);
+  var autoRotate = !!(opts && opts.autoRotate);
+  var rotateSpeed = (opts && opts.rotateSpeed) || 0.3;
+  var dragging = false;
+  function updateCam() {
+    cam.position.set(
+      target.x + rad * Math.sin(ph) * Math.cos(th),
+      target.y + rad * Math.cos(ph),
+      target.z + rad * Math.sin(ph) * Math.sin(th)
+    );
+    cam.lookAt(target);
   }
 
-  window._terrainSelectCat=function(c){curCat=c;curIdx=0;if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}buildUI();build()};
-  window._terrainSelectPrompt=function(i){curIdx=parseInt(i)||0;if(slideshowPlaying){slideshowPlaying=false;if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}}buildUI();build()};
-  window._terrainSetBase=function(k){curBase=k;build()};
-  window._terrainSetMode=function(m){renderMode=m;build()};
-  window._terrainSetFilter=function(f){dataFilter=f;build()};
-  window._terrainSetLabelScale=function(v){labelScale=parseInt(v)/10;build()};
-  window._terrainToggleRotate=function(){autoRotate=!autoRotate;buildUI()};
-  window._terrainSetRotateSpeed=function(v){rotateSpeed=parseInt(v)/10};
-  window._terrainNext=function(){var entries=D[curCat]||[];if(!entries.length)return;curIdx=(curIdx+1)%entries.length;buildUI();build()};
-  window._terrainPrev=function(){var entries=D[curCat]||[];if(!entries.length)return;curIdx=(curIdx-1+entries.length)%entries.length;buildUI();build()};
-  window._terrainPlayPause=function(){slideshowPlaying=!slideshowPlaying;buildUI();if(slideshowPlaying)_terrainAutoAdvance();else if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null}};
-  window._terrainSetSpeed=function(v){slideshowSpeed=parseInt(v)||4};
-  window._terrainResetView=function(){th=0.0;ph=0.08;var entries=D[curCat]||[];var nT=entries[curIdx]?entries[curIdx][1].length:10;var terrainW=COLS*SCX;var zDepth=(nT-1)*SCX;rad=Math.max(10,Math.max(terrainW,zDepth)*0.8+4);target.set(0,FY+1.0,0);updateCam()};
-
-  function _terrainAutoAdvance(){
-    if(!slideshowPlaying)return;
-    var entries=D[curCat]||[];
-    if(!entries.length){slideshowPlaying=false;return}
-    curIdx=(curIdx+1)%entries.length;
-    if(curIdx===0){var cats=Object.keys(D);var ci=cats.indexOf(curCat);if(cats.length>1){curCat=cats[(ci+1)%cats.length];curIdx=0}}
-    buildUI();build();
-    var delay=Math.max(500,4000-slideshowSpeed*350);
-    slideshowTimer=setTimeout(_terrainAutoAdvance,delay);
-  }
-
-  // Camera
-  var th=0.0,ph=0.08,rad=14;
-  var target=new THREE.Vector3(0,FY+1.0,0);
-  var autoRotate=!!(opts&&opts.autoRotate);
-  var rotateSpeed=(opts&&opts.rotateSpeed)||0.3; // RPM
-  var dragging=false;
-  function updateCam(){cam.position.set(target.x+rad*Math.sin(ph)*Math.cos(th),target.y+rad*Math.cos(ph),target.z+rad*Math.sin(ph)*Math.sin(th));cam.lookAt(target)}
-  var ptrs={};
-  cv.addEventListener('contextmenu',function(e){e.preventDefault()});
-  cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);ptrs[e.pointerId]={btn:e.button,x:e.clientX,y:e.clientY};dragging=true});
-  cv.addEventListener('pointerup',function(e){cv.releasePointerCapture(e.pointerId);delete ptrs[e.pointerId];if(Object.keys(ptrs).length===0)dragging=false});
-  cv.addEventListener('pointermove',function(e){
-    var p=ptrs[e.pointerId];if(!p)return;
-    var dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
-    if(p.btn===0){th+=dx*.008;ph=Math.max(.08,Math.min(1.55,ph-dy*.008))}
-    else{
-      var speed=rad*.0012;
-      var right=new THREE.Vector3();
-      right.crossVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th))).normalize();
-      var fwd=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th)).normalize();
-      var up=new THREE.Vector3().crossVectors(right,fwd).normalize();
-      target.addScaledVector(right,-dx*speed);target.addScaledVector(up,-dy*speed);
+  var ptrs = {};
+  cv.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  cv.addEventListener('pointerdown', function(e) { cv.setPointerCapture(e.pointerId); ptrs[e.pointerId] = { btn: e.button, x: e.clientX, y: e.clientY }; dragging = true; });
+  cv.addEventListener('pointerup', function(e) { cv.releasePointerCapture(e.pointerId); delete ptrs[e.pointerId]; if (Object.keys(ptrs).length === 0) dragging = false; });
+  cv.addEventListener('pointermove', function(e) {
+    var p = ptrs[e.pointerId]; if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (p.btn === 0) { th += dx * .008; ph = Math.max(.08, Math.min(1.55, ph - dy * .008)); }
+    else {
+      var speed = rad * .0012;
+      var right = new THREE.Vector3();
+      right.crossVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th))).normalize();
+      var fwd = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)).normalize();
+      var up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+      target.addScaledVector(right, -dx * speed); target.addScaledVector(up, -dy * speed);
     }
     updateCam();
   });
-  cv.addEventListener('wheel',function(e){e.preventDefault();rad=Math.max(4,Math.min(30,rad+e.deltaY*.012));updateCam()},{passive:false});
+  cv.addEventListener('wheel', function(e) { e.preventDefault(); rad = Math.max(4, Math.min(30, rad + e.deltaY * .012)); updateCam(); }, { passive: false });
 
-  // Start
+  // ── Start ──
   buildUI();
   updateCam();
   build();
-  var running=true;
-  var lastTime=performance.now();
-  (function loop(){if(!running)return;requestAnimationFrame(loop);
-    var now=performance.now();var dt=(now-lastTime)/1000;lastTime=now;
-    if(autoRotate&&!dragging){th+=rotateSpeed*Math.PI*2/60*dt;updateCam()}
-    ren.render(sc,cam)})();
+  var running = true;
+  var lastTime = performance.now();
+  (function loop() {
+    if (!running) return; requestAnimationFrame(loop);
+    var now = performance.now(); var dt = (now - lastTime) / 1000; lastTime = now;
+    if (autoRotate && !dragging) { th += rotateSpeed * Math.PI * 2 / 60 * dt; updateCam(); }
+    ren.render(sc, cam);
+  })();
 
-  // Cleanup
-  var observer=new MutationObserver(function(){
-    if(!document.getElementById('tCv')){running=false;observer.disconnect();ren.dispose();if(slideshowTimer){clearTimeout(slideshowTimer);slideshowTimer=null;slideshowPlaying=false}}
+  // ── Cleanup ──
+  var observer = new MutationObserver(function() {
+    if (!document.getElementById('tCv')) {
+      running = false; observer.disconnect(); ren.dispose();
+      if (slideshowTimer) { clearTimeout(slideshowTimer); slideshowTimer = null; slideshowPlaying = false; }
+    }
   });
-  observer.observe(document.body,{childList:true,subtree:true});
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 
-function _openTerrainWindow(D, opts){
-    opts = opts || {};
-    var charLimit = opts.charLimit || 50;
-    var autoRotate = !!opts.autoRotate;
-    var rotateSpeed = opts.rotateSpeed || 0.3;
-    var pw=1200,ph=800;
-    var left=Math.round((screen.width-pw)/2);
-    var top=Math.round((screen.height-ph)/2);
-    var w=window.open('','_blank','width='+pw+',height='+ph+',left='+left+',top='+top);
-    if(!w)return;
-    var dataJSON=JSON.stringify(D);
-    var optsJSON=JSON.stringify({
-      isPopout: true,
-      charLimit: charLimit,
-      autoRotate: autoRotate,
-      rotateSpeed: rotateSpeed,
-      palette: opts.palette || 'dual',
-      heightScale: opts.heightScale || 180,
-      klBoost: opts.klBoost != null ? opts.klBoost : 0.3,
-      accentMode: opts.accentMode || 'kl_brightness',
-      accentAvailable: !!opts.accentAvailable,
-      dataFilter: opts.dataFilter || 'all',
-      showGrid: opts.showGrid !== false,
-      showLabels: opts.showLabels !== false,
-      showLegend: opts.showLegend !== false,
-      showSpine: opts.showSpine !== false,
-    });
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Correction Field Topology</title>');
-    w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
-    w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
-    w.document.write('.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}.terrain-wrap canvas:active{cursor:grabbing}');
-    w.document.write('.terrain-ui{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;background:rgba(8,8,18,.75);padding:3px 7px;border-radius:6px;max-width:calc(100% - 16px);z-index:5}');
-    w.document.write('.terrain-ui .tb{font-size:11px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:4px;color:#888;cursor:pointer;font-family:monospace}.terrain-ui .tb:hover{background:rgba(255,255,255,.05)}.terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB}');
-    w.document.write('.terrain-ui .tsep{color:rgba(255,255,255,.12);margin:0 2px;font-size:11px}');
-    w.document.write('.terrain-ui select{background:rgba(255,255,255,.05);border:.5px solid rgba(255,255,255,.15);border-radius:3px;color:#ccc;font-size:11px;padding:2px 5px;cursor:pointer;max-width:200px;font-family:monospace}');
-    w.document.write('.terrain-inf{position:absolute;top:6px;left:8px;font-size:11px;color:#bbc;background:rgba(8,8,18,.55);padding:2px 6px;border-radius:4px;z-index:5;font-family:monospace}');
-    w.document.write('.terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}.terrain-leg canvas{height:5px;width:100px;border-radius:2px}.terrain-leg span{font-size:11px;color:#bbc}');
-    w.document.write('</style>');
-    w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
-    w.document.write('</head><body>');
-    w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
-    w.document.write('<script>var D='+dataJSON+';var OPTS='+optsJSON+';<\/script>');
-    w.document.write('<script>var _terrainRendererCore='+_terrainRendererCore.toString()+';<\/script>');
-    w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,OPTS)});<\/script>');
-    w.document.write('</body></html>');
-    w.document.close();
+// ─── Popout window ──────────────────────────────────────────────
+
+function _openTerrainWindow(D, opts) {
+  opts = opts || {};
+  var K = opts.K || 8;
+  var pw = 1200, phh = 800;
+  var left = Math.round((screen.width - pw) / 2);
+  var top = Math.round((screen.height - phh) / 2);
+  var w = window.open('', '_blank', 'width=' + pw + ',height=' + phh + ',left=' + left + ',top=' + top);
+  if (!w) return;
+  var dataJSON = JSON.stringify(D);
+  var optsJSON = JSON.stringify({
+    isPopout: true,
+    K: K,
+    charLimit: opts.charLimit || 50,
+    autoRotate: !!opts.autoRotate,
+    rotateSpeed: opts.rotateSpeed || 0.3,
+    palette: opts.palette || 'dual',
+    ceilingRatio: opts.ceilingRatio || 1.0,
+    brightnessStrength: opts.brightnessStrength != null ? opts.brightnessStrength : 0.3,
+    accentMode: opts.accentMode || 'off',
+    showGrid: opts.showGrid !== false,
+    showLabels: opts.showLabels !== false,
+    showLegend: opts.showLegend !== false,
+    showSpine: opts.showSpine !== false,
+    showBars: opts.showBars !== false,
+  });
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Correction Field Topology</title>');
+  w.document.write('<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0c0c12;color:#c2c0b6;font-family:system-ui,sans-serif}');
+  w.document.write('.terrain-wrap{position:absolute;inset:0;background:#0c0c12}');
+  w.document.write('.terrain-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important;cursor:grab}.terrain-wrap canvas:active{cursor:grabbing}');
+  w.document.write('.terrain-ui{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;background:rgba(8,8,18,.75);padding:3px 7px;border-radius:6px;max-width:calc(100% - 16px);z-index:5}');
+  w.document.write('.terrain-ui .tb{font-size:11px;padding:2px 8px;background:transparent;border:.5px solid rgba(255,255,255,.16);border-radius:4px;color:#888;cursor:pointer;font-family:monospace}.terrain-ui .tb:hover{background:rgba(255,255,255,.05)}.terrain-ui .tb.on{border-color:#4A9EE0;color:#85B7EB}');
+  w.document.write('.terrain-ui .tsep{color:rgba(255,255,255,.12);margin:0 2px;font-size:11px}');
+  w.document.write('.terrain-ui select{background:rgba(255,255,255,.05);border:.5px solid rgba(255,255,255,.15);border-radius:3px;color:#ccc;font-size:11px;padding:2px 5px;cursor:pointer;max-width:200px;font-family:monospace}');
+  w.document.write('.terrain-inf{position:absolute;top:6px;left:8px;font-size:11px;color:#bbc;background:rgba(8,8,18,.55);padding:2px 6px;border-radius:4px;z-index:5;font-family:monospace}');
+  w.document.write('.terrain-leg{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:2px;background:rgba(8,8,18,.55);padding:3px 6px;border-radius:4px;z-index:5}.terrain-leg canvas{height:5px;width:100px;border-radius:2px}.terrain-leg span{font-size:11px;color:#bbc}');
+  w.document.write('</style>');
+  w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+  w.document.write('</head><body>');
+  w.document.write('<div id="terrainContainer" style="position:absolute;inset:0"></div>');
+  w.document.write('<script>var D=' + dataJSON + ';var OPTS=' + optsJSON + ';<\/script>');
+  w.document.write('<script>var _terrainRendererCore=' + _terrainRendererCore.toString() + ';<\/script>');
+  w.document.write('<script>requestAnimationFrame(function(){_terrainRendererCore(document.getElementById("terrainContainer"),D,OPTS)});<\/script>');
+  w.document.write('</body></html>');
+  w.document.close();
 }
 
-async function _lazyLoadTerrainPopout(totalCount, params){
+
+// ─── Lazy loader ────────────────────────────────────────────────
+
+async function _lazyLoadTerrainPopout(totalCount, params) {
   params = params || {};
   var charLimit = params.charLimit || DISPLAY_DEFAULTS.terrainCharLimit || 50;
   var autoRotate = params.autoRotate != null ? params.autoRotate : DISPLAY_DEFAULTS.terrainAutoRotate;
   var rotateSpeed = params.rotateSpeed || DISPLAY_DEFAULTS.terrainRotateSpeed || 0.3;
 
-  try{
+  try {
     log('Fetching terrain payload from module results...');
     var r = await fetch('/api/modules/correction_field_topology/results');
     var d = await r.json();
-    if(!d.ok || !d.results){
-      log('No module results available. Run Correction Field Topology first.','error');
+    if (!d.ok || !d.results) {
+      log('No module results available. Run Correction Field Topology first.', 'error');
       return;
     }
     var payload = d.results;
-    if(payload.error){
-      log('Module reported error: '+payload.error,'error');
+    if (payload.error) {
+      log('Module reported error: ' + payload.error, 'error');
       return;
     }
-    if(!payload.prompts || payload.prompts.length === 0){
-      log('Terrain payload is empty.','error');
+    if (!payload.prompts || payload.prompts.length === 0) {
+      log('Terrain payload is empty.', 'error');
       return;
     }
 
     var D = _terrainFromPayload(payload);
-    if(!Object.keys(D).length){
-      log('Terrain payload produced no renderable categories.','error');
+    if (!Object.keys(D).length) {
+      log('Terrain payload produced no renderable categories.', 'error');
       return;
     }
 
-    // Visual parameters captured at run time flow from payload.launch_params
-    // into the renderer via opts, keeping the renderer stateless.
     var lp = payload.launch_params || {};
+    var geo = payload.geometry || {};
     var viewerOpts = {
+      K: geo.k || 8,
       charLimit: lp.char_limit || charLimit,
       autoRotate: lp.auto_rotate != null ? lp.auto_rotate : autoRotate,
       rotateSpeed: lp.rotate_speed || rotateSpeed,
       palette: lp.palette || 'dual',
-      heightScale: lp.height_scale || 180,
-      klBoost: lp.kl_boost != null ? lp.kl_boost : 0.3,
-      accentMode: lp.accent_mode || 'kl_brightness',
-      accentAvailable: !!payload.accent_available,
-      dataFilter: lp.data_filter || 'all',
+      ceilingRatio: geo.ceiling_ratio || 1.0,
+      brightnessStrength: lp.brightness_strength != null ? lp.brightness_strength : 0.3,
+      accentMode: lp.accent_mode || 'off',
       showGrid: lp.show_grid !== false,
       showLabels: lp.show_labels !== false,
       showLegend: lp.show_legend !== false,
       showSpine: lp.show_spine !== false,
+      showBars: lp.show_bars !== false,
     };
 
     _openTerrainWindow(D, viewerOpts);
-  }catch(e){
-    console.error('Terrain lazy load error:',e);
-    log('Terrain load failed: '+e.message,'error');
+  } catch(e) {
+    console.error('Terrain lazy load error:', e);
+    log('Terrain load failed: ' + e.message, 'error');
   }
 }
-
 // ─── Advanced Engine Parameters ────────────────────────────────
 
 var _engineConfig = {};
@@ -4802,72 +4983,56 @@ function renderCFTResults(r) {
   }
 
   var h = '<div class="mod-results">';
+  var stats = r.stats || {};
+  var nPrompts = stats.n_prompts || 0;
+  var avail = r.available_measures || {};
+  var cc = (r.launch_params || {}).channel_config || r.channel_config || {};
 
   // Launch button
-  var nUsable = (r.n_with_displacement || 0) + (r.n_with_ltp_fallback || 0);
-  var lp = r.launch_params || {};
   h += '<div style="padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)">';
-  h += '<button class="btn btn-primary btn-sm" onclick="_cftLaunchFromModule()" style="white-space:nowrap">↗ Launch Visualization</button>';
-  h += '<span style="font-size:11px;color:var(--text-2)">' + nUsable + ' prompts ready';
-  if (r.n_with_displacement > 0) h += ' · ' + r.n_with_displacement + ' displacement';
-  if (r.n_with_ltp_fallback > 0) h += ' · ' + r.n_with_ltp_fallback + ' LTP fallback';
+  h += '<button class="btn btn-primary btn-sm" onclick="_cftLaunchFromModule()" style="white-space:nowrap">\u2197 Launch Visualization</button>';
+  h += '<span style="font-size:11px;color:var(--text-2)">' + nPrompts + ' prompts ready';
+  h += ' \u00B7 height: ' + (r.height_measure || 'rank_displacement');
   h += '</span></div>';
 
   // Summary stats
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Topology Summary</div>';
   h += '<div class="mod-results-body"><div class="mod-summary">';
-  h += tvStat('Usable Prompts', nUsable, r.n_skipped + ' skipped (no profiles)');
-  h += tvStat('Base Candidates', r.n_with_base_candidates || 0, 'prompts with dual-bank data');
-  var ts = r.token_stats || {};
+  var ts = stats.token_stats || {};
+  h += tvStat('Prompts', nPrompts, '');
   h += tvStat('Total Tokens', ts.total_tokens || 0, 'mean ' + (ts.mean_tokens_per_prompt || 0) + '/prompt, max ' + (ts.max_tokens || 0));
+  h += tvStat('Height Measure', r.height_measure || '-', '');
+  h += '</div></div>';
+
+  // Channel bindings
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Channel Bindings</div>';
+  h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
+  h += tvStat('Height', cc.height || '-', 'bank-decomposed \u2192 terrain elevation');
+  h += tvStat('Brightness', cc.brightness || 'none', 'per-token scalar \u2192 surface luminance');
+  h += tvStat('Bar Length', cc.bar_length || 'none', 'per-token scalar \u2192 underline extent');
+  h += tvStat('Bar Color', cc.bar_color || 'none', 'status or scalar \u2192 underline hue');
+  h += tvStat('Filter', cc.filter || 'none', 'per-token scalar \u2192 dim/highlight mask');
+  h += '</div></div>';
+
+  // Available measures
+  h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Available Measures</div>';
+  h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
+  h += tvStat('Bank (height-eligible)', (avail.bank || []).join(', ') || 'none', '');
+  h += tvStat('Scalar (bar/brightness)', (avail.scalar || []).join(', ') || 'none', '');
   h += '</div></div>';
 
   // Category breakdown
-  if (r.by_category && Object.keys(r.by_category).length > 1) {
+  var byCat = stats.by_category || {};
+  if (Object.keys(byCat).length > 1) {
     h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Category Breakdown</div>';
     h += '<div class="mod-results-body collapsed">';
-    h += '<table class="mod-tbl"><thead><tr><th>Category</th><th class="num">Prompts</th><th class="num">Mean Tokens</th></tr></thead><tbody>';
-    Object.keys(r.by_category).sort().forEach(function(cat) {
-      var ci = r.by_category[cat];
+    h += '<table class="mod-tbl"><thead><tr><th>Category</th><th class="num">Prompts</th></tr></thead><tbody>';
+    Object.keys(byCat).sort().forEach(function(cat) {
+      var ci = byCat[cat];
       h += '<tr><td style="color:var(--cyan)">' + escHtml(cat) + '</td>';
-      h += '<td class="num">' + ci.count + '</td>';
-      h += '<td class="num">' + ci.mean_tokens + '</td></tr>';
+      h += '<td class="num">' + ci.count + '</td></tr>';
     });
     h += '</tbody></table></div>';
-  }
-
-  // Displacement stats
-  if (r.displacement_stats) {
-    var ds = r.displacement_stats;
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Displacement Magnitude</div>';
-    h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
-    var ov = ds.overall || {};
-    h += tvStat('Overall Mean', (ov.mean || 0).toFixed(6), 'std ' + (ov.std || 0).toFixed(6) + ', median ' + (ov.median || 0).toFixed(6));
-    if (ds.by_category) {
-      Object.keys(ds.by_category).sort().forEach(function(cat) {
-        var cs = ds.by_category[cat];
-        h += tvStat(cat, cs.mean.toFixed(6), 'std ' + cs.std.toFixed(6) + ', max ' + cs.max.toFixed(6));
-      });
-    }
-    h += '</div></div>';
-  }
-
-  // Asymmetry stats
-  if (r.asymmetry_stats) {
-    var as = r.asymmetry_stats;
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">Bank Asymmetry</div>';
-    h += '<div class="mod-results-body collapsed"><div class="mod-summary">';
-    var ao = as.overall || {};
-    var biasLabel = ao.mean > 0.05 ? 'instruct-dominant' : ao.mean < -0.05 ? 'base-dominant' : 'balanced';
-    h += tvStat('Overall Bias', biasLabel, 'mean asymmetry ' + (ao.mean || 0).toFixed(4) + ', ' + Math.round((ao.instruct_dominant_frac || 0) * 100) + '% instruct-dominant positions');
-    if (as.by_category) {
-      Object.keys(as.by_category).sort().forEach(function(cat) {
-        var cs = as.by_category[cat];
-        var catBias = cs.mean > 0.05 ? '↑ instruct' : cs.mean < -0.05 ? '↓ base' : '≈ balanced';
-        h += tvStat(cat, catBias, 'mean ' + cs.mean.toFixed(4) + ', ' + Math.round(cs.instruct_dominant_frac * 100) + '% instruct-dominant');
-      });
-    }
-    h += '</div></div>';
   }
 
   h += '</div>';
@@ -4893,27 +5058,10 @@ fetchModuleResults = async function(name) {
 };
 
 function _cftLaunchFromModule() {
-  var p = _cftLaunchParams || {};
-  // Fall back to module card param controls if no cached results
-  if (!_cftLaunchParams) {
-    var m = _moduleData['correction_field_topology'];
-    if (m) p = getModuleParams('correction_field_topology');
-  }
-  var totalCount = sessionResults ? sessionResults.length : (dashResults ? dashResults.length : 0);
-  if (!totalCount) {
-    // Try from session info
-    try { totalCount = parseInt(document.querySelector('#sessCount')?.textContent) || 0; } catch(e) {}
-  }
-  // Use dashboard info if available
-  if (_promptTotal > 0) totalCount = _promptTotal;
-  _lazyLoadTerrainPopout(totalCount, {
-    category: p.category || 'all',
-    recordLimit: p.record_limit || 100,
-    tokenLimit: p.token_limit || 20,
-    charLimit: p.char_limit || 50,
-    autoRotate: !!p.auto_rotate,
-    rotateSpeed: p.rotate_speed || 0.3,
-  });
+  var pw=1200, ph=800;
+  var left=Math.round((screen.width-pw)/2);
+  var top=Math.round((screen.height-ph)/2);
+  window.open('/correction_field_topology_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
 }
 
 // ─── MI Instrumentation Results Renderer ────────────────────────
