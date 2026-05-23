@@ -106,6 +106,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">31%</span>
   <span class="sep">|</span>
   <button id="btnRotate">Rotate</button>
+  <button id="btnRotateDir" title="Toggle rotation direction">CW</button>
   <input type="range" id="rotateSlider" min="1" max="20" value="20" title="Rotate speed">
   <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
   <span class="sep">|</span>
@@ -378,6 +379,7 @@ var curIdx = 0;
 var curPalette = 'dual';
 var labelScale = 1.6;
 var autoRotate = false;
+var rotateCCW = false;
 var gain = 0.30;
 var cameraPreset = 'overhead';
 
@@ -905,7 +907,8 @@ function loop() {
   requestAnimationFrame(loop);
   var now = performance.now(), dt = (now-lastTime)/1000; lastTime = now;
   if (autoRotate && !dragging) {
-    camTheta += rotateSpeed * Math.PI*2/60 * dt;
+    var dir = rotateCCW ? 1 : -1;
+    camTheta += dir * rotateSpeed * Math.PI*2/60 * dt;
     updateCamera();
   }
   renderer.render(scene, camera);
@@ -935,7 +938,8 @@ fetch('/api/modules/correction_field_topology/results')
     curIdx = 0;
     curPalette = (payload.launch_params||{}).palette || 'dual';
     autoRotate = !!(payload.launch_params||{}).auto_rotate;
-    rotateSpeed = (payload.launch_params||{}).rotate_speed || 0.3;
+    rotateSpeed = (payload.launch_params||{}).rotate_speed || 2.0;
+    rotateCCW = !!(payload.launch_params||{}).rotate_ccw;
     gain = ((payload.launch_params||{}).gain || 100) / 100;
     cameraPreset = (payload.launch_params||{}).camera_preset || 'overhead';
 

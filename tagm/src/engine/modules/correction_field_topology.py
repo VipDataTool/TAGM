@@ -661,6 +661,13 @@ class CorrectionFieldTopologyModule(TASMModule):
             min_val=0.1,
             max_val=2.0,
         ),
+        ModuleParameter(
+            name="rotate_ccw",
+            display_name="Rotate Counter-Clockwise",
+            description="Reverse rotation direction.",
+            type="bool",
+            default=False,
+        ),
     ]
 
     # ── Lifecycle ──
@@ -786,6 +793,7 @@ class CorrectionFieldTopologyModule(TASMModule):
                 "char_limit": int(params.get("char_limit", 50)),
                 "auto_rotate": bool(params.get("auto_rotate", False)),
                 "rotate_speed": float(params.get("rotate_speed", 2.0)),
+                "rotate_ccw": bool(params.get("rotate_ccw", False)),
                 "gain": int(params.get("gain", 100)),
                 "camera_preset": params.get("camera_preset", "overhead"),
                 "channel_config": channel_config,
