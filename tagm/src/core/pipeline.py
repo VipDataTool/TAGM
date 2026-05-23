@@ -88,7 +88,7 @@ class Pipeline:
         log("loading", f"Loading instruct model: {self.instruct_model_id}")
         self.instruct_model = AutoModelForCausalLM.from_pretrained(
             self.instruct_model_id,
-            dtype=self.dtype,
+            torch_dtype=self.dtype,
             device_map=self.device,
             attn_implementation="eager",
             token=self.hf_token,
@@ -141,6 +141,7 @@ class Pipeline:
             hf_token=self.hf_token,
             progress=progress,
             store=pre_store,
+            streaming=(delta_backend == "mmap"),
         )
 
         # If mmap, finalize the file and reopen in read mode
@@ -181,7 +182,7 @@ class Pipeline:
         log("loading", f"Loading base model: {self.base_model_id}")
         self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_id,
-            dtype=self.dtype,
+            torch_dtype=self.dtype,
             device_map=self.device,
             attn_implementation="eager",
             token=self.hf_token,

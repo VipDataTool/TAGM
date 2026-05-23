@@ -223,9 +223,11 @@ async def init_hep(request: Request):
     """
     from src.engine import config as engine_config
     from src.core.cache import clear_hf_cache, clear_mmap_deltas, system_resources
+    import gc
 
     # Reset pipeline first
     api_reset_handler()
+    gc.collect()
 
     # Clear caches
     hf_result = clear_hf_cache()
