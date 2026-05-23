@@ -102,12 +102,12 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <span id="gainLabel" style="font-size:10px;color:#8a8a96;min-width:28px">30%</span>
   <span class="sep">|</span>
   <label>Aa</label>
-  <input type="range" id="labelSlider" min="5" max="40" value="40" title="Label size">
-  <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
+  <input type="range" id="labelSlider" min="5" max="40" value="16" title="Label size">
+  <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">31%</span>
   <span class="sep">|</span>
   <button id="btnRotate">Rotate</button>
-  <input type="range" id="rotateSlider" min="1" max="20" value="7" title="Rotate speed">
-  <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">32%</span>
+  <input type="range" id="rotateSlider" min="1" max="20" value="20" title="Rotate speed">
+  <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
   <span class="sep">|</span>
   <button id="btnReset">Reset</button>
 </div>
@@ -376,7 +376,7 @@ var CFG = null;       // config from payload
 var curCat = null;
 var curIdx = 0;
 var curPalette = 'dual';
-var labelScale = 4.0;
+var labelScale = 1.6;
 var autoRotate = false;
 var gain = 0.30;
 var cameraPreset = 'overhead';
@@ -396,7 +396,7 @@ function applyCameraPreset(nT) {
   camTarget.set(0, FY + CEILING*gain*p.targetY, 0);
   updateCamera();
 }
-var rotateSpeed = 0.7;
+var rotateSpeed = 2.0;
 var slideshowPlaying = false;
 var slideshowSpeed = 6;
 var slideshowTimer = null;
