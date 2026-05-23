@@ -626,6 +626,26 @@ class CorrectionFieldTopologyModule(TASMModule):
 
         # ── Camera motion ──
         ModuleParameter(
+            name="camera_preset",
+            display_name="Camera Preset",
+            description="Initial camera angle. 'overhead' looks down at the "
+                        "terrain. 'perspective' views from a low angle across "
+                        "the surface.",
+            type="select",
+            default="overhead",
+            options=["overhead", "perspective"],
+        ),
+        ModuleParameter(
+            name="gain",
+            display_name="Vertical Gain (%)",
+            description="Scales terrain height. 100% = unity, below attenuates, "
+                        "above amplifies.",
+            type="int",
+            default=30,
+            min_val=0,
+            max_val=200,
+        ),
+        ModuleParameter(
             name="auto_rotate",
             display_name="Auto-Rotate",
             description="Spin terrain on launch.",
@@ -637,7 +657,7 @@ class CorrectionFieldTopologyModule(TASMModule):
             display_name="Rotate Speed (RPM)",
             description="Auto-rotation speed.",
             type="float",
-            default=0.3,
+            default=0.7,
             min_val=0.1,
             max_val=2.0,
         ),
@@ -765,7 +785,9 @@ class CorrectionFieldTopologyModule(TASMModule):
                 "show_bars": bool(params.get("show_bars", True)),
                 "char_limit": int(params.get("char_limit", 50)),
                 "auto_rotate": bool(params.get("auto_rotate", False)),
-                "rotate_speed": float(params.get("rotate_speed", 0.3)),
+                "rotate_speed": float(params.get("rotate_speed", 0.7)),
+                "gain": int(params.get("gain", 100)),
+                "camera_preset": params.get("camera_preset", "overhead"),
                 "channel_config": channel_config,
             },
         }

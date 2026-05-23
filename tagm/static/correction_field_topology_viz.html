@@ -92,22 +92,22 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <button id="btnPrev">Prev</button>
   <button id="btnPlay">Play</button>
   <button id="btnNext">Next</button>
-  <input type="range" id="speedSlider" min="1" max="10" value="4" title="Slideshow speed">
-  <span id="speedLabel" style="font-size:10px;color:#8a8a96;min-width:28px">40%</span>
+  <input type="range" id="speedSlider" min="1" max="10" value="6" title="Slideshow speed">
+  <span id="speedLabel" style="font-size:10px;color:#8a8a96;min-width:28px">56%</span>
   <span class="sep">|</span>
   <select id="paletteSelect" title="Color palette"></select>
   <span class="sep">|</span>
   <label>Gain</label>
-  <input type="range" id="gainSlider" min="0" max="200" value="100" title="Vertical gain (100% = unity)">
-  <span id="gainLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
+  <input type="range" id="gainSlider" min="0" max="200" value="30" title="Vertical gain (100% = unity)">
+  <span id="gainLabel" style="font-size:10px;color:#8a8a96;min-width:28px">30%</span>
   <span class="sep">|</span>
   <label>Aa</label>
-  <input type="range" id="labelSlider" min="5" max="40" value="20" title="Label size">
-  <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">43%</span>
+  <input type="range" id="labelSlider" min="5" max="40" value="40" title="Label size">
+  <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
   <span class="sep">|</span>
   <button id="btnRotate">Rotate</button>
-  <input type="range" id="rotateSlider" min="1" max="20" value="3" title="Rotate speed">
-  <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">15%</span>
+  <input type="range" id="rotateSlider" min="1" max="20" value="7" title="Rotate speed">
+  <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">32%</span>
   <span class="sep">|</span>
   <button id="btnReset">Reset</button>
 </div>
@@ -376,12 +376,29 @@ var CFG = null;       // config from payload
 var curCat = null;
 var curIdx = 0;
 var curPalette = 'dual';
-var labelScale = 2.0;
+var labelScale = 4.0;
 var autoRotate = false;
-var gain = 1.0;
-var rotateSpeed = 0.3;
+var gain = 0.30;
+var cameraPreset = 'overhead';
+
+// Camera presets — composite theta/phi/rad values
+var CAMERA_PRESETS = {
+  overhead:    { theta: 0.0,  phi: 0.08, radFactor: 1.0, targetY: 0.4 },
+  perspective: { theta: -0.35, phi: 0.55, radFactor: 0.75, targetY: 0.25 }
+};
+
+function applyCameraPreset(nT) {
+  var p = CAMERA_PRESETS[cameraPreset] || CAMERA_PRESETS.overhead;
+  var tw = COLS*SCX, td = (nT-1)*SCX;
+  camTheta = p.theta;
+  camPhi = p.phi;
+  camRad = Math.max(6, Math.max(tw, td)*0.8+4) * p.radFactor;
+  camTarget.set(0, FY + CEILING*gain*p.targetY, 0);
+  updateCamera();
+}
+var rotateSpeed = 0.7;
 var slideshowPlaying = false;
-var slideshowSpeed = 4;
+var slideshowSpeed = 6;
 var slideshowTimer = null;
 
 // Scene objects to dispose on rebuild
@@ -677,12 +694,8 @@ function buildTerrain() {
   // Update legend
   updateLegend();
 
-  // Reset camera
-  camTheta = 0.0; camPhi = 0.08;
-  var tw = COLS*SCX, td = zDepth;
-  camRad = Math.max(10, Math.max(tw, td)*0.8+4);
-  camTarget.set(0, FY + CEILING*0.4, 0);
-  updateCamera();
+  // Reset camera to current preset
+  applyCameraPreset(nT);
 }
 
 
@@ -862,12 +875,9 @@ document.getElementById('rotateSlider').addEventListener('input', function(){
   document.getElementById('rotateLabel').textContent = Math.round((this.value-1)/19*100)+'%';
 });
 document.getElementById('btnReset').addEventListener('click', function(){
-  camTheta = 0.0; camPhi = 0.08;
   var entries = D[curCat]||[];
   var nT = entries[curIdx] ? entries[curIdx].tokens.length : 10;
-  camRad = Math.max(10, Math.max(COLS*SCX, (nT-1)*SCX)*0.8+4);
-  camTarget.set(0, FY+CEILING*0.4, 0);
-  updateCamera();
+  applyCameraPreset(nT);
 });
 
 function advance() {
@@ -926,6 +936,13 @@ fetch('/api/modules/correction_field_topology/results')
     curPalette = (payload.launch_params||{}).palette || 'dual';
     autoRotate = !!(payload.launch_params||{}).auto_rotate;
     rotateSpeed = (payload.launch_params||{}).rotate_speed || 0.3;
+    gain = ((payload.launch_params||{}).gain || 100) / 100;
+    cameraPreset = (payload.launch_params||{}).camera_preset || 'overhead';
+
+    // Sync slider values to launch_params
+    var gainPct = Math.round(gain * 100);
+    document.getElementById('gainSlider').value = gainPct;
+    document.getElementById('gainLabel').textContent = gainPct + '%';
 
     // Show UI
     document.getElementById('status').classList.add('hidden');

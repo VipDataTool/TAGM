@@ -21,7 +21,7 @@
  "channel_config": {
   "height": "rank_displacement",
   "spine": "rank_displacement",
-  "brightness": "none",
+  "brightness": "kl_divergence",
   "bar_length": "kl_divergence",
   "bar_color": "status",
   "font_color": "status",
@@ -2888,7 +2888,7 @@
       0.00147152,
       0.00658643,
       0.19879151,
-      0.21240235,
+      0.21240234,
       0.55993652
      ],
      "instruct_bank": [
@@ -22744,7 +22744,7 @@
      "primary": [
       0.74414062,
       0.01548768,
-      0.36181642,
+      0.36181641,
       0.36206055,
       0.21130371,
       0.17993163,
@@ -24868,7 +24868,7 @@
       0.53833006,
       0.43554688,
       0.20654296,
-      0.63476562
+      0.63476563
      ],
      "instruct_bank": [
       [
@@ -32702,7 +32702,7 @@
       0.14434816,
       0.33355714,
       0.4501953,
-      1.51605225
+      1.51605224
      ],
      "instruct_bank": [
       [
@@ -43062,7 +43062,7 @@
       1.61949921,
       0.24862669,
       1.05310059,
-      0.86840822,
+      0.86840821,
       0.4855957,
       0.53491212,
       1.11572266,
@@ -52667,11 +52667,13 @@
   "show_bars": true,
   "char_limit": 50,
   "auto_rotate": false,
-  "rotate_speed": 0.3,
+  "rotate_speed": 0.7,
+  "gain": 30,
+  "camera_preset": "overhead",
   "channel_config": {
    "height": "rank_displacement",
    "spine": "rank_displacement",
-   "brightness": "none",
+   "brightness": "kl_divergence",
    "bar_length": "kl_divergence",
    "bar_color": "status",
    "font_color": "status",
