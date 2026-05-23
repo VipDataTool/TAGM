@@ -891,7 +891,7 @@ function advance() {
     if (cats.length > 1) { curCat = cats[(ci+1)%cats.length]; curIdx = 0; }
   }
   refreshPromptSelect(); buildTerrain();
-  var delay = Math.max(500, 4000-slideshowSpeed*350);
+  var delay = Math.max(500, Math.round(30000 - (slideshowSpeed - 1) * 3278));
   slideshowTimer = setTimeout(advance, delay);
 }
 
