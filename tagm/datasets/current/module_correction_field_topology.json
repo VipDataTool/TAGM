@@ -4,8 +4,8 @@
   "col_spacing": 0.55,
   "ceiling_ratio": 1.0
  },
- "height_measure": "rank_displacement",
- "accent_available": true,
+ "height_measure": "ltp_tension",
+ "accent_available": false,
  "available_measures": {
   "bank": [
    "rank_displacement",
@@ -19,13 +19,13 @@
   ]
  },
  "channel_config": {
-  "height": "rank_displacement",
-  "spine": "rank_displacement",
-  "brightness": "kl_divergence",
+  "height": "ltp_tension",
+  "spine": "ltp_tension",
+  "brightness": "sfd_density",
   "bar_length": "kl_divergence",
-  "bar_color": "status",
-  "font_color": "status",
-  "filter": "none"
+  "bar_color": "none",
+  "font_color": "none",
+  "filter": "stress"
  },
  "prompts": [
   {
@@ -1292,7 +1292,7 @@
  ],
  "stats": {
   "n_prompts": 1,
-  "height_measure": "rank_displacement",
+  "height_measure": "ltp_tension",
   "by_category": {
    "benign": {
     "count": 1
@@ -1305,13 +1305,13 @@
   }
  },
  "launch_params": {
-  "height_measure": "rank_displacement",
+  "height_measure": "ltp_tension",
   "category": "all",
   "record_limit": 100,
   "token_limit": 20,
   "palette": "dual",
   "brightness_strength": 0.3,
-  "accent_mode": "promoted_demoted",
+  "accent_mode": "off",
   "show_grid": true,
   "show_labels": true,
   "show_legend": true,
@@ -1322,15 +1322,15 @@
   "rotate_speed": 2.0,
   "rotate_ccw": false,
   "gain": 30,
-  "camera_preset": "overhead",
+  "camera_preset": "perspective",
   "channel_config": {
-   "height": "rank_displacement",
-   "spine": "rank_displacement",
-   "brightness": "kl_divergence",
+   "height": "ltp_tension",
+   "spine": "ltp_tension",
+   "brightness": "sfd_density",
    "bar_length": "kl_divergence",
-   "bar_color": "status",
-   "font_color": "status",
-   "filter": "none"
+   "bar_color": "none",
+   "font_color": "none",
+   "filter": "stress"
   }
  }
 }
