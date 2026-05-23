@@ -4,8 +4,8 @@
   "col_spacing": 0.55,
   "ceiling_ratio": 1.0
  },
- "height_measure": "rank_displacement",
- "accent_available": true,
+ "height_measure": "ltp_tension",
+ "accent_available": false,
  "available_measures": {
   "bank": [
    "rank_displacement",
@@ -19,12 +19,12 @@
   ]
  },
  "channel_config": {
-  "height": "rank_displacement",
-  "spine": "rank_displacement",
-  "brightness": "none",
-  "bar_length": "sfd_density",
-  "bar_color": "status",
-  "font_color": "status",
+  "height": "ltp_tension",
+  "spine": "ltp_tension",
+  "brightness": "stress",
+  "bar_length": "kl_divergence",
+  "bar_color": "none",
+  "font_color": "none",
   "filter": "none"
  },
  "prompts": [
@@ -52631,7 +52631,7 @@
  ],
  "stats": {
   "n_prompts": 40,
-  "height_measure": "rank_displacement",
+  "height_measure": "ltp_tension",
   "by_category": {
    "benign": {
     "count": 10
@@ -52653,13 +52653,13 @@
   }
  },
  "launch_params": {
-  "height_measure": "rank_displacement",
+  "height_measure": "ltp_tension",
   "category": "all",
   "record_limit": 100,
   "token_limit": 20,
   "palette": "dual",
   "brightness_strength": 0.3,
-  "accent_mode": "promoted_demoted",
+  "accent_mode": "off",
   "show_grid": true,
   "show_labels": true,
   "show_legend": true,
@@ -52669,12 +52669,12 @@
   "auto_rotate": false,
   "rotate_speed": 0.3,
   "channel_config": {
-   "height": "rank_displacement",
-   "spine": "rank_displacement",
-   "brightness": "none",
-   "bar_length": "sfd_density",
-   "bar_color": "status",
-   "font_color": "status",
+   "height": "ltp_tension",
+   "spine": "ltp_tension",
+   "brightness": "stress",
+   "bar_length": "kl_divergence",
+   "bar_color": "none",
+   "font_color": "none",
    "filter": "none"
   }
  }
