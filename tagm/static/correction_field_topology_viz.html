@@ -93,6 +93,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <button id="btnPlay">Play</button>
   <button id="btnNext">Next</button>
   <input type="range" id="speedSlider" min="1" max="10" value="4" title="Slideshow speed">
+  <span id="speedLabel" style="font-size:10px;color:#8a8a96;min-width:28px">40%</span>
   <span class="sep">|</span>
   <select id="paletteSelect" title="Color palette"></select>
   <span class="sep">|</span>
@@ -102,9 +103,11 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <span class="sep">|</span>
   <label>Aa</label>
   <input type="range" id="labelSlider" min="5" max="40" value="20" title="Label size">
+  <span id="labelSizeLabel" style="font-size:10px;color:#8a8a96;min-width:28px">43%</span>
   <span class="sep">|</span>
   <button id="btnRotate">Rotate</button>
   <input type="range" id="rotateSlider" min="1" max="20" value="3" title="Rotate speed">
+  <span id="rotateLabel" style="font-size:10px;color:#8a8a96;min-width:28px">15%</span>
   <span class="sep">|</span>
   <button id="btnReset">Reset</button>
 </div>
@@ -835,6 +838,7 @@ document.getElementById('btnPlay').addEventListener('click', function(){
 });
 document.getElementById('speedSlider').addEventListener('input', function(){
   slideshowSpeed = parseInt(this.value)||4;
+  document.getElementById('speedLabel').textContent = Math.round((this.value-1)/9*100)+'%';
 });
 document.getElementById('paletteSelect').addEventListener('change', function(){
   curPalette = this.value; buildTerrain();
@@ -845,7 +849,9 @@ document.getElementById('gainSlider').addEventListener('input', function(){
   buildTerrain();
 });
 document.getElementById('labelSlider').addEventListener('input', function(){
-  labelScale = parseInt(this.value)/10; buildTerrain();
+  labelScale = parseInt(this.value)/10;
+  document.getElementById('labelSizeLabel').textContent = Math.round((this.value-5)/35*100)+'%';
+  buildTerrain();
 });
 document.getElementById('btnRotate').addEventListener('click', function(){
   autoRotate = !autoRotate;
@@ -853,6 +859,7 @@ document.getElementById('btnRotate').addEventListener('click', function(){
 });
 document.getElementById('rotateSlider').addEventListener('input', function(){
   rotateSpeed = parseInt(this.value)/10;
+  document.getElementById('rotateLabel').textContent = Math.round((this.value-1)/19*100)+'%';
 });
 document.getElementById('btnReset').addEventListener('click', function(){
   camTheta = 0.0; camPhi = 0.08;
