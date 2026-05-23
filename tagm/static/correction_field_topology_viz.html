@@ -96,6 +96,10 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   <span class="sep">|</span>
   <select id="paletteSelect" title="Color palette"></select>
   <span class="sep">|</span>
+  <label>Gain</label>
+  <input type="range" id="gainSlider" min="0" max="200" value="100" title="Vertical gain (100% = unity)">
+  <span id="gainLabel" style="font-size:10px;color:#8a8a96;min-width:28px">100%</span>
+  <span class="sep">|</span>
   <label>Aa</label>
   <input type="range" id="labelSlider" min="5" max="40" value="20" title="Label size">
   <span class="sep">|</span>
@@ -371,6 +375,7 @@ var curIdx = 0;
 var curPalette = 'dual';
 var labelScale = 2.0;
 var autoRotate = false;
+var gain = 1.0;
 var rotateSpeed = 0.3;
 var slideshowPlaying = false;
 var slideshowSpeed = 4;
@@ -451,7 +456,7 @@ function buildTerrain() {
       else if (c === K) { x = 0;             normVal = row.spine; }
       else              { x = (c - K) * SCX; normVal = row.im[c - K - 1]; }
 
-      var y = FY + normVal * CEILING;
+      var y = FY + normVal * CEILING * gain;
       vtx[t].push({ x:x, y:y, z:z });
       vsArr.push(x, y, z);
       var col = mixColor(normVal, row.brightness, Math.abs(x), c);
@@ -833,6 +838,11 @@ document.getElementById('speedSlider').addEventListener('input', function(){
 });
 document.getElementById('paletteSelect').addEventListener('change', function(){
   curPalette = this.value; buildTerrain();
+});
+document.getElementById('gainSlider').addEventListener('input', function(){
+  gain = parseInt(this.value) / 100;
+  document.getElementById('gainLabel').textContent = this.value + '%';
+  buildTerrain();
 });
 document.getElementById('labelSlider').addEventListener('input', function(){
   labelScale = parseInt(this.value)/10; buildTerrain();
