@@ -4,8 +4,8 @@
   "col_spacing": 0.55,
   "ceiling_ratio": 1.0
  },
- "height_measure": "ltp_tension",
- "accent_available": false,
+ "height_measure": "rank_displacement",
+ "accent_available": true,
  "available_measures": {
   "bank": [
    "rank_displacement",
@@ -19,13 +19,13 @@
   ]
  },
  "channel_config": {
-  "height": "ltp_tension",
-  "spine": "ltp_tension",
-  "brightness": "sfd_density",
+  "height": "rank_displacement",
+  "spine": "rank_displacement",
+  "brightness": "kl_divergence",
   "bar_length": "kl_divergence",
-  "bar_color": "none",
-  "font_color": "none",
-  "filter": "stress"
+  "bar_color": "status",
+  "font_color": "status",
+  "filter": "none"
  },
  "prompts": [
   {
@@ -47,7 +47,7 @@
      "primary": [
       1.76538087,
       0.0663681,
-      0.4580078,
+      0.45800781,
       0.22851562,
       0.08291626,
       0.13830567,
@@ -1292,7 +1292,7 @@
  ],
  "stats": {
   "n_prompts": 1,
-  "height_measure": "ltp_tension",
+  "height_measure": "rank_displacement",
   "by_category": {
    "benign": {
     "count": 1
@@ -1305,13 +1305,13 @@
   }
  },
  "launch_params": {
-  "height_measure": "ltp_tension",
+  "height_measure": "rank_displacement",
   "category": "all",
   "record_limit": 100,
   "token_limit": 20,
   "palette": "dual",
   "brightness_strength": 0.3,
-  "accent_mode": "off",
+  "accent_mode": "promoted_demoted",
   "show_grid": true,
   "show_labels": true,
   "show_legend": true,
@@ -1322,15 +1322,15 @@
   "rotate_speed": 2.0,
   "rotate_ccw": false,
   "gain": 30,
-  "camera_preset": "perspective",
+  "camera_preset": "overhead",
   "channel_config": {
-   "height": "ltp_tension",
-   "spine": "ltp_tension",
-   "brightness": "sfd_density",
+   "height": "rank_displacement",
+   "spine": "rank_displacement",
+   "brightness": "kl_divergence",
    "bar_length": "kl_divergence",
-   "bar_color": "none",
-   "font_color": "none",
-   "filter": "stress"
+   "bar_color": "status",
+   "font_color": "status",
+   "filter": "none"
   }
  }
 }
