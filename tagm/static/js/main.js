@@ -657,9 +657,12 @@ async function analyzePrompt(){
     }catch(fetchErr){
       // Browser timeout (Safari "Load failed") — poll for backend completion
       log('Connection interrupted, waiting for backend...','');
+      var timeoutSec = parseInt($('cfgBackendTimeout').value) || 300;
+      var pollInterval = (parseInt($('cfgPollInterval').value) || 30) * 1000;
+      var maxAttempts = Math.ceil((timeoutSec * 1000) / pollInterval);
       let recovered=false;
-      for(let attempt=0;attempt<15;attempt++){
-        await new Promise(r=>setTimeout(r,4000));
+      for(let attempt=0;attempt<maxAttempts;attempt++){
+        await new Promise(r=>setTimeout(r,pollInterval));
         try{
           const chk=await(await fetch('/api/status')).json();
           const sn=chk.session?chk.session.n_results:0;
@@ -677,7 +680,6 @@ async function analyzePrompt(){
               recovered=true;break;
             }
           }
-          log('Still waiting... ('+((attempt+1)*4)+'s)','');
         }catch(chkErr){}
       }
       if(recovered){setLoading(btn,false);return}
