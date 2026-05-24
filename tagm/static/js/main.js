@@ -1488,7 +1488,7 @@ async function loadHepStatus() {
     var status = $('hepStatus');
     var controls = $('hepControls');
     if (status) status.innerHTML = '<span style="color:var(--text-2)">Status: <b>Inactive</b> (standard memory mode)</span>';
-    if (controls) controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
+    if (controls) controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--cyan);color:var(--cyan);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
   }
 }
 
@@ -1507,14 +1507,14 @@ function renderHepPanel(st) {
       ? 'Mmap file: ' + st.mmap_file.split('/').pop() + ' (' + (st.mmap_size_bytes / 1e9).toFixed(1) + ' GB)'
       : 'No mmap file (load a model to create one)';
     status.innerHTML = '<div style="padding:8px 10px;border:1px solid var(--yellow);border-radius:4px;background:rgba(240,228,66,0.06);margin-bottom:8px">'
-      + '<span style="color:var(--yellow);font-weight:600">HIGH-EFFICIENCY PIPELINE: ACTIVE</span><br>'
+      + '<span style="color:var(--green);font-weight:600">HIGH-EFFICIENCY PIPELINE: ACTIVE</span><br>'
       + '<span style="color:var(--text-2)">'
       + 'Delta backend: memory-mapped (disk)<br>'
       + mmapInfo + '<br>'
       + 'Disk: ' + diskPct + '% used (' + diskFreeGB + ' GB free)<br>'
       + 'RAM available: ' + ramAvailGB + ' GB'
       + '</span></div>';
-    controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent" onclick="deactivateHep()">Deactivate HEP</button>';
+    controls.innerHTML = '<button class="btn btn-sm btn-secondary" onclick="deactivateHep()">Deactivate HEP</button>';
   } else {
     status.innerHTML = '<div style="color:var(--text-2)">'
       + 'Status: <b>Inactive</b> (standard memory mode)<br>'
@@ -1522,7 +1522,7 @@ function renderHepPanel(st) {
       + 'HF model cache: ' + hfCacheGB + ' GB<br>'
       + 'RAM available: ' + ramAvailGB + ' GB'
       + '</div>';
-    controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:var(--yellow);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
+    controls.innerHTML = '<button class="btn btn-sm" style="border:1px solid var(--cyan);color:var(--cyan);background:transparent;font-weight:600" onclick="showHepConfirm()">Initialize High-Efficiency Pipeline</button>';
   }
 }
 
@@ -1537,7 +1537,7 @@ function showHepConfirm() {
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center';
 
     overlay.innerHTML = '<div style="background:var(--bg-1);border:1px solid var(--yellow);border-radius:8px;padding:24px;max-width:480px;width:90%;color:var(--text-1)">'
-      + '<h3 style="margin:0 0 12px;color:var(--yellow)">Initialize High-Efficiency Pipeline</h3>'
+      + '<h3 style="margin:0 0 12px">Initialize High-Efficiency Pipeline</h3>'
       + '<p style="margin:0 0 10px;line-height:1.5;color:var(--text-2)">This mode enables analysis of models up to 3B parameters by using disk-backed storage for weight deltas.</p>'
       + '<p style="margin:0 0 10px;line-height:1.5;color:var(--text-2)">To free disk space, this will:</p>'
       + '<div style="margin:0 0 12px;padding:8px 12px;background:var(--bg-2);border-radius:4px;line-height:1.6;color:var(--text-1)">'
@@ -1551,7 +1551,7 @@ function showHepConfirm() {
       + '</div>'
       + '<div style="display:flex;gap:10px;justify-content:flex-end">'
       + '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="document.getElementById(\'hepConfirmOverlay\').remove()">Cancel</button>'
-      + '<button class="btn btn-sm" style="border:1px solid var(--yellow);color:#000;background:#E0D74B;font-weight:600" onclick="confirmInitHep()">Confirm</button>'
+      + '<button class="btn btn-sm" style="background:var(--cyan);color:#000;font-weight:600" onclick="confirmInitHep()">Confirm</button>'
       + '</div></div>';
 
     document.body.appendChild(overlay);
@@ -1678,7 +1678,7 @@ async function loadProbeFiles(){
       if (r.legacy) {
         h += '<br><span style="color:var(--orange);font-size:11px">'
            + '⚠ Legacy probe_config.json record (no model recorded). '
-           + 'Re-Apply to bind this probe set to the current model.</span>';
+           + 'Apply to bind this probe set to the current model.</span>';
       } else if (r.model_id) {
         var depthsStr = (r.depths || [])
           .map(function(d){ return 'L' + Math.round(d * 100); }).join(', ');
@@ -1695,7 +1695,7 @@ async function loadProbeFiles(){
             + escHtml(r.model_id) + '</span>, but '
             + '<span style="color:var(--text-1)">'
             + escHtml(r.loaded_model_id) + '</span> is currently loaded. '
-            + 'Re-Apply to embed for the current model.</span>';
+            + 'Apply to embed for the current model.</span>';
         }
         h += '<br>' + bindLine;
       }

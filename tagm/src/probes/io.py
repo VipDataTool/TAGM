@@ -471,7 +471,7 @@ class ActiveProbeSet:
         if self.is_legacy():
             raise RuntimeError(
                 "Active probe set has no recorded model_id "
-                "(legacy probe_config.json). Re-Apply the probe set "
+                "(legacy probe_config.json). Apply the probe set "
                 "in the Configuration → Probe Set panel.")
         eff_proj = self.projected if projected is None else bool(projected)
         return probe_cache_path(project_root, self.probe_file,
@@ -489,14 +489,14 @@ class ActiveProbeSet:
             return False, (
                 f"Active probe set {self.probe_file!r} was applied under "
                 f"an older TAGM version that did not record the model. "
-                f"Re-Apply it in Configuration → Probe Set so this run "
+                f"Apply it in Configuration → Probe Set so this run "
                 f"can resolve the correct cache.")
         cur = getattr(pipeline, "instruct_model_id", None)
         if cur and cur != self.model_id:
             return False, (
                 f"Active probe set {self.probe_file!r} was applied for "
                 f"{self.model_id!r}, but {cur!r} is currently loaded. "
-                f"Re-Apply the probe set in Configuration → Probe Set "
+                f"Apply the probe set in Configuration → Probe Set "
                 f"to embed it against the current model.")
         return True, "OK"
 

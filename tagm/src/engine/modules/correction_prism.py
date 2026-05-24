@@ -228,14 +228,14 @@ class CorrectionPrismModule(TASMModule):
                 f"Probe set {active.probe_file!r} has only "
                 f"{len(active.depths)} depth(s) cached; the prism needs "
                 f"both L_low and L_high to form the probe-side delta. "
-                f"Re-Apply the probe set with two depths configured.")
+                f"Apply the probe set with two depths configured.")
 
         for frac in (active.subject_layer_frac(), active.escalation_layer_frac()):
             cp = active.cache_path(self._project_root, frac)
             if not os.path.exists(cp):
                 return False, (
                     f"Probe cache missing at L{int(frac*100)} "
-                    f"({os.path.basename(cp)}). Re-Apply the probe set.")
+                    f"({os.path.basename(cp)}). Apply the probe set.")
 
         if not any(r.get("prompt") for r in session_results):
             return False, "No prompts in session results."
@@ -475,18 +475,18 @@ class CorrectionPrismModule(TASMModule):
         d_high = load_probe_cache(cp_high)
         if not d_low or not d_high:
             raise RuntimeError(
-                "Probe caches missing at L_low or L_high. Re-Apply the "
+                "Probe caches missing at L_low or L_high. Apply the "
                 "probe set in Configuration → Probe Set.")
         embs_low = np.array(d_low["embeddings"], dtype=np.float32)
         embs_high = np.array(d_high["embeddings"], dtype=np.float32)
         if embs_low.shape != embs_high.shape:
             raise RuntimeError(
                 f"Probe cache shape mismatch: L_low {embs_low.shape} vs "
-                f"L_high {embs_high.shape}. Re-Apply the probe set.")
+                f"L_high {embs_high.shape}. Apply the probe set.")
         if embs_low.shape[0] != len(raw_probes):
             raise RuntimeError(
                 f"Probe count mismatch: caches have {embs_low.shape[0]}, "
-                f"CSV has {len(raw_probes)}. Re-Apply the probe set.")
+                f"CSV has {len(raw_probes)}. Apply the probe set.")
 
         delta_p = embs_high - embs_low                   # (n_probes, d_model)
         delta_p_norms = np.linalg.norm(delta_p, axis=1, keepdims=True)

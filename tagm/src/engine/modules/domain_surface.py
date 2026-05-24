@@ -941,7 +941,7 @@ class DomainSurfaceModule(TASMModule):
         if probe_embs is None:
             raise RuntimeError(
                 f"Probe cache missing for {active.probe_file!r} at "
-                f"L{int(active.subject_layer_frac()*100)}. Re-Apply the "
+                f"L{int(active.subject_layer_frac()*100)}. Apply the "
                 f"probe set in Configuration → Probe Set to regenerate it."
             )
 
@@ -949,7 +949,7 @@ class DomainSurfaceModule(TASMModule):
             raise RuntimeError(
                 f"Probe embedding count ({len(probe_embs)}) does not match "
                 f"probe count ({len(probes)}). Cache may be stale — "
-                f"Re-Apply the probe set to regenerate."
+                f"Apply the probe set to regenerate."
             )
 
         probe_embs = np.array(probe_embs)
@@ -1123,7 +1123,7 @@ class DomainSurfaceModule(TASMModule):
         if cache is None:
             logger.warning(
                 f"[DOMAIN] Probe cache missing at {cache_path}. "
-                f"Re-Apply the probe set to regenerate it.")
+                f"Apply the probe set to regenerate it.")
             return None
 
         embs = cache.get("embeddings", [])

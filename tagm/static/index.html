@@ -220,8 +220,8 @@
     </div>
 
     <!-- High-Efficiency Pipeline (above Advanced Params for visibility) -->
-    <div class="card" style="border-color:var(--yellow)">
-      <div class="card-header"><h3 style="color:var(--yellow)">High-Efficiency Pipeline</h3></div>
+    <div class="card">
+      <div class="card-header"><h3>High-Efficiency Pipeline</h3></div>
       <div class="card-body">
         <div style="font-size:var(--font-desc);color:var(--text-2);margin-bottom:12px;line-height:1.5">
           Enables analysis of models up to 3B parameters by storing weight deltas on disk instead of RAM. Requires clearing the HuggingFace model cache to free disk space. Probe-dependent modules (Domain Surface, Correction Prism) will require re-embedding probes against the new model (~15-20 min at 3B).
