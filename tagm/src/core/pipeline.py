@@ -116,11 +116,10 @@ class Pipeline:
         if delta_backend == "mmap":
             from src.core.deltas.store import MmapDeltaStore, DeltaStoreMetadata
             # Filename encodes both model IDs so each pair gets its own cache
-            safe_inst = self.instruct_model_id.replace("/", "__").replace("\\", "__")
-            safe_base = self.base_model_id.replace("/", "__").replace("\\", "__")
+            safe_id = self.instruct_model_id.replace("/", "__").replace("\\", "__")
             cache_dir = Path.home() / ".tagm" / "cache" / "deltas"
             cache_dir.mkdir(parents=True, exist_ok=True)
-            mmap_path = cache_dir / f"{safe_inst}__vs__{safe_base}.tagm"
+            mmap_path = cache_dir / f"{safe_id}.tagm"
 
             placeholder_meta = DeltaStoreMetadata(
                 base_model_id=self.base_model_id,
@@ -136,15 +135,41 @@ class Pipeline:
                     cached_store = MmapDeltaStore(
                         self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
                     if cached_store._mode == "read" and len(cached_store) > 0:
-                        self.delta_store = cached_store
-                        skip_delta_computation = True
-                        log("deltas", f"HEP: reusing cached mmap ({len(cached_store)} "
-                                      f"deltas, {mmap_path.stat().st_size / 1e6:.0f} MB)")
+                        # Spot-check: read one tensor to verify file integrity
+                        test_key = next(iter(cached_store._index))
+                        test_tensor = cached_store.get(*test_key)
+                        n_entries = len(cached_store)
+                        test_shape = tuple(test_tensor.shape)
+                        test_norm = float(test_tensor.norm().item())
+                        stored_norm = cached_store._frob_norms.get(test_key, 0)
+                        del test_tensor
+
+                        # Validate: shape should be 2D, norm should be finite
+                        # and roughly match the stored norm
+                        if (len(test_shape) != 2 or test_norm != test_norm or
+                                test_norm == 0 or
+                                (stored_norm > 0 and
+                                 abs(test_norm - stored_norm) / stored_norm > 0.01)):
+                            log("deltas", f"HEP: cached mmap failed validation "
+                                          f"(shape={test_shape}, norm={test_norm:.4f}, "
+                                          f"stored_norm={stored_norm:.4f})")
+                            cached_store.close()
+                            mmap_path.unlink(missing_ok=True)
+                        else:
+                            self.delta_store = cached_store
+                            skip_delta_computation = True
+                            log("deltas", f"HEP: reusing cached mmap — {n_entries} "
+                                          f"deltas, {mmap_path.stat().st_size / 1e6:.0f} MB, "
+                                          f"validated L{test_key[0]}.{test_key[1]} "
+                                          f"shape={test_shape} norm={test_norm:.4f}")
                     else:
+                        log("deltas", f"HEP: cached mmap empty or not readable, "
+                                      f"recomputing")
                         cached_store.close()
                         mmap_path.unlink(missing_ok=True)
                 except Exception as e:
-                    log("deltas", f"HEP: cached mmap invalid ({e}), recomputing")
+                    log("deltas", f"HEP: cached mmap failed ({type(e).__name__}: {e}), "
+                                  f"recomputing")
                     mmap_path.unlink(missing_ok=True)
 
             if not skip_delta_computation:

@@ -1572,7 +1572,7 @@ async function confirmInitHep() {
       $('analyzeBtn').disabled = true;
       $('batchBtn').disabled = true;
       updateSessionBadge();
-      var freedGB = ((r.hf_freed.bytes_freed + r.mmap_freed.bytes_freed) / 1e9).toFixed(1);
+      var freedGB = ((r.hf_freed.bytes_freed) / 1e9).toFixed(1);
       log('HEP initialized. Freed ' + freedGB + ' GB. Load a model to begin.', 'done');
       loadHepStatus();
     } else {

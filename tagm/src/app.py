@@ -80,6 +80,23 @@ _static_dir = _PACKAGE_DIR.parent / "static"
 if _static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
+# ─── Restore HEP state from DB ────────────────────────────────
+# If HEP was active when the server last ran, re-enable it so
+# cached mmap delta files are found on the next model load.
+try:
+    from src.core.db import get_db
+    _hep_state = get_db().get_config("hep")
+    if _hep_state.get("active"):
+        engine_config.update({
+            "delta_backend": "mmap",
+            "hep_active": True,
+            "hep_evict_base_cache": _hep_state.get("evict_base_cache", True),
+        })
+        logger.info("[HEP] Restored: active, delta_backend=mmap")
+    del _hep_state
+except Exception as e:
+    logger.info(f"[HEP] No saved state ({e})")
+
 
 # ═══════════════════════════════════════════════════════════════
 # HTML routes
@@ -222,16 +239,17 @@ async def init_hep(request: Request):
     configures delta_backend to mmap.
     """
     from src.engine import config as engine_config
-    from src.core.cache import clear_hf_cache, clear_mmap_deltas, system_resources
+    from src.core.cache import clear_hf_cache, system_resources
+    from src.core.db import get_db
     import gc
 
     # Reset pipeline first
     api_reset_handler()
     gc.collect()
 
-    # Clear caches
+    # Clear HF cache to free disk — but keep existing mmap delta files,
+    # they're expensive to recompute and valid for cache reuse.
     hf_result = clear_hf_cache()
-    mmap_result = clear_mmap_deltas()
 
     # Configure HEP
     engine_config.update({
@@ -240,8 +258,15 @@ async def init_hep(request: Request):
         "hep_evict_base_cache": True,
     })
 
+    # Persist HEP state to DB so it survives restarts
+    get_db().set_config("hep", {
+        "active": True,
+        "delta_backend": "mmap",
+        "evict_base_cache": True,
+    })
+
     res = system_resources()
-    total_freed = hf_result["bytes_freed"] + mmap_result["bytes_freed"]
+    total_freed = hf_result["bytes_freed"]
 
     state.progress("ready", f"HEP initialized: freed {total_freed / 1e9:.1f} GB")
     broker.publish("progress", {
@@ -252,7 +277,6 @@ async def init_hep(request: Request):
     return {
         "ok": True,
         "hf_freed": hf_result,
-        "mmap_freed": mmap_result,
         "disk_free": res["disk_free"],
         "ram_available": res["ram_available"],
     }
@@ -262,12 +286,21 @@ async def deactivate_hep():
     """Deactivate HEP and return to standard memory mode."""
     from src.engine import config as engine_config
     from src.core.cache import clear_mmap_deltas
+    from src.core.db import get_db
 
     api_reset_handler()
     clear_mmap_deltas()
     engine_config.update({
         "delta_backend": "memory",
         "hep_active": False,
+        "hep_evict_base_cache": False,
+    })
+
+    # Persist deactivation
+    get_db().set_config("hep", {
+        "active": False,
+        "delta_backend": "memory",
+        "evict_base_cache": False,
     })
 
     state.progress("ready", "High-Efficiency Pipeline deactivated")
