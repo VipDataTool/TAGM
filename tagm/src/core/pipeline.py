@@ -111,16 +111,17 @@ class Pipeline:
         from src.engine import config as engine_config
         delta_backend = engine_config.get("delta_backend")
         pre_store = None
+        skip_delta_computation = False
 
         if delta_backend == "mmap":
             from src.core.deltas.store import MmapDeltaStore, DeltaStoreMetadata
-            safe_id = self.instruct_model_id.replace("/", "__").replace("\\", "__")
+            # Filename encodes both model IDs so each pair gets its own cache
+            safe_inst = self.instruct_model_id.replace("/", "__").replace("\\", "__")
+            safe_base = self.base_model_id.replace("/", "__").replace("\\", "__")
             cache_dir = Path.home() / ".tagm" / "cache" / "deltas"
             cache_dir.mkdir(parents=True, exist_ok=True)
-            mmap_path = cache_dir / f"{safe_id}.tagm"
-            # Remove stale file from a previous load
-            if mmap_path.exists():
-                mmap_path.unlink()
+            mmap_path = cache_dir / f"{safe_inst}__vs__{safe_base}.tagm"
+
             placeholder_meta = DeltaStoreMetadata(
                 base_model_id=self.base_model_id,
                 instruct_model_id=self.instruct_model_id,
@@ -128,37 +129,57 @@ class Pipeline:
                 dtype=str(self.dtype).replace("torch.", ""),
                 layer_filter=None, n_layers=0, n_deltas=0,
             )
-            pre_store = MmapDeltaStore(
-                self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
-            log("deltas", f"Using mmap delta store: {mmap_path.name}")
 
-        self.delta_store = compute_deltas_from_disk(
-            base_model_id=self.base_model_id,
-            instruct_model=self.instruct_model,
-            adapter=self.adapter,
-            dtype=self.dtype,
-            layer_filter=layer_filter,
-            hf_token=self.hf_token,
-            progress=progress,
-            store=pre_store,
-            streaming=(delta_backend == "mmap"),
-        )
+            # Check for cached mmap file from a previous load
+            if mmap_path.exists() and mmap_path.stat().st_size > 256:
+                try:
+                    cached_store = MmapDeltaStore(
+                        self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
+                    if cached_store._mode == "read" and len(cached_store) > 0:
+                        self.delta_store = cached_store
+                        skip_delta_computation = True
+                        log("deltas", f"HEP: reusing cached mmap ({len(cached_store)} "
+                                      f"deltas, {mmap_path.stat().st_size / 1e6:.0f} MB)")
+                    else:
+                        cached_store.close()
+                        mmap_path.unlink(missing_ok=True)
+                except Exception as e:
+                    log("deltas", f"HEP: cached mmap invalid ({e}), recomputing")
+                    mmap_path.unlink(missing_ok=True)
 
-        # If mmap, finalize the file and reopen in read mode
-        if delta_backend == "mmap" and hasattr(self.delta_store, 'reopen_readonly'):
-            self.delta_store.reopen_readonly()
+            if not skip_delta_computation:
+                # Remove any partial file and create fresh
+                mmap_path.unlink(missing_ok=True)
+                pre_store = MmapDeltaStore(
+                    self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
+                log("deltas", f"Using mmap delta store: {mmap_path.name}")
 
-        # HEP: evict base model from HF cache after deltas are computed.
-        # The base weights were only needed for subtraction; the mmap file
-        # now holds the deltas. Evicting frees ~6GB of disk for 3B models.
-        if delta_backend == "mmap" and engine_config.get("hep_evict_base_cache"):
-            from src.core.cache import evict_hf_model
-            evict_result = evict_hf_model(self.base_model_id)
-            if evict_result["removed"]:
-                freed_gb = evict_result["bytes_freed"] / 1e9
-                log("deltas", f"HEP: evicted base model cache "
-                              f"({self.base_model_id}), freed {freed_gb:.1f} GB")
-            gc.collect()
+        if not skip_delta_computation:
+            self.delta_store = compute_deltas_from_disk(
+                base_model_id=self.base_model_id,
+                instruct_model=self.instruct_model,
+                adapter=self.adapter,
+                dtype=self.dtype,
+                layer_filter=layer_filter,
+                hf_token=self.hf_token,
+                progress=progress,
+                store=pre_store,
+                streaming=(delta_backend == "mmap"),
+            )
+
+            # If mmap, finalize the file and reopen in read mode
+            if delta_backend == "mmap" and hasattr(self.delta_store, 'reopen_readonly'):
+                self.delta_store.reopen_readonly()
+
+            # HEP: evict base model from HF cache after deltas are computed.
+            if delta_backend == "mmap" and engine_config.get("hep_evict_base_cache"):
+                from src.core.cache import evict_hf_model
+                evict_result = evict_hf_model(self.base_model_id)
+                if evict_result["removed"]:
+                    freed_gb = evict_result["bytes_freed"] / 1e9
+                    log("deltas", f"HEP: evicted base model cache "
+                                  f"({self.base_model_id}), freed {freed_gb:.1f} GB")
+                gc.collect()
 
         if compute_spectral:
             log("spectral", "Computing delta spectral profile")
