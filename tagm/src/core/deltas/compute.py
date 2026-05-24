@@ -101,10 +101,13 @@ def compute_deltas_from_disk(
         _, layer_idx = parsed
         return layer_idx in layer_filter
 
+    _delta_count = [0]  # mutable counter for closure
+
     def _process_file(fpath: Path, keys_to_extract: list[str]) -> None:
+        n_keys = len(keys_to_extract)
         with safe_open(str(fpath), framework="pt") as f:
             available = set(f.keys())
-            for key in keys_to_extract:
+            for ki, key in enumerate(keys_to_extract):
                 if key not in available or key not in inst_sd:
                     continue
                 base_tensor = f.get_tensor(key).to(dtype=dtype)
@@ -118,7 +121,11 @@ def compute_deltas_from_disk(
                     continue
                 role, layer_idx = parsed
                 store.put(layer_idx, role, delta)
-                del base_tensor
+                del base_tensor, delta
+                _delta_count[0] += 1
+                if (ki + 1) % 10 == 0 or ki == n_keys - 1:
+                    log("deltas", f"  delta {_delta_count[0]}: "
+                                  f"L{layer_idx}.{role} [{ki+1}/{n_keys}]")
 
     if streaming:
         # ── HEP streaming: download one shard at a time ─────────────
