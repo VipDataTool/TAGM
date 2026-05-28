@@ -1,73 +1,233 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Correction Prism — TAGM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#1C2128;--bg2:#262C34;--text:#E8ECEF;--text2:#6B7280;--text3:#5A6068;--border:#444C56;--red:#DC3025;--blue:#268BD2;--cyan:#56B4E9;--orange:#E69F00;--mono:"IBM Plex Mono",ui-monospace,monospace;--excited:#ff6060;--opposed:#6090ff}
+:root{
+  /* aligned to the TAGM app shell */
+  --bg-0:#121212;--bg-1:#1A1D21;--bg-2:#21262D;--bg-3:#2D333B;
+  --border:#30363D;--border-soft:#262B31;--border-accent:#4A535C;
+  --text-0:#E8ECEF;--text-1:#B8BFC6;--text-2:#8B939C;--text-3:#6B7280;
+  --blue:#58A6FF;--cyan:#56B4E9;--green:#009E73;--orange:#E69F00;--red:#D55E00;--purple:#CC79A7;
+  /* legacy names the visualization engine references inline — keep defined */
+  --bg:var(--bg-0);--bg2:var(--bg-2);--text:var(--text-0);--text2:var(--text-2);--text3:var(--text-3);
+  --excited:#FF6B5E;--opposed:#6FA8FF;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;padding:16px}
-h2{font-size:14px;font-weight:600;margin-bottom:4px}
-h3{font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:6px}
-.sub{font-size:11px;color:var(--text2);margin-bottom:12px}
-.viewbar{display:flex;gap:6px;margin-bottom:8px;font-size:11px}
-.viewbar button{padding:4px 12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;font-family:var(--mono)}
-.viewbar button.active{background:var(--cyan);color:#000;border-color:var(--cyan)}
-.viewbar button:hover:not(.active){background:#2D333B}
-.promptbar{display:flex;gap:6px;margin-bottom:10px;font-size:11px;align-items:center;flex-wrap:wrap}
-.promptbar label{color:var(--text2)}
-.promptbar select{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 8px;font-family:var(--mono);font-size:11px;max-width:380px}
-.promptbar button{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;font-family:var(--mono);font-size:11px}
-.promptbar button:hover{background:#2D333B}
-.promptbar button.playing{color:var(--orange)}
-.promptbar .counter{font-size:10px;color:var(--text2);min-width:60px;font-variant-numeric:tabular-nums}
-.prompt-text{padding:10px 12px;margin-bottom:10px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;font-size:11px;line-height:1.5;display:none}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);font-size:13px;line-height:1.5;
+  padding:20px;max-width:1320px;margin:0 auto;-webkit-font-smoothing:antialiased}
+h3{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--text-0);letter-spacing:.2px}
+.mono{font-family:var(--mono)}
+
+/* ── Header / parameter readout ───────────────────────────── */
+#prism-header{border:1px solid var(--border);border-radius:8px;background:
+  linear-gradient(180deg,var(--bg-1),var(--bg-0));padding:0 0 14px;margin-bottom:16px;overflow:hidden}
+.ph-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:14px 18px;border-bottom:1px solid var(--border-soft);
+  background:linear-gradient(180deg,rgba(88,166,255,.05),transparent)}
+.ph-name{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text-0);
+  letter-spacing:.3px;display:flex;align-items:baseline;gap:12px}
+.ph-kicker{font-family:var(--sans);font-size:11px;font-weight:500;color:var(--text-3);
+  text-transform:uppercase;letter-spacing:1.6px}
+.ph-run{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px}
+.ph-model{color:var(--text-1);padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2)}
+.ph-graft{color:#000;background:var(--orange);font-weight:600;font-size:10.5px;letter-spacing:1px;
+  padding:3px 9px;border-radius:6px}
+.ph-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:0;
+  padding:14px 18px 2px}
+.ph-group{padding:0 18px 10px 0;border-right:1px solid var(--border-soft)}
+.ph-group:last-child{border-right:none}
+.ph-glabel{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;
+  color:var(--text-3);margin-bottom:9px}
+.ph-chips{display:flex;flex-wrap:wrap;gap:7px}
+.pchip{display:inline-flex;align-items:baseline;gap:7px;background:var(--bg-2);
+  border:1px solid var(--border-soft);border-radius:6px;padding:4px 9px;line-height:1.4}
+.pchip .k{font-size:10.5px;color:var(--text-3);white-space:nowrap}
+.pchip .v{font-family:var(--mono);font-size:12px;color:var(--text-1);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pchip.accent{border-color:var(--border-accent)}
+.pchip.accent .v{color:var(--cyan)}
+.pchip.warn .v{color:var(--orange)}
+.ph-prov{margin:6px 18px 0}
+.ph-prov summary{cursor:pointer;font-size:11px;color:var(--text-3);list-style:none;
+  display:inline-flex;align-items:center;gap:6px;padding:4px 0;user-select:none}
+.ph-prov summary::-webkit-details-marker{display:none}
+.ph-prov summary::before{content:"▸";color:var(--text-3);transition:transform .12s}
+.ph-prov[open] summary::before{transform:rotate(90deg)}
+.ph-prov summary:hover{color:var(--text-1)}
+.ph-provgrid{display:grid;grid-template-columns:auto 1fr;gap:3px 16px;margin:6px 0 2px;
+  font-size:11px;max-width:560px}
+.ph-provgrid .ppk{color:var(--text-3)}
+.ph-provgrid .ppv{font-family:var(--mono);color:var(--text-2);word-break:break-all}
+
+/* ── Controls ─────────────────────────────────────────────── */
+.viewbar{display:inline-flex;gap:0;margin-bottom:12px;border:1px solid var(--border);
+  border-radius:7px;overflow:hidden;background:var(--bg-1)}
+.viewbar button{padding:6px 14px;background:transparent;color:var(--text-2);border:none;
+  border-right:1px solid var(--border);cursor:pointer;font-family:var(--mono);font-size:11.5px;transition:background .12s,color .12s}
+.viewbar button:last-child{border-right:none}
+.viewbar button.active{background:var(--cyan);color:#04121E;font-weight:600}
+.viewbar button:hover:not(.active){background:var(--bg-3);color:var(--text-0)}
+.promptbar{display:flex;gap:8px;margin-bottom:12px;font-size:11.5px;align-items:center;flex-wrap:wrap;
+  padding:9px 11px;background:var(--bg-1);border:1px solid var(--border);border-radius:7px}
+.promptbar label{color:var(--text-3);font-size:11px}
+.promptbar select{background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:5px;
+  padding:4px 9px;font-family:var(--mono);font-size:11.5px;max-width:420px}
+.promptbar select:focus{outline:none;border-color:var(--blue)}
+.promptbar button{background:var(--bg-2);color:var(--text-1);border:1px solid var(--border);border-radius:5px;
+  padding:4px 9px;cursor:pointer;font-family:var(--mono);font-size:11.5px;transition:background .12s}
+.promptbar button:hover{background:var(--bg-3)}
+.promptbar button.playing{color:var(--orange);border-color:var(--orange)}
+.promptbar .counter{font-size:10.5px;color:var(--text-3);min-width:54px;font-variant-numeric:tabular-nums}
+.prompt-text{padding:11px 14px;margin-bottom:12px;background:var(--bg-1);border:1px solid var(--border);
+  border-radius:7px;font-size:12px;line-height:1.6;display:none}
 .prompt-text.active{display:block}
-.prompt-text .pmeta{color:var(--text2);font-size:10px;margin-bottom:4px}
-.prompt-text .pmeta .cat{display:inline-block;padding:1px 6px;border-radius:2px;color:#000;font-weight:600;margin-right:6px}
-.prompt-text .ptext{color:var(--text);white-space:pre-wrap;word-break:break-word}
-.heatmap-wrap{margin-bottom:16px}
-table.hm{border-collapse:collapse;font-size:11px}
-table.hm th,table.hm td{padding:7px 12px;text-align:center;border:1px solid #2D333B;font-variant-numeric:tabular-nums}
-table.hm th{color:var(--text2);font-weight:500;background:var(--bg2)}
+.prompt-text .pmeta{color:var(--text-3);font-size:10.5px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.prompt-text .pmeta .cat{display:inline-block;padding:2px 8px;border-radius:4px;color:#04121E;font-weight:600}
+.prompt-text .ptext{color:var(--text-0);white-space:pre-wrap;word-break:break-word;font-family:var(--mono)}
+
+/* ── Legend ───────────────────────────────────────────────── */
+.legend{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:10.5px;color:var(--text-3);max-width:520px}
+.legend .bar{display:flex;height:11px;flex:1;border-radius:3px;overflow:hidden;border:1px solid var(--border-soft)}
+.legend .lbl{white-space:nowrap;font-family:var(--mono);color:var(--text-2)}
+
+/* ── Heatmap ──────────────────────────────────────────────── */
+.heatmap-wrap{margin-bottom:18px;overflow-x:auto}
+table.hm{border-collapse:separate;border-spacing:0;font-size:11.5px;font-family:var(--mono)}
+table.hm th,table.hm td{padding:8px 13px;text-align:center;border:1px solid var(--bg-0);
+  font-variant-numeric:tabular-nums}
+table.hm th{color:var(--text-2);font-weight:500;background:var(--bg-2)}
+table.hm th:first-child{background:transparent}
 table.hm td.cell{cursor:pointer;transition:outline .1s}
-table.hm td.cell:hover{outline:1px solid #888;outline-offset:-1px}
+table.hm td.cell:hover{outline:2px solid var(--text-1);outline-offset:-2px}
 table.hm td.cell.sel{outline:2px solid var(--cyan);outline-offset:-2px;z-index:1;position:relative}
-.legend{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:10px;color:var(--text2);max-width:380px}
-.legend .bar{display:flex;height:10px;flex:1;border-radius:2px;overflow:hidden}
-.legend .lbl{white-space:nowrap}
-.tabs{display:flex;gap:0;margin-bottom:0;border-bottom:1px solid var(--border)}
-.tabs button{padding:8px 16px;background:transparent;color:var(--text2);border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:var(--mono);font-size:12px}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+.tabs{display:flex;gap:2px;margin-bottom:0;border-bottom:1px solid var(--border)}
+.tabs button{padding:9px 16px;background:transparent;color:var(--text-2);border:none;
+  border-bottom:2px solid transparent;cursor:pointer;font-family:var(--sans);font-size:12.5px;font-weight:500}
 .tabs button.active{color:var(--cyan);border-bottom-color:var(--cyan)}
-.tabs button:hover:not(.active){color:var(--text)}
+.tabs button:hover:not(.active){color:var(--text-0)}
 .tab-panel{padding:16px 0;display:none}
 .tab-panel.active{display:block}
-.decomp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
-.decomp-tile{padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:4px}
-.decomp-tile .label{font-size:11px;font-weight:600;color:var(--cyan);margin-bottom:6px}
-.decomp-tile.baseline .label{color:var(--text2)}
+.decomp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}
+.decomp-tile{padding:12px;background:var(--bg-1);border:1px solid var(--border);border-radius:7px}
+.decomp-tile .label{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--cyan);margin-bottom:8px}
+.decomp-tile.baseline .label{color:var(--text-2)}
 .decomp-tile table.hm{margin-bottom:6px}
-.decomp-tile table.hm th,.decomp-tile table.hm td{padding:4px 7px;font-size:10px}
-.decomp-tile .mini-legend{font-size:9px;color:var(--text3);margin-top:4px}
-table.tok{width:100%;border-collapse:collapse;font-size:11px}
-table.tok th{text-align:left;color:var(--text2);font-weight:500;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;cursor:pointer;user-select:none}
-table.tok th.sortable:hover{color:var(--text)}
-table.tok th .sort-arrow{display:inline-block;margin-left:4px;color:var(--cyan);width:8px}
-table.tok td{padding:5px 10px;border-bottom:1px solid #2D333B}
-table.tok tr:hover{background:#ffffff08}
-.cell-info{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7}
-.cell-info b{color:var(--text);font-weight:600}
-.cell-empty{color:var(--text3);font-style:italic;padding:24px;text-align:center;background:var(--bg2);border:1px dashed var(--border);border-radius:4px}
-.glossary{display:flex;flex-direction:column;gap:14px;max-width:760px}
-.glossary dt{font-weight:600;color:var(--cyan);font-size:12px;margin-bottom:3px}
-.glossary dd{font-size:11px;color:var(--text2);line-height:1.6;margin-left:0}
-.glossary dd code{background:var(--bg2);padding:1px 5px;border-radius:2px;color:var(--text);font-size:10px}
-#err{color:var(--red);padding:10px;white-space:pre-wrap;background:var(--bg2);border-radius:4px;margin-top:8px}
-.empty{color:var(--text2);font-style:italic;padding:20px;text-align:center}
+.decomp-tile table.hm th,.decomp-tile table.hm td{padding:5px 8px;font-size:10px}
+.decomp-tile .mini-legend{font-family:var(--mono);font-size:9.5px;color:var(--text-3);margin-top:5px}
+
+/* ── Probe / cell tables ──────────────────────────────────── */
+table.tok{width:100%;border-collapse:collapse;font-size:11.5px}
+table.tok th{text-align:left;color:var(--text-3);font-weight:600;padding:7px 11px;border-bottom:1px solid var(--border);
+  background:var(--bg-1);position:sticky;top:0;cursor:default;user-select:none;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
+table.tok th.sortable{cursor:pointer}
+table.tok th.sortable:hover{color:var(--text-0)}
+table.tok th .sort-arrow{display:inline-block;margin-left:5px;color:var(--cyan);width:8px}
+table.tok td{padding:6px 11px;border-bottom:1px solid var(--border-soft);font-family:var(--mono)}
+table.tok td.num,table.tok th.num{text-align:right;font-variant-numeric:tabular-nums}
+table.tok tr:hover td{background:#FFFFFF07}
+.cell-info{font-size:11.5px;color:var(--text-2);margin-bottom:12px;line-height:1.75}
+.cell-info b{color:var(--text-0);font-weight:600}
+.cell-empty{color:var(--text-3);font-style:italic;padding:26px;text-align:center;background:var(--bg-1);
+  border:1px dashed var(--border);border-radius:7px}
+
+/* ── All-probes section + exports ─────────────────────────── */
+.probes-section{margin-top:26px;border-top:1px solid var(--border);padding-top:18px}
+.section-head{margin-bottom:12px}
+.section-head h3{margin-bottom:3px}
+.section-sub{font-size:11px;color:var(--text-3)}
+.section-sub .scope{color:var(--cyan);font-family:var(--mono)}
+.probe-toolbar{margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.probe-toolbar .probe-filter{flex:1 1 240px}
+.pagesize-lbl{font-size:11px;color:var(--text-3);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pagesize{background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:6px;
+  font-family:var(--mono);font-size:11.5px;padding:5px 8px}
+.pagesize:focus{outline:none;border-color:var(--blue)}
+.probe-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-top:9px;font-size:11px;color:var(--text-3)}
+.pager-info{font-family:var(--mono)}
+.pager-btns{display:flex;align-items:center;gap:8px}
+.pager-page{font-family:var(--mono);color:var(--text-2);min-width:78px;text-align:center}
+.pager-btn{font-family:var(--mono);font-size:11.5px;color:var(--text-1);background:var(--bg-2);
+  border:1px solid var(--border);border-radius:6px;padding:5px 11px;cursor:pointer;transition:background .12s}
+.pager-btn:hover:not(:disabled){background:var(--bg-3);border-color:var(--border-accent);color:var(--text-0)}
+.pager-btn:disabled{opacity:.4;cursor:default}
+.probe-filter{width:100%;max-width:380px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text-0);font-family:var(--mono);font-size:11.5px;padding:7px 11px}
+.probe-filter:focus{outline:none;border-color:var(--blue)}
+.probe-filter::placeholder{color:var(--text-3)}
+.probe-table-wrap{border:1px solid var(--border);border-radius:7px;overflow:auto;max-height:460px;background:var(--bg-0)}
+.probe-table td.ptext-cell{color:var(--text-0);max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.probe-table td.subj,.probe-table td.lvl{color:var(--text-1)}
+.probe-table td.absval{color:var(--text-2)}
+.export-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;
+  background:var(--bg-1);border:1px solid var(--border);border-radius:7px}
+.export-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-3)}
+.export-btns{display:flex;gap:8px;flex-wrap:wrap}
+.exp{font-family:var(--mono);font-size:11.5px;color:var(--text-1);background:var(--bg-2);
+  border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer;text-decoration:none;
+  display:inline-block;transition:background .12s,border-color .12s}
+.exp:hover{background:var(--bg-3);border-color:var(--border-accent);color:var(--text-0)}
+
+#err{color:var(--red);padding:11px 13px;white-space:pre-wrap;background:var(--bg-1);border:1px solid var(--red);
+  border-radius:7px;margin-top:10px;font-family:var(--mono);font-size:12px}
+#err:empty{display:none}
+.empty{color:var(--text-3);font-style:italic;padding:22px;text-align:center}
+
+/* ── Glossary ─────────────────────────────────────────────── */
+.glossary{display:flex;flex-direction:column;gap:15px;max-width:780px}
+.glossary dt{font-family:var(--mono);font-weight:600;color:var(--cyan);font-size:12.5px;margin-bottom:4px}
+.glossary dd{font-size:11.5px;color:var(--text-2);line-height:1.65;margin-left:0}
+.glossary dd code{background:var(--bg-2);padding:1px 6px;border-radius:3px;color:var(--text-0);font-family:var(--mono);font-size:10.5px}
+
+/* ── Print ────────────────────────────────────────────────── */
+@media print{
+  body{background:#fff;color:#111;max-width:none;padding:0;font-size:11px}
+  .viewbar,.promptbar,.tabs,.probe-toolbar,.probe-pager,.export-bar,#err{display:none !important}
+  #prism-header{background:#fff;border-color:#bbb}
+  .ph-title{background:#fff;border-color:#ddd}
+  .ph-name,.cell-info b,.glossary dt,.decomp-tile .label{color:#000}
+  .ph-kicker,.ph-glabel,.pchip .k,.section-sub,.ph-provgrid .ppk{color:#555}
+  .pchip,.ph-model{background:#f4f4f4;border-color:#ccc}
+  .pchip .v,.ph-provgrid .ppv,.section-sub .scope{color:#111}
+  .ph-prov summary{display:none}
+  .ph-prov,.ph-prov[open]{display:block}
+  #tab-cell{display:block !important}
+  #tab-decomp,#tab-glossary{display:none !important}
+  .cell-info{color:#333}
+  .cell-info b{color:#000}
+  .decomp-tile{background:#fff;border-color:#ccc;break-inside:avoid}
+  .probes-section{border-top-color:#bbb}
+  .probe-table-wrap{max-height:none;overflow:visible;border-color:#ccc}
+  .probe-table td.ptext-cell{color:#000;max-width:none;white-space:normal}
+  .probe-table-wrap{background:#fff}
+  .probe-table td.subj,.probe-table td.lvl,.probe-table td.absval{color:#111}
+  table.tok th{background:#eee;color:#333}
+  table.tok td{color:#111;border-bottom-color:#ddd}
+  table.hm td,table.hm th,.legend .bar div,.legend .bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.hm th{color:#222}
+  a.exp{display:none}
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width:760px){
+  body{padding:12px}
+  .ph-group{border-right:none;border-bottom:1px solid var(--border-soft);padding:0 0 10px}
+  .ph-group:last-child{border-bottom:none}
+  .promptbar select{max-width:100%;flex:1 1 100%}
+}
 </style>
 </head>
 <body>
-<h2>Correction Prism — Interactive Explorer</h2>
-<div class="sub" id="subtitle">Loading...</div>
+<div id="prism-header">Loading…</div>
 
 <div class="viewbar" id="viewbar"></div>
 <div class="promptbar" id="promptbar"></div>
@@ -88,6 +248,7 @@ table.tok tr:hover{background:#ffffff08}
 <div id="err"></div>
 
 <script>
+
 (function(){
   // ── State ──────────────────────────────────────────────────
   var D = null;            // results JSON
@@ -108,6 +269,7 @@ table.tok tr:hover{background:#ffffff08}
   // selPrompt = "all" shows the session-aggregated heatmap (default).
   // selPrompt = "<idx>" shows that one prompt's per-cell response.
   var selPrompt = "all";
+  var selClass = null;   // null = all classes; else a category key (scopes whole view)
   var slideTimer = null, slideSpeed = 2000, slidePlaying = false;
   var PROMPTS = [];        // [{idx, category, text, projected}, ...]
   var CAT_NAMES = {};      // { "h": "harmful", ... }
@@ -152,14 +314,7 @@ table.tok tr:hover{background:#ffffff08}
     });
 
     var cfg = D.config || {};
-    document.getElementById("subtitle").textContent =
-      SUBJ.length + " subjects × " + LEVELS.length + " levels · " +
-      (D.n_prompts_projected || 0) + " prompts · " +
-      (D.n_probes_active || 0) + "/" + (D.n_probes || 0) + " probes active · " +
-      "primary " + (CIRC_LABELS[PRIMARY] || PRIMARY) + " · " +
-      (cfg.beam_reduction || "mean") + " beam · " +
-      (cfg.cell_aggregation || "sum") + " cell agg" +
-      (cfg.active_probe_model_id ? " · " + cfg.active_probe_model_id : "");
+    buildHeader(cfg);
 
     buildViewbar();
     buildPromptbar();
@@ -207,54 +362,68 @@ table.tok tr:hover{background:#ffffff08}
 
   function buildPromptbar(){
     var bar = document.getElementById("promptbar");
-    var fps = projectedPrompts();
-    if (!fps.length){
-      bar.innerHTML = '';
-      return;
-    }
-    var html = '<label>Prompt:</label><select id="promptSel">';
-    html += '<option value="all"' + (selPrompt === "all" ? ' selected' : '') +
-            '>All (' + fps.length + ' prompts, session aggregate)</option>';
+    var allf = projectedPrompts();
+    if (!allf.length){ bar.innerHTML = ''; return; }
+
+    // Reflexive class list: only categories present in this run's prompts.
+    var counts = {}, order = [];
+    allf.forEach(function(p){
+      if (counts[p.category] == null){ counts[p.category] = 0; order.push(p.category); }
+      counts[p.category]++;
+    });
+    if (selClass && counts[selClass] == null) selClass = null;  // class vanished -> all
+
+    var fps = scopePrompts();
+
+    var html = '<label>Class:</label><select id="classSel">';
+    html += '<option value=""' + (selClass ? '' : ' selected') + '>All classes (' + allf.length + ')</option>';
+    order.forEach(function(k){
+      html += '<option value="' + esc(k) + '"' + (selClass === k ? ' selected' : '') +
+              '>' + esc(CAT_NAMES[k] || k) + ' (' + counts[k] + ')</option>';
+    });
+    html += '</select>';
+
+    html += '<label>Prompt:</label><select id="promptSel">';
+    var allLbl = selClass
+        ? ('All ' + (CAT_NAMES[selClass] || selClass) + ' (' + fps.length + ', class aggregate)')
+        : ('All (' + fps.length + ' prompts, session aggregate)');
+    html += '<option value="all"' + (selPrompt === "all" ? ' selected' : '') + '>' + esc(allLbl) + '</option>';
     fps.forEach(function(p){
-      var lbl = '#' + (p.idx + 1) + ' [' + (CAT_NAMES[p.category] || p.category) +
-                '] ' + (p.text || '');
-      if (lbl.length > 90) lbl = lbl.slice(0, 90) + '…';
-      html += '<option value="' + p.idx + '"' +
-              (selPrompt == String(p.idx) ? ' selected' : '') +
+      var lbl = '#' + (p.idx + 1) + ' [' + (CAT_NAMES[p.category] || p.category) + '] ' + (p.text || '');
+      if (lbl.length > 90) lbl = lbl.slice(0, 90) + '\u2026';
+      html += '<option value="' + p.idx + '"' + (selPrompt == String(p.idx) ? ' selected' : '') +
               '>' + esc(lbl) + '</option>';
     });
     html += '</select>';
 
-    html += '<button id="prevBtn" title="Previous prompt">◀</button>';
+    html += '<button id="prevBtn" title="Previous prompt">\u25C0</button>';
     html += '<button id="playBtn" class="' + (slidePlaying ? 'playing' : '') +
-            '" title="Play/pause slideshow">' +
-            (slidePlaying ? '⏸ Pause' : '▶ Play') + '</button>';
-    html += '<button id="nextBtn" title="Next prompt">▶</button>';
+            '" title="Play/pause slideshow">' + (slidePlaying ? '\u23F8 Pause' : '\u25B6 Play') + '</button>';
+    html += '<button id="nextBtn" title="Next prompt">\u25B6</button>';
     html += '<label style="margin-left:4px">Speed:</label>';
     html += '<select id="speedSel">';
     [["500","0.5s"],["1000","1s"],["2000","2s"],["3000","3s"],["5000","5s"]].forEach(function(s){
-      html += '<option value="' + s[0] + '"' +
-              (slideSpeed == parseInt(s[0]) ? ' selected' : '') +
-              '>' + s[1] + '</option>';
+      html += '<option value="' + s[0] + '"' + (slideSpeed == parseInt(s[0]) ? ' selected' : '') + '>' + s[1] + '</option>';
     });
     html += '</select>';
     html += '<span id="slideCounter" class="counter"></span>';
 
     bar.innerHTML = html;
 
+    document.getElementById("classSel").addEventListener("change", function(e){
+      selClass = e.currentTarget.value || null;
+      selPrompt = "all";          // picking a class scopes the whole view to its aggregate
+      stopSlideshow();
+      buildPromptbar();
+      render();
+    });
     document.getElementById("promptSel").addEventListener("change", function(e){
       selPrompt = e.currentTarget.value;
       stopSlideshow();
       render();
     });
-    document.getElementById("prevBtn").addEventListener("click", function(){
-      stopSlideshow();
-      advanceSlide(-1);
-    });
-    document.getElementById("nextBtn").addEventListener("click", function(){
-      stopSlideshow();
-      advanceSlide(1);
-    });
+    document.getElementById("prevBtn").addEventListener("click", function(){ stopSlideshow(); advanceSlide(-1); });
+    document.getElementById("nextBtn").addEventListener("click", function(){ stopSlideshow(); advanceSlide(1); });
     document.getElementById("playBtn").addEventListener("click", playPause);
     document.getElementById("speedSel").addEventListener("change", function(e){
       slideSpeed = parseInt(e.currentTarget.value);
@@ -268,7 +437,7 @@ table.tok tr:hover{background:#ffffff08}
     var el = document.getElementById("slideCounter");
     if (!el) return;
     if (selPrompt === "all"){ el.textContent = ""; return; }
-    var fps = projectedPrompts();
+    var fps = scopePrompts();
     var pi = parseInt(selPrompt);
     var idx = -1;
     for (var i=0; i<fps.length; i++){
@@ -285,7 +454,7 @@ table.tok tr:hover{background:#ffffff08}
   }
 
   function advanceSlide(dir){
-    var fps = projectedPrompts();
+    var fps = scopePrompts();
     if (!fps.length) return;
     var curIdx = -1;
     if (selPrompt !== "all"){
@@ -505,6 +674,9 @@ table.tok tr:hover{background:#ffffff08}
     if (selPrompt !== "all"){
       return gridForPrompt(view, circuit, parseInt(selPrompt));
     }
+    if (selClass){
+      return gridForPromptSet(view, circuit, scopePrompts().map(function(p){ return p.idx; }));
+    }
     var prim = (DECOMP[circuit] && DECOMP[circuit].aggregate) || [];
     if (view === "baseline" && HAS_BASELINE){
       return DECOMP._baseline.aggregate;
@@ -608,6 +780,8 @@ table.tok tr:hover{background:#ffffff08}
               : (CIRC_LABELS[PRIMARY] || PRIMARY);
     if (selPrompt !== "all"){
       label += " · single prompt";
+    } else if (selClass){
+      label += " · class: " + (CAT_NAMES[selClass] || selClass) + " (" + scopePrompts().length + ")";
     }
     document.getElementById("legend").innerHTML = renderLegendBar(sc, label);
 
@@ -652,6 +826,8 @@ table.tok tr:hover{background:#ffffff08}
       var dAgg;
       if (selPrompt !== "all"){
         dAgg = gridForPrompt("primary", ck, parseInt(selPrompt));
+      } else if (selClass){
+        dAgg = gridForPromptSet("primary", ck, scopePrompts().map(function(p){ return p.idx; }));
       } else {
         dAgg = d.aggregate || [];
       }
@@ -685,12 +861,12 @@ table.tok tr:hover{background:#ffffff08}
     var panel = document.getElementById("tab-cell");
     if (!selCell){
       panel.innerHTML = '<div class="cell-empty">Click any cell in the main heatmap or in a decomposition tile to inspect its probes.</div>';
-      return;
+      cpRows = []; return;
     }
     var cell = CELLS[selCell];
     if (!cell){
       panel.innerHTML = '<div class="cell-empty">No data for cell ' + esc(selCell) + '.</div>';
-      return;
+      cpRows = []; return;
     }
 
     var parts = selCell.split("_");
@@ -699,39 +875,44 @@ table.tok tr:hover{background:#ffffff08}
     var subj = SUBJ[si] || ("subject " + si);
     var lvl = LEVELS[li] || ("level " + li);
 
-    // When viewing a single prompt, override per-probe responses with
-    // that prompt's per_prompt_response[probe_idx] so the table shows
-    // *this prompt's* probe responses rather than the session means.
-    // The cell value displayed also switches to the per-prompt cell.
+    // Scope: single prompt, a class (mean over that class's prompts), or
+    // global. For single/class we recompute each probe's response from
+    // per_prompt_response so the table matches the heatmap's scope.
     var probes = (cell.probes || []).map(function(p){ return Object.assign({}, p); });
     var displayedCellValue = cell.cell_value || 0;
     var scopeLabel = "session aggregate";
-    if (selPrompt !== "all"){
-      var promptIdx = parseInt(selPrompt);
+    var scopeIdxs = null;
+    if (selPrompt !== "all"){ scopeIdxs = [parseInt(selPrompt)]; }
+    else if (selClass){ scopeIdxs = scopePrompts().map(function(p){ return p.idx; }); }
+
+    if (scopeIdxs && scopeIdxs.length){
       var ppr = (DECOMP[PRIMARY] && DECOMP[PRIMARY].per_prompt_response) || null;
-      if (ppr && ppr[promptIdx]){
-        var row = ppr[promptIdx];
+      if (ppr){
         var thresh = 0.05;
         var nE = 0, nO = 0, nN = 0, vmin = Infinity, vmax = -Infinity, vals = [];
         probes = probes.map(function(p){
-          var v = row[p.probe_idx] || 0;
-          var dir = (v > thresh) ? "excited"
-                  : (v < -thresh) ? "opposed" : "orthogonal";
-          if (v > thresh) nE++;
-          else if (v < -thresh) nO++;
-          else nN++;
-          if (v < vmin) vmin = v;
-          if (v > vmax) vmax = v;
-          vals.push(v);
-          return Object.assign({}, p, { response: v, direction: dir });
+          var sum = 0, cnt = 0;
+          for (var z=0; z<scopeIdxs.length; z++){
+            var rr = ppr[scopeIdxs[z]];
+            if (rr){ sum += (rr[p.probe_idx] || 0); cnt++; }
+          }
+          var vv = cnt ? (sum / cnt) : 0;
+          var dir = (vv > thresh) ? "excited" : (vv < -thresh) ? "opposed" : "orthogonal";
+          if (vv > thresh) nE++; else if (vv < -thresh) nO++; else nN++;
+          if (vv < vmin) vmin = vv;
+          if (vv > vmax) vmax = vv;
+          vals.push(vv);
+          return Object.assign({}, p, { response: vv, direction: dir });
         });
-        // Recompute the cell value for this prompt.
-        var grid = gridForPrompt(view, PRIMARY, promptIdx);
-        displayedCellValue = (grid[si] && grid[si][li] != null) ? grid[si][li] : 0;
-        var pInfo = PROMPTS[promptIdx];
-        scopeLabel = "prompt #" + (promptIdx + 1) +
-          (pInfo ? " [" + (CAT_NAMES[pInfo.category] || pInfo.category) + "]" : "");
-        // Override aggregate stats with per-prompt counts
+        var sgrid = gridForPromptSet(view, PRIMARY, scopeIdxs);
+        displayedCellValue = (sgrid[si] && sgrid[si][li] != null) ? sgrid[si][li] : 0;
+        if (scopeIdxs.length === 1){
+          var pInfo = PROMPTS[scopeIdxs[0]];
+          scopeLabel = "prompt #" + (scopeIdxs[0] + 1) +
+            (pInfo ? " [" + (CAT_NAMES[pInfo.category] || pInfo.category) + "]" : "");
+        } else {
+          scopeLabel = "class: " + (CAT_NAMES[selClass] || selClass) + " · " + scopeIdxs.length + " prompts";
+        }
         cell = Object.assign({}, cell, {
           n_excited: nE, n_opposed: nO, n_neutral: nN,
           probe_response_min: (probes.length ? vmin : 0),
@@ -747,6 +928,19 @@ table.tok tr:hover{background:#ffffff08}
     }
     sortProbes(probes);
 
+    var scopeKey = selCell + "|" + selPrompt + "|" + selClass + "|" + view;
+    if (scopeKey !== cpLastKey){ cpPage = 1; cpLastKey = scopeKey; }
+
+    cpRows = probes; cpSubj = subj; cpLvl = lvl;
+
+    var nP = probes.length;
+    var pages = Math.max(1, Math.ceil(nP / cpPageSize));
+    if (cpPage > pages) cpPage = pages;
+    if (cpPage < 1) cpPage = 1;
+    var start = cpPrintAll ? 0 : (cpPage - 1) * cpPageSize;
+    var end   = cpPrintAll ? nP : Math.min(nP, start + cpPageSize);
+    var pageProbes = probes.slice(start, end);
+
     var v = displayedCellValue;
     var html = '<div class="cell-info">';
     html += '<div style="margin-bottom:8px"><b>' + esc(subj.replace(/_/g, " ")) +
@@ -754,13 +948,10 @@ table.tok tr:hover{background:#ffffff08}
     html += 'cell value <span style="color:' +
             (v > 0 ? 'var(--excited)' : v < 0 ? 'var(--opposed)' : 'var(--text2)') +
             ';font-weight:600">' + (v >= 0 ? '+' : '') + v.toFixed(4) + '</span>';
-    html += ' <span style="color:var(--text3)">(' + esc(scopeLabel) + ')</span>';
-    html += '</div>';
-
+    html += ' <span style="color:var(--text3)">(' + esc(scopeLabel) + ')</span></div>';
     html += 'Probes: <b>' + (cell.n_probes || 0) + '</b> active';
     if (cell.n_probes_degenerate){
-      html += ' <span style="color:var(--text3)">(' + cell.n_probes_degenerate +
-              ' degenerate filtered)</span>';
+      html += ' <span style="color:var(--text3)">(' + cell.n_probes_degenerate + ' degenerate filtered)</span>';
     }
     html += ' · <span style="color:var(--excited)">' + (cell.n_excited || 0) + ' excited</span>';
     html += ' · <span style="color:var(--opposed)">' + (cell.n_opposed || 0) + ' opposed</span>';
@@ -768,55 +959,86 @@ table.tok tr:hover{background:#ffffff08}
     html += '<br>response range [' + (cell.probe_response_min || 0).toFixed(4) +
             ', ' + (cell.probe_response_max || 0).toFixed(4) + ']';
     html += ' · median ' + (cell.probe_response_median || 0).toFixed(4);
-    if (selPrompt === "all"){
-      html += ' · variance ' + (cell.cell_variance || 0).toFixed(6);
-    }
+    if (selPrompt === "all" && !selClass){ html += ' · variance ' + (cell.cell_variance || 0).toFixed(6); }
     html += '</div>';
 
-    function arrow(k){
-      if (sortKey !== k) return '';
-      return '<span class="sort-arrow">' + (sortDir < 0 ? '▼' : '▲') + '</span>';
+    if (!cpPrintAll){
+      html += '<div class="probe-toolbar" style="justify-content:flex-end">';
+      html += '<label class="pagesize-lbl">Rows <select id="cpPageSize" class="pagesize">';
+      [10,25,50,100].forEach(function(s){ html += '<option value="'+s+'"'+(cpPageSize===s?' selected':'')+'>'+s+'</option>'; });
+      html += '</select></label></div>';
     }
-    html += '<table class="tok">';
-    html += '<thead><tr>';
+
+    function arrow(k){ if (sortKey !== k) return ''; return '<span class="sort-arrow">' + (sortDir < 0 ? '▼' : '▲') + '</span>'; }
+    html += '<div class="probe-table-wrap"><table class="tok probe-table"><thead><tr>';
     html += '<th class="sortable" data-sort="name">Probe' + arrow("name") + '</th>';
-    html += '<th class="sortable" data-sort="signed">Response' + arrow("signed") + '</th>';
-    html += '<th class="sortable" data-sort="abs">|Response|' + arrow("abs") + '</th>';
+    html += '<th class="sortable num" data-sort="signed">Response' + arrow("signed") + '</th>';
+    html += '<th class="sortable num" data-sort="abs">|Response|' + arrow("abs") + '</th>';
     html += '<th>Direction</th>';
     html += '</tr></thead><tbody>';
-
-    for (var pi=0; pi<probes.length; pi++){
-      var p = probes[pi];
+    for (var pi=0; pi<pageProbes.length; pi++){
+      var p = pageProbes[pi];
       var resp = p.response || 0;
       var dir = p.direction || "—";
-      var c = (dir === "excited") ? "var(--excited)"
-            : (dir === "opposed") ? "var(--opposed)"
-            : "var(--text3)";
+      var c = (dir === "excited") ? "var(--excited)" : (dir === "opposed") ? "var(--opposed)" : "var(--text3)";
       html += '<tr>';
-      html += '<td style="color:var(--text)">' + esc(p.text || ("#" + p.probe_idx)) + '</td>';
-      html += '<td style="color:' + c + ';font-variant-numeric:tabular-nums">' +
-              (resp >= 0 ? '+' : '') + resp.toFixed(4) + '</td>';
-      html += '<td style="color:var(--text2);font-variant-numeric:tabular-nums">' +
-              Math.abs(resp).toFixed(4) + '</td>';
-      html += '<td style="color:' + c + '">' + esc(dir) + '</td>';
+      html += '<td class="ptext-cell" title="' + esc(p.text || ("#" + p.probe_idx)) + '">' + esc(p.text || ("#" + p.probe_idx)) + '</td>';
+      html += '<td class="num resp" style="color:' + c + '">' + (resp >= 0 ? '+' : '') + resp.toFixed(4) + '</td>';
+      html += '<td class="num absval">' + Math.abs(resp).toFixed(4) + '</td>';
+      html += '<td class="dir" style="color:' + c + '">' + esc(dir) + '</td>';
       html += '</tr>';
     }
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
+
+    if (!cpPrintAll){
+      var from = nP ? (start + 1) : 0;
+      html += '<div class="probe-pager">';
+      html += '<span class="pager-info">' + from + '–' + end + ' of ' + nP + ' probes</span>';
+      html += '<div class="pager-btns">';
+      html += '<button class="pager-btn" data-pg="prev"' + (cpPage<=1?' disabled':'') + '>‹ Prev</button>';
+      html += '<span class="pager-page">page ' + cpPage + ' / ' + pages + '</span>';
+      html += '<button class="pager-btn" data-pg="next"' + (cpPage>=pages?' disabled':'') + '>Next ›</button>';
+      html += '</div></div>';
+    }
+
+    html += '<div class="export-bar"><div class="export-label">Export</div><div class="export-btns">';
+    html += '<button class="exp" data-exp="probes">Probes CSV</button>';
+    html += '<button class="exp" data-exp="grid">Grid CSV</button>';
+    html += '<button class="exp" data-exp="json">Results JSON</button>';
+    html += '<a class="exp" href="/api/modules/correction_prism/download_log" target="_blank" rel="noopener">Run log</a>';
+    html += '<button class="exp" data-exp="print">Print / PDF</button>';
+    html += '</div></div>';
 
     panel.innerHTML = html;
+    if (cpPrintAll) return;
 
-    // Wire sort headers
     var headers = panel.querySelectorAll("th.sortable");
     for (var i=0; i<headers.length; i++){
       headers[i].addEventListener("click", function(e){
         var k = e.currentTarget.getAttribute("data-sort");
-        if (sortKey === k){
-          sortDir = -sortDir;
-        } else {
-          sortKey = k;
-          sortDir = (k === "name") ? 1 : -1;
-        }
+        if (sortKey === k){ sortDir = -sortDir; } else { sortKey = k; sortDir = (k === "name") ? 1 : -1; }
+        cpPage = 1;
         renderCellPanel();
+      });
+    }
+    var psel = document.getElementById("cpPageSize");
+    if (psel) psel.addEventListener("change", function(e){ cpPageSize = parseInt(e.target.value); cpPage = 1; renderCellPanel(); });
+    var pbtns = panel.querySelectorAll(".pager-btn");
+    for (var b=0; b<pbtns.length; b++){
+      pbtns[b].addEventListener("click", function(e){
+        var d = e.currentTarget.getAttribute("data-pg");
+        if (d==="prev") cpPage--; else if (d==="next") cpPage++;
+        renderCellPanel();
+      });
+    }
+    var exps = panel.querySelectorAll("button.exp");
+    for (var x=0; x<exps.length; x++){
+      exps[x].addEventListener("click", function(e){
+        var w = e.currentTarget.getAttribute("data-exp");
+        if (w==="probes") exportProbesCSV();
+        else if (w==="grid") exportGridCSV();
+        else if (w==="json") exportJSON();
+        else if (w==="print") doPrint();
       });
     }
   }
@@ -912,6 +1134,150 @@ table.tok tr:hover{background:#ffffff08}
 
       '</dl>';
   }
+
+  // ── Header / parameter readout ─────────────────────────────
+  function chip(label, value, opts){
+    opts = opts || {};
+    var cls = "pchip" + (opts.accent ? " accent" : "") + (opts.warn ? " warn" : "");
+    return '<div class="'+cls+'"><span class="k">'+esc(label)+'</span><span class="v">'+esc(value)+'</span></div>';
+  }
+  function buildHeader(cfg){
+    cfg = cfg || {};
+    var circ = function(c){ return CIRC_LABELS[c] || c || "—"; };
+    var pc = cfg.prompt_circuit, prc = cfg.probe_circuit;
+    var grafting = (cfg.grafting != null) ? !!cfg.grafting
+        : (pc != null && prc != null && pc !== prc);
+    var hasGraftFields = (pc != null || prc != null || cfg.grafting != null);
+    var model = cfg.active_probe_model_id || "—";
+
+    var h = '';
+    h += '<div class="ph-title">';
+    h += '<div class="ph-name">Correction Prism<span class="ph-kicker">Interactive Explorer</span></div>';
+    h += '<div class="ph-run"><span class="ph-model" title="Active probe model">'+esc(model)+'</span>';
+    if (grafting) h += '<span class="ph-graft" title="Prompt and probe sides projected through different circuits">GRAFTED</span>';
+    h += '</div></div>';
+
+    h += '<div class="ph-groups">';
+    h += '<div class="ph-group"><div class="ph-glabel">Lattice</div><div class="ph-chips">';
+    h += chip("subjects × levels", SUBJ.length + " × " + LEVELS.length);
+    h += chip("prompts", (D.n_prompts_projected||0) + (D.n_prompts ? " / "+D.n_prompts : ""));
+    h += chip("probes active", (D.n_probes_active||0) + " / " + (D.n_probes||0));
+    if (cfg.n_probes_degenerate != null)
+      h += chip("degenerate", String(cfg.n_probes_degenerate), {warn: cfg.n_probes_degenerate>0});
+    h += '</div></div>';
+
+    h += '<div class="ph-group"><div class="ph-glabel">Circuit geometry</div><div class="ph-chips">';
+    h += chip("circuit", circ(cfg.circuit || PRIMARY), {accent:true});
+    if (hasGraftFields){
+      h += chip("prompt circuit", pc!=null ? circ(pc) : "(same)", {accent:grafting});
+      h += chip("probe circuit",  prc!=null ? circ(prc) : "(same)", {accent:grafting});
+    }
+    h += chip("prism metric", cfg.prism_metric || "signed_cosine");
+    if (cfg.L_low != null || cfg.L_high != null)
+      h += chip("L_low / L_high", (cfg.L_low!=null?cfg.L_low:"—") + " / " + (cfg.L_high!=null?cfg.L_high:"—"));
+    h += '</div></div>';
+
+    h += '<div class="ph-group"><div class="ph-glabel">Reduction &amp; aggregation</div><div class="ph-chips">';
+    h += chip("beam", cfg.beam_reduction || "mean");
+    h += chip("layer agg", cfg.layer_aggregation || "mean");
+    h += chip("cell agg", cfg.cell_aggregation || "sum");
+    h += chip("prompt agg", cfg.prompt_aggregation || "mean");
+    h += chip("baseline", cfg.include_baseline ? "included" : "off", {accent: !!cfg.include_baseline});
+    h += '</div></div></div>';
+
+    var prov = [];
+    if (cfg.model_dim != null) prov.push(["model dim", String(cfg.model_dim)]);
+    if (cfg.n_signal_layers != null) prov.push(["signal layers", String(cfg.n_signal_layers)]);
+    if (D.probe_file) prov.push(["probe file", D.probe_file]);
+    if (cfg.probe_cache_used){
+      if (cfg.probe_cache_used.L_low)  prov.push(["cache L_low", cfg.probe_cache_used.L_low]);
+      if (cfg.probe_cache_used.L_high) prov.push(["cache L_high", cfg.probe_cache_used.L_high]);
+    }
+    if (D.version) prov.push(["module version", String(D.version)]);
+    if (prov.length){
+      h += '<details class="ph-prov"><summary>Run provenance</summary><div class="ph-provgrid">';
+      prov.forEach(function(p){ h += '<div class="ppk">'+esc(p[0])+'</div><div class="ppv">'+esc(p[1])+'</div>'; });
+      h += '</div></details>';
+    }
+    document.getElementById("prism-header").innerHTML = h;
+  }
+
+  // ── Cell-table pagination state + module exports ───────────
+  // These drive the existing selection-driven probe table only.
+  var cpPage = 1, cpPageSize = 25, cpPrintAll = false, cpLastKey = null;
+  var cpRows = [], cpSubj = "", cpLvl = "";
+
+  function csvCell(v){ v = String(v==null?"":v); if (/[",\n]/.test(v)) v = '"'+v.replace(/"/g,'""')+'"'; return v; }
+  function downloadBlob(name, text, mime){
+    var blob = new Blob([text], {type: mime||"text/plain"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+  }
+  function scopeTag(){
+    if (selPrompt !== "all") return "prompt"+(parseInt(selPrompt)+1);
+    if (selClass) return "class_"+selClass;
+    return "aggregate";
+  }
+  // Prompts in scope for the current class filter (null class = all).
+  function scopePrompts(){
+    var fps = projectedPrompts();
+    if (selClass){ fps = fps.filter(function(p){ return p.category === selClass; }); }
+    return fps;
+  }
+  // Mean of per-prompt view-grids over a set of prompt indices.
+  function gridForPromptSet(view, circuit, idxs){
+    if (!idxs || !idxs.length) return [];
+    if (idxs.length === 1) return gridForPrompt(view, circuit, idxs[0]);
+    var acc = null, n = 0;
+    for (var k=0; k<idxs.length; k++){
+      var g = gridForPrompt(view, circuit, idxs[k]);
+      if (!g || !g.length) continue;
+      if (!acc){ acc = g.map(function(r){ return r.slice(); }); }
+      else {
+        for (var si=0; si<g.length; si++)
+          for (var li=0; li<(g[si]||[]).length; li++)
+            acc[si][li] += (g[si][li] || 0);
+      }
+      n++;
+    }
+    if (!acc || !n) return [];
+    for (var a=0; a<acc.length; a++)
+      for (var b=0; b<acc[a].length; b++)
+        acc[a][b] /= n;
+    return acc;
+  }
+  function exportProbesCSV(){
+    if (!cpRows.length) return;  // full selected-cell set for the current scope, not just the visible page
+    var out = ["probe_idx,probe_text,subject,level,response,abs_response,direction"];
+    cpRows.forEach(function(r){
+      out.push([r.probe_idx, csvCell(r.text), csvCell(cpSubj), csvCell(cpLvl),
+                (r.response||0).toFixed(6), Math.abs(r.response||0).toFixed(6), (r.direction||"")].join(","));
+    });
+    downloadBlob("prism_cell_"+(selCell||"")+"_"+scopeTag()+".csv", out.join("\n"), "text/csv");
+  }
+  function exportGridCSV(){
+    var grid = gridFor(view);
+    var out = [["subject"].concat(LEVELS).map(csvCell).join(",")];
+    for (var si=0; si<SUBJ.length; si++){
+      var rrow = [csvCell(SUBJ[si])];
+      for (var li=0; li<LEVELS.length; li++){
+        var x = (grid[si] && grid[si][li]!=null) ? grid[si][li] : 0;
+        rrow.push(x.toFixed(6));
+      }
+      out.push(rrow.join(","));
+    }
+    var tag = (view==="baseline"?"baseline":view==="diff"?"diff":"correction")+"_"+scopeTag();
+    downloadBlob("prism_grid_"+tag+".csv", out.join("\n"), "text/csv");
+  }
+  function exportJSON(){ downloadBlob("prism_results.json", JSON.stringify(D, null, 2), "application/json"); }
+
+  // Expand the full selected-cell probe list for printing, then restore.
+  function doPrint(){ var prev = cpPrintAll; cpPrintAll = true; renderCellPanel(); window.print(); cpPrintAll = prev; renderCellPanel(); }
+  window.addEventListener("beforeprint", function(){ if (selCell && !cpPrintAll){ cpPrintAll = true; renderCellPanel(); } });
+  window.addEventListener("afterprint",  function(){ if (cpPrintAll){ cpPrintAll = false; renderCellPanel(); } });
+
 })();
 </script>
 </body>

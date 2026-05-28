@@ -797,6 +797,9 @@ class CorrectionPrismModule(TASMModule):
 
             "config": {
                 "circuit":              circuit,
+                "prompt_circuit":       prompt_circuit,
+                "probe_circuit":        probe_circuit,
+                "grafting":             grafting,
                 "beam_reduction":       beam_reduction,
                 "prism_metric":         prism_metric,
                 "layer_aggregation":    layer_agg,
