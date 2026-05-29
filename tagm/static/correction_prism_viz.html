@@ -837,6 +837,27 @@ table.tok tr:hover td{background:#FFFFFF07}
   // toggle hides filler terms via the is_stopword flag the module attached
   // from the shared stoplist. No new computation — all from the payload.
   var paHideStopwords = true;
+  var paSortKey = "abs";   // abs | signed | term | dir
+  var paSortDir = -1;      // -1 desc, +1 asc (matches cell-panel convention)
+
+  function paSortRows(rows){
+    var k = paSortKey, dir = paSortDir;
+    rows.sort(function(a, b){
+      var base;
+      if (k === "term"){
+        var at = (a.text || "").toLowerCase(), bt = (b.text || "").toLowerCase();
+        base = at < bt ? -1 : at > bt ? 1 : 0;
+      } else if (k === "dir"){
+        base = a.dir < b.dir ? -1 : a.dir > b.dir ? 1 : 0;
+      } else if (k === "signed"){
+        base = a.meanSigned - b.meanSigned;
+      } else {
+        base = a.meanAbs - b.meanAbs;
+      }
+      // Stable tiebreak: magnitude desc, independent of sort direction.
+      return base ? base * dir : (b.meanAbs - a.meanAbs);
+    });
+  }
 
   function probeScopeIdxs(){
     if (selPrompt !== "all") return [parseInt(selPrompt, 10)];
@@ -884,7 +905,12 @@ table.tok tr:hover td{background:#FFFFFF07}
       var dir = (meanSigned > band) ? "aligned" : (meanSigned < -band) ? "anti-aligned" : "orthogonal";
       rows.push({ text: p.text, meanAbs: meanAbs, meanSigned: meanSigned, dir: dir, sw: !!p.is_stopword });
     }
-    rows.sort(function(a, b){ return b.meanAbs - a.meanAbs; });
+    // Connectivity rank — most connected (highest mean |response|) is #1.
+    // Assigned once and carried on each row, so sorting another column
+    // reorders the view without changing any term's place in the ranking.
+    rows.slice().sort(function(a, b){ return b.meanAbs - a.meanAbs; })
+        .forEach(function(row, i){ row.rank = i + 1; });
+    paSortRows(rows);
 
     // Scope label
     var scopeLabel;
@@ -925,16 +951,20 @@ table.tok tr:hover td{background:#FFFFFF07}
       return;
     }
 
+    function paArrow(k){ return (paSortKey === k) ? '<span class="sort-arrow">' + (paSortDir < 0 ? '▼' : '▲') + '</span>' : ''; }
     h += '<div class="probe-table-wrap"><table class="tok probe-table"><thead><tr>';
-    h += '<th class="num" style="width:38px">#</th><th>Term</th>';
-    h += '<th class="num">|response|</th><th class="num">response</th><th>Direction</th>';
+    h += '<th class="num" style="width:38px" title="connectivity rank by mean |response|">#</th>';
+    h += '<th class="sortable" data-pasort="term">Term' + paArrow("term") + '</th>';
+    h += '<th class="sortable num" data-pasort="abs">|response|' + paArrow("abs") + '</th>';
+    h += '<th class="sortable num" data-pasort="signed">response' + paArrow("signed") + '</th>';
+    h += '<th class="sortable" data-pasort="dir">Direction' + paArrow("dir") + '</th>';
     h += '</tr></thead><tbody>';
     for (var r=0; r<rows.length; r++){
       var row = rows[r];
       var c = (row.dir === "aligned") ? "var(--aligned)"
             : (row.dir === "anti-aligned") ? "var(--anti-aligned)" : "var(--text3)";
       h += '<tr>';
-      h += '<td class="num" style="color:var(--text3)">' + (r + 1) + '</td>';
+      h += '<td class="num" style="color:var(--text3)">' + row.rank + '</td>';
       h += '<td style="color:var(--text)">' + esc(row.text) +
            (row.sw ? ' <span style="color:var(--text3);font-size:10px">·stop</span>' : '') + '</td>';
       h += '<td class="num" style="color:var(--text)">' + row.meanAbs.toFixed(4) + '</td>';
@@ -952,6 +982,15 @@ table.tok tr:hover td{background:#FFFFFF07}
     if (sw) sw.addEventListener("change", function(e){
       paHideStopwords = e.target.checked; renderProbeActivity();
     });
+    var hdrs = document.querySelectorAll('#tab-probe th.sortable[data-pasort]');
+    for (var i=0; i<hdrs.length; i++){
+      hdrs[i].addEventListener("click", function(e){
+        var k = e.currentTarget.getAttribute("data-pasort");
+        if (paSortKey === k){ paSortDir = -paSortDir; }
+        else { paSortKey = k; paSortDir = (k === "term" || k === "dir") ? 1 : -1; }
+        renderProbeActivity();
+      });
+    }
     var clr = document.getElementById("pa-clear");
     if (clr) clr.addEventListener("click", function(e){
       e.preventDefault();
@@ -1081,7 +1120,7 @@ table.tok tr:hover td{background:#FFFFFF07}
     html += '<th class="sortable" data-sort="name">Probe' + arrow("name") + '</th>';
     html += '<th class="sortable num" data-sort="signed">Response' + arrow("signed") + '</th>';
     html += '<th class="sortable num" data-sort="abs">|Response|' + arrow("abs") + '</th>';
-    html += '<th>Direction</th>';
+    html += '<th class="sortable" data-sort="dir">Direction' + arrow("dir") + '</th>';
     html += '</tr></thead><tbody>';
     for (var pi=0; pi<pageProbes.length; pi++){
       var p = pageProbes[pi];
@@ -1123,7 +1162,7 @@ table.tok tr:hover td{background:#FFFFFF07}
     for (var i=0; i<headers.length; i++){
       headers[i].addEventListener("click", function(e){
         var k = e.currentTarget.getAttribute("data-sort");
-        if (sortKey === k){ sortDir = -sortDir; } else { sortKey = k; sortDir = (k === "name") ? 1 : -1; }
+        if (sortKey === k){ sortDir = -sortDir; } else { sortKey = k; sortDir = (k === "name" || k === "dir") ? 1 : -1; }
         cpPage = 1;
         renderCellPanel();
       });
@@ -1157,6 +1196,11 @@ table.tok tr:hover td{background:#FFFFFF07}
         av = Math.abs(a.response || 0); bv = Math.abs(b.response || 0);
       } else if (sortKey === "signed"){
         av = a.response || 0; bv = b.response || 0;
+      } else if (sortKey === "dir"){
+        av = a.direction || ""; bv = b.direction || "";
+        if (av < bv) return -1 * sortDir;
+        if (av > bv) return  1 * sortDir;
+        return 0;
       } else {
         av = (a.text || "").toLowerCase(); bv = (b.text || "").toLowerCase();
         if (av < bv) return -1 * sortDir;

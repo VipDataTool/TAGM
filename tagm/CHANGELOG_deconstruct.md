@@ -25,6 +25,12 @@ Cell Composition view. Same data, transposed; no new analysis.
   Composition — the selection just filters in place.
 - **Stopword toggle** (default on): hides filler terms using a per-probe
   `is_stopword` flag the module now attaches.
+- **Sortable columns** on the Probe Activity table (Term, |response|,
+  response, Direction) — click to sort, click again to reverse. Also made
+  the **Direction** column sortable in **Cell Composition**, where it had
+  been a plain header; both tabs now sort on all data columns, with string
+  columns (Term/Probe, Direction) defaulting to ascending and the rest to
+  descending.
 
 ## Module (`correction_prism.py`)
 
