@@ -58,6 +58,37 @@ CIRCUIT_LABELS = {
 }
 
 
+def _load_stopword_set(project_root):
+    """Best-effort load of the shared stopword asset.
+
+    Reads ``templates/stopwords.txt`` — the same data file the probe
+    generator uses — directly, rather than importing that module's loader.
+    This is deliberate: modules are meant to be independently removable, so
+    we accept a few lines of duplicated parsing to avoid a cross-module code
+    dependency. The file is a shared asset (like the probe-template CSVs),
+    not module code. If it is absent or unreadable, returns an empty set and
+    stopword flagging simply no-ops, so this module never hard-depends on it.
+
+    Returns a frozenset of lowercased words.
+    """
+    if not project_root:
+        return frozenset()
+    path = os.path.join(project_root, "templates", "stopwords.txt")
+    if not os.path.isfile(path):
+        return frozenset()
+    words = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                words.append(line.lower().split()[0])  # first token; ignore inline comments
+    except OSError:
+        return frozenset()
+    return frozenset(words)
+
+
 class CorrectionPrismModule(TASMModule):
     name = "correction_prism"
     display_name = "Probe-Basis Decomposition"
@@ -727,6 +758,9 @@ class CorrectionPrismModule(TASMModule):
         gross_mean_abs = float(_active_abs.mean()) if _active_abs.size else 0.0
         signed_thresh = (directional_pct / 100.0) * gross_mean_abs
 
+        # Shared stopword asset (read directly; see _load_stopword_set).
+        stopset = _load_stopword_set(self._project_root)
+
         cell_details = {}
         for si in range(n_subj):
             for li in range(n_levels):
@@ -744,13 +778,18 @@ class CorrectionPrismModule(TASMModule):
                     direction = ("aligned" if mean_resp > signed_thresh
                                  else "anti-aligned" if mean_resp < -signed_thresh
                                  else "orthogonal")
+                    ptext = raw_probes[probe_i].get(
+                        "text", raw_probes[probe_i].get("anchor_id", ""))
                     probes_info.append({
                         "probe_idx": probe_i,
-                        "text": raw_probes[probe_i].get(
-                            "text",
-                            raw_probes[probe_i].get("anchor_id", "")),
+                        "text": ptext,
                         "response": round(mean_resp, 6),
                         "direction": direction,
+                        # Same skip rule the probe generator applies
+                        # (len<3 OR in stoplist), so the Probe Activity
+                        # tab can hide filler terms using the same source.
+                        "is_stopword": (len(ptext) < 3
+                                        or ptext.lower() in stopset),
                     })
 
                 # Per-cell composition record. Active = probes with

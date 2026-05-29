@@ -1,3 +1,56 @@
+# Changelog — New "Probe Activity" Tab (replaces redundant Circuit Decomposition)
+
+_2026-05-29_
+
+## Summary
+
+Replaced the Circuit Decomposition tab — which rendered a single tile that
+was a pixel copy of the main heatmap (the backend only computes the primary
+circuit + baseline, so "all circuits side-by-side" had nothing to show) —
+with **Probe Activity**: a global ranking of which probe terms are most
+connected to the correction field across the dataset, inverting the per-cell
+Cell Composition view. Same data, transposed; no new analysis.
+
+## Added
+
+- **Probe Activity tab**: ranks every active probe term by mean
+  <code>|response|</code> over the current scope (session aggregate, class, or
+  single prompt — follows the existing class/prompt selector). Shows term,
+  mean |response| (the ranking key), signed mean response, and direction
+  (aligned / anti-aligned / orthogonal, using the same scope-relative band as
+  the rest of the viz).
+- **Cell filter**: clicking a heatmap cell filters the ranking to that cell's
+  probes (same click wiring as Cell Composition); a "show all probes" link
+  clears it. Cell clicks no longer yank you off Probe Activity or Cell
+  Composition — the selection just filters in place.
+- **Stopword toggle** (default on): hides filler terms using a per-probe
+  `is_stopword` flag the module now attaches.
+
+## Module (`correction_prism.py`)
+
+- Reads the shared `templates/stopwords.txt` asset directly (best-effort, via
+  `_load_stopword_set`) and tags each probe with `is_stopword` using the same
+  rule the probe generator applies (`len<3 OR in stoplist`).
+- **Deliberately self-contained**: it does *not* import the probe generator's
+  loader — it reads the same data file with its own small parse, so the
+  modules stay independently removable. A few duplicated lines, traded for
+  zero cross-module code coupling. If the asset is missing, stopword flagging
+  no-ops; the module never hard-depends on it.
+
+## Removed (dead code)
+
+- The Circuit Decomposition tab, its `renderDecomp` function, the now-unused
+  `CIRC_ORDER` state, and the orphaned `.decomp-grid` / `.decomp-tile` /
+  `.mini-legend` CSS (including print rules). Fixed the stale print selector
+  (`#tab-decomp` → `#tab-probe`) and the cell-panel empty-state text.
+
+## Files touched
+
+- `src/engine/modules/correction_prism.py`
+- `static/correction_prism_viz.html`
+
+---
+
 # Changelog — Module Rename: Correction Prism → Probe-Basis Decomposition
 
 _2026-05-29_

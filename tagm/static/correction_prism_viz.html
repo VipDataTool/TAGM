@@ -116,13 +116,6 @@ table.hm td.cell.sel{outline:2px solid var(--cyan);outline-offset:-2px;z-index:1
 .tabs button:hover:not(.active){color:var(--text-0)}
 .tab-panel{padding:16px 0;display:none}
 .tab-panel.active{display:block}
-.decomp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}
-.decomp-tile{padding:12px;background:var(--bg-1);border:1px solid var(--border);border-radius:7px}
-.decomp-tile .label{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--cyan);margin-bottom:8px}
-.decomp-tile.baseline .label{color:var(--text-2)}
-.decomp-tile table.hm{margin-bottom:6px}
-.decomp-tile table.hm th,.decomp-tile table.hm td{padding:5px 8px;font-size:10px}
-.decomp-tile .mini-legend{font-family:var(--mono);font-size:9.5px;color:var(--text-3);margin-top:5px}
 
 /* ── Probe / cell tables ──────────────────────────────────── */
 table.tok{width:100%;border-collapse:collapse;font-size:11.5px}
@@ -194,17 +187,16 @@ table.tok tr:hover td{background:#FFFFFF07}
   .viewbar,.promptbar,.tabs,.probe-toolbar,.probe-pager,.export-bar,#err{display:none !important}
   #prism-header{background:#fff;border-color:#bbb}
   .ph-title{background:#fff;border-color:#ddd}
-  .ph-name,.cell-info b,.glossary dt,.decomp-tile .label{color:#000}
+  .ph-name,.cell-info b,.glossary dt{color:#000}
   .ph-kicker,.ph-glabel,.pchip .k,.section-sub,.ph-provgrid .ppk{color:#555}
   .pchip,.ph-model{background:#f4f4f4;border-color:#ccc}
   .pchip .v,.ph-provgrid .ppv,.section-sub .scope{color:#111}
   .ph-prov summary{display:none}
   .ph-prov,.ph-prov[open]{display:block}
   #tab-cell{display:block !important}
-  #tab-decomp,#tab-glossary{display:none !important}
+  #tab-probe,#tab-glossary{display:none !important}
   .cell-info{color:#333}
   .cell-info b{color:#000}
-  .decomp-tile{background:#fff;border-color:#ccc;break-inside:avoid}
   .probes-section{border-top-color:#bbb}
   .probe-table-wrap{max-height:none;overflow:visible;border-color:#ccc}
   .probe-table td.ptext-cell{color:#000;max-width:none;white-space:normal}
@@ -236,12 +228,12 @@ table.tok tr:hover td{background:#FFFFFF07}
 <div class="heatmap-wrap" id="heatmap"></div>
 
 <div class="tabs">
-  <button class="tab-btn active" data-tab="decomp">Circuit Decomposition</button>
+  <button class="tab-btn active" data-tab="probe">Probe Activity</button>
   <button class="tab-btn" data-tab="cell">Cell Composition</button>
   <button class="tab-btn" data-tab="glossary">Glossary</button>
 </div>
 
-<div class="tab-panel active" id="tab-decomp"></div>
+<div class="tab-panel active" id="tab-probe"></div>
 <div class="tab-panel" id="tab-cell"></div>
 <div class="tab-panel" id="tab-glossary"></div>
 
@@ -255,7 +247,6 @@ table.tok tr:hover td{background:#FFFFFF07}
   var SUBJ = [], LEVELS = [], SUBJ_SHORT = [];
   var CELLS = {};          // cell_details
   var DECOMP = {};         // per-circuit decomposition
-  var CIRC_ORDER = [];     // ordered circuit keys
   var CIRC_LABELS = {};
   var PRIMARY = "full";
   var HAS_BASELINE = false;
@@ -297,7 +288,6 @@ table.tok tr:hover td{background:#FFFFFF07}
     SUBJ_SHORT = D.subj_short || SUBJ;
     CELLS = D.cell_details || {};
     DECOMP = D.decomposition || {};
-    CIRC_ORDER = D.circuit_order || [];
     CIRC_LABELS = D.circuit_labels || {};
     PRIMARY = D.primary_circuit || "full";
     HAS_BASELINE = !!(DECOMP._baseline && DECOMP._baseline.aggregate);
@@ -787,13 +777,20 @@ table.tok tr:hover td{background:#FFFFFF07}
         var id = e.currentTarget.getAttribute("data-cell");
         selCell = id;
         renderCellPanel();
+        renderProbeActivity();
         // Highlight on whichever heatmap is showing
         var prev = document.querySelectorAll("td.cell.sel");
         for (var j=0; j<prev.length; j++) prev[j].classList.remove("sel");
         e.currentTarget.classList.add("sel");
-        // Switch to the Cell tab so the user sees the result
-        var cellBtn = document.querySelector('.tab-btn[data-tab="cell"]');
-        if (cellBtn) cellBtn.click();
+        // Reveal a panel that responds to the selection. If the user is
+        // already on Cell Composition or Probe Activity, stay put (the
+        // selection just filters in place); otherwise show Cell Composition.
+        var active = document.querySelector(".tab-btn.active");
+        var activeTab = active ? active.getAttribute("data-tab") : null;
+        if (activeTab !== "cell" && activeTab !== "probe"){
+          var cellBtn = document.querySelector('.tab-btn[data-tab="cell"]');
+          if (cellBtn) cellBtn.click();
+        }
       });
     }
   }
@@ -822,8 +819,8 @@ table.tok tr:hover td{background:#FFFFFF07}
     hm.innerHTML = renderHeatmap(grid, sc, function(si, li){ return si + "_" + li; }, 3);
     bindCellClicks(hm);
 
-    // Decomposition tab
-    renderDecomp();
+    // Probe Activity tab
+    renderProbeActivity();
     // Cell tab
     renderCellPanel();
     // Glossary tab (static; render once is fine but cheap to redo)
@@ -832,64 +829,145 @@ table.tok tr:hover td{background:#FFFFFF07}
   }
 
   // ── Decomposition tab ──────────────────────────────────────
-  function renderDecomp(){
-    var panel = document.getElementById("tab-decomp");
-    var html = '<div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6">' +
-               'All circuits computed for this run, side-by-side. Each tile uses its own ' +
-               'relative scale (so weak circuits aren\'t washed out by strong ones). Click a ' +
-               'cell in any tile to inspect its probe composition.</div>';
+  // ── Probe Activity tab ─────────────────────────────────────
+  // Inverts Cell Composition: instead of one cell's probes, rank every
+  // probe term by how connected it is across the dataset — mean |response|
+  // over the current scope. A selected cell filters the ranking to that
+  // cell's members (same click wiring as Cell Composition); the stopword
+  // toggle hides filler terms via the is_stopword flag the module attached
+  // from the shared stoplist. No new computation — all from the payload.
+  var paHideStopwords = true;
 
-    if (!CIRC_ORDER.length){
-      html += '<div class="empty">No circuit decomposition available.</div>';
-      panel.innerHTML = html;
+  function probeScopeIdxs(){
+    if (selPrompt !== "all") return [parseInt(selPrompt, 10)];
+    if (selClass) return scopePrompts().map(function(p){ return p.idx; });
+    return projectedPrompts().map(function(p){ return p.idx; });
+  }
+
+  function renderProbeActivity(){
+    var panel = document.getElementById("tab-probe");
+    var ppr = (DECOMP[PRIMARY] && DECOMP[PRIMARY].per_prompt_response) || null;
+    if (!ppr){
+      panel.innerHTML = '<div class="cell-empty">No per-prompt responses in this run\'s payload.</div>';
+      return;
+    }
+    var idxs = probeScopeIdxs();
+    if (!idxs || !idxs.length){
+      panel.innerHTML = '<div class="cell-empty">No projected prompts in scope.</div>';
       return;
     }
 
-    html += '<div class="decomp-grid">';
-    for (var i=0; i<CIRC_ORDER.length; i++){
-      var ck = CIRC_ORDER[i];
-      var d = DECOMP[ck];
-      if (!d) continue;
-      // Per-prompt: derive this circuit's grid for the current prompt.
-      // Otherwise: session aggregate.
-      var dAgg;
-      if (selPrompt !== "all"){
-        dAgg = gridForPrompt("primary", ck, parseInt(selPrompt));
-      } else if (selClass){
-        dAgg = gridForPromptSet("primary", ck, scopePrompts().map(function(p){ return p.idx; }));
-      } else {
-        dAgg = d.aggregate || [];
-      }
-      var dSc = scale(dAgg);
-      var isBaseline = (ck === "_baseline");
-      var label = isBaseline ? "Baseline (ΔW = I)" : (CIRC_LABELS[ck] || ck);
-      html += '<div class="decomp-tile' + (isBaseline ? ' baseline' : '') + '">';
-      html += '<div class="label">' + esc(label) + '</div>';
-      html += renderHeatmap(dAgg, dSc, (function(circ){
-        return function(si, li){ return si + "_" + li; };
-      })(ck), 3);
-      var rangeStr = '';
-      if (dSc.negMin !== null && dSc.posMax !== null)
-        rangeStr = dSc.negMin.toFixed(3) + ' to +' + dSc.posMax.toFixed(3);
-      else if (dSc.posMax !== null)
-        rangeStr = '+' + (dSc.posMin || 0).toFixed(3) + ' to +' + dSc.posMax.toFixed(3);
-      else if (dSc.negMin !== null)
-        rangeStr = dSc.negMin.toFixed(3) + ' to ' + (dSc.negMax || 0).toFixed(3);
-      else
-        rangeStr = '0';
-      html += '<div class="mini-legend">scale: ' + rangeStr + '</div>';
-      html += '</div>';
+    // Probe set: a selected cell filters to its members; otherwise every
+    // active probe (flattened from cell_details — each appears once).
+    var src = [];
+    if (selCell && CELLS[selCell]){
+      src = (CELLS[selCell].probes || []);
+    } else {
+      Object.keys(CELLS).forEach(function(cid){
+        var ps = (CELLS[cid] && CELLS[cid].probes) || [];
+        for (var i=0; i<ps.length; i++) src.push(ps[i]);
+      });
     }
-    html += '</div>';
-    panel.innerHTML = html;
-    bindCellClicks(panel);
+
+    var band = scopeThreshold(idxs);
+    var rows = [], hidden = 0;
+    for (var i=0; i<src.length; i++){
+      var p = src[i];
+      if (paHideStopwords && p.is_stopword){ hidden++; continue; }
+      var sum = 0, asum = 0, cnt = 0;
+      for (var z=0; z<idxs.length; z++){
+        var rr = ppr[idxs[z]];
+        if (rr){ var v = rr[p.probe_idx] || 0; sum += v; asum += Math.abs(v); cnt++; }
+      }
+      var meanAbs = cnt ? (asum / cnt) : 0;
+      var meanSigned = cnt ? (sum / cnt) : 0;
+      var dir = (meanSigned > band) ? "aligned" : (meanSigned < -band) ? "anti-aligned" : "orthogonal";
+      rows.push({ text: p.text, meanAbs: meanAbs, meanSigned: meanSigned, dir: dir, sw: !!p.is_stopword });
+    }
+    rows.sort(function(a, b){ return b.meanAbs - a.meanAbs; });
+
+    // Scope label
+    var scopeLabel;
+    if (idxs.length === 1){
+      var pinfo = PROMPTS[idxs[0]];
+      scopeLabel = "prompt #" + (idxs[0] + 1) +
+        (pinfo ? " [" + (CAT_NAMES[pinfo.category] || pinfo.category) + "]" : "");
+    } else if (selClass){
+      scopeLabel = "class: " + (CAT_NAMES[selClass] || selClass) + " · " + idxs.length + " prompts";
+    } else {
+      scopeLabel = "session aggregate · " + idxs.length + " prompts";
+    }
+
+    var h = '<div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.6">' +
+            'Probe terms ranked by mean <code>|response|</code> across the dataset — how connected each ' +
+            'concept is to the correction field, anywhere it appears. Scope: <b>' + esc(scopeLabel) + '</b>.</div>';
+
+    h += '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px">';
+    if (selCell && CELLS[selCell]){
+      var pr = selCell.split("_");
+      var sName = SUBJ[parseInt(pr[0], 10)] || ("subject " + pr[0]);
+      var lName = LEVELS[parseInt(pr[1], 10)] || ("level " + pr[1]);
+      h += '<span style="color:var(--text)">Filtered to cell <b>' + esc(sName) + ' / ' + esc(lName) + '</b></span>';
+      h += '<a id="pa-clear" href="#" style="color:var(--cyan);text-decoration:none">show all probes ✕</a>';
+    } else {
+      h += '<span style="color:var(--text3)">All active probes — click a cell to filter</span>';
+    }
+    h += '<label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text2)">' +
+         '<input type="checkbox" id="pa-sw"' + (paHideStopwords ? ' checked' : '') + '> hide stopwords' +
+         (hidden ? ' <span style="color:var(--text3)">(' + hidden + ' hidden)</span>' : '') + '</label>';
+    h += '</div>';
+
+    if (!rows.length){
+      h += '<div class="cell-empty">No probes to show' +
+           (paHideStopwords ? ' (all filtered as stopwords).' : '.') + '</div>';
+      panel.innerHTML = h;
+      wirePA();
+      return;
+    }
+
+    h += '<div class="probe-table-wrap"><table class="tok probe-table"><thead><tr>';
+    h += '<th class="num" style="width:38px">#</th><th>Term</th>';
+    h += '<th class="num">|response|</th><th class="num">response</th><th>Direction</th>';
+    h += '</tr></thead><tbody>';
+    for (var r=0; r<rows.length; r++){
+      var row = rows[r];
+      var c = (row.dir === "aligned") ? "var(--aligned)"
+            : (row.dir === "anti-aligned") ? "var(--anti-aligned)" : "var(--text3)";
+      h += '<tr>';
+      h += '<td class="num" style="color:var(--text3)">' + (r + 1) + '</td>';
+      h += '<td style="color:var(--text)">' + esc(row.text) +
+           (row.sw ? ' <span style="color:var(--text3);font-size:10px">·stop</span>' : '') + '</td>';
+      h += '<td class="num" style="color:var(--text)">' + row.meanAbs.toFixed(4) + '</td>';
+      h += '<td class="num" style="color:' + c + '">' + (row.meanSigned >= 0 ? '+' : '') + row.meanSigned.toFixed(4) + '</td>';
+      h += '<td style="color:' + c + '">' + row.dir + '</td>';
+      h += '</tr>';
+    }
+    h += '</tbody></table></div>';
+    panel.innerHTML = h;
+    wirePA();
+  }
+
+  function wirePA(){
+    var sw = document.getElementById("pa-sw");
+    if (sw) sw.addEventListener("change", function(e){
+      paHideStopwords = e.target.checked; renderProbeActivity();
+    });
+    var clr = document.getElementById("pa-clear");
+    if (clr) clr.addEventListener("click", function(e){
+      e.preventDefault();
+      selCell = null;
+      var prev = document.querySelectorAll("td.cell.sel");
+      for (var j=0; j<prev.length; j++) prev[j].classList.remove("sel");
+      renderProbeActivity();
+      renderCellPanel();
+    });
   }
 
   // ── Cell composition tab ───────────────────────────────────
   function renderCellPanel(){
     var panel = document.getElementById("tab-cell");
     if (!selCell){
-      panel.innerHTML = '<div class="cell-empty">Click any cell in the main heatmap or in a decomposition tile to inspect its probes.</div>';
+      panel.innerHTML = '<div class="cell-empty">Click any cell in the heatmap to inspect its probes.</div>';
       cpRows = []; return;
     }
     var cell = CELLS[selCell];
