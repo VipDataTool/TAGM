@@ -20,7 +20,6 @@ from typing import Any, Optional
 
 import torch
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 from src.core.pipeline import Pipeline
@@ -89,8 +88,12 @@ class AppState:
 state = AppState()
 _analysis_lock = threading.Lock()
 _loading_lock = threading.Lock()
-_batch_running = False
-_batch_lock = threading.Lock()
+# Job-level guard: at most one analysis job (single or batch) runs at a time.
+# This is distinct from _analysis_lock, which serializes individual inference
+# calls; _job_running serializes whole submissions so the unified async
+# contract can't have two jobs in flight at once.
+_job_running = False
+_job_lock = threading.Lock()
 
 
 # ─── Model registry ─────────────────────────────────────────────
@@ -371,14 +374,82 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
     return results, errors
 
 
-async def api_analyze_handler(request: Request):
-    """POST /api/analyze — accepts form data with TASM flags.
+def _start_analysis_job(prompts: list[dict], flags: dict, *,
+                        deconstruct: bool = False,
+                        n_prompts: int = 0,
+                        progress=None) -> dict:
+    """Start an analysis job in the background — the single contract shared by
+    the single-prompt and batch endpoints.
 
-    A single prompt is a one-element batch: it goes through the same
-    _analyze_prompt_list core as the batch endpoint. This endpoint stays
-    synchronous and returns the result inline. With deconstruct on, the
-    one prompt expands into its ladder; all rungs are stored and the
-    final rung (the complete prompt) is returned as the inline result.
+    Returns immediately with ``{"ok": True, "started": True, "n_prompts": N}``.
+    Completion (or fatal failure) is announced exactly once via the
+    ``analyze_done`` SSE event, whose payload carries the full outcome so the
+    client can surface failures loudly and never silently:
+
+        ``{ok, n_results, n_prompts, n_errors, error}``
+
+    - ``ok=False`` → a fatal/infrastructure error; nothing was produced.
+    - ``ok=True, n_results=0`` → the job ran but every prompt failed
+      (``error`` = first failure message).
+    - ``ok=True, n_errors>0``  → partial: some prompts failed, some succeeded.
+
+    Individual inference calls are still serialized by ``_analysis_lock``
+    inside ``_analyze_prompt_list``; this only adds a job-level guard so two
+    whole submissions can't overlap. ``progress`` is forwarded to the per-rung
+    logger — the single endpoint passes ``None`` when not deconstructing to
+    keep the interactive console quiet, its long-standing behavior.
+    """
+    global _job_running
+    with _job_lock:
+        if _job_running:
+            return {"ok": False, "error": "Analysis already running."}
+        _job_running = True
+
+    def _run():
+        global _job_running
+        try:
+            results, errors = _analyze_prompt_list(
+                prompts, flags, deconstruct=deconstruct, progress=progress)
+            state.session.save_to_disk()
+            n = len(results)
+            if progress is not None:
+                msg = (f"Analysis complete: {n} record(s), {len(errors)} failed"
+                       if errors else f"Analysis complete: {n} record(s)")
+                progress("done", msg)
+            broker.publish("analyze_done", {
+                "ok": True,
+                "n_results": n,
+                "n_prompts": n_prompts,
+                "n_errors": len(errors),
+                "error": (errors[0][1] if errors else None),
+            })
+        except Exception as e:
+            logger.exception("Analysis job failed")
+            if progress is not None:
+                progress("error", f"Analysis failed: {e}")
+            broker.publish("analyze_done", {
+                "ok": False,
+                "n_results": 0,
+                "n_prompts": n_prompts,
+                "n_errors": 0,
+                "error": str(e),
+            })
+        finally:
+            with _job_lock:
+                _job_running = False
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"ok": True, "started": True, "n_prompts": n_prompts}
+
+
+async def api_analyze_handler(request: Request):
+    """POST /api/analyze — a single prompt as a one-item analysis job.
+
+    Asynchronous, like the batch endpoint: returns ``{"started": True}`` and
+    announces completion via the ``analyze_done`` SSE event. With deconstruct
+    on, the one prompt expands into its prefix ladder; all rungs are stored.
+    Per-rung console logging is enabled only when deconstructing, so an
+    ordinary single-prompt run keeps the console quiet.
     """
     if state.analyzer is None:
         return {"ok": False, "error": "No model loaded."}
@@ -395,57 +466,27 @@ async def api_analyze_handler(request: Request):
     deconstruct = _form_bool(form, "deconstruct")
     flags = _read_analyze_flags(form, trajectory_default=True)
 
-    def _work():
-        # Per-rung console logging only when deconstructing — keeps the
-        # ordinary single-prompt console quiet (its long-standing behavior).
-        return _analyze_prompt_list(
-            [{"prompt": prompt, "category": category}],
-            flags, deconstruct=deconstruct,
-            progress=(state.progress if deconstruct else None),
-        )
-
-    try:
-        results, errors = await run_in_threadpool(_work)
-    except Exception as e:
-        logger.exception("Analysis failed")
-        return {"ok": False, "error": str(e)}
-
-    if not results:
-        msg = errors[0][1] if errors else "Analysis produced no result."
-        return {"ok": False, "error": msg}
-
-    # Final rung == the complete prompt; that's the inline result.
-    result_dict = results[-1]
-    plot_keys = _plot_keys_for_result(result_dict)
-    result_dict["_plot_keys"] = plot_keys
-
-    # Snapshot to disk (non-blocking)
-    await run_in_threadpool(state.session.save_to_disk)
-
-    return _sanitize_for_json({
-        "ok": True,
-        "result": result_dict,
-        "plot_keys": plot_keys,
-        "session_n": state.session.n_results,
-        "cache_size_bytes": state.session.get_cache_size(),
-        "n_rungs": len(results),
-    })
+    return _start_analysis_job(
+        [{"prompt": prompt, "category": category}],
+        flags, deconstruct=deconstruct, n_prompts=1,
+        progress=(state.progress if deconstruct else None),
+    )
 
 
 # ─── Batch analyze ──────────────────────────────────────────────
 
 async def api_analyze_batch_handler(request: Request):
-    """POST /api/analyze_batch — form data with CSV file + TASM flags."""
-    global _batch_running
+    """POST /api/analyze_batch — a CSV of prompts as one analysis job.
+
+    Same async contract as the single endpoint via ``_start_analysis_job``;
+    the only differences are CSV parsing and that trajectories default off for
+    batch volume. Completion arrives on the shared ``analyze_done`` event.
+    """
     import csv as _csv
     import io as _io
 
     if state.analyzer is None:
         return {"ok": False, "error": "No model loaded."}
-
-    with _batch_lock:
-        if _batch_running:
-            return {"ok": False, "error": "Batch already running."}
 
     form = await request.form()
     file = form.get("file")
@@ -473,31 +514,10 @@ async def api_analyze_batch_handler(request: Request):
     deconstruct = _form_bool(form, "deconstruct")
     flags = _read_analyze_flags(form, trajectory_default=False)
 
-    with _batch_lock:
-        _batch_running = True
-
-    def _run_batch():
-        global _batch_running
-        try:
-            results, errors = _analyze_prompt_list(
-                prompts, flags, deconstruct=deconstruct, progress=state.progress)
-            state.session.save_to_disk()
-            n = len(results)
-            state.progress("done", f"Batch complete: {n} prompts analyzed")
-            broker.publish("batch_done", {"n_results": n})
-        except Exception as e:
-            logger.exception("Batch failed")
-            state.progress("error", f"Batch failed: {e}")
-        finally:
-            with _batch_lock:
-                _batch_running = False
-
-    threading.Thread(target=_run_batch, daemon=True).start()
-
-    return {
-        "ok": True, "started": True, "n_prompts": len(prompts),
-        "message": f"Batch started: {len(prompts)} prompts.",
-    }
+    return _start_analysis_job(
+        prompts, flags, deconstruct=deconstruct,
+        n_prompts=len(prompts), progress=state.progress,
+    )
 
 
 # ─── Session results ────────────────────────────────────────────

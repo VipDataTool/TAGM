@@ -183,15 +183,6 @@
           <div class="checkbox-row"><input type="checkbox" id="cfgCaptureResponses" onchange="saveConfig()"><label for="cfgCaptureResponses">Capture model responses (top-k predictions)</label></div>
           <div class="checkbox-row"><input type="checkbox" id="cfgFullCapture" onchange="saveConfig()"><label for="cfgFullCapture">Full capture (derived metrics: coherence, spectral, similarity, attn/MLP)</label></div>
           <div style="font-size:var(--font-legend);color:var(--text-2);margin:4px 0 0 22px;line-height:1.4">Derives coherence, spectral rank, cross-token similarity, and attn/MLP decomposition from the sublayer heatmap. No extra memory cost. Requires trajectory to be enabled.</div>
-          <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <label for="cfgBackendTimeout" style="font-size:var(--font-desc);white-space:nowrap">Backend timeout</label>
-            <input type="number" id="cfgBackendTimeout" value="300" min="30" max="1800" step="30" style="width:70px;padding:2px 6px;font-size:var(--font-desc);background:var(--bg-2);color:var(--text-1);border:1px solid var(--border-1);border-radius:3px" onchange="saveConfig()">
-            <span style="font-size:var(--font-legend);color:var(--text-3)">sec</span>
-            <span style="font-size:var(--font-legend);color:var(--text-3);margin:0 4px">·</span>
-            <label for="cfgPollInterval" style="font-size:var(--font-desc);white-space:nowrap">poll every</label>
-            <input type="number" id="cfgPollInterval" value="30" min="5" max="120" step="5" style="width:55px;padding:2px 6px;font-size:var(--font-desc);background:var(--bg-2);color:var(--text-1);border:1px solid var(--border-1);border-radius:3px" onchange="saveConfig()">
-            <span style="font-size:var(--font-legend);color:var(--text-3)">sec — reconnection behavior if analysis drops</span>
-          </div>
         </div>
       </div>
     </div>

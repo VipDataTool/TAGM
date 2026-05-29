@@ -1,3 +1,99 @@
+# Changelog — Unify analysis onto one async contract
+
+_2026-05-29_
+
+## Changed
+
+Analysis had two completion contracts: batch was async (submit → `batch_done`
+SSE → refetch), while a single prompt was synchronous (inline JSON result).
+The synchronous path had already grown a timeout-recovery polling branch to
+survive long requests — a sign the contract had outgrown "sync." Both paths
+already shared the `_analyze_prompt_list` core; now they share the **contract**
+too. The synchronous path and its recovery hack are gone. A single prompt is
+just a one-item job.
+
+**One terminal event.** `batch_done` → **`analyze_done`**, published by both
+endpoints (and kept in the broker snapshot for reconnect replay). Its payload
+carries the full outcome so a failed prompt can never finish silently:
+
+    { ok, n_results, n_prompts, n_errors, error }
+
+- `ok=False` → fatal/infrastructure error; nothing produced.
+- `ok=True, n_results=0` → the job ran but every prompt failed (`error` = first
+  failure message).
+- `ok=True, n_errors>0` → partial: some succeeded, some failed.
+
+The client surfaces all three loudly (the error path was built first, since it
+is where a careless async conversion turns a failure into a silent one).
+
+**Backend (`app_core.py`).** New shared `_start_analysis_job(prompts, flags, *,
+deconstruct, n_prompts, progress)` guards, spawns the worker thread, saves, and
+publishes exactly one `analyze_done`. `api_analyze_handler` and
+`api_analyze_batch_handler` are now thin: parse input, read flags (single keeps
+`trajectory_default=True` and stays console-quiet unless deconstructing; batch
+keeps `trajectory_default=False`), and delegate. The batch-only
+`_batch_running`/`_batch_lock` guard is generalized to a job-level
+`_job_running`/`_job_lock` covering all analysis (distinct from the per-inference
+`_analysis_lock`, which is unchanged). Removed the now-unused `run_in_threadpool`
+import.
+
+**Frontend (`main.js`).** `analyzePrompt` and `analyzeBatch` are thin callers of
+a shared `_submitAnalysis(url, fd, btn, errorElId)` + `_onAnalyzeComplete(evt,
+…)`. The completion waiter is registered **before** the POST so a fast job can't
+finish before the client is listening; a rejected start leaves a harmless
+resolver that the next event drains. Completion refetches full results (for
+`_plot_keys`/detail) and the slim dashboard, then chimes — once, after the table
+reflects the new rows. (This also fixes a latent bug: a single prompt run after
+a batch used to render against a stale `dashResults`.)
+
+**Removed dead config.** The **Backend timeout** / **poll every**
+(`cfgBackendTimeout`, `cfgPollInterval`) fields existed only to feed the deleted
+recovery branch; with it gone they were misleading dials wired to nothing.
+
+## Trade-off
+
+A single prompt now refetches results like batch instead of appending the one
+inline result (`sessionResults.push`). At typical scale (tens–low-hundreds of
+prompts) this is unnoticeable; if very large sessions feel slow on each
+single-prompt run, a delta-fetch (`/api/results/detail?start=prev&count=new`)
+would restore the append without reintroducing a second contract.
+
+## Files touched
+
+- `src/engine/app_core.py`
+- `src/service/events.py`
+- `static/js/main.js`
+- `static/index.html`
+
+---
+
+# Changelog — Notification chime timing on prompt completion
+
+_2026-05-29_
+
+## Fixed
+
+The "Notification chime" was supposed to sound when a prompt finishes and the
+dashboard reflects the new result. Two paths were wrong:
+
+- **Single-prompt analysis didn't chime at all** on normal success — the
+  chime existed only in the timeout-recovery branch, so an ordinary completed
+  prompt finished silently. Added `playChime()` right after the dashboard
+  update (`renderDataTable` / `dtGoPage`) in `analyzePrompt`.
+- **Batch analysis chimed too early** — it fired the instant `batch_done`
+  arrived, before the results were fetched and the table re-rendered. Moved
+  the chime to after `renderDataTable()` so it lands once the dashboard shows
+  the new rows.
+
+The timeout-recovery path already chimed after the table update and is
+unchanged. The chime remains gated by the existing toggle.
+
+## Files touched
+
+- `static/js/main.js`
+
+---
+
 # Changelog — Comparative Analysis: legend/color bug fixes
 
 _2026-05-29_

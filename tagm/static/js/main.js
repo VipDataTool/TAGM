@@ -47,7 +47,7 @@ let _sseConnected = false;
 const _sseWaiters = {
   model_loaded: [],
   model_error: [],
-  batch_done: [],
+  analyze_done: [],
   export_ready: [],
   export_error: [],
   probe_status: [],
@@ -85,8 +85,8 @@ function _handleSSEEvent(evt) {
     case 'module_status':
       _handleModuleStatusEvent(evt);
       break;
-    case 'batch_done':
-      _handleBatchDone(evt);
+    case 'analyze_done':
+      _handleAnalyzeDone(evt);
       break;
     case 'export_ready':
       _handleExportReady(evt);
@@ -181,8 +181,8 @@ function _handleModuleStatusEvent(evt) {
   }
 }
 
-function _handleBatchDone(evt) {
-  var waiters = _sseWaiters.batch_done.splice(0);
+function _handleAnalyzeDone(evt) {
+  var waiters = _sseWaiters.analyze_done.splice(0);
   for (var i = 0; i < waiters.length; i++) waiters[i](evt);
 }
 
@@ -646,102 +646,91 @@ async function analyzePrompt(){
   if(!prompt){showError('promptError','Enter a prompt to analyze.');return}
   if(prompt.length>5000){showError('promptError','Prompt too long (max 5000 chars).');return}
   showError('promptError','');
-  const btn=$('analyzeBtn');setLoading(btn,true);log('Analyzing...');
   const fd=_buildAnalysisFormData();
   fd.append('prompt',prompt);fd.append('category',$('categorySelect').value);
-  const prevN=_promptTotal;
-  try{
-    let resp,data;
-    try{
-      resp=await fetch('/api/analyze',{method:'POST',body:fd});
-      data=await resp.json();
-    }catch(fetchErr){
-      // Browser timeout (Safari "Load failed") — poll for backend completion
-      log('Connection interrupted, waiting for backend...','');
-      var timeoutSec = parseInt($('cfgBackendTimeout').value) || 300;
-      var pollInterval = (parseInt($('cfgPollInterval').value) || 30) * 1000;
-      var maxAttempts = Math.ceil((timeoutSec * 1000) / pollInterval);
-      let recovered=false;
-      for(let attempt=0;attempt<maxAttempts;attempt++){
-        await new Promise(r=>setTimeout(r,pollInterval));
-        try{
-          const chk=await(await fetch('/api/status')).json();
-          const sn=chk.session?chk.session.n_results:0;
-          if(sn>prevN){
-            const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
-            const allData=await allResp.json();
-            if(allData.ok&&allData.results){
-              sessionResults=allData.results;
-              _promptTotal=allData.total;
-              if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
-              updateSessionBadge();renderDataTable();
-              dtGoPage(Math.ceil(allData.total/_dtPageSize)||1);
-              log('Done (recovered after timeout)','done');
-              playChime();
-              recovered=true;break;
-            }
-          }
-        }catch(chkErr){}
-      }
-      if(recovered){setLoading(btn,false);return}
-      throw fetchErr;
-    }
-    if(data.ok){
-      log('Done','done');
-      if((data.n_rungs||1)>1){
-        // Deconstruct expanded one prompt into several records; pull the
-        // full set so the table shows the whole ladder, not just the
-        // final rung that came back inline.
-        try{
-          const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
-          const allData=await allResp.json();
-          if(allData.ok&&allData.results){
-            sessionResults=allData.results;_promptTotal=allData.total;
-            if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
-          }
-        }catch(refreshErr){}
-      } else {
-        sessionResults.push(data.result);_promptTotal=data.session_n;
-        if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;
-      }
-      updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(_promptTotal/_dtPageSize)||1);
-    }
-    else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
-  }catch(e){log('Error: '+e.message,'error')}
-  setLoading(btn,false);
+  await _submitAnalysis('/api/analyze', fd, $('analyzeBtn'), 'promptError');
 }
 
 async function analyzeBatch(){
   const file=$('csvFile').files[0];if(!file){log('No CSV selected','error');return}
-  const btn=$('batchBtn');setLoading(btn,true);log('Starting batch...');
   const fd=_buildAnalysisFormData();
   fd.append('file',file);fd.append('compute_trajectory',false);
+  await _submitAnalysis('/api/analyze_batch', fd, $('batchBtn'), null);
+}
+
+// ─── Unified analysis submit (single + batch share one contract) ───
+// Both endpoints return {started:true} immediately and announce completion
+// via the single 'analyze_done' SSE event. The completion waiter is
+// registered BEFORE the POST so a fast job can't finish before we're
+// listening (which would hang us). If the start is rejected, the registered
+// resolver is simply drained by the next analyze_done — nothing awaits it.
+async function _submitAnalysis(url, fd, btn, errorElId){
+  setLoading(btn,true);
+  if(errorElId) showError(errorElId,'');
+  var donePromise=new Promise(function(resolve){ _sseWaiters.analyze_done.push(resolve); });
+  var data;
   try{
-    const resp=await fetch('/api/analyze_batch',{method:'POST',body:fd});const data=await resp.json();
-    if(!data.ok){log('Error: '+(data.error||''),'error');setLoading(btn,false);return}
-    log(`Batch started: ${data.n_prompts} prompts...`);
-
-    // Wait for batch_done via SSE. Progress logged by _handleProgressEvent.
-    await new Promise(function(resolve) {
-      _sseWaiters.batch_done.push(function() { resolve(); });
-    });
-
-    playChime();
+    data=await(await fetch(url,{method:'POST',body:fd})).json();
+  }catch(e){
+    log('Error: '+e.message,'error');
+    if(errorElId) showError(errorElId,'Failed to start analysis: '+e.message);
     setLoading(btn,false);
-    log('Loading results...');
-    try{
-      const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
-      const allData=await allResp.json();
-      if(allData.ok&&allData.results){
-        sessionResults=allData.results;
-        _promptTotal=allData.total;
-        if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
-        updateSessionBadge();
-        renderDataTable();
-      }
-    }catch(re){log('Results load: '+re.message,'error')}
-    try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
-  }catch(e){log('Error: '+e.message,'error');setLoading(btn,false)}
+    return;
+  }
+  if(!data.ok||!data.started){
+    var msg=data.error||'Failed to start analysis.';
+    log('Error: '+msg,'error');
+    if(errorElId) showError(errorElId,msg);
+    setLoading(btn,false);
+    return;
+  }
+  log((data.n_prompts||1)>1?('Batch started: '+data.n_prompts+' prompts...'):'Analyzing...');
+  var evt=await donePromise;
+  await _onAnalyzeComplete(evt, btn, errorElId);
+}
+
+// Completion handler for the unified analyze_done event. Errors are surfaced
+// loudly in every failure mode (fatal, all-failed, partial) so a finished
+// prompt can never fail silently. The chime fires only after the dashboard
+// reflects the new data, and only when something was actually produced.
+async function _onAnalyzeComplete(evt, btn, errorElId){
+  // Fatal / infrastructure failure — nothing produced.
+  if(!evt || !evt.ok){
+    var fmsg=(evt&&evt.error)||'Analysis failed.';
+    log('Error: '+fmsg,'error');
+    if(errorElId) showError(errorElId,fmsg);
+    setLoading(btn,false);
+    return;
+  }
+  // Full results first (these carry _plot_keys for the detail/plots view)...
+  try{
+    const allData=await(await fetch('/api/session/results?page=1&per_page=9999')).json();
+    if(allData.ok&&allData.results){
+      sessionResults=allData.results;
+      _promptTotal=allData.total;
+      if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
+      updateSessionBadge();
+      renderDataTable();
+    }
+  }catch(re){log('Results load: '+re.message,'error')}
+  // ...then the slim dashboard (the table's preferred source; also carries _index).
+  try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
+  dtGoPage(Math.ceil((_promptTotal||1)/_dtPageSize)||1);
+
+  // Content-level outcome — surfaced after the dashboard is current.
+  if((evt.n_results||0)===0){
+    var emsg=evt.error||'Analysis produced no result.';
+    log('Error: '+emsg,'error');
+    if(errorElId) showError(errorElId,emsg);
+    setLoading(btn,false);
+    return;
+  }
+  if((evt.n_errors||0)>0){
+    log(evt.n_errors+' prompt(s) failed'+(evt.error?': '+evt.error:'')+' ('+evt.n_results+' succeeded)','error');
+  }
+  log('Done'+(evt.n_results>(evt.n_prompts||1)?(' — '+evt.n_results+' records'):''),'done');
+  playChime();
+  setLoading(btn,false);
 }
 
 // ─── Session Refresh ────────────────────────────────────────────

@@ -56,7 +56,7 @@ class EventBroker:
     # Types whose most recent event is kept in the snapshot.
     SNAPSHOT_TYPES = {
         "model_loaded", "model_error",
-        "batch_done", "export_ready", "export_error",
+        "analyze_done", "export_ready", "export_error",
     }
 
     # Maximum progress events kept in the trailing buffer.
