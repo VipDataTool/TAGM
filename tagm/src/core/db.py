@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS results (
     rd_mean_overlap REAL,
     delta_scale     REAL,
     full_capture_enabled INTEGER DEFAULT 0,
+    family_index    INTEGER,
+    rung_index      INTEGER,
     data_blob       BLOB NOT NULL,
     created_at      REAL DEFAULT (strftime('%s','now')),
     UNIQUE(session_id, idx)
@@ -194,6 +196,9 @@ def _extract_scalars(d: dict) -> dict:
         "rd_mean_overlap": _safe_float(rd.get("mean_overlap")),
         "delta_scale": _safe_float(d.get("delta_scale")),
         "full_capture_enabled": 1 if d.get("full_capture_enabled") else 0,
+        # Ladder identity — present only on deconstructed prompts, else None.
+        "family_index": d.get("family_index"),
+        "rung_index": d.get("rung_index"),
     }
 
 
@@ -321,8 +326,9 @@ class ResultsList:
                 ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
                 delta_scale, full_capture_enabled,
+                family_index, rung_index,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 self._session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -335,6 +341,7 @@ class ResultsList:
                 scalars["rd_mean_tau"], scalars["rd_mean_overlap"],
                 scalars["delta_scale"],
                 scalars["full_capture_enabled"],
+                scalars["family_index"], scalars["rung_index"],
                 blob,
             ),
         )
@@ -427,6 +434,8 @@ class Database:
         expected = {
             "delta_scale": "REAL",
             "full_capture_enabled": "INTEGER DEFAULT 0",
+            "family_index": "INTEGER",
+            "rung_index": "INTEGER",
         }
         # Get existing column names
         cursor = self._conn.execute("PRAGMA table_info(results)")
@@ -561,8 +570,9 @@ class Database:
                 ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
                 delta_scale, full_capture_enabled,
+                family_index, rung_index,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -575,6 +585,7 @@ class Database:
                 scalars["rd_mean_tau"], scalars["rd_mean_overlap"],
                 scalars["delta_scale"],
                 scalars["full_capture_enabled"],
+                scalars["family_index"], scalars["rung_index"],
                 blob,
             ),
         )
@@ -616,7 +627,8 @@ class Database:
                       kl_divergence, n_negative_tokens, has_negative_tokens,
                       ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                       sfd_density_mean, rd_mean_tau, rd_mean_overlap,
-                      delta_scale, full_capture_enabled
+                      delta_scale, full_capture_enabled,
+                      family_index, rung_index
                FROM results
                WHERE session_id = ?
                ORDER BY idx""",
@@ -634,6 +646,8 @@ class Database:
                 "has_negative_tokens": bool(r[12]),
                 "delta_scale": r[20],
                 "full_capture_enabled": bool(r[21]),
+                "family_index": r[22],
+                "rung_index": r[23],
             }
             # Nested structures the dashboard expects
             if r[13] is not None:
@@ -649,6 +663,20 @@ class Database:
                 }
             out.append(s)
         return out
+
+    def next_family_base(self, session_id: str) -> int:
+        """Lowest family_index value safe to assign to a new ladder.
+
+        Returns ``MAX(family_index) + 1`` for the session (0 if none).
+        Monotonic against surviving rows, so it never reuses a family id
+        that an existing ladder still holds — even after remove_results
+        reindexes idx.
+        """
+        row = self.execute(
+            "SELECT MAX(family_index) FROM results WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        return int(row[0]) + 1 if row and row[0] is not None else 0
 
     def remove_results(self, session_id: str, indices: list[int]) -> None:
         """Remove specific result indices and reindex remaining rows."""

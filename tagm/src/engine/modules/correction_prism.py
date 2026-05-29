@@ -1,5 +1,5 @@
-"""Correction Prism — measures which probe-lattice directions are
-excited or opposed by a prompt's correction-induced field.
+"""Correction Prism — measures which probe-lattice directions a
+prompt's correction-induced field aligns with or runs against.
 
 Architecture (see correction_prism_spec.md for full derivation):
 
@@ -19,9 +19,10 @@ the prompt's field along (+) or against (−) the natural depth-trajectory
 of the probes in that cell. Magnitudes-only would lose this; the prism
 interpretation makes the sign meaningful.
 
-This module is the "what does the correction excite for this prompt"
-question. Magnitudes-only analyses lose the sign of probe-prompt
-alignment; the prism interpretation makes that sign meaningful.
+This module is the "what does the correction's field align with for
+this prompt" question. Magnitudes-only analyses lose the sign of
+probe-prompt alignment; the prism interpretation makes that sign
+meaningful.
 """
 from __future__ import annotations
 
@@ -65,7 +66,8 @@ class CorrectionPrismModule(TASMModule):
         "(optionally restricted to a circuit: Q, K, V, O, QK, VO, or full), "
         "and decomposes the resulting beam against probe-side deltas "
         "Δp_i = p_i^L_high − p_i^L_low. Signed cell values distinguish "
-        "concepts the correction excites (+) from concepts it opposes (−)."
+        "concepts the correction's field aligns with (+) from concepts it "
+        "runs against (−)."
     )
     version = "0.1.0"
 
@@ -192,6 +194,24 @@ class CorrectionPrismModule(TASMModule):
             type="select",
             default="(same as circuit)",
             options=["(same as circuit)", "full", "q", "k", "v", "o", "qk", "vo"],
+        ),
+        ModuleParameter(
+            name="directional_threshold_pct",
+            display_name="Directional Threshold (% of mean |response|)",
+            description=(
+                "Half-width of the orthogonality band, as a percentage of "
+                "the mean |response| over active probes in scope. A probe "
+                "counts as aligned / anti-aligned only if its |response| "
+                "exceeds this band; otherwise it is orthogonal. The band is "
+                "scale-relative, so it self-calibrates across models instead "
+                "of using a fixed cutoff. Set to 0 for a pure sign "
+                "classifier (any nonzero response is directional); raise it "
+                "to widen the orthogonal class."
+            ),
+            type="float",
+            default=10.0,
+            min_val=0.0,
+            max_val=200.0,
         ),
     ]
 
@@ -423,6 +443,7 @@ class CorrectionPrismModule(TASMModule):
         cell_agg = params.get("cell_aggregation", "sum")
         prompt_agg = params.get("prompt_aggregation", "mean")
         include_baseline = bool(params.get("include_baseline", True))
+        directional_pct = float(params.get("directional_threshold_pct", 10.0))
 
         # Grafting: separate circuit operators for prompt and probes
         _pc = params.get("prompt_circuit", "(same as circuit)")
@@ -691,8 +712,21 @@ class CorrectionPrismModule(TASMModule):
                               if primary_data
                               else np.zeros((n_prompts, len(raw_probes))))
 
+        # Per-probe aggregate response (mean over valid-beam prompts).
+        valid_pi = [pi for pi in range(n_prompts) if beams[pi] is not None]
+        if valid_pi:
+            probe_mean_all = primary_per_prompt[valid_pi, :].mean(axis=0)
+        else:
+            probe_mean_all = np.zeros(len(raw_probes))
+        # Orthogonality band: directional_pct% of the mean |response| over
+        # active probes (session-aggregate scope). Scale-relative, so it
+        # self-calibrates across models. pct=0 → pure sign split.
+        _active_abs = (np.abs(probe_mean_all[active_mask])
+                       if active_mask.any() else np.zeros(0))
+        gross_mean_abs = float(_active_abs.mean()) if _active_abs.size else 0.0
+        signed_thresh = (directional_pct / 100.0) * gross_mean_abs
+
         cell_details = {}
-        signed_thresh = 0.05
         for si in range(n_subj):
             for li in range(n_levels):
                 key = f"{si}_{li}"
@@ -704,13 +738,10 @@ class CorrectionPrismModule(TASMModule):
                 probes_info = []
                 probe_responses = []
                 for probe_i in cell_probe_idx:
-                    col = primary_per_prompt[:, probe_i]
-                    valid = [v for pi, v in enumerate(col)
-                              if beams[pi] is not None]
-                    mean_resp = float(np.mean(valid)) if valid else 0.0
+                    mean_resp = float(probe_mean_all[probe_i])
                     probe_responses.append(mean_resp)
-                    direction = ("excited" if mean_resp > signed_thresh
-                                 else "opposed" if mean_resp < -signed_thresh
+                    direction = ("aligned" if mean_resp > signed_thresh
+                                 else "anti-aligned" if mean_resp < -signed_thresh
                                  else "orthogonal")
                     probes_info.append({
                         "probe_idx": probe_i,
@@ -732,9 +763,9 @@ class CorrectionPrismModule(TASMModule):
                     "n_probes":             len(probes_info),
                     "n_probes_total":       len(cell_probe_idx_all),
                     "n_probes_degenerate":  len(cell_probe_idx_all) - len(probes_info),
-                    "n_excited":  int(np.sum(arr > signed_thresh)) if arr.size else 0,
-                    "n_opposed":  int(np.sum(arr < -signed_thresh)) if arr.size else 0,
-                    "n_neutral":  int(np.sum(np.abs(arr) <= signed_thresh)) if arr.size else 0,
+                    "n_aligned":       int(np.sum(arr > signed_thresh)) if arr.size else 0,
+                    "n_anti_aligned":  int(np.sum(arr < -signed_thresh)) if arr.size else 0,
+                    "n_orthogonal":    int(np.sum(np.abs(arr) <= signed_thresh)) if arr.size else 0,
                     "cell_value":     float(primary_agg[si, li]),
                     "cell_variance":  float(primary_var[si, li]),
                     "probe_response_min":     float(arr.min()) if arr.size else 0.0,
@@ -745,17 +776,21 @@ class CorrectionPrismModule(TASMModule):
 
         # ── Per-subject summary ──
         per_subject = {}
-        signed_thresh = 0.05
+        # Per-subject counts are cell-level: each cell value in the subject's
+        # row is classified against a cell-scale band (directional_pct% of the
+        # mean |cell value| over the grid), so the band tracks cell-value
+        # magnitude rather than per-probe magnitude.
+        _cell_abs = np.abs(primary_agg)
+        cell_thresh = ((directional_pct / 100.0) * float(_cell_abs.mean())
+                       if _cell_abs.size else 0.0)
         for si, subj in enumerate(subjects):
             row = primary_agg[si]
-            n_excited = int(np.sum(row > signed_thresh))
-            n_opposed = int(np.sum(row < -signed_thresh))
             per_subject[subj] = {
-                "mean_signed": float(np.mean(row)),
-                "mean_abs":    float(np.mean(np.abs(row))),
-                "max_abs":     float(np.max(np.abs(row))),
-                "n_excited":   n_excited,
-                "n_opposed":   n_opposed,
+                "mean_signed":     float(np.mean(row)),
+                "mean_abs":        float(np.mean(np.abs(row))),
+                "max_abs":         float(np.max(np.abs(row))),
+                "n_aligned":       int(np.sum(row > cell_thresh)),
+                "n_anti_aligned":  int(np.sum(row < -cell_thresh)),
             }
 
         cat_names = {"b": "benign", "m": "mild", "h": "harmful",
@@ -806,6 +841,7 @@ class CorrectionPrismModule(TASMModule):
                 "cell_aggregation":     cell_agg,
                 "prompt_aggregation":   prompt_agg,
                 "include_baseline":     include_baseline,
+                "directional_threshold_pct": directional_pct,
                 "L_low":                L_low_frac,
                 "L_high":               L_high_frac,
                 "n_signal_layers":      len(signal_layers),

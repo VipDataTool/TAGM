@@ -68,6 +68,7 @@
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="sfd-badge">SFD</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="cfgDeconstruct"><label for="cfgDeconstruct" title="Expand each prompt into its prefix ladder — one token/punctuation unit at a time — and analyze every rung as its own record. Punctuation earns its own rung. Records carry family/rung indices.">Deconstruct prompts (prefix ladder)</label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
   </div>
 

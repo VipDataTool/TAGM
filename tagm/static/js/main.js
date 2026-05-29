@@ -635,6 +635,7 @@ function _buildAnalysisFormData(){
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',0);
+  fd.append('deconstruct',$('cfgDeconstruct')?$('cfgDeconstruct').checked:false);
   return fd;
 }
 
@@ -685,7 +686,26 @@ async function analyzePrompt(){
       if(recovered){setLoading(btn,false);return}
       throw fetchErr;
     }
-    if(data.ok){log('Done','done');sessionResults.push(data.result);_promptTotal=data.session_n;if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(data.session_n/_dtPageSize)||1)}
+    if(data.ok){
+      log('Done','done');
+      if((data.n_rungs||1)>1){
+        // Deconstruct expanded one prompt into several records; pull the
+        // full set so the table shows the whole ladder, not just the
+        // final rung that came back inline.
+        try{
+          const allResp=await fetch(`/api/session/results?page=1&per_page=9999`);
+          const allData=await allResp.json();
+          if(allData.ok&&allData.results){
+            sessionResults=allData.results;_promptTotal=allData.total;
+            if(allData.cache_size_bytes!=null)_cacheBytes=allData.cache_size_bytes;
+          }
+        }catch(refreshErr){}
+      } else {
+        sessionResults.push(data.result);_promptTotal=data.session_n;
+        if(data.cache_size_bytes!=null)_cacheBytes=data.cache_size_bytes;
+      }
+      updateSessionBadge();renderDataTable();dtGoPage(Math.ceil(_promptTotal/_dtPageSize)||1);
+    }
     else{log('Error: '+(data.error||'Unknown'),'error');showError('promptError',data.error||'Analysis failed.')}
   }catch(e){log('Error: '+e.message,'error')}
   setLoading(btn,false);
@@ -892,6 +912,8 @@ function _renderDataTablePage(){
   const cols=[
     ['_cb','','cb',null,32],
     ['_index','#',null,null,32],
+    ['family_index','Fam','i',null,40],
+    ['rung_index','Rung','i',null,44],
     ['prompt','Prompt','s',null,400],
     ['category','Cat','cat',null,52],
     ['role','Role','s',null,42],
@@ -3387,7 +3409,7 @@ async function embedActiveProbes(filename){
 // value range so internal structure is always visible.
 //
 // The per-cell composition panel exposes the dispersion that the cell
-// scalar hides — n_excited / n_opposed / n_neutral counts and the
+// scalar hides — n_aligned / n_anti_aligned / n_orthogonal counts and the
 // individual probe responses, sortable.
 
 function renderCorrectionPrismResults(r) {
@@ -3676,8 +3698,21 @@ function renderCorrectionPrismResults(r) {
   h += '<table class="data-table" style="width:100%;font-size:11px">';
   h += '<tr><th style="text-align:left">Subject</th>'
      + '<th>Mean (signed)</th><th>Mean |val|</th><th>Max |val|</th>'
-     + '<th style="color:#ff6060">N excited</th>'
-     + '<th style="color:#6090ff">N opposed</th></tr>';
+     + '<th style="color:#ff6060">N aligned</th>'
+     + '<th style="color:#6090ff">N anti-aligned</th></tr>';
+  // Cell-scale orthogonality band, matching the module's per-subject
+  // classification (directional_threshold_pct% of the mean |cell value|
+  // over the aggregate grid), so this tint agrees with the N counts in
+  // the same row. pct=0 → sign-only tint.
+  var _dirPct = (r.config && r.config.directional_threshold_pct != null)
+    ? r.config.directional_threshold_pct : 10;
+  var _aggAbs = [];
+  (r.aggregate || []).forEach(function(row){
+    (row || []).forEach(function(v){ _aggAbs.push(Math.abs(v || 0)); });
+  });
+  var cellBand = _aggAbs.length
+    ? (_dirPct / 100) * (_aggAbs.reduce(function(a, b){ return a + b; }, 0) / _aggAbs.length)
+    : 0;
   var ps = r.per_subject || {};
   subjects.forEach(function(subj) {
     var s = ps[subj] || {};
@@ -3686,12 +3721,12 @@ function renderCorrectionPrismResults(r) {
     h += '<td style="text-align:left;font-weight:600;color:var(--text-0)">'
        + escHtml(subj.replace(/_/g, ' ')) + '</td>';
     h += '<td style="color:'
-       + (meanS > 0.05 ? '#ff8060' : meanS < -0.05 ? '#6090ff' : 'var(--text-2)')
+       + (meanS > cellBand ? '#ff8060' : meanS < -cellBand ? '#6090ff' : 'var(--text-2)')
        + '">' + (meanS >= 0 ? '+' : '') + meanS.toFixed(4) + '</td>';
     h += '<td>' + (s.mean_abs || 0).toFixed(4) + '</td>';
     h += '<td>' + (s.max_abs || 0).toFixed(4) + '</td>';
-    h += '<td style="color:#ff6060">' + (s.n_excited || 0) + '</td>';
-    h += '<td style="color:#6090ff">' + (s.n_opposed || 0) + '</td>';
+    h += '<td style="color:#ff6060">' + (s.n_aligned || 0) + '</td>';
+    h += '<td style="color:#6090ff">' + (s.n_anti_aligned || 0) + '</td>';
     h += '</tr>';
   });
   h += '</table></div>';
@@ -3759,9 +3794,9 @@ function prismShowCell(cellKey) {
   html += '<div style="font-size:10px;color:var(--text-2);margin-bottom:6px;line-height:1.5">';
   html += 'Probes: ' + (cell.n_probes || 0) + ' active';
   if (cell.n_probes_degenerate) html += ' (' + cell.n_probes_degenerate + ' degenerate filtered)';
-  html += ' · <span style="color:#ff6060">' + (cell.n_excited || 0) + ' excited</span>';
-  html += ' · <span style="color:#6090ff">' + (cell.n_opposed || 0) + ' opposed</span>';
-  html += ' · <span style="color:var(--text-3)">' + (cell.n_neutral || 0) + ' neutral</span>';
+  html += ' · <span style="color:#ff6060">' + (cell.n_aligned || 0) + ' aligned</span>';
+  html += ' · <span style="color:#6090ff">' + (cell.n_anti_aligned || 0) + ' anti-aligned</span>';
+  html += ' · <span style="color:var(--text-3)">' + (cell.n_orthogonal || 0) + ' orthogonal</span>';
   html += '<br>response range [' + (cell.probe_response_min || 0).toFixed(4)
        +  ', ' + (cell.probe_response_max || 0).toFixed(4) + ']';
   html += ' · median ' + (cell.probe_response_median || 0).toFixed(4);
@@ -3772,8 +3807,8 @@ function prismShowCell(cellKey) {
   html += '<tr><th style="text-align:left">Probe</th><th>Response</th><th>Direction</th></tr>';
   probes.forEach(function(p) {
     var resp = p.response || 0;
-    var color = (p.direction === 'excited') ? '#ff6060'
-              : (p.direction === 'opposed') ? '#6090ff'
+    var color = (p.direction === 'aligned') ? '#ff6060'
+              : (p.direction === 'anti-aligned') ? '#6090ff'
               : 'var(--text-3)';
     html += '<tr>';
     html += '<td style="text-align:left;color:var(--text-1)">' + escHtml(p.text || ('#' + p.probe_idx)) + '</td>';
@@ -3932,8 +3967,8 @@ function prismSwitchView(view, btn) {
   var caption = document.getElementById('prism-primary-caption');
   if (caption) {
     var base = 'Each cell is a signed scalar — '
-             + '<span style="color:#ff6060">red</span> = excited; '
-             + '<span style="color:#6090ff">blue</span> = opposed. '
+             + '<span style="color:#ff6060">red</span> = aligned; '
+             + '<span style="color:#6090ff">blue</span> = anti-aligned. '
              + 'Click a cell to see its probe composition.';
     caption.innerHTML = base + (captionExtra
       ? '<br><span style="color:var(--text-3)">' + captionExtra + '</span>'
@@ -4283,6 +4318,10 @@ function renderMIInstrumentationResults(r) {
   var rpStr = rp.tagm_stress || {};
   h += '<table class="mod-tbl" style="margin-top:8px"><thead><tr><th>Method</th><th class="num">AUROC</th><th class="num">Δ over random</th><th class="num">p-value</th><th>Significant</th></tr></thead><tbody>';
 
+  // 0.05 here is the statistical significance level (α), an intentional
+  // empirical constant — NOT a tunable display threshold. Do not remove,
+  // parameterize, or "DRY" it away: it defines what counts as significant
+  // against the random-projection null. Changing it changes the claim.
   var refSig = rpRef.empirical_p < 0.05;
   var strSig = rpStr.empirical_p < 0.05;
   h += '<tr><td style="color:var(--cyan)">Refusal Direction</td>';

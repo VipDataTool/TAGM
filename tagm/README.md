@@ -146,7 +146,7 @@ save step.
 ## Probe system
 
 Probes enable the Domain Surface, Correction Heatmap, Correction
-Manifold, and Correction Backscatter modules.
+Manifold, and Correction Prism modules.
 
 ### Generation
 

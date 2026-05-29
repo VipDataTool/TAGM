@@ -29,6 +29,7 @@ from src.engine.analyzer import Analyzer
 from src.engine.result import result_to_dict
 from src.engine import config as engine_config
 from src.engine.session import Session
+from src.engine.deconstruct import expand_prompts
 from src.service.events import broker
 
 logger = logging.getLogger("src")
@@ -267,12 +268,117 @@ def _plot_keys_for_result(r: dict) -> list[str]:
     return keys
 
 
+def _read_analyze_flags(form, *, trajectory_default: bool) -> dict:
+    """Read the TASM analyze flags shared by the single and batch paths.
+
+    The only per-path difference is the trajectory default (single
+    computes it by default, batch doesn't), so it's a parameter. Every
+    other flag is read identically, which is why both handlers can share
+    one analysis core.
+    """
+    return {
+        "compute_kl": _form_bool(form, "compute_kl"),
+        "compute_full_trajectory": _form_bool(form, "compute_trajectory",
+                                              default=trajectory_default),
+        "capture_responses": _form_bool(form, "capture_responses"),
+        "full_capture": _form_bool(form, "full_capture"),
+        "compute_ltp": _form_bool(form, "compute_ltp"),
+        "compute_sfd": _form_bool(form, "compute_sfd"),
+        "ltp_k": int(form.get("ltp_k") or 8),
+        "ltp_layer_strategy": (form.get("ltp_layer_strategy") or "signal").strip(),
+        "ltp_svd_rank": int(form.get("ltp_svd_rank") or 0),
+    }
+
+
+def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
+                         deconstruct: bool = False,
+                         progress=None) -> tuple[list[dict], list[tuple]]:
+    """Shared analysis body for both the single and batch endpoints.
+
+    A single prompt is just a one-element list, so this is the one place
+    prompts become result records — there is no separate single-vs-batch
+    pipeline anymore. The two endpoints differ only in their response
+    contract (sync inline result vs. async 'started'), which stays in the
+    thin wrappers.
+
+    ``prompts``: list of ``{"prompt", "category"}`` dicts.
+    ``flags``:   analyze_prompt kwargs from ``_read_analyze_flags``.
+    ``deconstruct``: when True, each prompt is expanded into its prefix
+        ladder (see deconstruct.py) and every rung result carries
+        ``family_index`` / ``rung_index`` so the records regroup later.
+    ``progress``: optional ``(stage, message)`` callback for per-rung
+        logging; pass None to keep the console quiet (the single path's
+        behavior when not deconstructing).
+
+    Returns ``(results, errors)``:
+        results — result dicts analyzed AND persisted, in order
+        errors  — ``(work_index, message)`` for any that failed
+    Each result is persisted via ``add_result`` as it is produced, per
+    the engine's 'no separate save step' contract.
+    """
+    work = expand_prompts(prompts, deconstruct)
+
+    # One session-stable family base for this whole call, so ladders
+    # never collide with families already stored (or from other calls).
+    family_base = (state.session._db.next_family_base(state.session.session_id)
+                   if deconstruct else 0)
+
+    needs_base = (flags.get("compute_kl") or flags.get("capture_responses")
+                  or flags.get("compute_ltp"))
+    base_caches: list = []
+    if needs_base:
+        base_caches = state.analyzer.run_base_phase(
+            work,
+            ltp_k=flags.get("ltp_k", 8),
+            compute_kl=flags.get("compute_kl", False),
+            capture_responses=flags.get("capture_responses", False),
+            progress=state.progress,
+        )
+
+    results: list[dict] = []
+    errors: list[tuple] = []
+    n = len(work)
+    for i, p in enumerate(work):
+        if progress:
+            progress("analyzing", f"[{i+1}/{n}] {(p.get('prompt') or '')[:50]}...")
+        try:
+            with _analysis_lock:
+                bc = base_caches[i] if i < len(base_caches) else None
+                result = state.analyzer.analyze_prompt(
+                    p["prompt"], category=p.get("category", ""),
+                    compute_kl=flags.get("compute_kl", False),
+                    compute_full_trajectory=flags.get("compute_full_trajectory", True),
+                    capture_responses=flags.get("capture_responses", False),
+                    full_capture=flags.get("full_capture", False),
+                    compute_ltp=flags.get("compute_ltp", False),
+                    compute_sfd=flags.get("compute_sfd", False),
+                    ltp_k=flags.get("ltp_k", 8),
+                    ltp_layer_strategy=flags.get("ltp_layer_strategy", "signal"),
+                    ltp_svd_rank=flags.get("ltp_svd_rank", 0),
+                    base_cache=bc,
+                )
+                rd = result_to_dict(result)
+                if deconstruct:
+                    rd["family_index"] = family_base + p.get("family_local", 0)
+                    rd["rung_index"] = p.get("rung_index", 0)
+                state.session.add_result(rd)
+                results.append(rd)
+        except Exception as e:
+            logger.exception(f"Analysis failed for work item {i}")
+            errors.append((i, str(e)))
+            if progress:
+                progress("error", f"Prompt {i} failed: {e}")
+    return results, errors
+
+
 async def api_analyze_handler(request: Request):
     """POST /api/analyze — accepts form data with TASM flags.
 
-    Reads per-request flags, calls analyzer.analyze_prompt() with those
-    flags, serializes via result_to_dict(), stores in session, returns
-    the flat result dict the frontend reads.
+    A single prompt is a one-element batch: it goes through the same
+    _analyze_prompt_list core as the batch endpoint. This endpoint stays
+    synchronous and returns the result inline. With deconstruct on, the
+    one prompt expands into its ladder; all rungs are stored and the
+    final rung (the complete prompt) is returned as the inline result.
     """
     if state.analyzer is None:
         return {"ok": False, "error": "No model loaded."}
@@ -286,57 +392,30 @@ async def api_analyze_handler(request: Request):
     if len(prompt) > 5000:
         return {"ok": False, "error": "Prompt too long (max 5000)"}
 
-    # Read per-request flags — this IS how TASM works
-    compute_kl = _form_bool(form, "compute_kl")
-    compute_trajectory = _form_bool(form, "compute_trajectory", default=True)
-    capture_responses = _form_bool(form, "capture_responses")
-    full_capture = _form_bool(form, "full_capture")
-    compute_ltp = _form_bool(form, "compute_ltp")
-    compute_sfd = _form_bool(form, "compute_sfd")
-    ltp_k = int(form.get("ltp_k") or 8)
-    ltp_layer_strategy = (form.get("ltp_layer_strategy") or "signal").strip()
-    ltp_svd_rank = int(form.get("ltp_svd_rank") or 0)
+    deconstruct = _form_bool(form, "deconstruct")
+    flags = _read_analyze_flags(form, trajectory_default=True)
 
-    # Sequential base-model phase if needed
-    needs_base = compute_kl or capture_responses or compute_ltp
-    base_cache = None
-
-    def _do_analyze():
-        nonlocal base_cache
-        with _analysis_lock:
-            if needs_base:
-                caches = state.analyzer.run_base_phase(
-                    [{"prompt": prompt, "category": category}],
-                    ltp_k=ltp_k,
-                    compute_kl=compute_kl,
-                    capture_responses=capture_responses,
-                    progress=state.progress,
-                )
-                base_cache = caches[0] if caches else None
-
-            result = state.analyzer.analyze_prompt(
-                prompt, category=category,
-                compute_kl=compute_kl,
-                compute_full_trajectory=compute_trajectory,
-                capture_responses=capture_responses,
-                full_capture=full_capture,
-                compute_ltp=compute_ltp,
-                compute_sfd=compute_sfd,
-                ltp_k=ltp_k,
-                ltp_layer_strategy=ltp_layer_strategy,
-                ltp_svd_rank=ltp_svd_rank,
-                base_cache=base_cache,
-            )
-            return result_to_dict(result)
+    def _work():
+        # Per-rung console logging only when deconstructing — keeps the
+        # ordinary single-prompt console quiet (its long-standing behavior).
+        return _analyze_prompt_list(
+            [{"prompt": prompt, "category": category}],
+            flags, deconstruct=deconstruct,
+            progress=(state.progress if deconstruct else None),
+        )
 
     try:
-        result_dict = await run_in_threadpool(_do_analyze)
+        results, errors = await run_in_threadpool(_work)
     except Exception as e:
         logger.exception("Analysis failed")
         return {"ok": False, "error": str(e)}
 
-    # Store in session
-    idx = state.session.add_result(result_dict)
+    if not results:
+        msg = errors[0][1] if errors else "Analysis produced no result."
+        return {"ok": False, "error": msg}
+
+    # Final rung == the complete prompt; that's the inline result.
+    result_dict = results[-1]
     plot_keys = _plot_keys_for_result(result_dict)
     result_dict["_plot_keys"] = plot_keys
 
@@ -349,6 +428,7 @@ async def api_analyze_handler(request: Request):
         "plot_keys": plot_keys,
         "session_n": state.session.n_results,
         "cache_size_bytes": state.session.get_cache_size(),
+        "n_rungs": len(results),
     })
 
 
@@ -390,15 +470,8 @@ async def api_analyze_batch_handler(request: Request):
     if not prompts:
         return {"ok": False, "error": "No valid prompts in CSV. Needs 'prompt' column."}
 
-    # Read flags
-    compute_kl = _form_bool(form, "compute_kl")
-    compute_trajectory = _form_bool(form, "compute_trajectory")
-    capture_responses = _form_bool(form, "capture_responses")
-    full_capture = _form_bool(form, "full_capture")
-    compute_ltp = _form_bool(form, "compute_ltp")
-    compute_sfd = _form_bool(form, "compute_sfd")
-    ltp_k = int(form.get("ltp_k") or 8)
-    ltp_layer_strategy = (form.get("ltp_layer_strategy") or "signal").strip()
+    deconstruct = _form_bool(form, "deconstruct")
+    flags = _read_analyze_flags(form, trajectory_default=False)
 
     with _batch_lock:
         _batch_running = True
@@ -406,43 +479,12 @@ async def api_analyze_batch_handler(request: Request):
     def _run_batch():
         global _batch_running
         try:
-            needs_base = compute_kl or capture_responses or compute_ltp
-            all_base_caches = []
-
-            if needs_base:
-                all_base_caches = state.analyzer.run_base_phase(
-                    prompts, ltp_k=ltp_k, compute_kl=compute_kl,
-                    capture_responses=capture_responses,
-                    progress=state.progress,
-                )
-
-            for i, p in enumerate(prompts):
-                state.progress("analyzing",
-                               f"[{i+1}/{len(prompts)}] {p['prompt'][:50]}...")
-                try:
-                    with _analysis_lock:
-                        bc = all_base_caches[i] if i < len(all_base_caches) else None
-                        result = state.analyzer.analyze_prompt(
-                            p["prompt"], category=p.get("category", ""),
-                            compute_kl=compute_kl,
-                            compute_full_trajectory=compute_trajectory,
-                            capture_responses=capture_responses,
-                            full_capture=full_capture,
-                            compute_ltp=compute_ltp,
-                            compute_sfd=compute_sfd,
-                            ltp_k=ltp_k,
-                            ltp_layer_strategy=ltp_layer_strategy,
-                            base_cache=bc,
-                        )
-                        rd = result_to_dict(result)
-                        state.session.add_result(rd)
-                except Exception as e:
-                    logger.exception(f"Batch prompt {i} failed")
-                    state.progress("error", f"Prompt {i} failed: {e}")
-
+            results, errors = _analyze_prompt_list(
+                prompts, flags, deconstruct=deconstruct, progress=state.progress)
             state.session.save_to_disk()
-            state.progress("done", f"Batch complete: {len(prompts)} prompts analyzed")
-            broker.publish("batch_done", {"n_results": len(prompts)})
+            n = len(results)
+            state.progress("done", f"Batch complete: {n} prompts analyzed")
+            broker.publish("batch_done", {"n_results": n})
         except Exception as e:
             logger.exception("Batch failed")
             state.progress("error", f"Batch failed: {e}")

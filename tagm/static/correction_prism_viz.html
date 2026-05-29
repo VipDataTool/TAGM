@@ -15,7 +15,7 @@
   --blue:#58A6FF;--cyan:#56B4E9;--green:#009E73;--orange:#E69F00;--red:#D55E00;--purple:#CC79A7;
   /* legacy names the visualization engine references inline — keep defined */
   --bg:var(--bg-0);--bg2:var(--bg-2);--text:var(--text-0);--text2:var(--text-2);--text3:var(--text-3);
-  --excited:#FF6B5E;--opposed:#6FA8FF;
+  --aligned:#FF6B5E;--anti-aligned:#6FA8FF;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
   --sans:"IBM Plex Sans",system-ui,sans-serif;
 }
@@ -265,7 +265,7 @@ table.tok tr:hover td{background:#FFFFFF07}
   var sortKey = "abs";     // "abs" | "signed" | "name"
   var sortDir = -1;        // -1 desc, +1 asc
 
-  // Slideshow state — analogous to the backscatter popout.
+  // Slideshow state.
   // selPrompt = "all" shows the session-aggregated heatmap (default).
   // selPrompt = "<idx>" shows that one prompt's per-cell response.
   var selPrompt = "all";
@@ -274,6 +274,7 @@ table.tok tr:hover td{background:#FFFFFF07}
   var PROMPTS = [];        // [{idx, category, text, projected}, ...]
   var CAT_NAMES = {};      // { "h": "harmful", ... }
   var CELL_AGG = "sum";    // matches module's cell_aggregation config
+  var DIR_PCT = 10;        // directional_threshold_pct from module config
   var PROBE_CELL_MAP = {}; // { "si_li": [probe_idx, probe_idx, ...] }
 
   // ── Boot ───────────────────────────────────────────────────
@@ -303,6 +304,8 @@ table.tok tr:hover td{background:#FFFFFF07}
     PROMPTS = D.prompts || [];
     CAT_NAMES = D.categories || {};
     CELL_AGG = (D.config || {}).cell_aggregation || "sum";
+    DIR_PCT = (D.config || {}).directional_threshold_pct;
+    if (DIR_PCT == null) DIR_PCT = 10;
 
     // Build the cell → [probe_idx, ...] map by reading cell_details.
     // We need this to derive per-prompt cell values from
@@ -350,7 +353,7 @@ table.tok tr:hover td{background:#FFFFFF07}
 
 
   // ── Prompt picker + slideshow controls ─────────────────────
-  // Mirrors the backscatter popout's slideshow convention: dropdown to
+  // Slideshow controls: dropdown to
   // pick a specific prompt or "All", with prev/play/next buttons and a
   // speed selector. Selecting a prompt switches the heatmap to that
   // prompt's per-cell response derived from per_prompt_response.
@@ -482,8 +485,8 @@ table.tok tr:hover td{background:#FFFFFF07}
 
   // ── Prompt-text panel ──────────────────────────────────────
   // Visible only when a single prompt is selected. Shows the prompt
-  // that's casting the beam right now, with category coloring matching
-  // the backscatter popout's convention.
+  // that's casting the beam right now, with category coloring consistent
+  // with the rest of the UI.
   function renderPromptText(){
     var el = document.getElementById("prompt-text");
     if (selPrompt === "all"){
@@ -532,6 +535,32 @@ table.tok tr:hover td{background:#FFFFFF07}
     var t = 0;
     for (var j=0; j<values.length; j++) t += values[j];
     return t;
+  }
+
+  // Orthogonality band for a given scope: DIR_PCT% of the mean |response|
+  // over active probes, mirroring the module's gross-mean threshold so the
+  // single-prompt / class recompute matches the module's aggregate scope.
+  // scopeIdxs is the list of prompt indices in scope (one for a single
+  // prompt, the class members for a class).
+  function scopeThreshold(scopeIdxs){
+    var ppr = (DECOMP[PRIMARY] && DECOMP[PRIMARY].per_prompt_response) || null;
+    if (!ppr || !scopeIdxs || !scopeIdxs.length) return 0;
+    var activeIdx = [];
+    Object.keys(PROBE_CELL_MAP).forEach(function(k){
+      var arr = PROBE_CELL_MAP[k] || [];
+      for (var i=0; i<arr.length; i++) activeIdx.push(arr[i]);
+    });
+    if (!activeIdx.length) return 0;
+    var sumAbs = 0, n = 0;
+    for (var a=0; a<activeIdx.length; a++){
+      var pi = activeIdx[a], s = 0, c = 0;
+      for (var z=0; z<scopeIdxs.length; z++){
+        var rr = ppr[scopeIdxs[z]];
+        if (rr){ s += (rr[pi] || 0); c++; }
+      }
+      sumAbs += Math.abs(c ? (s / c) : 0); n++;
+    }
+    return (DIR_PCT / 100) * (n ? (sumAbs / n) : 0);
   }
 
   function gridForPrompt(view, circuit, promptIdx){
@@ -888,7 +917,7 @@ table.tok tr:hover td{background:#FFFFFF07}
     if (scopeIdxs && scopeIdxs.length){
       var ppr = (DECOMP[PRIMARY] && DECOMP[PRIMARY].per_prompt_response) || null;
       if (ppr){
-        var thresh = 0.05;
+        var thresh = scopeThreshold(scopeIdxs);
         var nE = 0, nO = 0, nN = 0, vmin = Infinity, vmax = -Infinity, vals = [];
         probes = probes.map(function(p){
           var sum = 0, cnt = 0;
@@ -897,7 +926,7 @@ table.tok tr:hover td{background:#FFFFFF07}
             if (rr){ sum += (rr[p.probe_idx] || 0); cnt++; }
           }
           var vv = cnt ? (sum / cnt) : 0;
-          var dir = (vv > thresh) ? "excited" : (vv < -thresh) ? "opposed" : "orthogonal";
+          var dir = (vv > thresh) ? "aligned" : (vv < -thresh) ? "anti-aligned" : "orthogonal";
           if (vv > thresh) nE++; else if (vv < -thresh) nO++; else nN++;
           if (vv < vmin) vmin = vv;
           if (vv > vmax) vmax = vv;
@@ -914,7 +943,7 @@ table.tok tr:hover td{background:#FFFFFF07}
           scopeLabel = "class: " + (CAT_NAMES[selClass] || selClass) + " · " + scopeIdxs.length + " prompts";
         }
         cell = Object.assign({}, cell, {
-          n_excited: nE, n_opposed: nO, n_neutral: nN,
+          n_aligned: nE, n_anti_aligned: nO, n_orthogonal: nN,
           probe_response_min: (probes.length ? vmin : 0),
           probe_response_max: (probes.length ? vmax : 0),
           probe_response_median: (function(){
@@ -946,16 +975,16 @@ table.tok tr:hover td{background:#FFFFFF07}
     html += '<div style="margin-bottom:8px"><b>' + esc(subj.replace(/_/g, " ")) +
             '</b> / <b>' + esc(lvl) + '</b> · ';
     html += 'cell value <span style="color:' +
-            (v > 0 ? 'var(--excited)' : v < 0 ? 'var(--opposed)' : 'var(--text2)') +
+            (v > 0 ? 'var(--aligned)' : v < 0 ? 'var(--anti-aligned)' : 'var(--text2)') +
             ';font-weight:600">' + (v >= 0 ? '+' : '') + v.toFixed(4) + '</span>';
     html += ' <span style="color:var(--text3)">(' + esc(scopeLabel) + ')</span></div>';
     html += 'Probes: <b>' + (cell.n_probes || 0) + '</b> active';
     if (cell.n_probes_degenerate){
       html += ' <span style="color:var(--text3)">(' + cell.n_probes_degenerate + ' degenerate filtered)</span>';
     }
-    html += ' · <span style="color:var(--excited)">' + (cell.n_excited || 0) + ' excited</span>';
-    html += ' · <span style="color:var(--opposed)">' + (cell.n_opposed || 0) + ' opposed</span>';
-    html += ' · <span style="color:var(--text3)">' + (cell.n_neutral || 0) + ' neutral</span>';
+    html += ' · <span style="color:var(--aligned)">' + (cell.n_aligned || 0) + ' aligned</span>';
+    html += ' · <span style="color:var(--anti-aligned)">' + (cell.n_anti_aligned || 0) + ' anti-aligned</span>';
+    html += ' · <span style="color:var(--text3)">' + (cell.n_orthogonal || 0) + ' orthogonal</span>';
     html += '<br>response range [' + (cell.probe_response_min || 0).toFixed(4) +
             ', ' + (cell.probe_response_max || 0).toFixed(4) + ']';
     html += ' · median ' + (cell.probe_response_median || 0).toFixed(4);
@@ -980,7 +1009,7 @@ table.tok tr:hover td{background:#FFFFFF07}
       var p = pageProbes[pi];
       var resp = p.response || 0;
       var dir = p.direction || "—";
-      var c = (dir === "excited") ? "var(--excited)" : (dir === "opposed") ? "var(--opposed)" : "var(--text3)";
+      var c = (dir === "aligned") ? "var(--aligned)" : (dir === "anti-aligned") ? "var(--anti-aligned)" : "var(--text3)";
       html += '<tr>';
       html += '<td class="ptext-cell" title="' + esc(p.text || ("#" + p.probe_idx)) + '">' + esc(p.text || ("#" + p.probe_idx)) + '</td>';
       html += '<td class="num resp" style="color:' + c + '">' + (resp >= 0 ? '+' : '') + resp.toFixed(4) + '</td>';
@@ -1096,10 +1125,10 @@ table.tok tr:hover td{background:#FFFFFF07}
       '<dd>The default prism metric. For each probe, the signed cosine of the angle between ' +
       'its prism direction <code>Δp_i</code> and the beam-through-circuit <code>b · ΔW</code>. ' +
       'Range <code>[−1, +1]</code>. ' +
-      '<span style="color:var(--excited)">Positive</span> = the correction pushed the prompt\'s ' +
-      'field along this concept\'s natural depth-trajectory. ' +
-      '<span style="color:var(--opposed)">Negative</span> = the correction pushed against it. ' +
-      'Zero = orthogonal.</dd></div>' +
+      '<span style="color:var(--aligned)">Positive</span> = the correction pushed the prompt\'s ' +
+      'field along this concept\'s natural depth-trajectory (aligned). ' +
+      '<span style="color:var(--anti-aligned)">Negative</span> = the correction pushed against it ' +
+      '(anti-aligned). Zero = orthogonal.</dd></div>' +
 
       '<div><dt>Cell aggregation</dt>' +
       '<dd>How the per-probe responses within a cell collapse to one cell value. ' +
@@ -1114,11 +1143,16 @@ table.tok tr:hover td{background:#FFFFFF07}
       'cell-by-cell signal that is uniquely attributable to fine-tuning, with the prompt\'s ' +
       'pre-existing geometry removed.</dd></div>' +
 
-      '<div><dt>Excited / opposed / neutral</dt>' +
-      '<dd>Directional labels for individual probes, applied at threshold <code>±0.05</code>. ' +
-      'Excited = the correction nudges the prompt\'s field along this probe\'s depth-trajectory. ' +
-      'Opposed = it nudges against it. Neutral = the probe is orthogonal to the field within noise. ' +
-      'A cell with mixed signs has internal disagreement that the cell value averages over.</dd></div>' +
+      '<div><dt>Aligned / anti-aligned / orthogonal</dt>' +
+      '<dd>Directional labels for individual probes, set by the ' +
+      '<b>Directional Threshold</b> parameter. A probe is <span style="color:var(--aligned)">aligned</span> ' +
+      'if its response exceeds <code>+band</code>, <span style="color:var(--anti-aligned)">anti-aligned</span> ' +
+      'if below <code>−band</code>, and <i>orthogonal</i> if it falls within the band ' +
+      '(<code>|response| ≤ band</code>). The band is <code>pct%</code> of the mean <code>|response|</code> ' +
+      'over active probes in scope, so it self-calibrates to the run\'s magnitudes instead of using a fixed ' +
+      'cutoff. At <code>pct = 0</code> the band collapses to zero — a pure sign classifier where any nonzero ' +
+      'response is directional; larger <code>pct</code> widens the orthogonal class. A cell with mixed signs ' +
+      'has internal disagreement that the cell value averages over.</dd></div>' +
 
       '<div><dt>Degenerate probes</dt>' +
       '<dd>Probes whose <code>Δp_i = p_i^{L_high} − p_i^{L_low}</code> has near-zero norm — ' +
