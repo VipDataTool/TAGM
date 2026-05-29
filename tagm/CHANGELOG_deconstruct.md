@@ -1,3 +1,55 @@
+# Changelog — Module Rename: Correction Prism → Probe-Basis Decomposition
+
+_2026-05-29_
+
+## Summary
+
+Renamed the module's user-facing name from "Correction Prism" to
+**Probe-Basis Decomposition** (drops the optical metaphor for a term that
+names the operation: decomposing the prompt's correction field onto the
+probe basis). The rename is **display-only** — every internal identifier
+keeps the `correction_prism` slug so saved sessions, exports, routes, and
+the viz URL are unaffected.
+
+## Changed (user-visible)
+
+- Module `display_name` → "Probe-Basis Decomposition".
+- "Prism Metric" parameter label → "Decomposition Metric" (param *key*
+  `prism_metric` unchanged).
+- Viz page `<title>`, header name, and the config chip label.
+- Glossary: the "Prism" entry → "Probe basis"; "prism metric" / "prism
+  direction" / "excluded from the prism" reworded to decomposition /
+  probe-basis vocabulary. (Also fixed a stale "excite or oppose" phrase
+  missed in the earlier vocabulary sweep → "align with or run against".)
+- Validation errors and progress messages ("Prism requires…",
+  "Computing prism response…") reworded.
+- Inline renderer strings (failure banner, heatmap title, metric label).
+- Export filenames `prism_*` → `probe_basis_decomp_*`.
+- Module docstring title; removed a dangling reference to a
+  never-existent `correction_prism_spec.md`.
+
+## Kept stable (internal identifiers — deliberate)
+
+- Module `name = "correction_prism"` slug; the `"module"` field in
+  result dicts; API routes (`/api/modules/correction_prism/*`); the viz
+  route + filename (`/correction_prism_viz`); persisted module filenames.
+- `prism_metric` param key; code identifiers (`prism_dirs`,
+  `_prism_response`, `CorrectionPrismModule`, JS `renderCorrectionPrismResults`
+  / `popoutCorrectionPrism` / `window.__prism*`, `#prism-*` element ids).
+
+Flipping the slug would break the saved sessions/exports already keyed on
+`correction_prism`, plus the routes and viz URL — so the label moved and
+the key stayed, same split as the JSON-field rename. A full slug
+migration is available as a separate opt-in if ever wanted.
+
+## Files touched
+
+- `src/engine/modules/correction_prism.py`
+- `static/correction_prism_viz.html`
+- `static/js/main.js`
+
+---
+
 # Changelog — Correction Prism: Configurable Orthogonality Band + Vocabulary
 
 _2026-05-29_

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Correction Prism — TAGM</title>
+<title>Probe-Basis Decomposition — TAGM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -1099,13 +1099,13 @@ table.tok tr:hover td{background:#FFFFFF07}
     panel.innerHTML =
       '<dl class="glossary">' +
 
-      '<div><dt>Prism</dt>' +
+      '<div><dt>Probe basis</dt>' +
       '<dd>The probe lattice acts as a structured basis for decomposing the prompt\'s ' +
       'correction-induced field. Each probe contributes one direction to the basis: ' +
       '<code>Δp_i = p_i^{L_high} − p_i^{L_low}</code>, the L2-normalized difference between the probe\'s ' +
       'embeddings at two depths. The cell value at <i>(subject, level)</i> is the aggregated ' +
       'response of the probes assigned there, so the heatmap reads as "which subject-matter ' +
-      'regions of the lattice does the prompt\'s correction-field excite or oppose?"</dd></div>' +
+      'regions of the lattice does the prompt\'s correction-field align with or run against?"</dd></div>' +
 
       '<div><dt>Beam</dt>' +
       '<dd>The prompt\'s contextualized field, captured by re-forwarding the prompt through ' +
@@ -1122,8 +1122,8 @@ table.tok tr:hover td{background:#FFFFFF07}
       '<code>ΔW_Q · W_K^{instr,T} + W_Q^{base} · ΔW_K^T</code> for QK, and analogously for VO).</dd></div>' +
 
       '<div><dt>Signed cosine</dt>' +
-      '<dd>The default prism metric. For each probe, the signed cosine of the angle between ' +
-      'its prism direction <code>Δp_i</code> and the beam-through-circuit <code>b · ΔW</code>. ' +
+      '<dd>The default decomposition metric. For each probe, the signed cosine of the angle between ' +
+      'its probe-basis direction <code>Δp_i</code> and the beam-through-circuit <code>b · ΔW</code>. ' +
       'Range <code>[−1, +1]</code>. ' +
       '<span style="color:var(--aligned)">Positive</span> = the correction pushed the prompt\'s ' +
       'field along this concept\'s natural depth-trajectory (aligned). ' +
@@ -1157,7 +1157,7 @@ table.tok tr:hover td{background:#FFFFFF07}
       '<div><dt>Degenerate probes</dt>' +
       '<dd>Probes whose <code>Δp_i = p_i^{L_high} − p_i^{L_low}</code> has near-zero norm — ' +
       'i.e. the model\'s representation of that concept barely changed between the two cached depths. ' +
-      'These probes can\'t serve as a basis direction, so they\'re excluded from the prism. The ' +
+      'These probes can\'t serve as a basis direction, so they\'re excluded from the decomposition. The ' +
       'count is reported per-cell.</dd></div>' +
 
       '<div><dt>L_low / L_high</dt>' +
@@ -1186,7 +1186,7 @@ table.tok tr:hover td{background:#FFFFFF07}
 
     var h = '';
     h += '<div class="ph-title">';
-    h += '<div class="ph-name">Correction Prism<span class="ph-kicker">Interactive Explorer</span></div>';
+    h += '<div class="ph-name">Probe-Basis Decomposition<span class="ph-kicker">Interactive Explorer</span></div>';
     h += '<div class="ph-run"><span class="ph-model" title="Active probe model">'+esc(model)+'</span>';
     if (grafting) h += '<span class="ph-graft" title="Prompt and probe sides projected through different circuits">GRAFTED</span>';
     h += '</div></div>';
@@ -1206,7 +1206,7 @@ table.tok tr:hover td{background:#FFFFFF07}
       h += chip("prompt circuit", pc!=null ? circ(pc) : "(same)", {accent:grafting});
       h += chip("probe circuit",  prc!=null ? circ(prc) : "(same)", {accent:grafting});
     }
-    h += chip("prism metric", cfg.prism_metric || "signed_cosine");
+    h += chip("decomposition metric", cfg.prism_metric || "signed_cosine");
     if (cfg.L_low != null || cfg.L_high != null)
       h += chip("L_low / L_high", (cfg.L_low!=null?cfg.L_low:"—") + " / " + (cfg.L_high!=null?cfg.L_high:"—"));
     h += '</div></div>';
@@ -1289,7 +1289,7 @@ table.tok tr:hover td{background:#FFFFFF07}
       out.push([r.probe_idx, csvCell(r.text), csvCell(cpSubj), csvCell(cpLvl),
                 (r.response||0).toFixed(6), Math.abs(r.response||0).toFixed(6), (r.direction||"")].join(","));
     });
-    downloadBlob("prism_cell_"+(selCell||"")+"_"+scopeTag()+".csv", out.join("\n"), "text/csv");
+    downloadBlob("probe_basis_decomp_cell_"+(selCell||"")+"_"+scopeTag()+".csv", out.join("\n"), "text/csv");
   }
   function exportGridCSV(){
     var grid = gridFor(view);
@@ -1303,9 +1303,9 @@ table.tok tr:hover td{background:#FFFFFF07}
       out.push(rrow.join(","));
     }
     var tag = (view==="baseline"?"baseline":view==="diff"?"diff":"correction")+"_"+scopeTag();
-    downloadBlob("prism_grid_"+tag+".csv", out.join("\n"), "text/csv");
+    downloadBlob("probe_basis_decomp_grid_"+tag+".csv", out.join("\n"), "text/csv");
   }
-  function exportJSON(){ downloadBlob("prism_results.json", JSON.stringify(D, null, 2), "application/json"); }
+  function exportJSON(){ downloadBlob("probe_basis_decomp_results.json", JSON.stringify(D, null, 2), "application/json"); }
 
   // Expand the full selected-cell probe list for printing, then restore.
   function doPrint(){ var prev = cpPrintAll; cpPrintAll = true; renderCellPanel(); window.print(); cpPrintAll = prev; renderCellPanel(); }

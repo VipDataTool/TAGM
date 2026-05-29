@@ -1,7 +1,8 @@
-"""Correction Prism — measures which probe-lattice directions a
-prompt's correction-induced field aligns with or runs against.
+"""Probe-Basis Decomposition (internal slug: correction_prism) — measures
+which probe-lattice directions a prompt's correction-induced field aligns
+with or runs against.
 
-Architecture (see correction_prism_spec.md for full derivation):
+Architecture:
 
     1. Capture H^{ℓ_low}_p — the prompt's contextualized residual stream
        at the probe's lower depth — by re-forwarding through the
@@ -59,7 +60,7 @@ CIRCUIT_LABELS = {
 
 class CorrectionPrismModule(TASMModule):
     name = "correction_prism"
-    display_name = "Correction Prism"
+    display_name = "Probe-Basis Decomposition"
     description = (
         "Captures the prompt's contextualized residual at the probe's "
         "lower depth, projects it through the model-side weight delta "
@@ -105,7 +106,7 @@ class CorrectionPrismModule(TASMModule):
         ),
         ModuleParameter(
             name="prism_metric",
-            display_name="Prism Metric",
+            display_name="Decomposition Metric",
             description=(
                 "Signed cosine normalizes per probe so cells are comparable; "
                 "signed dot product preserves raw magnitudes."
@@ -159,9 +160,9 @@ class CorrectionPrismModule(TASMModule):
             display_name="Include Baseline",
             description=(
                 "Also compute responses with ΔW = I — the prompt's beam "
-                "under the prism with no correction lens applied. Lets users "
-                "see whether bright cells are correction-induced or were "
-                "already aligned in the base model."
+                "under the decomposition with no correction lens applied. "
+                "Lets users see whether bright cells are correction-induced "
+                "or were already aligned in the base model."
             ),
             type="bool",
             default=True,
@@ -171,11 +172,11 @@ class CorrectionPrismModule(TASMModule):
             display_name="Prompt Circuit (grafting)",
             description=(
                 "Override the circuit operator for the prompt beam only. "
-                "When set to a value different from 'circuit', the prism "
-                "grafts: prompt is projected through this operator while "
-                "probes are projected through 'probe_circuit'. Set both to "
-                "'(same as circuit)' to disable grafting. Typical graft: "
-                "prompt_circuit='qk', probe_circuit='vo'."
+                "When set to a value different from 'circuit', the "
+                "decomposition grafts: prompt is projected through this "
+                "operator while probes are projected through 'probe_circuit'. "
+                "Set both to '(same as circuit)' to disable grafting. "
+                "Typical graft: prompt_circuit='qk', probe_circuit='vo'."
             ),
             type="select",
             default="(same as circuit)",
@@ -186,10 +187,10 @@ class CorrectionPrismModule(TASMModule):
             display_name="Probe Circuit (grafting)",
             description=(
                 "Override the circuit operator for probe directions only. "
-                "When set to a value different from 'circuit', the prism "
-                "grafts: probes are projected through this operator while "
-                "the prompt beam uses 'prompt_circuit'. Typical graft: "
-                "prompt_circuit='qk', probe_circuit='vo'."
+                "When set to a value different from 'circuit', the "
+                "decomposition grafts: probes are projected through this "
+                "operator while the prompt beam uses 'prompt_circuit'. "
+                "Typical graft: prompt_circuit='qk', probe_circuit='vo'."
             ),
             type="select",
             default="(same as circuit)",
@@ -233,7 +234,7 @@ class CorrectionPrismModule(TASMModule):
             return ok, msg
 
         if self._pipeline is None or not self._pipeline.loaded:
-            return False, "Model not loaded. Prism requires ΔW + forward access."
+            return False, "Model not loaded. Probe-Basis Decomposition requires ΔW + forward access."
 
         active = get_active_probe_set(self._project_root)
         if active is None:
@@ -246,7 +247,7 @@ class CorrectionPrismModule(TASMModule):
         if len(active.depths) < 2:
             return False, (
                 f"Probe set {active.probe_file!r} has only "
-                f"{len(active.depths)} depth(s) cached; the prism needs "
+                f"{len(active.depths)} depth(s) cached; the decomposition needs "
                 f"both L_low and L_high to form the probe-side delta. "
                 f"Apply the probe set with two depths configured.")
 
@@ -517,7 +518,7 @@ class CorrectionPrismModule(TASMModule):
         if n_active == 0:
             raise RuntimeError(
                 "All probe-side deltas are zero (L_low ≈ L_high). The "
-                "prism cannot decompose anything. Are L_low and L_high "
+                "decomposition cannot decompose anything. Are L_low and L_high "
                 "actually different layers?")
         prism_dirs = np.zeros_like(delta_p)
         prism_dirs[active_mask] = (
@@ -566,11 +567,11 @@ class CorrectionPrismModule(TASMModule):
 
         for c in circuits_to_run:
             if grafting and c != "_baseline":
-                prog(f"Computing prism response: {c} "
+                prog(f"Computing decomposition response: {c} "
                      f"(grafting: prompt={prompt_circuit}, "
                      f"probe={probe_circuit})")
             else:
-                prog(f"Computing prism response: {c}")
+                prog(f"Computing decomposition response: {c}")
             per_prompt_response = np.zeros((n_prompts, len(raw_probes)),
                                             dtype=np.float64)
             per_prompt_layer_count = np.zeros(n_prompts, dtype=np.int64)

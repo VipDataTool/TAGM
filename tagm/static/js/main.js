@@ -3399,9 +3399,10 @@ async function embedActiveProbes(filename){
   }
 }
 
-// ─── Correction Prism Results Renderer ──────────────────────────
+// ─── Probe-Basis Decomposition Results Renderer ─────────────────
 //
-// Renders the signed heatmap from correction_prism. Each cell carries
+// Renders the signed heatmap from the probe-basis decomposition module
+// (slug: correction_prism). Each cell carries
 // a signed scalar (sum of per-probe responses by default); positive =
 // the correction excites the probes in that cell, negative = it opposes
 // them. Relative-intensity colormap: sign determines hue (red/blue),
@@ -3438,7 +3439,7 @@ function renderCorrectionPrismResults(r) {
   // Failure banner.
   if (diag.ok === false) {
     h += '<div style="margin:8px 12px;padding:12px 14px;border:1px solid #D55E00;border-radius:6px;background:rgba(213,94,0,0.08);color:var(--text-0);font-size:12px;line-height:1.5">';
-    h += '<div style="font-weight:600;color:#E69F00;margin-bottom:4px">⚠ Prism failed to compute</div>';
+    h += '<div style="font-weight:600;color:#E69F00;margin-bottom:4px">⚠ Probe-Basis Decomposition failed to compute</div>';
     h += '<div>' + escHtml(diag.message || '') + '</div>';
     h += '</div>';
   }
@@ -3622,7 +3623,7 @@ function renderCorrectionPrismResults(r) {
   var primarySc = divergingScale(primaryAgg);
 
   h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">';
-  h += 'Prism Heatmap — ' + escHtml(circLabels[primary] || primary);
+  h += 'Decomposition Heatmap — ' + escHtml(circLabels[primary] || primary);
   h += '<button class="btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutCorrectionPrism()">↗ Open in Explorer</button>';
   h += '</div>';
   h += '<div class="mod-results-body">';
@@ -3737,7 +3738,7 @@ function renderCorrectionPrismResults(r) {
   h += '<div style="padding:10px;font-size:10px;color:var(--text-2);line-height:1.8;font-family:var(--mono)">';
   h += 'Circuit: <span style="color:var(--text-1)">' + escHtml(cfg.circuit || primary) + '</span> · ';
   h += 'Beam reduction: <span style="color:var(--text-1)">' + escHtml(cfg.beam_reduction || 'mean') + '</span> · ';
-  h += 'Prism metric: <span style="color:var(--text-1)">' + escHtml(cfg.prism_metric || 'signed_cosine') + '</span> · ';
+  h += 'Decomposition metric: <span style="color:var(--text-1)">' + escHtml(cfg.prism_metric || 'signed_cosine') + '</span> · ';
   h += 'Cell agg: <span style="color:var(--text-1)">' + escHtml(cfg.cell_aggregation || 'sum') + '</span> · ';
   h += 'Prompt agg: <span style="color:var(--text-1)">' + escHtml(cfg.prompt_aggregation || 'mean') + '</span><br>';
   h += 'L_low: <span style="color:var(--text-1)">' + ((cfg.L_low || 0.5) * 100).toFixed(0) + '%</span> · ';
