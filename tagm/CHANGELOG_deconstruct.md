@@ -1,3 +1,39 @@
+# Changelog — Comparative Analysis: legend/color bug fixes
+
+_2026-05-29_
+
+## Fixed
+
+Bugs in the category legend/color handling shared across the comparative
+plots (trajectory overlay, the 2×2 grid, the LTP and SFD panels — all route
+through `_cat_legend`):
+
+- **Missing legend entries.** The legend is now built correct-by-construction
+  from the categories actually plotted, ordered by `CAT_ORDER`, so a present
+  category with a unique color (e.g. `harmful`, vermillion) always gets its
+  own row instead of silently dropping out.
+- **Duplicate-color swatches.** `benign`/`baseline` share a color, as do
+  `jailbreak`/`adversarial`; the legend used to emit two identically-colored
+  rows. Color-aliased categories now collapse to a single canonical entry.
+- **Line vs. legend color mismatch.** Plotted lines resolved a missing
+  category to `#888` while the legend resolved it to `#999999`, so an
+  uncategorized line didn't match its swatch. All color resolution now goes
+  through one helper (`_cat_color`), so a line's color always equals its
+  legend swatch. Unordered insertion-order legends are now CAT_ORDER-sorted.
+
+## Not changed (legibility, not bugs)
+
+Left for a separate pass if wanted: the attn/MLP sawtooth (amplitude sums 3
+weight roles for attn vs 2 for mlp — a structural artifact, splitting the
+series or averaging over roles would fix it), per-category mean overlays, and
+labeling extreme-trajectory prompts.
+
+## Files touched
+
+- `src/engine/comparative.py`
+
+---
+
 # Changelog — New "Probe Activity" Tab (replaces redundant Circuit Decomposition)
 
 _2026-05-29_

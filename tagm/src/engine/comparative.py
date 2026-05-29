@@ -19,6 +19,7 @@ from src.engine.viz_style import (
     style_ax as _style_ax_full,
     apply_style,
     CAT_COLORS,
+    CAT_ORDER,
     wrap_label as _wrap,
 )
 
@@ -31,15 +32,39 @@ def _style_ax(ax, title=""):
     _style_ax_full(ax, title=title)
 
 
-def _cat_legend(ax, results):
-    used = set()
-    handles = []
+def _cat_color(cat):
+    """Single source of truth for category → color. Used by both the plotted
+    lines and the legend so a line's color always equals its legend swatch.
+    Falsy/missing category resolves to 'unknown' (not the bare default), which
+    is what kept lines and legend swatches from matching before."""
+    return CAT_COLORS.get(cat or "unknown", "#888")
+
+
+def _cat_legend(ax, results, loc="best"):
+    """One legend entry per distinct *color* actually plotted, ordered by
+    CAT_ORDER (then any extras). Categories that share a color — benign/
+    baseline, jailbreak/adversarial — collapse to a single entry so the
+    legend never shows two identical swatches, and every plotted category is
+    represented (a unique color like 'harmful' always gets its own row)."""
+    present, seen = [], set()
     for r in results:
-        c = r.get("category", "unknown")
-        if c not in used:
-            used.add(c)
-            handles.append(Patch(facecolor=CAT_COLORS.get(c, "#888"), label=c.title()))
-    ax.legend(handles=handles, fontsize=12, loc="best")
+        c = r.get("category") or "unknown"
+        if c not in seen:
+            seen.add(c)
+            present.append(c)
+    # Known categories first, in CAT_ORDER; then any extras as encountered.
+    ordered = [c for c in CAT_ORDER if c in seen] + \
+              [c for c in present if c not in CAT_ORDER]
+    handles, used_colors = [], set()
+    for c in ordered:
+        col = _cat_color(c)
+        if col in used_colors:
+            continue
+        used_colors.add(col)
+        handles.append(Patch(facecolor=col, edgecolor="none",
+                             label=c.replace("_", " ").title()))
+    if handles:
+        ax.legend(handles=handles, fontsize=12, loc=loc)
 
 
 def plot_trajectory_overlay(results: list) -> str:
@@ -52,7 +77,7 @@ def plot_trajectory_overlay(results: list) -> str:
     _style_ax(ax, "Normalized Amplitude Trajectories (all prompts)")
 
     for r in has_traj:
-        color = CAT_COLORS.get(r.get("category", ""), "#888")
+        color = _cat_color(r.get("category"))
         ax.plot(r["amplitude_normalized"], color=color, alpha=0.5, linewidth=1.0)
 
     n = len(has_traj[0]["amplitude_normalized"])
@@ -96,7 +121,7 @@ def plot_difference_from_benign(results: list) -> str:
     for cat, trajs in cats.items():
         mean_traj = np.mean(trajs, axis=0)
         diff = mean_traj - baseline
-        color = CAT_COLORS.get(cat, "#888")
+        color = _cat_color(cat)
         ax.plot(diff, label=f"{cat.title()} - Benign", color=color, linewidth=1.8)
         ax.fill_between(range(len(diff)), diff, alpha=0.1, color=color)
 
@@ -192,7 +217,7 @@ def plot_metric_scatters(results: list) -> str:
             yv = r.get(y_key)
             if xv is None or yv is None:
                 continue
-            color = CAT_COLORS.get(r.get("category", ""), "#888")
+            color = _cat_color(r.get("category"))
             ax.scatter(xv, yv, c=color, s=60, alpha=0.8,
                        edgecolors="#1E1E1E", linewidth=0.5)
 
@@ -308,7 +333,7 @@ def plot_ltp_category_comparison(results: list) -> str:
             if vals:
                 box_data.append(vals)
                 box_labels.append(cat.title())
-                box_colors.append(CAT_COLORS.get(cat, "#888"))
+                box_colors.append(_cat_color(cat))
 
         if box_data:
             bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
@@ -338,7 +363,7 @@ def plot_ltp_m_vs_stress(results: list) -> str:
     _style_ax(ax, "Offset Magnitude (M) vs Stress Score")
 
     for r in has_ltp:
-        color = CAT_COLORS.get(r.get("category", ""), "#888")
+        color = _cat_color(r.get("category"))
         ax.scatter(r.get("stress_score", 0), r["ltp"]["mean_M"],
                    c=color, s=60, alpha=0.8, edgecolors="#1E1E1E", linewidth=0.5)
 
@@ -419,7 +444,7 @@ def plot_key_scatters(results: list) -> str:
                 continue
             xs, ys = zip(*pts)
             xs, ys = np.array(xs), np.array(ys)
-            color = CAT_COLORS.get(cat, "#888")
+            color = _cat_color(cat)
             marker = CAT_MARKERS.get(cat, "o")
 
             # Scatter with redundant shape+color
@@ -480,7 +505,7 @@ def plot_sfd_category_comparison(results: list) -> str:
         if vals:
             box_data.append(vals)
             box_labels.append(cat.title())
-            box_colors.append(CAT_COLORS.get(cat, "#888"))
+            box_colors.append(_cat_color(cat))
 
     if box_data:
         bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
@@ -510,7 +535,7 @@ def plot_sfd_vs_asm(results: list) -> str:
     _style_ax(ax, "QK Density (SFD) vs Interior Share (ASM)")
 
     for r in has_sfd:
-        color = CAT_COLORS.get(r.get("category", ""), "#888")
+        color = _cat_color(r.get("category"))
         ax.scatter(r.get("middle_share", 0), r["sfd"]["density_mean"],
                    c=color, s=60, alpha=0.8, edgecolors="#1E1E1E", linewidth=0.5)
 
@@ -551,7 +576,7 @@ def plot_rank_displacement_by_category(results: list) -> str:
             if vals:
                 box_data.append(vals)
                 box_labels.append(cat.title())
-                box_colors.append(CAT_COLORS.get(cat, "#888"))
+                box_colors.append(_cat_color(cat))
 
         if box_data:
             bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, widths=0.5)
