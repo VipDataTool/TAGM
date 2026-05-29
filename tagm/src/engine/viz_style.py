@@ -110,6 +110,27 @@ def fig_to_base64(fig) -> str:
     return base64.b64encode(buf.read()).decode()
 
 
+def placeholder_plot(message: str, title: str = "") -> str:
+    """Render a centered message as a plot image.
+
+    Used when a plot has nothing meaningful to show (e.g. a required category
+    group is absent). Returning this informative empty-state instead of an
+    empty string matters: an empty string surfaces to the user as a red
+    "Failed to generate" error, which misreads as a crash rather than a
+    "this view needs different data" condition.
+    """
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    fig.patch.set_facecolor(BG_DARK)
+    ax.set_facecolor(BG_DARK)
+    ax.axis("off")
+    if title:
+        ax.text(0.5, 0.74, title, ha="center", va="center", fontsize=15,
+                fontweight="600", color=TEXT_PRIMARY, transform=ax.transAxes)
+    ax.text(0.5, 0.42 if title else 0.5, message, ha="center", va="center",
+            fontsize=12, color=TEXT_SECONDARY, wrap=True, transform=ax.transAxes)
+    return fig_to_base64(fig)
+
+
 def style_ax(ax, title="", xlabel="", ylabel=""):
     """Apply clean Tufte-inspired styling to an axes object."""
     if title:

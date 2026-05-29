@@ -1,3 +1,59 @@
+# Changelog — Comparative plots: Effect Sizes & Discriminative Sublayers failures
+
+_2026-05-29_
+
+## Fixed
+
+Two batch comparative plots could render as a red "Failed to generate …"
+instead of a chart: **Effect Sizes (Forest)** (`separability`) and
+**Discriminative Sublayers** (`discriminative_sublayers`). Both advertise
+through the comparative-analysis module but render in `engine/comparative.py`
+and `engine/visualizations.py`. On a well-formed session both render fine — the
+failures are triggered by specific session conditions, and there were three
+distinct fragilities behind the same symptom:
+
+- **Missing contrast group → bare 404.** Each plot needs both a benign-ish and
+  an adversarial/harmful group to contrast. With one side absent the renderer
+  returned an empty string, which the endpoint turns into a 404 and the
+  frontend paints as a red "Failed to generate {key}" — reading like a crash
+  rather than "this view needs different data." They now return an informative
+  placeholder image stating exactly which groups are required and what the
+  session currently has. (This is the most likely cause of the reported
+  screenshots, where both failed together — consistent with a session that has
+  no clear benign-vs-adversarial split.)
+- **Ragged trajectories → numpy crash** (`discriminative_sublayers`).
+  `np.mean(group, axis=0)` over `amplitude_normalized` assumes every trajectory
+  is the same length. They normally are (fixed by model depth), but a mixed or
+  partially-computed session is ragged, and numpy 2.x raises on a ragged mean.
+  All trajectories are now clipped to the shortest common length before
+  averaging.
+- **`None` effect-size estimate → sort crash** (`separability`). Effect sizes
+  are NaN-safed, so a degenerate metric comes back with `estimate = None`;
+  `metrics.sort(key=… estimate)` then raises `TypeError` comparing `None` to a
+  float (and the CI whiskers would feed `None` into matplotlib). Metrics
+  without a finite estimate are now filtered before sorting, and `None` CI
+  bounds degenerate to the point estimate.
+
+Added a shared `placeholder_plot(message, title)` to `viz_style.py` for the
+empty-state images.
+
+## Note (not changed)
+
+`discriminative_sublayers` counts only `benign`/`baseline` as the benign side,
+while the aggregate stats (and the forest plot) also count `mild`. A session
+whose benign-ish prompts are labelled `mild` will therefore show the forest
+plot but a "needs both groups" placeholder for discriminative sublayers. Left
+as-is because it's a deliberate contrast definition, not a bug — flagging in
+case the intent was to include `mild`.
+
+## Files touched
+
+- `src/engine/visualizations.py`
+- `src/engine/comparative.py`
+- `src/engine/viz_style.py`
+
+---
+
 # Changelog — Unify analysis onto one async contract
 
 _2026-05-29_

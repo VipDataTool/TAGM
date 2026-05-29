@@ -16,6 +16,7 @@ from matplotlib.patches import Patch
 from src.engine import config as engine_config
 from src.engine.viz_style import (
     fig_to_base64 as _fig_to_base64,
+    placeholder_plot as _placeholder_plot,
     style_ax as _style_ax_full,
     apply_style,
     CAT_COLORS,
@@ -143,7 +144,10 @@ def plot_discriminative_sublayers(results: list, top_n: int = None) -> str:
         top_n = engine_config.get("disc_sublayers_top_n")
     has_traj = [r for r in results if r.get("amplitude_normalized")]
     if not has_traj:
-        return ""
+        return _placeholder_plot(
+            "No sublayer trajectories in this session. Enable \"Full "
+            "trajectory\" when analyzing to populate this view.",
+            title="Discriminative Sublayers")
 
     benign = [r["amplitude_normalized"] for r in has_traj
               if r.get("category") in ("benign", "baseline")]
@@ -151,10 +155,19 @@ def plot_discriminative_sublayers(results: list, top_n: int = None) -> str:
                    if r.get("category") in ("jailbreak", "harmful", "adversarial")]
 
     if not benign or not adversarial:
-        return ""
+        return _placeholder_plot(
+            "Needs both a benign group (benign / baseline) and an adversarial "
+            "group (jailbreak / harmful / adversarial) to rank by their delta. "
+            f"This session has {len(benign)} benign and {len(adversarial)} "
+            "adversarial trajectories.",
+            title="Discriminative Sublayers")
 
-    benign_mean = np.mean(benign, axis=0)
-    adv_mean = np.mean(adversarial, axis=0)
+    # Trajectories must share a length to average element-wise. They normally
+    # do (fixed by model depth), but a mixed or partially-computed session can
+    # be ragged — numpy raises on a ragged mean — so clip all to the shortest.
+    common_len = min(len(a) for a in benign + adversarial)
+    benign_mean = np.mean([a[:common_len] for a in benign], axis=0)
+    adv_mean = np.mean([a[:common_len] for a in adversarial], axis=0)
     diff = adv_mean - benign_mean
 
     n_sublayers = len(diff)

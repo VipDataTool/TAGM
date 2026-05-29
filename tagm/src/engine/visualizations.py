@@ -224,7 +224,7 @@ def plot_separability(agg: dict) -> str:
     """Forest plot of effect sizes — dots + CI whiskers, sorted by magnitude.
     Only proven metrics (d > 0.5 or theoretically important).
     Reference lines at Cohen's d thresholds."""
-    from src.engine.viz_style import (fig_to_base64, style_ax, apply_style,
+    from src.engine.viz_style import (fig_to_base64, placeholder_plot, style_ax, apply_style,
                                    BG_DARK, BG_SURFACE, TEXT_PRIMARY, TEXT_SECONDARY,
                                    TEXT_MUTED, ACCENT_GREEN,
                                    EFFECT_SMALL, EFFECT_MEDIUM, EFFECT_LARGE,
@@ -233,13 +233,26 @@ def plot_separability(agg: dict) -> str:
 
     sep = agg.get("separability", {})
     if not sep:
-        return ""
+        return placeholder_plot(
+            "Effect sizes need both a benign group (benign / baseline / mild) "
+            "and a harmful group (harmful / jailbreak / adversarial) in the "
+            "session to contrast.",
+            title="Effect Sizes (Forest)")
 
     # Proven ASM metrics for the forest plot, plus length-invariant LTP and RD
     proven = ["net_correction", "middle_share", "top2_share",
               "entropy", "stress_score", "interior_cv",
               "ltp_n_dir", "rd_replacement"]
-    metrics = [m for m in proven if m in sep]
+    # Keep only metrics with a finite effect-size estimate. A NaN-safed
+    # estimate comes back as None, which would crash both the sort (None vs
+    # float) and the plotting below.
+    metrics = [m for m in proven if m in sep
+               and sep[m].get("effect_size", {}).get("estimate") is not None]
+    if not metrics:
+        return placeholder_plot(
+            "No proven metric produced a computable effect size for this "
+            "session (too few valid samples per group).",
+            title="Effect Sizes (Forest)")
 
     # Sort by effect size descending
     metrics.sort(key=lambda m: sep[m]["effect_size"]["estimate"], reverse=True)
@@ -259,10 +272,16 @@ def plot_separability(agg: dict) -> str:
 
     for i, metric in enumerate(metrics):
         es = sep[metric]["effect_size"]
-        acc = sep[metric]["threshold"]["accuracy"]
+        acc = sep[metric].get("threshold", {}).get("accuracy") or 0.0
         d_val = es["estimate"]
-        ci_lo = es["ci_low"]
-        ci_hi = es["ci_high"]
+        # CI bounds can be NaN-safed to None; degenerate the whisker to the
+        # point estimate rather than feeding None into matplotlib.
+        ci_lo = es.get("ci_low")
+        ci_hi = es.get("ci_high")
+        if ci_lo is None:
+            ci_lo = d_val
+        if ci_hi is None:
+            ci_hi = d_val
 
         # Color by effect size tier
         if d_val >= EFFECT_LARGE:
