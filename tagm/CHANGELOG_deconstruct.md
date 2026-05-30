@@ -1,3 +1,32 @@
+# Changelog — Field topology: token labels truncated to 12 characters
+
+_2026-05-29_
+
+## Fixed
+
+The 3D correction-field-topology viz was clipping every token label to 12
+characters (`.slice(0, 12)`), so "vulnerabilities" rendered as "vulnerabilit".
+This applied to all three label sources — the spine token and both
+counterfactual columns (the model's predicted alternatives) — so it was
+silently corrupting the displayed data, not just one cosmetic word, in a tool
+whose entire purpose is reading that data accurately.
+
+Root cause: each label is drawn into its own per-token canvas whose width was
+hardcoded to the grid-cell width (`LW`/`SLW` = 96px), with text centered into
+it; anything wider was cut. The fixed width was arbitrary — a per-token canvas
+has no reason to be cell-sized.
+
+Fix: the renderer no longer decides how long a token may be. The truncation is
+gone; each label canvas is sized to its own text, and the sprite is scaled by
+the same factor so the full token renders without horizontal squish. Long
+tokens overflow their cell, which is governed by the existing font control.
+
+## Files touched
+
+- `static/correction_field_topology_viz.html`
+
+---
+
 # Changelog — Comparative plots: Effect Sizes & Discriminative Sublayers failures
 
 _2026-05-29_

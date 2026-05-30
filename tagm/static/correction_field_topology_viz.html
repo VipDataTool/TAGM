@@ -595,8 +595,19 @@ function buildTerrain() {
 
       var w = isSpine?SLW:LW, h = isSpine?SLH:LH, fpx = isSpine?sfpx:lfpx;
       var S = 2, cv = document.createElement('canvas');
-      cv.width = w*S; cv.height = h*S;
-      var cx = cv.getContext('2d'); cx.scale(S,S);
+      var cx = cv.getContext('2d');
+      cx.font = '700 '+fpx+'px system-ui,sans-serif';
+      // Size the box to the token, not to the grid cell. Each label has its
+      // own canvas/sprite, so it can be exactly as wide as the word needs —
+      // the data is never clipped to fit a fixed cell width. The sprite is
+      // scaled by the same factor (wf) below so the text isn't squished; long
+      // tokens simply overflow their cell, which the font control governs.
+      var pad = isSpine ? 12 : 8;
+      var fitW = Math.max(w, Math.ceil(cx.measureText(str).width) + pad);
+      var wf = fitW / w;
+      w = fitW;
+      cv.width = w*S; cv.height = h*S;   // resizing the canvas resets the context
+      cx.scale(S,S);
       cx.font = '700 '+fpx+'px system-ui,sans-serif';
       cx.textAlign = 'center'; cx.textBaseline = 'middle';
 
@@ -628,7 +639,7 @@ function buildTerrain() {
         cx.fillRect((w-ulLen)/2, h/2+ulOff, ulLen, Math.max(2,Math.round(2*labelScale)));
       }
 
-      texCache[key] = new THREE.CanvasTexture(cv);
+      texCache[key] = { tex: new THREE.CanvasTexture(cv), wf: wf };
       return texCache[key];
     }
 
@@ -638,9 +649,9 @@ function buildTerrain() {
         var vv = vtx[t][c];
         var isSpine = (c===K);
         var str;
-        if (c < K) str = (row.ctoks[K+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        else if (isSpine) str = toks[t].replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
-        else str = (row.ctoks[2*K-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim().slice(0,12);
+        if (c < K) str = (row.ctoks[K+c]||'').replace(/^[\s\u0120\u00c2]/,'').trim();
+        else if (isSpine) str = toks[t].replace(/^[\s\u0120\u00c2]/,'').trim();
+        else str = (row.ctoks[2*K-c]||'').replace(/^[\s\u0120\u00c2]/,'').trim();
         if (!str) str = '\u00B7';
 
         var status = null;
@@ -649,9 +660,10 @@ function buildTerrain() {
           else status = row.statusRow[c-K-1] || null;
         }
 
-        var tex = makeLabel(str, isSpine, c, status, row.bar);
+        var lbl = makeLabel(str, isSpine, c, status, row.bar);
+        var tex = lbl.tex;
         var fd = isSpine ? 1.0 : Math.max(.28, 1-Math.pow(Math.abs(c-K)/K,1.2)*.68);
-        var sx = isSpine?SLSX:LSX, sy = isSpine?SLSY:LSY;
+        var sx = (isSpine?SLSX:LSX) * lbl.wf, sy = isSpine?SLSY:LSY;
         var sp = new THREE.Sprite(new THREE.SpriteMaterial({
           map:tex, transparent:true, depthTest:false, opacity:fd
         }));
