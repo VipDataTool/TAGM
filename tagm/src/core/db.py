@@ -798,7 +798,6 @@ def migrate_json_to_db(db: Database, project_root: Path) -> dict:
                     notes=m.get("notes", ""),
                 )
                 summary["models"] += 1
-            models_file.rename(models_file.with_suffix(".json.migrated"))
             logger.info(f"[migrate] Imported {summary['models']} models")
         except Exception as e:
             logger.warning(f"[migrate] models.json failed: {e}")
