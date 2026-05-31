@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Correction Manifold — TASM</title>
+<style>
+:root { --bg:#0c1017; --text:#e0e6ed; --text2:#a0aab4; --border:#252b33; }
+* { box-sizing:border-box; }
+html,body { height:100%; background:var(--bg); color:var(--text); font-family:"Courier New",monospace; padding:0; margin:0; overflow:hidden; }
+button { font-family:inherit; font-size:11px; padding:2px 9px; border-radius:3px; cursor:pointer; }
+.ctrl { display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap; align-items:center; }
+.cat-btn { transition:all .15s; }
+#tip { display:none; position:absolute; background:#151a22f0; border:1px solid #303840; border-radius:5px; padding:10px 14px; pointer-events:none; max-width:420px; font-size:11px; line-height:1.6; z-index:10; }
+#err { color:#ef4444; font-size:12px; padding:10px; }
+#wrap { display:flex; flex-direction:column; height:100vh; padding:10px 14px; }
+#canvasWrap { flex:1; position:relative; border:1px solid var(--border); border-radius:6px; overflow:hidden; min-height:0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h2 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#f0f4f8;letter-spacing:.4px">Correction Manifold</h2>
+  <p style="margin:0 0 6px;font-size:11px;color:#a0aab4" id="subtitle">Loading...</p>
+  <div class="ctrl" id="ctrlRow"></div>
+  <div id="canvasWrap">
+    <canvas id="cvs" style="width:100%;height:100%;cursor:grab;display:block"></canvas>
+    <div id="tip"></div>
+  </div>
+  <div style="font-size:10px;color:#808890;margin-top:6px;text-align:center" id="footer">
+    PCA projection of correction field fingerprints. Scroll to zoom, drag to pan. Click points for details.
+  </div>
+  <div id="err"></div>
+</div>
+<script>
+(function(){try{
+
+var CAT_COLORS={b:"#0072B2",m:"#E69F00",d:"#009E73",h:"#D55E00",a:"#882255",j:"#CC79A7"};
+var CAT_LABELS={b:"benign",m:"mild",d:"dual-use",h:"harmful",a:"adversarial",j:"jailbreak"};
+var CLUSTER_COLORS=["#58a6ff","#4ade80","#f59e0b","#ef4444","#a78bfa","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1",
+                    "#14b8a6","#e879f9","#22d3ee","#facc15","#fb923c","#818cf8","#2dd4bf","#f472b6","#38bdf8","#a3e635"];
+
+var W=100, H=100;
+var DATA=null;
+var colorMode="category"; // "category" or "cluster"
+var cats={b:1,m:1,d:1,h:1,a:1,j:1};
+var pinnedTip=null;
+
+// Zoom/pan
+var zoom=1, panX=0, panY=0;
+var dragging=false, dragSX=0, dragSY=0, dragPX=0, dragPY=0, didDrag=false;
+
+function scale(){return Math.min(W,H)*0.42*zoom}
+
+fetch("/api/modules/correction_manifold/results").then(function(r){return r.json()}).then(function(resp){
+  if(!resp.ok||!resp.results){document.getElementById("err").textContent="No results: "+(resp.error||"run the module first");return}
+  DATA=resp.results;
+  init();
+}).catch(function(e){document.getElementById("err").textContent="Fetch error: "+e.message});
+
+function init(){
+  var sub=document.getElementById("subtitle");
+  var cls=DATA.classification||{};
+  var binAcc=cls.binary?cls.binary.best_accuracy:0;
+  var pca=DATA.pca_explained||[0,0];
+  sub.textContent=DATA.n_prompts+" prompts · "+DATA.n_clusters+" clusters · silhouette "+
+    (DATA.silhouette_score||0).toFixed(3)+" · accuracy "+(cls.overall_accuracy*100||0).toFixed(1)+
+    "% · binary "+(binAcc*100).toFixed(1)+"% · PCA "+(100*(pca[0]+pca[1])).toFixed(0)+"%";
+
+  // Controls
+  var cr=document.getElementById("ctrlRow");
+  var h="";
+  for(var k in CAT_LABELS){
+    var sty=cats[k]?"border:1px solid "+CAT_COLORS[k]+";background:"+CAT_COLORS[k]+"20;color:"+CAT_COLORS[k]
+                    :"border:1px solid #30363d;background:transparent;color:#606870";
+    h+='<button class="cat-btn" data-cat="'+k+'" style="'+sty+'">'+CAT_LABELS[k]+'</button>';
+  }
+  h+='<span style="color:#30363d">|</span>';
+  h+='<button style="border:1px solid #404850;color:#a0aab4;background:transparent" id="resetBtn">Reset</button>';
+  h+='<button style="border:1px solid #58a6ff;color:#58a6ff;background:#58a6ff10" id="colorToggle">Color: Category</button>';
+  cr.innerHTML=h;
+
+  cr.addEventListener("click",function(e){
+    var btn=e.target.closest("button[data-cat]");
+    if(btn){
+      var c=btn.dataset.cat;
+      cats[c]=cats[c]?0:1;
+      btn.style.borderColor=cats[c]?CAT_COLORS[c]:"#30363d";
+      btn.style.background=cats[c]?CAT_COLORS[c]+"20":"transparent";
+      btn.style.color=cats[c]?CAT_COLORS[c]:"#606870";
+      draw();
+    }
+  });
+  document.getElementById("resetBtn").addEventListener("click",function(){zoom=1;panX=0;panY=0;pinnedTip=null;document.getElementById("tip").style.display="none";draw()});
+  document.getElementById("colorToggle").addEventListener("click",function(){
+    if(colorMode==="category"){
+      colorMode="cluster";
+      this.textContent="Color: Cluster";
+      this.style.borderColor="#4ade80";this.style.color="#4ade80";this.style.background="#4ade8010";
+    } else {
+      colorMode="category";
+      this.textContent="Color: Category";
+      this.style.borderColor="#58a6ff";this.style.color="#58a6ff";this.style.background="#58a6ff10";
+    }
+    draw();
+  });
+
+  // Events
+  var cvs=document.getElementById("cvs");
+  cvs.addEventListener("wheel",function(e){
+    e.preventDefault();
+    var rect=cvs.getBoundingClientRect();
+    var mx=(e.clientX-rect.left)*(W/rect.width);
+    var my=(e.clientY-rect.top)*(H/rect.height);
+    var factor=e.deltaY<0?1.08:1/1.08;
+    var nz=Math.max(0.5,Math.min(10,zoom*factor));
+    panX=mx-(mx-panX)*(nz/zoom);
+    panY=my-(my-panY)*(nz/zoom);
+    zoom=nz;
+    draw();
+  },{passive:false});
+  cvs.addEventListener("mousedown",function(e){dragging=true;didDrag=false;dragSX=e.clientX;dragSY=e.clientY;dragPX=panX;dragPY=panY;cvs.style.cursor="grabbing"});
+  window.addEventListener("mousemove",function(e){
+    if(!dragging) return;
+    var dx=e.clientX-dragSX,dy=e.clientY-dragSY;
+    if(Math.abs(dx)+Math.abs(dy)>3) didDrag=true;
+    var rect=cvs.getBoundingClientRect();
+    panX=dragPX+dx*(W/rect.width);panY=dragPY+dy*(H/rect.height);
+    draw();
+  });
+  window.addEventListener("mouseup",function(){dragging=false;document.getElementById("cvs").style.cursor="grab"});
+  cvs.addEventListener("click",function(e){
+    if(didDrag) return;
+    var hit=hitTest(e);
+    if(hit){pinnedTip=hit;showTip(hit)} else {pinnedTip=null;document.getElementById("tip").style.display="none"}
+  });
+  cvs.addEventListener("mousemove",function(e){
+    if(dragging||pinnedTip) return;
+    var hit=hitTest(e);
+    showTip(hit);
+  });
+  cvs.addEventListener("mouseleave",function(){if(!pinnedTip) document.getElementById("tip").style.display="none"});
+
+  new ResizeObserver(function(){draw()}).observe(document.getElementById("canvasWrap"));
+  draw();
+}
+
+function tx(v){return W/2+v*scale()+panX}
+function ty(v){return H/2-v*scale()+panY}
+
+function draw(){
+  var c=document.getElementById("cvs");
+  var wrap=document.getElementById("canvasWrap");
+  W=wrap.clientWidth;H=wrap.clientHeight;
+  var dpr=devicePixelRatio||1;
+  c.width=W*dpr;c.height=H*dpr;
+  c.style.width=W+"px";c.style.height=H+"px";
+  var g=c.getContext("2d");g.scale(dpr,dpr);
+
+  var ox=W/2+panX, oy=H/2+panY;
+  var s=scale();
+
+  // Grid
+  g.strokeStyle="#ffffff08";g.lineWidth=0.5;
+  for(var i=-5;i<=5;i++){
+    var gx=ox+i*s*0.2;g.beginPath();g.moveTo(gx,0);g.lineTo(gx,H);g.stroke();
+    var gy=oy+i*s*0.2;g.beginPath();g.moveTo(0,gy);g.lineTo(W,gy);g.stroke();
+  }
+
+  // Axes
+  g.strokeStyle="#ffffff15";g.lineWidth=1;
+  g.beginPath();g.moveTo(ox-s,oy);g.lineTo(ox+s,oy);g.stroke();
+  g.beginPath();g.moveTo(ox,oy-s);g.lineTo(ox,oy+s);g.stroke();
+
+  // Axis labels
+  g.fillStyle="#ffffff40";g.font="10px monospace";g.textAlign="center";
+  g.fillText("PC1",ox+s+16,oy+4);
+  g.fillText("PC2",ox+4,oy-s-8);
+
+  // Cluster regions (convex hull approximation — just draw filled circles at centroids)
+  var clusters=DATA.clusters||[];
+  for(var i=0;i<clusters.length;i++){
+    var cl=clusters[i];
+    var cx=tx(cl.cx),cy=ty(cl.cy);
+    var col=CLUSTER_COLORS[i%CLUSTER_COLORS.length];
+
+    // Gather points in this cluster to compute spread
+    var pts=[];
+    (DATA.prompts||[]).forEach(function(p){if(p.cluster===i&&cats[p.category]) pts.push(p)});
+    if(pts.length<2) continue;
+
+    // Draw hull as a shaded region
+    g.globalAlpha=0.06;
+    g.fillStyle=col;
+    g.beginPath();
+    // Compute radius as max distance from centroid
+    var maxR=0;
+    pts.forEach(function(p){
+      var dx=tx(p.x)-cx,dy=ty(p.y)-cy;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      if(d>maxR) maxR=d;
+    });
+    g.beginPath();g.arc(cx,cy,maxR+10,0,Math.PI*2);g.fill();
+    g.globalAlpha=1;
+
+    // Cluster label
+    g.fillStyle=col;g.font="bold 11px monospace";g.textAlign="center";g.textBaseline="middle";
+    g.fillText("K"+i,cx,cy-maxR-12);
+  }
+
+  // Data points
+  var ps=DATA.prompts||[];
+  var dotR=Math.max(3,5*Math.sqrt(zoom));
+
+  for(var i=0;i<ps.length;i++){
+    var p=ps[i];
+    if(!cats[p.category]) continue;
+    var px=tx(p.x),py=ty(p.y);
+    if(px<-20||px>W+20||py<-20||py>H+20) continue;
+
+    var col;
+    if(colorMode==="cluster"){
+      col=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+    } else {
+      col=CAT_COLORS[p.category]||"#888";
+    }
+
+    g.beginPath();g.arc(px,py,dotR,0,Math.PI*2);
+    g.fillStyle=col;
+    g.globalAlpha=0.85;
+    g.fill();
+    g.globalAlpha=1;
+
+    // Category ring when in cluster color mode (or vice versa)
+    var ringCol;
+    if(colorMode==="cluster"){
+      ringCol=CAT_COLORS[p.category]||"#888";
+    } else {
+      ringCol=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+    }
+    g.beginPath();g.arc(px,py,dotR+1.5,0,Math.PI*2);
+    g.strokeStyle=ringCol;g.lineWidth=1.5;g.globalAlpha=0.5;g.stroke();
+    g.globalAlpha=1;
+  }
+
+  // Category centroids
+  var cc=DATA.category_centroids||{};
+  for(var cat in cc){
+    if(!cats[cat]) continue;
+    var c2=cc[cat];
+    var cx2=tx(c2.x),cy2=ty(c2.y);
+    g.beginPath();g.arc(cx2,cy2,8,0,Math.PI*2);
+    g.strokeStyle=CAT_COLORS[cat]||"#888";g.lineWidth=2;g.stroke();
+    g.fillStyle=CAT_COLORS[cat]||"#888";g.font="bold 10px monospace";
+    g.textAlign="center";g.textBaseline="middle";
+    g.fillText(cat.toUpperCase(),cx2,cy2);
+  }
+}
+
+function hitTest(e){
+  var cvs=document.getElementById("cvs");
+  var rect=cvs.getBoundingClientRect();
+  var mx=(e.clientX-rect.left)*(W/rect.width);
+  var my=(e.clientY-rect.top)*(H/rect.height);
+  var best=null,bd=15;
+  var ps=DATA.prompts||[];
+  for(var i=0;i<ps.length;i++){
+    var p=ps[i];
+    if(!cats[p.category]) continue;
+    var dx=tx(p.x)-mx,dy=ty(p.y)-my,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<bd){bd=d;best=ps[i]}
+  }
+  return best;
+}
+
+function showTip(p){
+  var tip=document.getElementById("tip");
+  if(!p){tip.style.display="none";return}
+  var catCol=CAT_COLORS[p.category]||"#888";
+  var clCol=CLUSTER_COLORS[p.cluster%CLUSTER_COLORS.length];
+  var h='<div style="margin-bottom:4px">';
+  h+='<span style="color:'+catCol+';font-weight:700">'+(CAT_LABELS[p.category]||p.category)+'</span> ';
+  h+='<span style="color:'+clCol+';font-weight:600">Cluster '+p.cluster+'</span></div>';
+  h+='<div style="color:#e0e6ed;font-size:11px;margin-bottom:6px;word-break:break-word">'+p.prompt+'</div>';
+
+  // Mini fingerprint bar
+  if(p.fingerprint){
+    var maxF=Math.max.apply(null,p.fingerprint);
+    if(maxF<1e-6) maxF=1;
+    h+='<div style="display:flex;gap:1px;height:16px;align-items:flex-end;margin-top:4px" title="Correction field fingerprint">';
+    for(var i=0;i<p.fingerprint.length;i++){
+      var pct=p.fingerprint[i]/maxF*100;
+      h+='<div style="flex:1;background:#ff634780;height:'+pct+'%;min-height:1px;border-radius:1px"></div>';
+    }
+    h+='</div>';
+    h+='<div style="color:#606870;font-size:9px;margin-top:2px">Fingerprint: '+DATA.n_cells+' cells (class × subclass)</div>';
+  }
+
+  if(pinnedTip) h+='<div style="color:#484f58;font-size:9px;margin-top:4px;text-align:center">click canvas to dismiss</div>';
+  tip.innerHTML=h;tip.style.display="block";tip.style.left="16px";tip.style.top="16px";
+}
+
+}catch(e){document.getElementById("err").textContent="Error: "+e.message+"\n"+e.stack}})();
+</script>
+</body>
+</html>
