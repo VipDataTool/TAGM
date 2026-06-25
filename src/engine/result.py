@@ -51,6 +51,7 @@ class SFDResult:
     density_p90: float = 0.0
     global_erank: float = 0.0
     n_layers_used: int = 0
+    per_token_directions: List[list] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -61,6 +62,7 @@ class SFDResult:
             "density_p90": self.density_p90,
             "global_erank": self.global_erank,
             "n_layers_used": self.n_layers_used,
+            "per_token_directions": self.per_token_directions,
         }
 
     @classmethod

@@ -206,6 +206,8 @@ class ModuleRunner:
             ("mechanistic_interpretability",  "mi"),
             ("mi_instrumentation",            "mi"),
             ("arditi_benchmarks",             "mi"),
+            ("harm_direction",               "mi"),
+            ("harm_trajectory",              "mi"),
             # Legacy (purple border in UI)
             ("comparative_analysis",          "legacy"),
         ]

@@ -148,6 +148,7 @@ def compute_sfd(layer_acts: dict, cache: dict):
         if n_tokens is None:
             n_tokens = acts.shape[0]
             accum_density = np.zeros(n_tokens)
+            accum_directions = [None] * n_tokens
 
         V_k = layer_cache.V_k
         S = layer_cache.S
@@ -165,6 +166,13 @@ def compute_sfd(layer_acts: dict, cache: dict):
             erank_t = float(np.exp(H_t))
             accum_density[t] += erank_t / layer_cache.erank if layer_cache.erank > 0 else 0.0
 
+            # Accumulate weighted direction (layer-averaged)
+            w_normed = w / (np.linalg.norm(w) + 1e-10)
+            if accum_directions[t] is None:
+                accum_directions[t] = w_normed.astype(np.float32)
+            else:
+                accum_directions[t] = accum_directions[t] + w_normed.astype(np.float32)
+
         n_layers_used += 1
 
     if n_layers_used == 0 or n_tokens is None:
@@ -172,8 +180,18 @@ def compute_sfd(layer_acts: dict, cache: dict):
 
     per_density = accum_density / n_layers_used
 
+    # Normalize accumulated directions across layers and serialize
+    per_directions = []
+    for t in range(n_tokens):
+        if accum_directions[t] is not None:
+            d = accum_directions[t] / n_layers_used
+            per_directions.append([round(float(x), 6) for x in d])
+        else:
+            per_directions.append([])
+
     return SFDResult(
         per_token_density=list(per_density),
+        per_token_directions=per_directions,
         density_mean=float(np.mean(per_density)),
         density_max=float(np.max(per_density)),
         density_var=float(np.var(per_density)),
