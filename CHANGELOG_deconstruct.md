@@ -779,3 +779,40 @@ persisted as configuration.
 - src/engine/hooks.py: no modifications.
 - src/engine/analyzer.py: no modifications.
 - All existing modules: no modifications.
+
+
+## v3.3 — Concept Atom Explorer Module (2026-06-26)
+
+### Added
+- **src/engine/modules/concept_atoms.py** (936 lines, NEW). Standalone
+  SRA-style diagnostic and cleaning module:
+  - Loads Concept Atom Registry from CSV (shield/confound/target atoms
+    with contrastive prompt pairs).
+  - Computes per-atom directions (difference-of-means) across user-
+    specified layer range.
+  - Computes raw refusal direction from session data via DirectionFitter.
+  - Orthogonality diagnostics: cosine heatmap between refusal direction
+    and all atoms per layer. Summarizes Shield entanglement with
+    advisory recommendation (clean/moderate/significant).
+  - SRA ridge-regression cleaning step: projects refusal direction onto
+    null space of Shield+Confound atom subspace. Single closed-form
+    ridge solve per layer.
+  - Gamma calibration: fixed or semantic-energy-proxy modes.
+  - Hook-based ablation preview: installs cleaned direction as temporary
+    inference-time hooks via ActivationIntervention, generates on harmful
+    prompts, removes hooks. Model unchanged.
+  - Advanced weight export: applies permanent rank-one updates to
+    residual-stream writers. Off by default, behind confirmation.
+  - Persists JSON artifact (cleaned direction, orthogonality maps,
+    gamma schedule, registry metadata) for consumption by routing
+    ablation module. Follows existing module_files pattern.
+  - 13 parameters with descriptive tooltips.
+  - No imports from other modules. No cross-module dependencies.
+
+- **src/templates/concept_atoms_starter.csv** (82 lines, NEW). Seed
+  registry with 6 atoms (Logic, Math, Coding as Shields; Negation,
+  Sentiment as Confounds; Deception, Privacy as Targets), 5 prompts
+  per side each. Intended as a starting point for expansion.
+
+### Unchanged
+- All existing modules, core files, and infrastructure.
