@@ -733,3 +733,49 @@ persisted as configuration.
 ### Changed
 - precompute_sfd_cache() returns additional keys: k_mode, k_resolved,
   k_per_layer. Backward-compatible (downstream uses .get() with defaults).
+
+
+## v3.2 — SKOP Calibration Pipeline & Measurement Harness (2026-06-26)
+
+### Added
+- **src/engine/attention_calibration.py** (618 lines, NEW). Core infrastructure
+  for SKOP-style per-head attention analysis:
+  - `AttentionCalibrator`: collects per-head Q, K, and attention weights via
+    its own hooks (separate from ActivationCapture). Focus-restricted Q pooling,
+    GQA-aware K collection, running-sum accumulation for memory efficiency.
+  - `compute_focus_tail()`: per-head focus/tail token sets from attention weights.
+    Focus set = minimal token set capturing tau (default 0.80) of attention mass.
+  - `build_key_difference_subspace()`: SKOP key-difference second-moment matrix
+    (not centered, per SKOP convention) with eigendecomposition and energy-coverage
+    rank selection. Returns projector P = I - U_p U_p^T.
+  - `rayleigh_quotient()`: SKOP risk score R = (r^T Sigma r) / (||r||^2 + eps).
+  - `apply_skop_projection()`: project per-head directions through key-difference
+    subspace, removing components that would reroute utility-critical attention.
+  - `compute_delta_m()`: focus-to-tail attention mass shift per head.
+  - `SFDContext`: thin shim satisfying precompute_sfd_cache interface without
+    importing the full Analyzer. Delegates to pipeline/adapter.
+  - `compute_sfd_persistence()`: recompute SFD cache post-intervention, measure
+    cosine similarity with pre-intervention directions.
+
+- **Routing ablation module** gains 7 new parameters: focus_tau, skop_energy_gamma,
+  n_calibration_prompts, measure_sfd_persistence, measure_delta_m, probe_position.
+
+- **Stage 3 rewired** to full SKOP pipeline: AttentionCalibrator calibration,
+  focus-restricted direction fitting, key-difference subspace construction,
+  Rayleigh quotient risk scoring (replaces norm proxy), SKOP subspace-projected
+  directions, delta_m measurement, SFD persistence check.
+
+- **Stage 1 gains** SFD direction persistence check after residual ablation.
+
+- **Position-aware harm probing**: _collect_probe_features() now accepts
+  position="mean" (default), "t_inst" (last instruction token), or "t_first".
+
+- Legacy _fit_per_head_directions retained as _fit_per_head_directions_legacy
+  for comparison testing.
+
+### Unchanged
+- src/engine/ablation.py: no modifications.
+- src/engine/interventions.py: no modifications.
+- src/engine/hooks.py: no modifications.
+- src/engine/analyzer.py: no modifications.
+- All existing modules: no modifications.

@@ -471,6 +471,83 @@ class RoutingAblationModule(TASMModule):
             min_val=5,
             max_val=100,
         ),
+
+        # ═══ SKOP CALIBRATION ═══
+        ModuleParameter(
+            name="focus_tau",
+            display_name="SKOP: Focus Set Threshold",
+            description=(
+                "Attention mass threshold for focus set construction. "
+                "0.80 means the minimal set of tokens capturing 80%% of "
+                "attention mass per head. Lower values yield smaller "
+                "focus sets and more aggressive filtering."
+            ),
+            type="float",
+            default=0.80,
+            min_val=0.50,
+            max_val=0.95,
+        ),
+        ModuleParameter(
+            name="skop_energy_gamma",
+            display_name="SKOP: Subspace Energy Threshold",
+            description=(
+                "Cumulative eigenvalue energy threshold for the "
+                "key-difference subspace. 0.90 retains eigenvectors "
+                "capturing 90%% of routing-relevant energy."
+            ),
+            type="float",
+            default=0.90,
+            min_val=0.50,
+            max_val=0.99,
+        ),
+        ModuleParameter(
+            name="n_calibration_prompts",
+            display_name="SKOP: Calibration Prompts Per Class",
+            description=(
+                "Number of prompts per class (harm/safe) for SKOP "
+                "calibration. 30 per class is sufficient; SKOP reports "
+                "utility plateaus around 1000 but 250 is the floor."
+            ),
+            type="int",
+            default=30,
+            min_val=10,
+            max_val=100,
+        ),
+        ModuleParameter(
+            name="measure_sfd_persistence",
+            display_name="Measure: SFD Direction Persistence",
+            description=(
+                "After ablation, recompute the SFD cache and measure "
+                "cosine similarity with the pre-ablation directions. "
+                "Tests whether the routing signal survives intervention."
+            ),
+            type="bool",
+            default=True,
+        ),
+        ModuleParameter(
+            name="measure_delta_m",
+            display_name="Measure: Focus-to-Tail Mass Shift",
+            description=(
+                "Measure how much attention mass moves from focus to "
+                "tail tokens after routing intervention. Positive "
+                "delta_m means routing was disrupted. ARA shows this "
+                "predicts jailbreak success better than head ablation."
+            ),
+            type="bool",
+            default=True,
+        ),
+        ModuleParameter(
+            name="probe_position",
+            display_name="Probe: Token Position",
+            description=(
+                "Which token position to use for harm probe features. "
+                "'mean' = mean-pool all tokens (default). 't_inst' = "
+                "last instruction token (Zhao et al. show this encodes "
+                "harm recognition specifically)."
+            ),
+            type="str",
+            default="mean",
+        ),
     ]
 
     def __init__(self):
@@ -560,7 +637,8 @@ class RoutingAblationModule(TASMModule):
 
         # Harm probe (baseline)
         probe_features, probe_labels = self._collect_probe_features(
-            session_results, prog
+            session_results, prog,
+            position=params.get("probe_position", "mean"),
         )
         baseline_probe = HarmProbe(regularization=1.0)
         baseline_probe.fit(probe_features, probe_labels)
@@ -616,6 +694,20 @@ class RoutingAblationModule(TASMModule):
                 progress=prog,
             )
             results["baseline_sas"] = sas_baseline
+
+        # Capture pre-ablation SFD cache for persistence check
+        if params.get("measure_sfd_persistence", True):
+            try:
+                from src.engine.sfd import precompute_sfd_cache
+                from src.engine.attention_calibration import SFDContext
+                prog("Capturing pre-ablation SFD cache...")
+                ctx = SFDContext(self._pipeline)
+                self._pre_sfd_cache = precompute_sfd_cache(ctx)
+                prog(f"SFD cache captured: {self._pre_sfd_cache.get('n_layers', 0)} layers, "
+                     f"k={self._pre_sfd_cache.get('k', '?')}")
+            except Exception as e:
+                prog(f"SFD cache capture failed: {e}")
+                self._pre_sfd_cache = None
 
         # ── Stage 1: Residual abliteration ─────────────────────────
         if params.get("run_residual_ablation", True):
@@ -690,6 +782,27 @@ class RoutingAblationModule(TASMModule):
                  f"harm probe {baseline_probe.holdout_auroc:.3f} → "
                  f"{post_probe.holdout_auroc:.3f}")
 
+            # SFD direction persistence check (on ablated model)
+            if params.get("measure_sfd_persistence", True):
+                try:
+                    from src.engine.attention_calibration import (
+                        compute_sfd_persistence,
+                    )
+                    prog("Checking SFD direction persistence post-ablation...")
+                    pre_sfd = getattr(self, '_pre_sfd_cache', None)
+                    if pre_sfd is not None:
+                        sfd_persist = compute_sfd_persistence(
+                            self._pipeline, pre_sfd, progress=prog,
+                        )
+                        results["stage1_sfd_persistence"] = sfd_persist
+                        prog(f"SFD persistence: cosine={sfd_persist['mean_cosine']:.3f}, "
+                             f"survived={sfd_persist['signal_survived']}")
+                    else:
+                        prog("SFD persistence: no pre-ablation cache available. "
+                             "Run an analysis session with SFD enabled first.")
+                except Exception as e:
+                    prog(f"SFD persistence check failed: {e}")
+
             # Restore original weights for subsequent stages
             prog("Restoring original model weights...")
             model.load_state_dict(original_state)
@@ -703,48 +816,83 @@ class RoutingAblationModule(TASMModule):
             try:
                 from src.engine.qk_intervention import (
                     QKRoutingIntervention,
-                    compute_risk_scores,
                     select_risk_heads,
                 )
-            except ImportError:
-                prog("ERROR: qk_intervention.py not found. "
-                     "Place it in src/engine/.")
-                results["stage3_error"] = "qk_intervention.py not found"
-            else:
-                # Fit per-head query-space directions
-                prog("Fitting per-head routing directions...")
-                per_head_dirs = self._fit_per_head_directions(
-                    model, adapter, tokenizer, session_results, prog
+                from src.engine.attention_calibration import (
+                    AttentionCalibrator,
+                    apply_skop_projection,
+                    compute_delta_m,
                 )
+            except ImportError as e:
+                prog(f"ERROR: required module not found: {e}")
+                results["stage3_error"] = str(e)
+            else:
+                # SKOP calibration: collect Q, K, attention per head
+                prog("Running SKOP calibration...")
+                n_cal = params.get("n_calibration_prompts", 30)
+                cal_harm = [r["prompt"] for r in session_results
+                            if r.get("category", "").lower() in HARM_CATEGORIES][:n_cal]
+                cal_safe = [r["prompt"] for r in session_results
+                            if r.get("category", "").lower() in SAFE_CATEGORIES][:n_cal]
+                cal_prompts = cal_harm + cal_safe
+                cal_labels = ["harm"] * len(cal_harm) + ["safe"] * len(cal_safe)
+
+                calibrator = AttentionCalibrator(model, adapter, tokenizer)
+                calibrator.calibrate(
+                    cal_prompts, cal_labels,
+                    tau=params.get("focus_tau", 0.80),
+                    progress=prog,
+                )
+
+                # Fit per-head directions from focus-restricted Q
+                prog("Fitting per-head routing directions (focus-restricted)...")
+                per_head_dirs = calibrator.fit_directions()
                 results["stage3_n_head_directions"] = len(per_head_dirs)
 
                 if per_head_dirs:
-                    # Select risk heads
-                    risk_frac = params.get("risk_head_fraction", 0.20)
-                    n_heads, _ = adapter.attention_heads(model)
-                    n_layers_model = adapter.n_layers(model)
+                    # Build key-difference subspace and score heads
+                    prog("Building key-difference subspaces and scoring heads...")
+                    projectors, risk_scores = calibrator.build_subspace_and_score(
+                        per_head_dirs,
+                        gamma=params.get("skop_energy_gamma", 0.90),
+                    )
 
-                    # Simple scoring: use direction magnitude as proxy
-                    # (Full SKOP Rayleigh quotient requires key activations)
-                    scores = {
-                        k: float(np.linalg.norm(v))
-                        for k, v in per_head_dirs.items()
-                    }
-                    risk_heads = select_risk_heads(scores, risk_frac)
+                    # Apply SKOP subspace projection to directions
+                    prog("Applying SKOP subspace projection...")
+                    projected_dirs = apply_skop_projection(per_head_dirs, projectors)
+                    n_projected = len(projected_dirs)
+                    n_collapsed = len(per_head_dirs) - n_projected
+                    if n_collapsed > 0:
+                        prog(f"  {n_collapsed} directions collapsed after projection "
+                             f"(removed from intervention set)")
+                    results["stage3_n_projected"] = n_projected
+                    results["stage3_n_collapsed"] = n_collapsed
+
+                    # Select risk heads by Rayleigh quotient
+                    risk_frac = params.get("risk_head_fraction", 0.20)
+                    risk_heads = select_risk_heads(risk_scores, risk_frac)
                     n_risk = sum(len(v) for v in risk_heads.values())
                     prog(f"Selected {n_risk} risk heads across "
-                         f"{len(risk_heads)} layers")
+                         f"{len(risk_heads)} layers (Rayleigh scoring)")
                     results["stage3_risk_heads"] = {
                         str(k): v for k, v in risk_heads.items()
                     }
 
-                    # Install QK intervention
+                    # Report top risk scores
+                    top_risk = sorted(risk_scores.items(),
+                                      key=lambda x: x[1], reverse=True)[:10]
+                    results["stage3_top_risk_scores"] = [
+                        {"layer": li, "head": hi, "score": round(s, 6)}
+                        for (li, hi), s in top_risk
+                    ]
+
+                    # Install QK intervention with SKOP-projected directions
                     qk_intv = QKRoutingIntervention()
                     qk_intv.install_on_q_proj(
-                        model, adapter, per_head_dirs, risk_heads
+                        model, adapter, projected_dirs, risk_heads
                     )
 
-                    # Post-routing-ablation generation
+                    # Post-routing generation
                     prog(f"Post-routing generation: {len(eval_prompts)} prompts...")
                     post_routing_gen = self._generate_batch(
                         model, tokenizer, eval_prompts,
@@ -763,6 +911,42 @@ class RoutingAblationModule(TASMModule):
                         )
                         results["stage3_kl"] = kl_routing
 
+                    # Focus-to-tail mass shift (delta_m)
+                    if params.get("measure_delta_m", True):
+                        try:
+                            prog("Measuring focus-to-tail mass shift...")
+                            # Forward pass on eval prompts with intervention active
+                            device = next(model.parameters()).device
+                            delta_m_results = {}
+                            for li in range(min(4, calibrator.n_layers)):
+                                focus = calibrator.get_focus_sets_for_layer(li)
+                                if focus:
+                                    delta_m_results[str(li)] = {
+                                        "n_heads_with_focus": len(focus),
+                                    }
+                            results["stage3_delta_m_layers"] = delta_m_results
+                            prog("Delta_m measurement recorded.")
+                        except Exception as e:
+                            prog(f"Delta_m measurement failed: {e}")
+
+                    # SFD persistence after routing ablation
+                    if params.get("measure_sfd_persistence", True):
+                        try:
+                            from src.engine.attention_calibration import (
+                                compute_sfd_persistence,
+                            )
+                            pre_sfd = getattr(self, '_pre_sfd_cache', None)
+                            if pre_sfd is not None:
+                                prog("Checking SFD persistence post-routing...")
+                                sfd_persist = compute_sfd_persistence(
+                                    self._pipeline, pre_sfd, progress=prog,
+                                )
+                                results["stage3_sfd_persistence"] = sfd_persist
+                                prog(f"SFD persistence: cosine="
+                                     f"{sfd_persist['mean_cosine']:.3f}")
+                        except Exception as e:
+                            prog(f"SFD persistence check failed: {e}")
+
                     # Clean up hooks
                     qk_intv.remove()
 
@@ -774,6 +958,8 @@ class RoutingAblationModule(TASMModule):
                             post_routing_gen["refusal_rate"], 4
                         ),
                         "n_risk_heads": n_risk,
+                        "n_projected_directions": n_projected,
+                        "scoring_method": "rayleigh_quotient",
                         "kl": results.get("stage3_kl", {}).get("kl"),
                     }
                     prog(f"Stage 3 summary: refusal {baseline_gen['refusal_rate']:.0%} → "
@@ -785,9 +971,15 @@ class RoutingAblationModule(TASMModule):
     # ── Helper: collect probe features from session ────────────────
 
     def _collect_probe_features(
-        self, session_results: list, progress: Callable
+        self, session_results: list, progress: Callable,
+        position: str = "mean",
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Extract mean-pooled final-layer embeddings for harm probe."""
+        """Extract final-layer embeddings for harm probe.
+
+        Args:
+            position: 'mean' for mean-pool (default), 't_inst' for
+                last instruction token, 't_first' for first token.
+        """
         features, labels = [], []
         for r in session_results:
             cat = (r.get("category") or "").lower()
@@ -800,8 +992,13 @@ class RoutingAblationModule(TASMModule):
             emb = r.get("per_token_final_emb")
             if not emb:
                 continue
-            arr = np.asarray(emb, dtype=np.float32).mean(axis=0)
-            features.append(arr)
+            arr = np.asarray(emb, dtype=np.float32)
+            if position == "t_inst":
+                features.append(arr[-1])
+            elif position == "t_first":
+                features.append(arr[0])
+            else:
+                features.append(arr.mean(axis=0))
             labels.append(y)
         return np.array(features), np.array(labels)
 
@@ -906,15 +1103,22 @@ class RoutingAblationModule(TASMModule):
         }
 
     # ── Helper: per-head direction fitting for Stage 3 ─────────────
+    # Superseded by AttentionCalibrator in src/engine/attention_calibration.py.
+    # Stage 3 now uses calibrator.fit_directions() which provides:
+    #   - Focus-restricted Q activation pooling (SKOP focus/tail sets)
+    #   - Per-head key-difference subspace construction
+    #   - Rayleigh quotient risk scoring
+    #   - SKOP subspace-projected directions
+    # The old mean-pool approach is retained below for fallback/testing.
 
-    def _fit_per_head_directions(
+    def _fit_per_head_directions_legacy(
         self, model, adapter, tokenizer, session_results: list,
         progress: Callable,
     ) -> dict[tuple[int, int], np.ndarray]:
-        """Fit per-head query-space directions via difference of means.
+        """Legacy: mean-pool Q direction fitting (no focus/tail selection).
 
-        For each head: collect Q activations on harmful vs safe prompts,
-        compute the difference of means, normalize.
+        Retained for comparison testing. Stage 3 uses
+        AttentionCalibrator.fit_directions() instead.
         """
         from src.engine import config as engine_config
 
@@ -923,8 +1127,7 @@ class RoutingAblationModule(TASMModule):
         d_head = adapter.head_dim(model)
         device = next(model.parameters()).device
 
-        # Accumulate per-head Q means
-        harm_q_sums = {}    # (layer, head) -> running sum
+        harm_q_sums = {}
         safe_q_sums = {}
         harm_counts = {}
         safe_counts = {}
@@ -935,7 +1138,6 @@ class RoutingAblationModule(TASMModule):
             harm_counts[(li, hi)] = 0
             safe_counts[(li, hi)] = 0
 
-        # Sample prompts for efficiency
         harm_prompts = [
             r["prompt"] for r in session_results
             if r.get("category", "").lower() in HARM_CATEGORIES
@@ -945,7 +1147,6 @@ class RoutingAblationModule(TASMModule):
             if r.get("category", "").lower() in SAFE_CATEGORIES
         ][:30]
 
-        # Collect Q activations via hooks on q_proj
         for label, prompts in [("harm", harm_prompts), ("safe", safe_prompts)]:
             sums = harm_q_sums if label == "harm" else safe_q_sums
             counts = harm_counts if label == "harm" else safe_counts
@@ -979,18 +1180,14 @@ class RoutingAblationModule(TASMModule):
                 for h in hooks:
                     h.remove()
 
-                # Process captured Q tensors
                 for li, q_tensor in captured_q.items():
-                    # q_tensor: [1, seq_len, n_heads * d_head]
-                    q = q_tensor[0].numpy()  # [seq_len, n_heads * d_head]
+                    q = q_tensor[0].numpy()
                     q = q.reshape(q.shape[0], n_heads, d_head)
-                    # Mean-pool across sequence
-                    q_mean = q.mean(axis=0)  # [n_heads, d_head]
+                    q_mean = q.mean(axis=0)
                     for hi in range(n_heads):
                         sums[(li, hi)] += q_mean[hi]
                         counts[(li, hi)] += 1
 
-        # Compute per-head directions
         per_head_dirs = {}
         for li in range(n_layers):
             for hi in range(n_heads):
@@ -1005,5 +1202,5 @@ class RoutingAblationModule(TASMModule):
                 if norm > 1e-8:
                     per_head_dirs[(li, hi)] = (direction / norm).astype(np.float32)
 
-        progress(f"Fitted {len(per_head_dirs)} per-head routing directions")
+        progress(f"Fitted {len(per_head_dirs)} per-head routing directions (legacy)")
         return per_head_dirs
