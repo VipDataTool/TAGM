@@ -36,14 +36,48 @@ class SFDLayerCache:
 
 # ── Precomputation ──────────────────────────────────────────────
 
-def precompute_sfd_cache(analyzer: "Analyzer", k: int = None) -> dict:
+def precompute_sfd_cache(analyzer, k=None):
     """Compute SVD of concatenated [ΔW_Q; ΔW_K] per layer.
 
+    The truncation rank k is resolved based on sfd_svd_k_mode:
+      - "fixed":  use sfd_svd_k directly (default, backward-compatible)
+      - "ratio":  k = hidden_dim / sfd_svd_ratio
+      - "energy": smallest k where cumulative spectral energy >= threshold
+
+    For "ratio" and "energy" modes, sfd_svd_k is used as the upper bound
+    for the initial SVD computation and as the fallback if resolution fails.
+
     Returns a dict with 'layers' (dict of layer_idx → SFDLayerCache),
-    'k', 'mean_erank', etc.
+    'k', 'k_mode', 'k_resolved', 'mean_erank', etc.
     """
-    if k is None:
-        k = engine_config.get("sfd_svd_k")
+    import numpy as np
+    import torch
+    from src.engine import config as engine_config
+
+    k_mode = engine_config.get("sfd_svd_k_mode") or "fixed"
+    k_fixed = k if k is not None else engine_config.get("sfd_svd_k")
+
+    # Resolve k for ratio mode upfront (energy mode resolves per-layer)
+    if k_mode == "ratio" and k is None:
+        ratio = engine_config.get("sfd_svd_ratio") or 56
+        hidden_dim = analyzer.hidden_size
+        k_resolved = max(4, round(hidden_dim / ratio))
+        logger.info(
+            f"[SFD] Ratio mode: hidden_dim={hidden_dim}, ratio={ratio}, "
+            f"k={k_resolved}"
+        )
+    elif k_mode == "energy" and k is None:
+        # For energy mode, compute a generous initial SVD and trim after
+        k_resolved = min(k_fixed * 2, 128)
+        energy_threshold = engine_config.get("sfd_svd_energy_threshold") or 0.90
+        logger.info(
+            f"[SFD] Energy mode: threshold={energy_threshold}, "
+            f"initial k={k_resolved}"
+        )
+    else:
+        k_resolved = k_fixed
+        if k_mode != "fixed":
+            logger.info(f"[SFD] Fixed mode: k={k_resolved}")
 
     ds = analyzer.delta_store
     n_layers = analyzer.n_layers
@@ -55,8 +89,9 @@ def precompute_sfd_cache(analyzer: "Analyzer", k: int = None) -> dict:
         end = engine_config.get("sfd_layer_end")
         layer_indices = list(range(min(start, n_layers), min(end, n_layers)))
 
-    layers_cache: Dict[int, SFDLayerCache] = {}
+    layers_cache = {}
     eranks = []
+    k_values_used = []  # track per-layer k for energy mode
 
     for layer_idx in layer_indices:
         dw_q = ds.get_or_none(layer_idx, "q")
@@ -71,29 +106,44 @@ def precompute_sfd_cache(analyzer: "Analyzer", k: int = None) -> dict:
             if svd_seed is not None:
                 torch.manual_seed(svd_seed)
 
-            actual_k = min(k, min(dw_qk.shape))
+            actual_k = min(k_resolved, min(dw_qk.shape))
             U, S, V = torch.svd_lowrank(dw_qk, q=actual_k)
 
             s = S.float().numpy().astype(np.float64)
             v_k = V.float().numpy().astype(np.float32).T  # (k, d_in)
 
-            # Filter degenerate singular values — and keep the right
-            # singular vectors aligned with the surviving values. Filtering
-            # only ``s`` previously left V_k with more rows than S, which
-            # made ``S * c`` a shape-mismatch crash in compute_sfd.
+            # Filter degenerate singular values and keep V_k aligned
             keep = s > 1e-10
             s_pos = s[keep]
             if len(s_pos) == 0:
                 continue
             v_k = v_k[keep]
 
+            # ── Energy-based truncation ────────────────────────────
+            if k_mode == "energy" and k is None:
+                total_energy = np.sum(s_pos ** 2)
+                cumulative = np.cumsum(s_pos ** 2) / total_energy
+                # Smallest k where cumulative energy >= threshold
+                above = np.where(cumulative >= energy_threshold)[0]
+                if len(above) > 0:
+                    k_energy = int(above[0]) + 1  # +1 because index is 0-based
+                else:
+                    k_energy = len(s_pos)
+                k_energy = max(4, k_energy)  # floor at 4
+
+                # Trim to energy-resolved k
+                s_pos = s_pos[:k_energy]
+                v_k = v_k[:k_energy]
+                k_values_used.append(k_energy)
+
+            # ── Standard spectral statistics ───────────────────────
             p = s_pos / s_pos.sum()
             H = -np.sum(p * np.log(p))
             erank = float(np.exp(H))
             norm_H = H / np.log(len(s_pos)) if len(s_pos) > 1 else 0.0
             log_vol = float(np.sum(np.log(s_pos)))
-            frob2 = float(np.sum(s ** 2))
-            stable_r = frob2 / (s[0] ** 2) if s[0] > 0 else 1.0
+            frob2 = float(np.sum(s_pos ** 2))
+            stable_r = frob2 / (s_pos[0] ** 2) if s_pos[0] > 0 else 1.0
 
             layers_cache[layer_idx] = SFDLayerCache(
                 V_k=v_k, S=s_pos.astype(np.float32),
@@ -108,9 +158,25 @@ def precompute_sfd_cache(analyzer: "Analyzer", k: int = None) -> dict:
 
     mean_erank = float(np.mean(eranks)) if eranks else 0.0
 
+    # Determine effective k for reporting
+    if k_mode == "energy" and k_values_used:
+        k_effective = int(np.median(k_values_used))
+        logger.info(
+            f"[SFD] Energy mode resolved: median k={k_effective}, "
+            f"range=[{min(k_values_used)}, {max(k_values_used)}] "
+            f"across {len(k_values_used)} layers"
+        )
+    elif k_mode == "ratio":
+        k_effective = k_resolved
+    else:
+        k_effective = k_fixed
+
     return {
         "layers": layers_cache,
-        "k": k,
+        "k": k_effective,
+        "k_mode": k_mode,
+        "k_resolved": k_resolved if k_mode != "energy" else k_effective,
+        "k_per_layer": k_values_used if k_mode == "energy" else None,
         "n_layers": len(layers_cache),
         "mean_erank": mean_erank,
     }

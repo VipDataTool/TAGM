@@ -18,6 +18,9 @@ DEFAULTS = {
     "sfd_layer_start": 9,
     "sfd_layer_end": 16,  # exclusive
     "sfd_svd_k": 16,
+    "sfd_svd_k_mode": "fixed",           # "fixed", "ratio", or "energy"
+    "sfd_svd_ratio": 56,                  # hidden_dim / ratio = k (ratio mode)
+    "sfd_svd_energy_threshold": 0.90,     # cumulative energy fraction (energy mode)
     "sfd_svd_seed": 42,
 
     # ── Serialization ──

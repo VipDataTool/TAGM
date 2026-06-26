@@ -715,3 +715,21 @@ persisted as configuration.
 - `src/engine/app_core.py`
 - `static/js/main.js`
 - `static/index.html`
+
+
+## v3.1 — Adaptive SFD & Routing Ablation (2026-06-26)
+
+### Added
+- **Adaptive SVD truncation** (sfd_svd_k_mode): three modes for determining
+  the spectral truncation rank k. "fixed" (default, unchanged behavior),
+  "ratio" (k = hidden_dim / ratio), "energy" (smallest k at threshold).
+  Config keys: sfd_svd_k_mode, sfd_svd_ratio, sfd_svd_energy_threshold.
+- **QK routing intervention** (src/engine/qk_intervention.py): asymmetric
+  query-space directional ablation at selected attention heads. 330 lines.
+- **Routing ablation module** (src/engine/modules/routing_ablation.py):
+  four-stage TASMModule. 1009 lines.
+- UI config entries for new SFD parameters in main.js.
+
+### Changed
+- precompute_sfd_cache() returns additional keys: k_mode, k_resolved,
+  k_per_layer. Backward-compatible (downstream uses .get() with defaults).
