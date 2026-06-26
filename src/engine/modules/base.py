@@ -191,6 +191,8 @@ class ModuleRunner:
         Three loose tiers, signalled by the `tier` field:
           - "infrastructure": utility modules (probe gen, dialogue)
           - "showpiece":      featured analysis modules (bordered in UI)
+          - "mi":             mechanistic-interpretability work
+          - "routing":        routing research (SFD, harm direction, ablation)
           - "standard":       everything else
         """
         DISPLAY_ORDER = [
@@ -205,9 +207,12 @@ class ModuleRunner:
             # Mechanistic-interpretability work (lime-green border in UI)
             ("mechanistic_interpretability",  "mi"),
             ("mi_instrumentation",            "mi"),
-            ("arditi_benchmarks",             "mi"),
-            ("harm_direction",               "mi"),
-            ("harm_trajectory",              "mi"),
+            # Routing research (pink border in UI)
+            ("arditi_benchmarks",             "routing"),
+            ("harm_direction",               "routing"),
+            ("harm_trajectory",              "routing"),
+            ("concept_atoms",                "routing"),
+            ("routing_ablation",             "routing"),
             # Legacy (purple border in UI)
             ("comparative_analysis",          "legacy"),
         ]

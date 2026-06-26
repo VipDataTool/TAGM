@@ -427,13 +427,13 @@ class ConceptAtomModule(TASMModule):
             name="registry_csv",
             display_name="Atom Registry CSV",
             description=(
-                "Paste or upload the concept atom registry as CSV text. "
+                "Upload a concept atom registry CSV file. "
                 "Four columns: atom_name, role (shield/confound/target), "
                 "side (positive/negative), prompt. Each atom needs at "
                 "least 2 prompts per side; 10-15 per side is recommended. "
-                "A starter template is available in src/templates/."
+                "A starter template is in src/templates/concept_atoms_starter.csv."
             ),
-            type="str",
+            type="file",
             default="",
         ),
 
@@ -597,17 +597,52 @@ class ConceptAtomModule(TASMModule):
     def set_pipeline(self, pipeline):
         self._pipeline = pipeline
 
+    def _load_registry_csv(self, filename: str) -> str | None:
+        """Load registry CSV content from the templates directory.
+
+        The filename comes from the file picker upload, which saves
+        to src/templates/. Falls back to treating the value as inline
+        CSV text if no file is found (for programmatic use).
+        """
+        if not filename or not filename.strip():
+            return None
+
+        # Try templates directory first
+        templates_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "templates"
+        )
+        filepath = os.path.join(templates_dir, filename)
+        if os.path.isfile(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                logger.error(f"[CAM] Failed to read {filepath}: {e}")
+                return None
+
+        # If the value contains newlines or commas, treat as inline CSV
+        if "\n" in filename or "," in filename:
+            return filename
+
+        logger.warning(f"[CAM] Registry file not found: {filepath}")
+        return None
+
     def validate(self, session_results: list, params: dict) -> tuple:
         if self._pipeline is None or not self._pipeline.loaded:
             return False, "No model loaded."
 
         csv_text = params.get("registry_csv", "")
         if not csv_text.strip():
-            return False, ("No atom registry provided. Paste CSV text into the "
-                           "registry field, or load the starter template from "
-                           "src/templates/concept_atoms_starter.csv.")
+            return False, ("No atom registry file selected. Upload a CSV or "
+                           "use the starter template (concept_atoms_starter.csv).")
 
-        atoms = parse_atom_registry(csv_text)
+        # Resolve filename to file content
+        csv_content = self._load_registry_csv(csv_text)
+        if csv_content is None:
+            return False, f"Could not read registry file: {csv_text}"
+
+        atoms = parse_atom_registry(csv_content)
         ok, msg = validate_registry(atoms)
         if not ok:
             return False, msg
@@ -644,9 +679,13 @@ class ConceptAtomModule(TASMModule):
         tokenizer = self._pipeline.tokenizer
 
         # ── Step 1: Parse registry ─────────────────────────────────
-        prog("Parsing atom registry...")
-        csv_text = params.get("registry_csv", "")
-        atoms = parse_atom_registry(csv_text)
+        prog("Loading atom registry...")
+        csv_filename = params.get("registry_csv", "")
+        csv_content = self._load_registry_csv(csv_filename)
+        if csv_content is None:
+            prog(f"ERROR: Could not read registry file: {csv_filename}")
+            return {"error": f"Could not read registry file: {csv_filename}"}
+        atoms = parse_atom_registry(csv_content)
 
         n_shields = sum(1 for d in atoms.values() if d["role"] == "shield")
         n_confounds = sum(1 for d in atoms.values() if d["role"] == "confound")
