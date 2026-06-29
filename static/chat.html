@@ -145,12 +145,14 @@ async function send(){
   $('sendBtn').disabled=true;
   turnCount++;
 
-  const thinking=addMsg('system','generating...');
-  setStatus('Generating response...');
+  // Create the assistant message element for streaming into
+  const msgEl=document.createElement('div');
+  msgEl.className='msg assistant';
+  $('messages').appendChild(msgEl);
+  setStatus('Generating...');
 
   try{
-    const controller=new AbortController();setTimeout(()=>controller.abort(),300000);
-    const resp=await fetch('/api/chat',{signal:controller.signal,
+    const resp=await fetch('/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -162,44 +164,76 @@ async function send(){
         compute_sfd:$('chkSFD').checked,
       })
     });
-    const data=await resp.json();
-    thinking.remove();
 
-    if(data.ok){
-      chatMessages.push({role:'assistant',content:data.response});
-      const msgEl=addMsg('assistant',data.response);
-      if(data.model_class){
-        const badge=document.createElement('div');
-        badge.className='model-badge '+data.model_class;
-        badge.textContent=data.model_class;
-        msgEl.insertBefore(badge,msgEl.firstChild);
-      }
-      if(data.ecm_active&&data.ecm_diagnostics){
-        const eb=document.createElement('span');
-        eb.className='ecm-badge';
-        const d=data.ecm_diagnostics;
-        eb.textContent='ECM '+d.n_interventions+'/'+d.n_tokens+' · max='+d.max_cascade_signal.toFixed(3);
-        msgEl.insertBefore(eb,msgEl.children[1]||null);
-      }
+    const reader=resp.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+    let responseText='';
+    let statusParts=[];
+    let textSpan=document.createElement('span');
+    msgEl.appendChild(textSpan);
 
-      let statusParts=[];
-      if(data.n_input_tokens) statusParts.push(data.n_input_tokens+' in');
-      if(data.n_output_tokens) statusParts.push(data.n_output_tokens+' out');
-      if(data.prompt_analyzed) statusParts.push('prompt analyzed');
-      if(data.response_analyzed) statusParts.push('response analyzed');
-      if(statusParts.length){
-        const tag=document.createElement('div');
-        tag.className='analyzed';
-        tag.textContent='✓ '+statusParts.join(', ')+' — see Data tab in Analyzer';
-        msgEl.appendChild(tag);
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+
+      // Parse SSE lines from buffer
+      let lines=buffer.split('\n');
+      buffer=lines.pop(); // keep incomplete line in buffer
+      for(const line of lines){
+        if(!line.startsWith('data: ')) continue;
+        let evt;
+        try{ evt=JSON.parse(line.slice(6)); }catch(e){ continue; }
+
+        if(evt.type==='token'){
+          responseText+=evt.text;
+          textSpan.textContent=responseText;
+          $('messages').scrollTop=$('messages').scrollHeight;
+        }
+        else if(evt.type==='done'){
+          chatMessages.push({role:'assistant',content:evt.response||responseText});
+          // Model class badge
+          if(evt.model_class){
+            const badge=document.createElement('div');
+            badge.className='model-badge '+evt.model_class;
+            badge.textContent=evt.model_class;
+            msgEl.insertBefore(badge,msgEl.firstChild);
+          }
+          // ECM badge
+          if(evt.ecm_active&&evt.ecm_diagnostics){
+            const eb=document.createElement('span');
+            eb.className='ecm-badge';
+            const d=evt.ecm_diagnostics;
+            eb.textContent='ECM '+d.n_interventions+'/'+d.n_tokens+' · max='+d.max_cascade_signal.toFixed(3);
+            msgEl.insertBefore(eb,msgEl.children[1]||null);
+          }
+          if(evt.n_input_tokens) statusParts.push(evt.n_input_tokens+' in');
+          if(evt.n_output_tokens) statusParts.push(evt.n_output_tokens+' out');
+          setStatus('Turn '+turnCount+'. '+(statusParts.length?statusParts.join(', '):''));
+        }
+        else if(evt.type==='analyzed'){
+          statusParts.push(evt.target+' analyzed');
+          setStatus('Turn '+turnCount+'. '+statusParts.join(', '));
+        }
+        else if(evt.type==='error'){
+          msgEl.remove();
+          addMsg('error',evt.error||'Unknown error');
+          setStatus('Error: '+(evt.error||'unknown'));
+        }
       }
-      setStatus('Turn '+turnCount+'. '+(statusParts.length?statusParts.join(', '):''));
-    } else {
-      addMsg('error',data.error||'Unknown error');
-      setStatus('Error: '+(data.error||'unknown'));
+    }
+    // Show analysis tag if any analysis happened
+    if(statusParts.some(s=>s.includes('analyzed'))){
+      const tag=document.createElement('div');
+      tag.className='analyzed';
+      tag.textContent='✓ '+statusParts.join(', ')+' — see Data tab in Analyzer';
+      msgEl.appendChild(tag);
     }
   }catch(e){
-    thinking.remove();
+    if(!msgEl.querySelector('span')||!msgEl.querySelector('span').textContent){
+      msgEl.remove();
+    }
     addMsg('error','Network error: '+e.message);
     setStatus('Network error');
   }

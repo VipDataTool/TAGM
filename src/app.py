@@ -1285,7 +1285,7 @@ async def get_chat_config():
 
 @app.post("/api/chat")
 async def chat(request: Request):
-    from src.service.chat import generate_chat_response
+    from src.service.chat import generate_chat_response_streaming
     if state.pipeline is None or not state.pipeline.loaded:
         return {"ok": False, "error": "No model loaded."}
     try:
@@ -1304,49 +1304,71 @@ async def chat(request: Request):
                           engine_config.get("chat_max_tokens")))
     hard_cap = max(int(engine_config.get("chat_max_tokens")), cfg_max)
     max_tokens = min(int(body.get("max_tokens", cfg_max)), hard_cap)
-    try:
-        result = await run_in_threadpool(
-            generate_chat_response, state.pipeline, messages,
+
+    do_analyze = body.get("analyze", cfg.get("analyze_prompts", True))
+    do_analyze_resp = body.get("analyze_response", cfg.get("analyze_responses", False))
+    compute_ltp = body.get("compute_ltp", cfg.get("compute_ltp", True))
+    compute_sfd = body.get("compute_sfd", cfg.get("compute_sfd", True))
+    category = body.get("category", "chat")
+
+    async def event_stream():
+        import json as _json
+
+        done_result = None
+
+        # Phase 1: stream tokens from generation
+        for sse_line in generate_chat_response_streaming(
+            state.pipeline, messages,
             max_tokens=max_tokens,
             temperature=float(cfg.get("temperature",
                               engine_config.get("chat_temperature"))),
             top_p=float(cfg.get("top_p", engine_config.get("chat_top_p"))),
-        )
-
-        do_analyze = body.get("analyze", cfg.get("analyze_prompts", True))
-        do_analyze_resp = body.get("analyze_response", cfg.get("analyze_responses", False))
-
-        # Analyze user prompt into session if requested
-        if result.get("ok") and do_analyze:
-            prompt_text = messages[-1].get("content", "")
-            if prompt_text and state.analyzer:
+        ):
+            # Capture the done event for analysis
+            if sse_line.startswith("data: "):
                 try:
-                    category = body.get("category", "chat")
-                    compute_ltp = body.get("compute_ltp", cfg.get("compute_ltp", True))
-                    compute_sfd = body.get("compute_sfd", cfg.get("compute_sfd", True))
-                    rd = await run_in_threadpool(
-                        _analyze_chat_turn, prompt_text, category,
-                        compute_ltp, compute_sfd, "user")
-                    result["prompt_analyzed"] = True
-                except Exception as e:
-                    logger.warning(f"Chat prompt analysis failed: {e}")
+                    evt = _json.loads(sse_line[6:].strip())
+                    if evt.get("type") == "done":
+                        done_result = evt
+                except Exception:
+                    pass
+            yield sse_line
 
-        # Analyze model response into session if requested
-        if result.get("ok") and do_analyze_resp:
-            response_text = result.get("response", "")
-            if response_text and state.analyzer:
-                try:
-                    rd = await run_in_threadpool(
-                        _analyze_chat_turn, response_text,
-                        "model_response", False, False, "assistant")
-                    result["response_analyzed"] = True
-                except Exception as e:
-                    logger.warning(f"Chat response analysis failed: {e}")
+        # Phase 2: run analysis (after generation completes)
+        if done_result and done_result.get("ok"):
+            # Analyze user prompt
+            if do_analyze:
+                prompt_text = messages[-1].get("content", "")
+                if prompt_text and state.analyzer:
+                    try:
+                        await run_in_threadpool(
+                            _analyze_chat_turn, prompt_text, category,
+                            compute_ltp, compute_sfd, "user")
+                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
+                    except Exception as e:
+                        logger.warning(f"Chat prompt analysis failed: {e}")
 
-        return result
-    except Exception as e:
-        logger.exception("Chat endpoint failed")
-        return {"ok": False, "error": str(e)}
+            # Analyze model response
+            if do_analyze_resp:
+                response_text = done_result.get("response", "")
+                if response_text and state.analyzer:
+                    try:
+                        await run_in_threadpool(
+                            _analyze_chat_turn, response_text,
+                            "model_response", False, False, "assistant")
+                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
+                    except Exception as e:
+                        logger.warning(f"Chat response analysis failed: {e}")
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role):
