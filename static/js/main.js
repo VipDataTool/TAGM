@@ -485,6 +485,31 @@ async function loadConfig(){
 
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';saveConfig();log('LTP config reset to defaults','done')}
 
+// ── ECM Configuration ─────────────────────────────────────────
+async function saveEcmConfig(){
+  try{
+    await fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        ecm_active:$('cfgEcmActive').checked,
+        ecm_gain:parseFloat($('cfgEcmGain').value),
+        ecm_floor:parseFloat($('cfgEcmFloor').value),
+        ecm_n_scales:parseInt($('cfgEcmScales').value),
+      })
+    });
+  }catch(e){console.error('ECM config save failed',e)}
+}
+async function loadEcmConfig(){
+  try{
+    var r=await(await fetch('/api/engine_config')).json();
+    if(r.ok&&r.config){
+      if($('cfgEcmActive'))$('cfgEcmActive').checked=!!r.config.ecm_active;
+      if($('cfgEcmGain'))$('cfgEcmGain').value=r.config.ecm_gain||2.0;
+      if($('cfgEcmFloor'))$('cfgEcmFloor').value=r.config.ecm_floor||0.1;
+      if($('cfgEcmScales'))$('cfgEcmScales').value=r.config.ecm_n_scales||5;
+    }
+  }catch(e){}
+}
+
 async function restoreSessionFromDisk(){
   try{
     log('Restoring session from disk...','');
@@ -1322,10 +1347,6 @@ var ENGINE_PARAM_META = {
   chat_temperature:        {group:'Chat Generation', label:'Temperature',                 desc:'Sampling temperature for chat responses. Lower = more deterministic.', type:'float', step:0.05, min:0.0, max:2.0},
   chat_top_p:              {group:'Chat Generation', label:'Top-p (nucleus)',              desc:'Nucleus sampling threshold. Lower = fewer candidate tokens.', type:'float', step:0.05, min:0.1, max:1.0},
   chat_max_tokens:         {group:'Chat Generation', label:'Max tokens',                  desc:'Maximum tokens generated per chat response.', type:'int', min:32, max:2048, step:32},
-  ecm_active:              {group:'ECM',             label:'ECM active',                  desc:'Enable Entropic Cascade Mitigation during chat generation. Multi-scale entropy tracker modulates sampling to dampen cascade-prone trajectories.', type:'bool'},
-  ecm_n_scales:            {group:'ECM',             label:'EWMA scales',                 desc:'Number of dyadic EWMA scales (effective windows: 2, 4, 8, ... tokens).', type:'int', min:2, max:8},
-  ecm_gain:                {group:'ECM',             label:'Cascade gain',                desc:'How aggressively to tighten on cascade detection. Lower = gentler. If >50% of tokens are intervened on benign prompts, reduce this.', type:'float', step:0.1, min:0.1, max:5.0},
-  ecm_floor:               {group:'ECM',             label:'Temperature floor',           desc:'ARBITRARY — no derivation. Minimum temperature to prevent greedy collapse. Raise if outputs loop; lower if ECM never bites.', type:'float', step:0.05, min:0.01, max:0.5},
 };
 
 function _advToggleLock(unlocked){
@@ -1372,7 +1393,7 @@ function renderAdvancedParams(){
   var h = '';
   for(var group in groups){
     var items = groups[group];
-    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':group==='Serialization'?'var(--purple)':group==='ECM'?'var(--green)':'var(--text-2)';
+    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':group==='Serialization'?'var(--purple)':'var(--text-2)';
     h += '<div style="margin-bottom:14px"><div style="font-size:var(--font-desc);font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
     items.forEach(function(item){
@@ -1773,7 +1794,7 @@ function playChime() {
     // Initialize SSE event stream before anything else.
     initEventSource();
 
-    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();loadHepStatus();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();loadHepStatus();loadEcmConfig();
     if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tagm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}
