@@ -1336,6 +1336,16 @@ async def chat(request: Request):
 
         # Phase 2: run analysis (after generation completes)
         if done_result and done_result.get("ok"):
+            ecm_was_active = done_result.get("ecm_active", False)
+            ecm_summary = None
+            if ecm_was_active and done_result.get("ecm_diagnostics"):
+                d = done_result["ecm_diagnostics"]
+                ecm_summary = {
+                    "n_interventions": d.get("n_interventions", 0),
+                    "n_tokens": d.get("n_tokens", 0),
+                    "max_cascade_signal": d.get("max_cascade_signal", 0),
+                }
+
             # Analyze user prompt
             if do_analyze:
                 prompt_text = messages[-1].get("content", "")
@@ -1343,7 +1353,8 @@ async def chat(request: Request):
                     try:
                         await run_in_threadpool(
                             _analyze_chat_turn, prompt_text, category,
-                            compute_ltp, compute_sfd, "user")
+                            compute_ltp, compute_sfd, "user",
+                            ecm_active=ecm_was_active)
                         yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat prompt analysis failed: {e}")
@@ -1355,7 +1366,9 @@ async def chat(request: Request):
                     try:
                         await run_in_threadpool(
                             _analyze_chat_turn, response_text,
-                            "model_response", False, False, "assistant")
+                            "model_response", False, False, "assistant",
+                            ecm_active=ecm_was_active,
+                            ecm_summary=ecm_summary)
                         yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat response analysis failed: {e}")
@@ -1371,7 +1384,8 @@ async def chat(request: Request):
     )
 
 
-def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role):
+def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role,
+                       ecm_active=False, ecm_summary=None):
     """Analyze a chat turn and add it to the session with a role tag."""
     from src.engine.result import result_to_dict
     with _analysis_lock:
@@ -1382,5 +1396,8 @@ def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role):
         )
         rd = result_to_dict(result)
         rd["role"] = role
+        rd["ecm_active"] = ecm_active
+        if ecm_summary:
+            rd["ecm_summary"] = ecm_summary
         state.session.add_result(rd)
         return rd

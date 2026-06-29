@@ -153,7 +153,7 @@ def generate_chat_response_streaming(
         return
 
     # Wait for the generation thread to finish
-    thread.join(timeout=10)
+    thread.join()
 
     if gen_error[0]:
         yield _sse({"type": "error", "error": str(gen_error[0])})
@@ -188,31 +188,3 @@ def generate_chat_response_streaming(
 def _sse(data: dict) -> str:
     """Format a dict as an SSE data line."""
     return f"data: {json.dumps(data)}\n\n"
-
-
-# ── Legacy non-streaming interface (kept for compatibility) ────
-
-def generate_chat_response(
-    pipeline,
-    messages: list[dict],
-    max_tokens: int = 256,
-    temperature: float = 0.7,
-    top_p: float = 0.9,
-) -> dict:
-    """Non-streaming generation. Used by analysis paths that need
-    the full response as a dict."""
-    result = {}
-    for sse_line in generate_chat_response_streaming(
-        pipeline, messages, max_tokens, temperature, top_p
-    ):
-        # Parse the SSE data back out
-        if sse_line.startswith("data: "):
-            try:
-                evt = json.loads(sse_line[6:].strip())
-                if evt.get("type") == "done":
-                    result = evt
-                elif evt.get("type") == "error":
-                    result = {"ok": False, "error": evt.get("error", "Unknown")}
-            except Exception:
-                pass
-    return result or {"ok": False, "error": "No response generated"}

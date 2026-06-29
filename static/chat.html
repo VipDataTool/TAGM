@@ -251,6 +251,15 @@ function toggleECM(active){
   }).catch(()=>setStatus('ECM toggle failed'));
 }
 
+// Re-sync ECM checkbox when tab becomes visible (catches changes made in config panel)
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden){
+    fetch('/api/engine_config').then(r=>r.json()).then(d=>{
+      if(d.ok&&d.config) $('chkECM').checked=!!d.config.ecm_active;
+    }).catch(()=>{});
+  }
+});
+
 function resetChat(){
   chatMessages.length=0;
   turnCount=0;

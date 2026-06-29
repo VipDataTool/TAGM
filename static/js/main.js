@@ -509,6 +509,10 @@ async function loadEcmConfig(){
     }
   }catch(e){}
 }
+// Re-sync ECM when tab becomes visible (catches changes made in chat UI)
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden) loadEcmConfig();
+});
 
 async function restoreSessionFromDisk(){
   try{
