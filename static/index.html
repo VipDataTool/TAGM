@@ -215,8 +215,7 @@
     <div class="card">
       <div class="card-header"><h3>Entropic Cascade Mitigation</h3></div>
       <div class="card-body">
-        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Multi-scale entropy tracker that modulates sampling during chat generation. When token-level entropy rises across any time scale (cascade signature), effective temperature is reduced to bias toward higher-confidence tokens. Changes apply immediately to the next chat message.</div>
-        <div class="checkbox-row" style="margin-bottom:12px"><input type="checkbox" id="cfgEcmActive" onchange="saveEcmConfig()"><label for="cfgEcmActive" style="color:var(--green);font-weight:500">Enable ECM</label></div>
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Multi-scale entropy tracker that modulates sampling during chat generation. Toggle ECM on/off from the chat interface. Adjust tuning parameters here — changes apply immediately.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;max-width:600px">
           <div>
             <label style="font-size:var(--font-desc);color:var(--green)">Cascade gain</label>

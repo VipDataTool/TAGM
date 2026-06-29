@@ -490,7 +490,6 @@ async function saveEcmConfig(){
   try{
     await fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        ecm_active:$('cfgEcmActive').checked,
         ecm_gain:parseFloat($('cfgEcmGain').value),
         ecm_floor:parseFloat($('cfgEcmFloor').value),
         ecm_n_scales:parseInt($('cfgEcmScales').value),
@@ -502,7 +501,6 @@ async function loadEcmConfig(){
   try{
     var r=await(await fetch('/api/engine_config')).json();
     if(r.ok&&r.config){
-      if($('cfgEcmActive'))$('cfgEcmActive').checked=!!r.config.ecm_active;
       if($('cfgEcmGain'))$('cfgEcmGain').value=r.config.ecm_gain||2.0;
       if($('cfgEcmFloor'))$('cfgEcmFloor').value=r.config.ecm_floor||0.1;
       if($('cfgEcmScales'))$('cfgEcmScales').value=r.config.ecm_n_scales||5;
