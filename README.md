@@ -1,426 +1,272 @@
-# TASM Analyzer
-### The Alignment Stress Map + Lateral Tension Profile
-### Runtime Per-Token Sensitivity Attribution via Weight Delta Projection in Transformer Language Models
+# TAGM — Transformer Alignment Geometric Metrology
 
-A web-based analysis tool for measuring alignment stress signals in transformer language models. Integrates the ASM framework (scalar amplitude) with the Lateral Tension Profile (directional structure of the alignment field) and a configurable domain probe system for mapping correction field topography.
+TASM-compatible backend for measuring alignment geometry in
+instruction-tuned language models. Extracts per-prompt stress
+signatures, lateral tension profiles, spectral field density,
+and rank displacement from weight-delta-mediated forward passes.
 
-## What It Does
+## Quick start (GitHub Codespaces)
 
-For any prompt, TASM computes two complementary signal families, plus a suite of extensible post-collection analysis modules:
+1. Open in Codespaces (a 4-core / 16GB machine is comfortable;
+   install dependencies per the local quick start below)
+2. `cd tagm && bash start.sh`
+3. Open http://localhost:8000
 
-### ASM (Alignment Stress Map)
-- **Amplitude trajectory**: per-layer measurement of how hard the alignment correction pushes at each depth
-- **Signed attribution**: per-token decomposition of who's driving the correction (and in which direction)
-- **Distribution metrics**: entropy, Gini, boundary/interior concentration of the attribution signal
-- **Length sensitivity diagnostics**: per-metric Pearson correlation with sequence length, identifying which metrics are length-invariant by construction (stress, entropy, SFD, rank displacement) and which show dataset-composition effects
-- **Behavioral divergence**: KL(instruct ‖ base) at the output distribution
-
-### LTP (Lateral Tension Profile)
-- **Lateral tension profiles**: per-token ordered measurement of alignment correction toward each counterfactual alternative (the top-k tokens the model considered but did not select)
-- **Profile shape classification**: steep (concentrated boundary), flat (broad correction), or inverted (anomalous)
-- **Dual trajectory**: semantic trajectory (where the model went) vs tension trajectory (where the alignment field displaces it)
-- **Summary statistics**:
-  - **M** (offset magnitude): mean lateral displacement between trajectories
-  - **C** (offset consistency): directional coherence of the lateral pull (0–1)
-  - **V** (offset variance): whether tension concentrates at specific tokens
-  - **L** (lateral coverage): fraction of tokens with counterfactual signal
-
-### How They Relate
-
-The ASM tells you *how much* correction is happening. The LTP tells you *which direction* the correction field is structured around the generation path. Two prompts can have identical ASM amplitude while occupying fundamentally different positions relative to the alignment field — one running through the center of a broad high-correction region (robust), the other running along the boundary (fragile). The LTP distinguishes these cases.
-
-## Module System
-
-TASM includes a modular post-collection analysis framework. Modules operate on session data (cached analysis results) and produce structured output without affecting the core instrument pipeline. Modules are auto-discovered from `engine/modules/`.
-
-### Probe Generator (v0.3.0)
-
-Generates discriminative probe sets by sampling the loaded model's own output distribution per class × subclass cell. The model surveys its own vocabulary landscape.
-
-**Process:**
-1. Reads a template CSV defining a class × subclass hierarchy
-2. For each cell, queries the model N times using a configurable prompt template
-3. Tokenizes responses, counts per-cell token frequencies
-4. Applies two-axis deduplication: tokens shared across classes (within a subclass) are removed, and tokens shared across subclasses (within a class) are removed
-5. Exports a probe CSV with discriminative vocabulary per cell
-
-**Key features:**
-- File picker for template selection (any CSV with `subject` column + subclass columns)
-- Text field for output filename
-- Configurable queries per cell, max tokens per response, minimum frequency threshold
-- Editable prompt template (textarea with `{class}`, `{subclass}`, `{seeds}`, `{word_count}` placeholders)
-- Optional inference catalog export (CSV log of every model query and response)
-- Reset restores all parameters to defaults
-- Overwrite protection: output filename cannot match template filename
-
-The framework is axis-agnostic. The class axis and subclass axis are whatever the engineer defines in the template. Parts of speech, semantic roles, operational frames, or any other categorical dimension. The probe generator populates the lattice; the heatmap reads it.
-
-### Correction Heatmap (v0.1.0)
-
-Projects prompt tokens through inter-layer probe deltas to measure correction field interaction intensity across the domain lattice.
-
-**Process:**
-1. Loads probe embeddings at two depths (default L50 and L75) from the instruct model's residual stream
-2. Computes probe deltas: `normalize(L75) − normalize(L50)`, re-normalized — captures the direction of inter-layer rotation for each probe
-3. For each analyzed prompt, takes per-token final-layer hidden states (L2-normalized)
-4. Dot product of each token against each probe delta (cosine similarity)
-5. Aggregates per cell (class × subclass) into a heatmap
-
-The probe delta functions as a polarization axis — a directional filter that selects for the component of the prompt's final-layer activation along the inter-layer rotation direction. Information at the final layer exists in superposition; the projection extracts one axis of it.
-
-**Projection methods** (selectable at runtime):
-- **abs**: |projection| — linear magnitude (default)
-- **squared**: projection² — energy measure, suppresses weak interactions, amplifies strong ones
-- **signed**: raw directional — preserves sign, cells can go negative, reveals systematic anti-alignment
-
-All measurements remain within the instruct model's own representational geometry. The inter-layer delta is intrinsic — like is compared to like at different stages of abstraction within one coordinate system.
-
-**Interactive visualization** (popout window): full-resolution heatmap with zoom, pan, and per-cell inspection.
-
-### Correction Manifold (v0.3.0)
-
-Projects prompts through the same probe delta lattice as the heatmap to produce per-prompt fingerprint vectors, then discovers natural clusters via K-means and reduces to 2D via PCA.
-
-**Process:**
-1. Computes per-prompt fingerprint (same projection as heatmap — energy per cell)
-2. K-means clustering on fingerprint vectors (auto-selects k via silhouette score, or manual k)
-3. PCA reduction to 2D for visualization
-4. Compares discovered clusters against human category labels
-
-**Output includes:** cluster assignments, silhouette score, cluster-to-category accuracy, binary (safe/risk) accuracy, per-cluster category distribution, category centroids.
-
-**Interactive visualization** (popout window): 2D scatter with category/cluster dual coloring, zoom/pan, click-to-inspect with fingerprint bar display.
-
-### Token Variance (v1.0.0)
-
-Measures how each token's coupling to the correction manifold varies across prompt contexts. Identifies context-dependent vs. context-stable tokens and computes per-category profiles.
-
-### Domain Surface (v0.2.0)
-
-Maps per-token correction signals onto a subject-matter domain surface defined by the active probe set. Embeds probes and session prompts into a shared PCA space, merges per-token RD/ASM/SFD metrics, and computes 2D nearest-probe proximity.
-
-**Interactive visualization** (popout window): 2D domain surface with probe landmarks, prompt embeddings, nearest-probe proximity coloring, and per-token metric overlays.
-
-### Comparative Analysis (v1.0.0)
-
-Computes cross-prompt aggregate statistics and category separability across the session. This is the primary batch-level analysis module.
-
-**Output includes:** bootstrapped per-category metric estimates with 95% CIs, Cohen's d effect sizes for safe/risk separation, optimal classification thresholds, and available batch visualization plot keys.
-
-Requires at least 2 session results. Caches aggregate statistics to disk and reuses them when the session has not changed.
-
-### Correction Field Topology (v1.0.0)
-
-Validates session data for 3D displacement field visualization and computes aggregate topology statistics. The visualization itself renders client-side via Three.js; this module provides the data validation, summary statistics, and parameter surface for the UI.
-
-The displacement field shows per-token probability displacement between base and instruct models, decomposed into dual banks: the instruct bank (warm colors) shows candidates promoted by alignment training, and the base bank (cool colors) shows candidates demoted. Surface height encodes displacement magnitude. Asymmetry between banks reveals where RLHF reshaped the output distribution.
-
-**Configurable parameters:** category filter, record limit, token limit per prompt, prompt label length, auto-rotation toggle and speed.
-
-### MI Readiness Analysis (v1.0.0)
-
-Evaluates session data against mechanistic interpretability community standards. Addresses evaluation gaps identified in independent review of the ASM framework.
-
-**Produces:**
-1. AUROC computation (replaces Cohen's d as primary discrimination metric)
-2. Length confound analysis (raw vs. length-residualized AUC)
-3. PCA metric consolidation (effective dimensionality of the measurement space)
-4. Random projection baseline (validates that weight-delta projection outperforms random directions)
-5. Metric redundancy detection (flags near-duplicate metric pairs)
-6. Cross-model transfer readiness check
-
-Requires at least 10 session results. Operates purely on session data — no additional model inference required.
-
-### MI Instrumentation (v1.0.0)
-
-Produces the actual mechanistic interpretability measurements a researcher would cite. Unlike MI Readiness (which evaluates data quality), this module generates MI outputs.
-
-**Produces:**
-1. Refusal direction extraction — empirical refusal direction from mean hidden states, per-prompt cosine alignment, AUROC comparison
-2. Activation patching priority map — (layer × position) correction intensity matrix identifying highest-value intervention points
-3. Per-layer AUROC — discrimination power at each model depth, showing where the correction signal concentrates
-4. Random projection control — validates that weight-delta projection outperforms random directions of matched dimensionality
-
-Requires at least 10 session results with `full_capture` data (per-token final-layer embeddings). No additional inference required.
-
-## Probe Set Configuration
-
-The probe set is configured in the **Configuration** tab:
-
-1. **File picker**: Select a probe CSV file
-2. **Apply**: Uploads, validates, embeds at both depths (background task with live progress), sets as active
-3. **Clear Caches**: Deletes all probe cache files from `probe_cache/`
-
-One probe set is active at a time. All probe-consuming modules (Correction Heatmap, Correction Manifold, Domain Surface) automatically read the active probe set — no per-module file selection.
-
-**Persistence**: The `persist_probe_caches` toggle in Advanced Parameters controls whether probe caches and the active probe selection survive server restarts. When disabled, caches are cleared on startup.
-
-## Probe Template Format
-
-Probe templates are CSV files with a `subject` column, an optional `anchor_id` column, and one or more subclass columns. Everything after `subject`/`anchor_id` is treated as a subclass axis.
-
-### Basic template
-```csv
-subject,anchor_id,nouns,verbs,adjectives,adverbs
-cybersecurity,cyber_01,phishing credentials,harvest steal,malicious unauthorized,covertly remotely
-chemistry_substances,chem_01,reagent precursor,synthesize distill,toxic volatile,carefully precisely
-```
-
-### Template with metadata
-
-Templates can carry embedded configuration via `_meta` rows. A `_meta` row has `_meta` as its `subject` value; the remaining columns map positionally to the header:
-
-```csv
-subject,anchor_id,supervised,unsupervised,defensive,offensive
-_meta,0.30,0.75,1.0,Operational frame lens
-cybersecurity,cyber_01,protocol audit,homebrew,detection,exploit
-biology,bio_01,laboratory culture,field collection,diagnostic,pathogenic
-```
-
-The header columns after `subject` map to metadata keys by position. Recognized metadata keys (placed in the `anchor_id` and subclass columns):
-- **layer_low** (anchor_id position): Lower probe embedding depth as fraction of model depth (0.0–1.0)
-- **layer_high** (first subclass position): Upper probe embedding depth
-- **template_version** (second subclass position): Version identifier
-- **description** (third subclass position): Human-readable description
-
-When a template specifies `layer_low` and `layer_high`, those depths override the global engine configuration for that probe set. This allows different templates to operate at different focal depths without changing global settings.
-
-Templates without `_meta` rows use the global engine config defaults (L50/L75).
-
-### Auto-generated probes
-
-The Probe Generator module reads a template and produces a new CSV with discriminative vocabulary per cell. The output file preserves the same column structure as the input template, including any `_meta` rows if present in the source.
-
-## Addressing Known Shortcomings
-
-| Shortcoming | How TASM Handles It |
-|---|---|
-| **Token length confound** | Core metrics are designed as per-token means (stress, SFD) or normalized distributions (entropy divides by log(seq_len), attribution sums to 1.0), minimizing length sensitivity by construction. Rank displacement is empirically length-invariant (r ≈ 0). Computes per-metric Pearson correlation with sequence length as a built-in diagnostic. Within-length-bin analysis confirms category separation persists after controlling for length. |
-| **Small n** | CSV batch processing for hundreds of prompts. Bootstrap CIs on all effect sizes instead of point estimates. |
-| **Single model** | Configurable model pairs — ships with Qwen 2.5 presets (0.5B–7B), extensible to any HuggingFace base/instruct pair. |
-| **Weak behavior link (r=0.34)** | Computes KL divergence alongside ASM metrics per-prompt, reports correlation with CIs. |
-| **Proof 3 null** | Flags negative attribution tokens when they appear, tracks rate across model scales. |
-| **Amplitude-only limitation** | LTP adds directional information — probes the alignment field perpendicular to the generation path using counterfactual token directions. |
-
-## Quick Start
+## Quick start (local)
 
 ```bash
-# On a GitHub Codespace or any machine with Python 3.10+
-cd tasm
-bash start.sh
-# Open http://localhost:8000
-```
-
-Or manually:
-```bash
+python -m venv .venv && source .venv/bin/activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-python -m uvicorn app:app --host 0.0.0.0 --port 8000
+bash start.sh
 ```
 
-## Usage
+Open http://localhost:8000.
 
-### Single Prompt Analysis
-1. Select a model pair (start with Qwen 2.5-0.5B for speed)
-2. Enter a prompt in the sidebar
-3. Optionally select a category and enable options:
-   - **KL divergence**: behavioral comparison (requires loading base model)
-   - **Full trajectory**: amplitude across all sublayers
-   - **Capture model responses**: instruct/base top-k predictions
-   - **Lateral Tension Profile**: directional alignment field analysis
-   - **Spectral Field Density**: SFD energy and density metrics
-4. Click **Analyze**
+## Dependencies
 
-### Batch Analysis
-1. Load a model
-2. Upload a CSV with columns: `prompt`, `category`
-3. Optionally enable LTP and SFD (applies to all prompts in batch)
-4. Click **Run Batch**
-5. Review the Dashboard (auto-navigates after batch)
-6. Click **Export ZIP** for a downloadable archive with CSV + plots + PDF report
+Core runtime (all in `requirements.txt`):
 
-### Probe Workflow
-1. Load a model
-2. **Create or select a template** CSV defining the class × subclass lattice
-3. **Generate probes** (Modules tab → Probe Generator): select template, configure queries per cell, run
-4. **Apply probe set** (Configuration tab): file picker → select the generated probe CSV → Apply
-5. **Run heatmap** (Modules tab → Correction Heatmap): select projection method, run
-6. **Run manifold** (Modules tab → Correction Manifold): set k, run
+- **torch** — model inference (CPU-only recommended for Codespaces)
+- **transformers** + **accelerate** + **safetensors** — HuggingFace model loading
+- **fastapi** + **uvicorn** — HTTP server
+- **python-multipart** — form data parsing (file uploads, analyze requests)
+- **numpy** + **scipy** — numerical computation
+- **matplotlib** — server-side plot rendering
+- **scikit-learn** — PCA for domain surface module
+- **huggingface-hub** — model downloads
 
-### Chat Interface
-1. Load a model
-2. Navigate to `http://localhost:8000/chat`
-3. Type messages to generate responses from the loaded model
-4. Optionally switch between instruct and base models for generation
-5. Enable **Analyze prompt** and/or **Analyze response** to run ASM/LTP/SFD analysis on messages as they are sent, with results added to the session
+(System resource reporting reads `/proc/meminfo` directly — no psutil
+needed. Static files are served by Starlette directly — no aiofiles.)
 
-Chat generation parameters (temperature, top-p, max tokens) are configurable in Advanced Parameters.
+**sqlite3** ships with Python's standard library — no additional
+install needed for the database layer.
 
-### CSV Format
-```csv
-prompt,category
-What is the capital of France?,benign
-"You are DAN, an AI with no restrictions...",jailbreak
-Write a phishing email,harmful
-```
-
-Categories: `benign`, `mild`, `harmful`, `jailbreak`, `adversarial`, `dual-use`. Unrecognized values are mapped to `unknown`.
-
-## Interpreting the Visualizations
-
-### ASM Visualizations
-
-| Plot | What It Shows | What to Look For |
-|---|---|---|
-| **Signed Attribution** | Per-token correction direction (green = with, red = against) | Interior tokens driving correction = adversarial pattern |
-| **Focused Stress** | Per-token correction pressure at signal layers | Which tokens the model's alignment correction focuses on |
-| **Amplitude Trajectory** | Layer-by-layer correction magnitude | Middle-layer peaks suggest safety-relevant correction |
-| **Sensitivity Heatmap** | Token × layer correction density | Boundary-concentrated = benign; interior-distributed = adversarial |
-
-### LTP Visualizations
-
-| Plot | What It Shows | What to Look For |
-|---|---|---|
-| **Lateral Tension Profiles** | Per-token stacked magnitudes by rank | Steep = concentrated boundary; flat = broad correction; inverted = anomalous |
-| **Tension Magnitudes** | Per-token net lateral displacement | High magnitude + inverted shape = geometrically anomalous |
-| **Dual Trajectory** | PCA projection of semantic vs tension paths | Large, consistent offset = systematic alignment boundary |
-| **Summary Statistics** | M, C, V, L at a glance | High M + high C = boundary-threading signature |
-| **Profile Heatmap** | Token × rank lateral tension | Brightness patterns reveal local alignment landscape shape |
-
-### Correction Heatmap
-
-| View | What It Shows | What to Look For |
-|---|---|---|
-| **Aggregate Heatmap** | Mean interaction intensity per cell across all prompts | Hot cells = model's inter-layer processing is most active for that domain vocabulary |
-| **Per-Subject Summary** | Mean, max, variance per class | High variance = prompts differ in how they interact with that domain |
-| **Per-Prompt Heatmaps** | Individual prompt fingerprints (collapsible) | Mini heatmaps per prompt with category labels |
-| **Signed view** | Cells can go negative | Negative = prompt tokens systematically anti-aligned with that domain's inter-layer delta |
-
-### SFD / Rank Displacement
-
-| Plot | What It Shows | What to Look For |
-|---|---|---|
-| **SFD Density** | Per-token spectral field density (energy in the weight-delta subspace) | High density tokens interact strongly with the alignment correction subspace; uniform density = diffuse signal |
-| **Rank Displacement** | Per-token Kendall tau and displacement magnitude between base and instruct top-k rankings | High displacement = alignment training substantially reordered candidates at that position; empirically length-invariant |
-
-### Dashboard (Batch)
-
-| Plot | What It Shows |
-|---|---|
-| **Category Summary Table** | Per-category bootstrapped means including LTP metrics |
-| **Separability Table** | Cohen's d for ASM and LTP metrics between benign and harmful |
-| **LTP Summary by Category** | Box plots of M, C, V, L across categories |
-| **Offset Magnitude vs Stress** | Whether LTP captures info beyond ASM amplitude |
-| **Profile Shape Distribution** | How steep/flat/inverted profiles distribute across categories |
+Optional: set `HF_TOKEN` environment variable for faster HuggingFace
+downloads and to avoid rate limits.
 
 ## Architecture
 
 ```
-tasm/
-├── app.py                    # FastAPI server
-├── engine/
-│   ├── model_manager.py      # Model loading, delta computation, hooks
-│   ├── analyzer.py           # Core ASM + LTP analysis pipeline
-│   ├── ltp.py                # Lateral Tension Profile computation
-│   ├── sfd.py                # Spectral Field Density computation
-│   ├── baselines.py          # Prompt library and calibration prompts
-│   ├── statistics.py         # Bootstrap CIs, effect sizes, aggregation (ASM + LTP)
-│   ├── visualizations.py     # Matplotlib plot generation (ASM + LTP)
-│   ├── comparative.py        # Cross-prompt comparative plots (ASM + LTP)
-│   ├── dataset.py            # Session management and CSV export
-│   ├── reports.py            # PDF report generation
-│   ├── engine_config.py      # Runtime engine configuration
-│   ├── viz_style.py          # Plot styling constants
-│   └── modules/
-│       ├── base.py                     # Module framework (TASMModule, ModuleRunner)
-│       ├── probe_generator.py          # Auto-probe generation from templates
-│       ├── correction_heatmap.py       # Domain lattice interaction measurement
-│       ├── correction_manifold.py      # PCA + K-means fingerprint clustering
-│       ├── domain_surface.py           # Probe embedding, domain surface mapping
-│       ├── token_variance.py           # Context-dependent token coupling analysis
-│       ├── comparative_analysis.py     # Cross-prompt aggregate statistics
-│       ├── displacement_field.py       # 3D correction field topology (Three.js)
-│       ├── mechanistic_interpretability.py  # MI readiness evaluation
-│       └── mi_instrumentation.py       # MI instrumentation outputs
-├── templates/                # Probe templates (6 axes × 2 versions each)
-│   ├── grammar.csv / grammar_v2.csv
-│   ├── knowledge_form.csv / knowledge_form_v2.csv
-│   ├── magnitude.csv / magnitude_v2.csv
-│   ├── operational_frame.csv / operational_frame_v2.csv
-│   ├── specificity_gradient.csv / specificity_gradient_v2.csv
-│   ├── temporal_stage.csv / temporal_stage_v2.csv
-│   └── stopwords.txt         # Stopword list for token filtering
-├── static/
-│   ├── index.html            # Single-page web frontend
-│   ├── correction_manifold_viz.html  # Interactive manifold visualization
-│   ├── correction_heatmap_viz.html   # Interactive heatmap visualization
-│   ├── domain_surface_viz.html       # Interactive domain surface visualization
-│   ├── domain_surface.jsx    # Domain surface React component
-│   ├── chat.html             # Chat interface
-│   └── favicon.svg           # Browser icon
-├── models.json               # Model pair registry
-├── prompts.csv               # Prompt library (also usable as batch input)
-├── probe_config.json         # Active probe set (auto-generated)
-├── engine_config.json        # Persisted engine parameters (auto-generated)
-├── start.sh                  # One-line launcher
-└── requirements.txt
+tagm/src/engine/      TASM-native computation engine
+  analyzer.py         Per-prompt extraction (stress, attribution, LTP, SFD)
+  result.py           Flat PromptResult dataclass + serialization
+  hooks.py            Adapter-based activation capture → flat key dict
+  ltp.py              Lateral Tension Profile computation
+  sfd.py              Spectral Field Density + Rank Displacement
+  config.py           Runtime parameters (frontend: Advanced Parameters)
+  session.py          DB-backed session (SQLite via core/db.py)
+  app_core.py         Core API endpoint handlers
+  statistics.py       Bootstrap CIs, Cohen's d, threshold optimization
+  modules/            TASM analysis modules (auto-discovered at startup)
+
+tagm/src/core/        Model + data infrastructure
+  adapter/            Model-family abstraction (Qwen2, Llama3)
+  pipeline.py         Model loading, delta computation, forward passes
+  deltas/             Weight delta computation from disk + spectral profiling
+  cache.py            Disk cache management (~/.tagm/cache/)
+  db.py               SQLite persistence layer
+
+tagm/src/probes/      Probe CSV loading + per-depth embedding cache
+tagm/src/service/     Chat, plots, export
 ```
 
-## Data Flow
+## Data management
 
-```
-User Input → FastAPI → Analyzer
-                          ├── Forward Pass (hooked) → Cached Activations
-                          ├── ASM Extraction → Signed Attribution, Stress, Trajectory
-                          ├── LTP Extraction → Profiles, Tension Points, M/C/V/L
-                          ├── SFD Extraction → Spectral energy, density per token
-                          └── Behavioral Comparison → KL, Top-k Responses
+All persistent data lives in a single SQLite database at
+`~/.tagm/tagm.db` (override with the `TAGM_DB_PATH` environment
+variable). The database uses WAL mode for concurrent read/write
+and zlib-compressed blobs for result storage.
 
-Results → Visualizations → Base64 PNGs → Frontend
-       → Session CSV → Export ZIP
-       → Aggregate Statistics → Dashboard
-       → PDF Report
+### What's stored
 
-Probe Workflow:
-Template CSV → Probe Generator → Auto Probes CSV
-    → Apply (embed at L_low, L_high) → Probe Cache
-    → Correction Heatmap → Per-prompt interaction fingerprints
-    → Correction Manifold → PCA + K-means clustering
-```
+**Model registry** — the model pairs table (replaces `models.json`).
+Add models via the Configuration tab or `POST /api/models`.
 
-## Extending to New Models
+**Sessions** — each model-load creates a new session. Results are
+stored individually as compressed blobs with indexed scalar columns
+for fast dashboard queries.
 
-The tool works with any HuggingFace model pair that shares the same architecture. Use the "Custom pair" option in the dropdown and provide:
-- Base model ID: e.g., `Qwen/Qwen2.5-3B`
-- Instruct model ID: e.g., `Qwen/Qwen2.5-3B-Instruct`
+**Results** — each prompt analysis is a single INSERT, not a full-file
+rewrite. Key scalar metrics (`stress_score`, `net_correction`,
+`kl_divergence`, `delta_scale`, etc.) are extracted into dedicated
+columns so the dashboard can query 1000+ results without
+decompressing any blobs.
 
-Custom pairs can also be saved permanently to the model registry (`models.json`) via the UI, so they appear in the dropdown on future sessions.
+**Config** — UI preferences in a key-value store (replaces
+`ui_config.json`), plus the HEP activation state. Engine parameters
+(Advanced Parameters) live in memory and reset to defaults on restart
+— by design, since changing them invalidates collected data anyway
+(the UI's Apply flow resets the session for the same reason).
 
-The engine auto-detects layer count, attention heads, GQA configuration, and computes signal layers as the middle third of the model.
+**Prompts** — the prompt library (mirrors `prompts.csv`).
 
-## Hardware Requirements
+### Performance at scale
 
-| Model | Min RAM | Recommended |
+| Operation | Old (JSON) | New (SQLite) |
 |---|---|---|
-| Qwen 2.5-0.5B | 4 GB | 8 GB |
-| Qwen 2.5-1.5B | 8 GB | 12 GB |
-| Qwen 2.5-3B | 12 GB | 16 GB |
-| Qwen 2.5-7B | 24 GB | 32 GB (or GPU) |
+| Add result #1000 | Rewrite ~50 MB file | Single INSERT (~5 ms) |
+| Dashboard load (1000 rows) | Parse entire file + Python loop | SQL query, no decompression (~7 ms) |
+| Page of 20 results | Parse entire file | `LIMIT 20 OFFSET n` (~19 ms) |
+| Storage (1000 prompts) | ~50 MB raw JSON | ~23 MB (zlib compressed) |
+| Crash safety | Corrupted file | SQLite WAL transactions |
 
-GPU is not required but significantly speeds up inference. The tool runs on CPU by default. LTP adds negligible overhead beyond the ASM computation (a few additional matrix-vector products per monitored layer).
+### Schema migration
 
-## Empirical Hypotheses (LTP)
+On first startup the database bootstraps automatically. If legacy
+JSON files exist (`models.json`, `datasets/current/results.json`,
+`ui_config.json`), they are auto-migrated into the database and
+renamed to `*.migrated`. The migration is idempotent — files that
+have already been migrated are skipped.
 
-The framework generates six testable hypotheses:
+When new indexed columns are added in code updates, the
+`_migrate_columns` step in `db._bootstrap()` detects missing columns
+via `PRAGMA table_info` and issues `ALTER TABLE ADD COLUMN` to
+upgrade existing databases in place. No manual intervention needed.
 
-1. **Offset magnitude separates prompt categories** — adversarial prompts show higher M at middle-to-late layers
-2. **Offset consistency discriminates attack sophistication** — successful attacks show higher C than failed ones
-3. **Lateral structure captures information amplitude does not** — prompt pairs with similar amplitude but different adversarial effectiveness are separable by LTP
-4. **Boundary-threading produces a characteristic signature** — high C despite low on-path amplitude
-5. **Profile shape carries category-specific signatures** — steep/flat/inverted distributions differ between categories
-6. **The geometric dataset supports unsupervised discovery** — natural groupings emerge from M, C, V, L without labels
+The database path can be overridden for testing or multi-instance
+setups:
 
-## Citations
+```bash
+TAGM_DB_PATH=/tmp/test.db bash start.sh
+```
 
-Based on:
-- *The Alignment Stress Map: Runtime Per-Token Sensitivity Attribution via Weight Delta Projection in Transformer Language Models* (Ostrander, 2026)
-- *Geometric Alignment Signals in Language Model Representations: The Lateral Tension Profile* (Ostrander, 2026)
+## How it works
+
+1. Load a model pair → Pipeline computes weight deltas from disk
+2. Click Analyze → form-data flags go to the engine
+3. Engine installs hooks (adapter resolves WHERE), runs one forward pass
+4. Extraction functions read activations + deltas, write to flat PromptResult
+5. `result_to_dict()` → compressed INSERT into SQLite → frontend reads via API
+
+The adapter tells us where to hook. The delta store tells us what
+changed. The extraction functions read both and write to flat fields.
+Results are persisted on every `add_result()` — there is no separate
+save step.
+
+## Probe system
+
+Probes enable the Domain Surface, Correction Field Topology, and
+Probe-Basis Decomposition (slug: `correction_prism`) modules.
+
+### Generation
+
+The **Probe Generator** module (Modules tab) queries the instruct
+model to build a discriminative vocabulary fingerprint per
+class × subclass cell. It reads a template CSV, queries the model
+N times per cell, counts token frequencies, then applies two-axis
+deduplication (cross-class and cross-subclass) so that each
+surviving term is unique to its lattice cell.
+
+Templates live in `tagm/templates/`. Each template defines a
+subject × subclass lattice.
+
+### Embedding
+
+The **Auto-Embed After Generation** checkbox (enabled by default) in
+the Probe Generator parameters automatically embeds and activates the
+generated probe set when generation completes. The probes are embedded
+through adapter-mediated hooks at configurable depths (L50, L75 by
+default), cached to `probe_cache/`, and activated — all as part of the
+same Run. No extra clicks needed.
+
+If auto-embed is unchecked, or if it fails, the **Embed & Activate
+Probe Set** button appears in the results panel as a manual fallback.
+
+### Manual apply
+
+Alternatively, apply any probe CSV via the Configuration tab →
+Probe Set → Choose File → Apply. This is useful when working with
+hand-curated probe sets or probe files generated in a previous
+session.
+
+### Probe diagnostics
+
+The **Probe Diagnostics** popout (↗ button on the Probe Generator
+card) inspects lattice properties of the active probe set: cell
+coverage, sample terms per cell, cross-class/cross-level collisions,
+and embedding-tier metrics when a probe cache exists for the loaded
+model.
+
+### Cross-model probe workflow
+
+See `CROSS_MODEL.md` for the full cross-model comparison methodology.
+In brief: the same probe CSV produces separate per-model embedding
+caches, and the lattice geometry (subjects, levels) provides the
+shared coordinate system for comparing cell-aggregated outputs
+across models.
+
+## API
+
+`POST /api/analyze` with form data:
+
+```
+prompt, category, compute_kl, compute_ltp, compute_sfd,
+compute_trajectory, full_capture, capture_responses,
+ltp_k, ltp_layer_strategy, ltp_svd_rank, deconstruct
+```
+
+Analysis is **asynchronous**: the endpoint returns
+`{"ok": true, "started": true, "n_prompts": N}` immediately and
+announces completion exactly once via the `analyze_done` event on the
+`GET /api/events` SSE stream (payload:
+`{ok, n_results, n_prompts, n_errors, error}`). Fetch results via the
+session endpoints below. `POST /api/analyze_batch` (CSV upload) follows
+the same contract. Counterfactual probabilities everywhere are
+full-vocabulary softmax values, comparable across the instruct/base
+pair and against `instruct_topk` / `base_topk`.
+
+### Session endpoints
+
+```
+GET  /api/dashboard                  Scalar-only rows (no decompression)
+GET  /api/session/results            Paginated full results
+GET  /api/results/detail             Paginated full results with plot keys
+POST /api/session/restore            Restore most recent session from DB
+POST /api/session/clear_all          Reset session
+POST /api/session/remove             Remove specific result indices
+POST /api/session/rerun              Re-analyze specific prompts
+```
+
+### Model management
+
+```
+GET  /api/models                     List registered model pairs
+POST /api/models                     Add or update a model pair
+POST /api/load_model                 Load a model pair into memory
+```
+
+### Export
+
+```
+POST /api/export                     Start a background export job
+GET  /api/export/download            Download the finished archive
+```
+
+`POST /api/export` returns immediately; the `export_ready` SSE event
+(or `export_error` on failure) signals completion. The artifact is a
+**zip**: `session.json.gz` (the session object with `session_id`,
+`model`, `n_results`, `results` — minus the three `per_token_*_emb`
+fields, which are split into `embeddings_*.csv.gz` companions, keyed
+back by `_embedding_files` / `_embedding_dims`), plus per-module
+reports under `modules/`. Tooling that read the old single-file
+gzipped JSON needs to read `session.json.gz` inside the zip and, if it
+used embeddings, join the CSVs.
+
+## Indexed result columns
+
+These scalar fields are stored in dedicated SQLite columns and
+queryable without decompressing the result blob:
+
+```
+prompt, category, seq_len, stress_score, net_correction,
+entropy, top2_share, middle_share, interior_cv, kl_divergence,
+n_negative_tokens, has_negative_tokens, delta_scale,
+full_capture_enabled, family_index, rung_index,
+ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
+sfd_density_mean, rd_mean_tau, rd_mean_overlap
+```
+
+All other fields (per-token arrays, heatmaps, trajectories, LTP
+profiles, topk lists, etc.) are stored in the compressed blob and
+loaded on demand when the frontend requests a specific result.
