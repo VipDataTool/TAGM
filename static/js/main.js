@@ -1322,6 +1322,10 @@ var ENGINE_PARAM_META = {
   chat_temperature:        {group:'Chat Generation', label:'Temperature',                 desc:'Sampling temperature for chat responses. Lower = more deterministic.', type:'float', step:0.05, min:0.0, max:2.0},
   chat_top_p:              {group:'Chat Generation', label:'Top-p (nucleus)',              desc:'Nucleus sampling threshold. Lower = fewer candidate tokens.', type:'float', step:0.05, min:0.1, max:1.0},
   chat_max_tokens:         {group:'Chat Generation', label:'Max tokens',                  desc:'Maximum tokens generated per chat response.', type:'int', min:32, max:2048, step:32},
+  ecm_active:              {group:'ECM',             label:'ECM active',                  desc:'Enable Entropic Cascade Mitigation during chat generation. Multi-scale entropy tracker modulates sampling to dampen cascade-prone trajectories.', type:'bool'},
+  ecm_n_scales:            {group:'ECM',             label:'EWMA scales',                 desc:'Number of dyadic EWMA scales (effective windows: 2, 4, 8, ... tokens).', type:'int', min:2, max:8},
+  ecm_gain:                {group:'ECM',             label:'Cascade gain',                desc:'How aggressively to tighten on cascade detection. Lower = gentler. If >50% of tokens are intervened on benign prompts, reduce this.', type:'float', step:0.1, min:0.1, max:5.0},
+  ecm_floor:               {group:'ECM',             label:'Temperature floor',           desc:'ARBITRARY — no derivation. Minimum temperature to prevent greedy collapse. Raise if outputs loop; lower if ECM never bites.', type:'float', step:0.05, min:0.01, max:0.5},
 };
 
 function _advToggleLock(unlocked){
@@ -1368,7 +1372,7 @@ function renderAdvancedParams(){
   var h = '';
   for(var group in groups){
     var items = groups[group];
-    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':group==='Serialization'?'var(--purple)':'var(--text-2)';
+    var color = group==='SFD'?'var(--orange)':group==='LTP'?'var(--cyan)':group==='Statistics'?'var(--green)':group==='Serialization'?'var(--purple)':group==='ECM'?'var(--green)':'var(--text-2)';
     h += '<div style="margin-bottom:14px"><div style="font-size:var(--font-desc);font-family:var(--mono);color:'+color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+group+'</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
     items.forEach(function(item){
