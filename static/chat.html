@@ -38,6 +38,7 @@ header a:hover{color:var(--text-0)}
 .model-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;margin-bottom:4px;font-family:var(--mono);font-weight:500}
 .model-badge.instruct{background:var(--cyan);color:#000}
 .model-badge.base{background:var(--orange);color:#000}
+.ecm-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;margin-bottom:4px;font-family:var(--mono);font-weight:500;background:var(--green);color:#000}
 .input-row{padding:12px 16px;background:var(--bg-1);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
 .input-row textarea{flex:1;background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--sans);font-size:14px;resize:none;min-height:44px;max-height:120px;outline:none}
 .input-row textarea:focus{border-color:var(--cyan)}
@@ -56,6 +57,7 @@ header a:hover{color:var(--text-0)}
     <label><input type="checkbox" id="chkResponses"> Analyze responses</label>
     <label><input type="checkbox" id="chkLTP" checked> LTP</label>
     <label><input type="checkbox" id="chkSFD" checked> SFD</label>
+    <label style="border-left:1px solid var(--border);padding-left:12px"><input type="checkbox" id="chkECM" onchange="toggleECM(this.checked)"> ECM</label>
     <select id="chatModelClass" onchange="setChatModelClass(this.value)" style="background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--sans)">
       <option value="instruct" selected>Instruct</option>
       <option value="base">Base</option>
@@ -116,6 +118,10 @@ async function initChat(){
     }
     $('modelInfo').innerHTML=info;
     setStatus('Ready — temp='+chatCfg.temperature+' top_p='+chatCfg.top_p+' max_tokens='+chatCfg.max_tokens);
+    // Sync ECM toggle with server state
+    fetch('/api/engine_config').then(r=>r.json()).then(d=>{
+      if(d.ok&&d.config) $('chkECM').checked=!!d.config.ecm_active;
+    }).catch(()=>{});
   }catch(e){
     $('modelInfo').textContent='Failed to load config';
   }
@@ -168,6 +174,13 @@ async function send(){
         badge.textContent=data.model_class;
         msgEl.insertBefore(badge,msgEl.firstChild);
       }
+      if(data.ecm_active&&data.ecm_diagnostics){
+        const eb=document.createElement('span');
+        eb.className='ecm-badge';
+        const d=data.ecm_diagnostics;
+        eb.textContent='ECM '+d.n_interventions+'/'+d.n_tokens+' · max='+d.max_cascade_signal.toFixed(3);
+        msgEl.insertBefore(eb,msgEl.children[1]||null);
+      }
 
       let statusParts=[];
       if(data.n_input_tokens) statusParts.push(data.n_input_tokens+' in');
@@ -193,6 +206,15 @@ async function send(){
   busy=false;
   $('sendBtn').disabled=false;
   input.focus();
+}
+
+function toggleECM(active){
+  fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ecm_active:active})
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok) setStatus('ECM '+(active?'enabled':'disabled'));
+    else setStatus('ECM toggle failed');
+  }).catch(()=>setStatus('ECM toggle failed'));
 }
 
 function resetChat(){
