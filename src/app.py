@@ -1407,7 +1407,8 @@ async def chat(request: Request):
                     try:
                         await run_in_threadpool(
                             _analyze_chat_turn, response_text,
-                            "model_response", False, False, "assistant",
+                            "model_response",
+                            full_analysis, full_analysis, "assistant",
                             ecm_active=ecm_was_active,
                             ecm_summary=ecm_summary,
                             full_analysis=full_analysis)

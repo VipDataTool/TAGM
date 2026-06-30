@@ -848,12 +848,25 @@ document.getElementById('promptSelect').addEventListener('change', function(){
 });
 document.getElementById('btnPrev').addEventListener('click', function(){
   var entries = D[curCat]||[]; if (!entries.length) return;
-  curIdx = (curIdx-1+entries.length)%entries.length;
+  curIdx = curIdx - 1;
+  if (curIdx < 0) {
+    var cats = Object.keys(D);
+    var ci = cats.indexOf(curCat);
+    if (cats.length > 1) { curCat = cats[(ci-1+cats.length)%cats.length]; }
+    entries = D[curCat]||[];
+    curIdx = Math.max(0, entries.length - 1);
+  }
   stopSlideshow(); refreshPromptSelect(); buildTerrain();
 });
 document.getElementById('btnNext').addEventListener('click', function(){
   var entries = D[curCat]||[]; if (!entries.length) return;
-  curIdx = (curIdx+1)%entries.length;
+  curIdx = curIdx + 1;
+  if (curIdx >= entries.length) {
+    var cats = Object.keys(D);
+    var ci = cats.indexOf(curCat);
+    if (cats.length > 1) { curCat = cats[(ci+1)%cats.length]; }
+    curIdx = 0;
+  }
   stopSlideshow(); refreshPromptSelect(); buildTerrain();
 });
 document.getElementById('btnPlay').addEventListener('click', function(){

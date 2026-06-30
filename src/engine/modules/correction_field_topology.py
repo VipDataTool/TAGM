@@ -525,7 +525,7 @@ class CorrectionFieldTopologyModule(TASMModule):
             type="select",
             default="all",
             options=["all", "benign", "mild", "harmful", "jailbreak",
-                     "adversarial", "dual-use"],
+                     "adversarial", "dual-use", "chat", "model_response"],
         ),
         ModuleParameter(
             name="record_limit",
