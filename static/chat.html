@@ -57,6 +57,7 @@ header a:hover{color:var(--text-0)}
     <label><input type="checkbox" id="chkResponses"> Analyze responses</label>
     <label><input type="checkbox" id="chkLTP" checked> LTP</label>
     <label><input type="checkbox" id="chkSFD" checked> SFD</label>
+    <label><input type="checkbox" id="chkFull" title="Run base model comparison for topology data (slower)"> Full</label>
     <label style="border-left:1px solid var(--border);padding-left:12px"><input type="checkbox" id="chkECM" onchange="toggleECM(this.checked)"> ECM</label>
     <select id="chatModelClass" onchange="setChatModelClass(this.value)" style="background:var(--bg-2);color:var(--text-0);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--sans)">
       <option value="instruct" selected>Instruct</option>
@@ -162,6 +163,7 @@ async function send(){
         analyze_response:doAnalyzeResp,
         compute_ltp:$('chkLTP').checked,
         compute_sfd:$('chkSFD').checked,
+        full_analysis:$('chkFull').checked,
       })
     });
 

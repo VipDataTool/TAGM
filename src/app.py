@@ -1338,6 +1338,7 @@ async def chat(request: Request):
     do_analyze_resp = body.get("analyze_response", cfg.get("analyze_responses", False))
     compute_ltp = body.get("compute_ltp", cfg.get("compute_ltp", True))
     compute_sfd = body.get("compute_sfd", cfg.get("compute_sfd", True))
+    full_analysis = body.get("full_analysis", False)
     category = body.get("category", "chat")
 
     async def event_stream():
@@ -1392,7 +1393,8 @@ async def chat(request: Request):
                         await run_in_threadpool(
                             _analyze_chat_turn, prompt_text, category,
                             compute_ltp, compute_sfd, "user",
-                            ecm_active=ecm_was_active)
+                            ecm_active=ecm_was_active,
+                            full_analysis=full_analysis)
                         if not client_gone:
                             yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
                     except Exception as e:
@@ -1407,7 +1409,8 @@ async def chat(request: Request):
                             _analyze_chat_turn, response_text,
                             "model_response", False, False, "assistant",
                             ecm_active=ecm_was_active,
-                            ecm_summary=ecm_summary)
+                            ecm_summary=ecm_summary,
+                            full_analysis=full_analysis)
                         if not client_gone:
                             yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
                     except Exception as e:
@@ -1425,14 +1428,31 @@ async def chat(request: Request):
 
 
 def _analyze_chat_turn(text, category, compute_ltp, compute_sfd, role,
-                       ecm_active=False, ecm_summary=None):
-    """Analyze a chat turn and add it to the session with a role tag."""
+                       ecm_active=False, ecm_summary=None,
+                       full_analysis=False):
+    """Analyze a chat turn and add it to the session with a role tag.
+
+    When full_analysis=True, runs the base model phase first to compute
+    rank displacement and full KL — required for topology visualization.
+    """
     from src.engine.result import result_to_dict
     with _analysis_lock:
+        base_cache = None
+        if full_analysis:
+            caches = state.analyzer.run_base_phase(
+                [{"prompt": text}],
+                compute_kl=True,
+                capture_responses=False,
+                progress=state.progress,
+            )
+            if caches and caches[0]:
+                base_cache = caches[0]
+
         result = state.analyzer.analyze_prompt(
             text, category=category,
             compute_kl=True, compute_full_trajectory=False,
             compute_ltp=compute_ltp, compute_sfd=compute_sfd,
+            base_cache=base_cache,
         )
         rd = result_to_dict(result)
         rd["role"] = role
