@@ -447,6 +447,30 @@ async def add_prompt(prompt: str = Form(...), category: str = Form("")):
 # Engine config
 # ═══════════════════════════════════════════════════════════════
 
+_ECM_CONFIG_FILE = _PACKAGE_DIR.parent / "ecm_config.json"
+_ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor"}
+
+def _load_ecm_config():
+    """Load persisted ECM settings from disk into engine_config."""
+    if _ECM_CONFIG_FILE.exists():
+        try:
+            saved = json.loads(_ECM_CONFIG_FILE.read_text())
+            engine_config.update({k: v for k, v in saved.items() if k in _ECM_KEYS})
+            logger.info(f"[ECM] Loaded config from {_ECM_CONFIG_FILE.name}")
+        except Exception as e:
+            logger.warning(f"[ECM] Failed to load config: {e}")
+
+def _save_ecm_config():
+    """Persist current ECM settings to disk."""
+    try:
+        vals = {k: engine_config.get(k) for k in _ECM_KEYS}
+        _ECM_CONFIG_FILE.write_text(json.dumps(vals, indent=1))
+    except Exception as e:
+        logger.warning(f"[ECM] Failed to save config: {e}")
+
+# Load persisted ECM config at import time
+_load_ecm_config()
+
 @app.get("/api/engine_config")
 async def get_engine_config():
     return {"ok": True, "config": engine_config.as_dict(), "defaults": dict(engine_config.DEFAULTS)}
@@ -455,11 +479,16 @@ async def get_engine_config():
 async def set_engine_config(request: Request):
     body = await request.json()
     engine_config.update(body)
+    # Persist ECM keys if any were changed
+    if _ECM_KEYS & body.keys():
+        _save_ecm_config()
     return {"ok": True, "config": engine_config.as_dict()}
 
 @app.post("/api/engine_config/reset")
 async def reset_engine_config():
     engine_config.reset()
+    if _ECM_CONFIG_FILE.exists():
+        _ECM_CONFIG_FILE.unlink()
     return {"ok": True, "config": engine_config.as_dict()}
 
 
