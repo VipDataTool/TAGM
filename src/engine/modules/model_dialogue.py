@@ -102,6 +102,18 @@ class ModelDialogueModule(TASMModule):
             type="bool",
             default=True,
         ),
+        ModuleParameter(
+            name="context_window",
+            display_name="Context Window",
+            description=(
+                "Maximum number of messages (user + assistant) sent to "
+                "the model per turn. Older messages are dropped to keep "
+                "context manageable on CPU. Full history stays in the UI. "
+                "Default 10 (5 turns)."
+            ),
+            type="int",
+            default=10,
+        ),
     ]
 
     def validate(self, session_results, params):
@@ -118,6 +130,7 @@ class ModelDialogueModule(TASMModule):
             "temperature": float(params.get("temperature", 0.7)),
             "top_p": float(params.get("top_p", 0.9)),
             "max_tokens": int(params.get("max_tokens", 256)),
+            "context_window": int(params.get("context_window", 10)),
             "analyze_prompts": bool(params.get("analyze_prompts", True)),
             "analyze_responses": bool(params.get("analyze_responses", False)),
             "compute_ltp": bool(params.get("compute_ltp", True)),

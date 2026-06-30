@@ -1344,6 +1344,7 @@ async def chat(request: Request):
         import json as _json
 
         done_result = None
+        client_gone = False
 
         # Phase 1: stream tokens from generation
         for sse_line in generate_chat_response_streaming(
@@ -1361,7 +1362,15 @@ async def chat(request: Request):
                         done_result = evt
                 except Exception:
                     pass
-            yield sse_line
+
+            # If client disconnected, drain silently instead of yielding
+            if client_gone:
+                continue
+            try:
+                yield sse_line
+            except Exception:
+                client_gone = True
+                continue
 
         # Phase 2: run analysis (after generation completes)
         if done_result and done_result.get("ok"):
@@ -1384,7 +1393,8 @@ async def chat(request: Request):
                             _analyze_chat_turn, prompt_text, category,
                             compute_ltp, compute_sfd, "user",
                             ecm_active=ecm_was_active)
-                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
+                        if not client_gone:
+                            yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat prompt analysis failed: {e}")
 
@@ -1398,7 +1408,8 @@ async def chat(request: Request):
                             "model_response", False, False, "assistant",
                             ecm_active=ecm_was_active,
                             ecm_summary=ecm_summary)
-                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
+                        if not client_gone:
+                            yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat response analysis failed: {e}")
 

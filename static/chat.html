@@ -76,7 +76,7 @@ header a:hover{color:var(--text-0)}
 const chatMessages=[];
 let busy=false;
 let turnCount=0;
-let chatCfg={max_tokens:128,temperature:0.7,top_p:0.9,analyze_prompts:true,analyze_responses:false,compute_ltp:true,compute_sfd:true};
+let chatCfg={max_tokens:128,temperature:0.7,top_p:0.9,context_window:10,analyze_prompts:true,analyze_responses:false,compute_ltp:true,compute_sfd:true};
 
 function $(id){return document.getElementById(id)}
 
@@ -156,7 +156,7 @@ async function send(){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        messages:chatMessages,
+        messages:chatMessages.slice(-(chatCfg.context_window||10)),
         max_tokens:chatCfg.max_tokens,
         analyze:doAnalyze,
         analyze_response:doAnalyzeResp,
