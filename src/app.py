@@ -448,14 +448,27 @@ async def add_prompt(prompt: str = Form(...), category: str = Form("")):
 # ═══════════════════════════════════════════════════════════════
 
 _ECM_CONFIG_FILE = _PACKAGE_DIR.parent / "ecm_config.json"
-_ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor"}
+_ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
+             "ecm_deadband", "ecm_agreement", "ecm_no_repeat_ngram"}
+_ECM_CONFIG_VERSION = 2
 
 def _load_ecm_config():
-    """Load persisted ECM settings from disk into engine_config."""
+    """Load persisted ECM settings from disk into engine_config.
+
+    Version-aware: v1 files (no _ecm_version field) predate the σ-unit
+    signal, so their ecm_gain values are in raw nats and would massively
+    over-tighten under v2 semantics. Drop gain from v1 files and keep
+    the rest; the file is rewritten as v2 on the next save.
+    """
     if _ECM_CONFIG_FILE.exists():
         try:
             saved = json.loads(_ECM_CONFIG_FILE.read_text())
-            engine_config.update({k: v for k, v in saved.items() if k in _ECM_KEYS})
+            version = saved.get("_ecm_version", 1)
+            keys = _ECM_KEYS if version >= 2 else (_ECM_KEYS - {"ecm_gain"})
+            engine_config.update({k: v for k, v in saved.items() if k in keys})
+            if version < 2:
+                logger.info("[ECM] v1 config detected — ecm_gain reset to "
+                            "v2 default (signal units changed to σ)")
             logger.info(f"[ECM] Loaded config from {_ECM_CONFIG_FILE.name}")
         except Exception as e:
             logger.warning(f"[ECM] Failed to load config: {e}")
@@ -464,6 +477,7 @@ def _save_ecm_config():
     """Persist current ECM settings to disk."""
     try:
         vals = {k: engine_config.get(k) for k in _ECM_KEYS}
+        vals["_ecm_version"] = _ECM_CONFIG_VERSION
         _ECM_CONFIG_FILE.write_text(json.dumps(vals, indent=1))
     except Exception as e:
         logger.warning(f"[ECM] Failed to save config: {e}")
@@ -1383,6 +1397,8 @@ async def chat(request: Request):
                     "n_interventions": d.get("n_interventions", 0),
                     "n_tokens": d.get("n_tokens", 0),
                     "max_cascade_signal": d.get("max_cascade_signal", 0),
+                    "intervention_rate": d.get("intervention_rate", 0.0),
+                    "n_loop_releases": d.get("n_loop_releases", 0),
                 }
 
             # Analyze user prompt

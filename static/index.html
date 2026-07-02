@@ -219,8 +219,8 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;max-width:600px">
           <div>
             <label style="font-size:var(--font-desc);color:var(--green)">Cascade gain</label>
-            <input type="number" id="cfgEcmGain" value="2.0" step="0.1" min="0.1" max="5.0" style="width:80px" onchange="saveEcmConfig()">
-            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Tightening aggressiveness. Lower = gentler.</div>
+            <input type="number" id="cfgEcmGain" value="0.5" step="0.05" min="0.05" max="2.0" style="width:80px" onchange="saveEcmConfig()">
+            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Temp reduction per σ of excess signal. Lower = gentler.</div>
           </div>
           <div>
             <label style="font-size:var(--font-desc);color:var(--green)">Temperature floor</label>
@@ -231,6 +231,21 @@
             <label style="font-size:var(--font-desc);color:var(--green)">EWMA scales</label>
             <input type="number" id="cfgEcmScales" value="5" step="1" min="2" max="8" style="width:80px" onchange="saveEcmConfig()">
             <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Dyadic time scales (2, 4, 8, ... tokens).</div>
+          </div>
+          <div>
+            <label style="font-size:var(--font-desc);color:var(--green)">Deadband (σ)</label>
+            <input type="number" id="cfgEcmDeadband" value="0.75" step="0.1" min="0" max="3.0" style="width:80px" onchange="saveEcmConfig()">
+            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Slope jitter below this is free. Raise if intervention rate &gt;10-15% on benign prompts.</div>
+          </div>
+          <div>
+            <label style="font-size:var(--font-desc);color:var(--green)">Scale agreement</label>
+            <input type="number" id="cfgEcmAgreement" value="2" step="1" min="1" max="8" style="width:80px" onchange="saveEcmConfig()">
+            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Scales that must corroborate. 1 = v1 spike detection.</div>
+          </div>
+          <div>
+            <label style="font-size:var(--font-desc);color:var(--green)">No-repeat n-gram</label>
+            <input type="number" id="cfgEcmNoRepeat" value="4" step="1" min="0" max="12" style="width:80px" onchange="saveEcmConfig()">
+            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Loop backstop while ECM is active. 0 = off.</div>
           </div>
         </div>
       </div>

@@ -493,6 +493,9 @@ async function saveEcmConfig(){
         ecm_gain:parseFloat($('cfgEcmGain').value),
         ecm_floor:parseFloat($('cfgEcmFloor').value),
         ecm_n_scales:parseInt($('cfgEcmScales').value),
+        ecm_deadband:parseFloat($('cfgEcmDeadband').value),
+        ecm_agreement:parseInt($('cfgEcmAgreement').value),
+        ecm_no_repeat_ngram:parseInt($('cfgEcmNoRepeat').value),
       })
     });
   }catch(e){console.error('ECM config save failed',e)}
@@ -501,9 +504,12 @@ async function loadEcmConfig(){
   try{
     var r=await(await fetch('/api/engine_config')).json();
     if(r.ok&&r.config){
-      if($('cfgEcmGain'))$('cfgEcmGain').value=r.config.ecm_gain||2.0;
+      if($('cfgEcmGain'))$('cfgEcmGain').value=r.config.ecm_gain||0.5;
       if($('cfgEcmFloor'))$('cfgEcmFloor').value=r.config.ecm_floor||0.1;
       if($('cfgEcmScales'))$('cfgEcmScales').value=r.config.ecm_n_scales||5;
+      if($('cfgEcmDeadband'))$('cfgEcmDeadband').value=(r.config.ecm_deadband!=null?r.config.ecm_deadband:0.75);
+      if($('cfgEcmAgreement'))$('cfgEcmAgreement').value=r.config.ecm_agreement||2;
+      if($('cfgEcmNoRepeat'))$('cfgEcmNoRepeat').value=(r.config.ecm_no_repeat_ngram!=null?r.config.ecm_no_repeat_ngram:4);
     }
   }catch(e){}
 }

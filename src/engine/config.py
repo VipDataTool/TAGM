@@ -83,8 +83,13 @@ DEFAULTS = {
     # Toggle via ecm_active; parameters tunable from the frontend.
     "ecm_active": False,              # Master toggle — off by default
     "ecm_n_scales": 5,                # EWMA scales (dyadic: 2,4,8,16,32 tokens)
-    "ecm_gain": 2.0,                  # Cascade signal → temperature reduction gain
+    "ecm_gain": 0.5,                  # Temp reduction per σ of excess signal (v2 units —
+                                      # v1 gains in raw nats do not transfer)
     "ecm_floor": 0.1,                 # ARBITRARY — no derivation. Prevents greedy collapse.
+    "ecm_deadband": 0.75,              # σ-units of slope ignored as ordinary jitter
+    "ecm_agreement": 2,               # Scales that must corroborate before signal fires
+    "ecm_no_repeat_ngram": 4,         # no_repeat_ngram_size while ECM active (0 = off);
+                                      # backstop against loops seeded during cooled steps
 }
 
 _config = dict(DEFAULTS)

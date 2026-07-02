@@ -112,9 +112,18 @@ def generate_chat_response_streaming(
                 n_scales=int(engine_config.get("ecm_n_scales")),
                 gain=float(engine_config.get("ecm_gain")),
                 floor=float(engine_config.get("ecm_floor")),
+                deadband=float(engine_config.get("ecm_deadband")),
+                agreement=int(engine_config.get("ecm_agreement")),
             )
             generate_kwargs["temperature"] = 1.0
             generate_kwargs["logits_processor"] = [ecm_processor]
+
+            # Backstop against n-gram loops seeded during cooled steps.
+            # The processor's loop guard stops cooling *into* a loop;
+            # this prevents the sampler from completing one at all.
+            nrn = int(engine_config.get("ecm_no_repeat_ngram") or 0)
+            if nrn > 0:
+                generate_kwargs["no_repeat_ngram_size"] = nrn
 
         # ── Launch generation in a thread ──────────────────────
         # MODEL_LOCK is acquired inside the thread, not here.
