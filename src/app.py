@@ -449,7 +449,11 @@ async def add_prompt(prompt: str = Form(...), category: str = Form("")):
 
 _ECM_CONFIG_FILE = _PACKAGE_DIR.parent / "ecm_config.json"
 _ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
-             "ecm_deadband", "ecm_agreement", "ecm_no_repeat_ngram"}
+             "ecm_deadband", "ecm_agreement", "ecm_no_repeat_ngram",
+             # v4 (multi-channel) — load is key-presence guarded, so
+             # pre-v4 config files lacking these simply keep defaults.
+             "ecm_version", "ecm_channels", "ecm_entropy_weight",
+             "ecm_density_weight", "ecm_fusion"}
 _ECM_CONFIG_VERSION = 2
 
 def _load_ecm_config():
@@ -1368,6 +1372,7 @@ async def chat(request: Request):
             temperature=float(cfg.get("temperature",
                               engine_config.get("chat_temperature"))),
             top_p=float(cfg.get("top_p", engine_config.get("chat_top_p"))),
+            analyzer=state.analyzer,
         ):
             # Capture the done event for analysis
             if sse_line.startswith("data: "):

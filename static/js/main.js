@@ -496,6 +496,10 @@ async function saveEcmConfig(){
         ecm_deadband:parseFloat($('cfgEcmDeadband').value),
         ecm_agreement:parseInt($('cfgEcmAgreement').value),
         ecm_no_repeat_ngram:parseInt($('cfgEcmNoRepeat').value),
+        ecm_version:$('cfgEcmVersion')?$('cfgEcmVersion').value:'v2',
+        ecm_entropy_weight:$('cfgEcmEntropyW')?parseFloat($('cfgEcmEntropyW').value):1.0,
+        ecm_density_weight:$('cfgEcmDensityW')?parseFloat($('cfgEcmDensityW').value):0.0,
+        ecm_fusion:$('cfgEcmFusion')?$('cfgEcmFusion').value:'max',
       })
     });
   }catch(e){console.error('ECM config save failed',e)}
@@ -510,6 +514,10 @@ async function loadEcmConfig(){
       if($('cfgEcmDeadband'))$('cfgEcmDeadband').value=(r.config.ecm_deadband!=null?r.config.ecm_deadband:0.75);
       if($('cfgEcmAgreement'))$('cfgEcmAgreement').value=r.config.ecm_agreement||2;
       if($('cfgEcmNoRepeat'))$('cfgEcmNoRepeat').value=(r.config.ecm_no_repeat_ngram!=null?r.config.ecm_no_repeat_ngram:4);
+      if($('cfgEcmVersion'))$('cfgEcmVersion').value=r.config.ecm_version||'v2';
+      if($('cfgEcmEntropyW'))$('cfgEcmEntropyW').value=(r.config.ecm_entropy_weight!=null?r.config.ecm_entropy_weight:1.0);
+      if($('cfgEcmDensityW'))$('cfgEcmDensityW').value=(r.config.ecm_density_weight!=null?r.config.ecm_density_weight:0.0);
+      if($('cfgEcmFusion'))$('cfgEcmFusion').value=r.config.ecm_fusion||'max';
     }
   }catch(e){}
 }

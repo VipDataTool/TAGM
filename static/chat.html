@@ -207,10 +207,19 @@ async function send(){
             const eb=document.createElement('span');
             eb.className='ecm-badge';
             const d=evt.ecm_diagnostics;
-            eb.textContent='ECM '+d.n_interventions+'/'+d.n_tokens
+            let chTxt='';
+            if(d.version==='v4'&&d.channels){
+              chTxt=' · '+Object.keys(d.channels).map(function(n){
+                const c=d.channels[n];
+                return n.slice(0,3)+':'+c.n_interventions+(c.record_only?'*':'');
+              }).join(' ');
+            }
+            eb.textContent='ECM '+(d.version||'v2')+' '+d.n_interventions+'/'+d.n_tokens
               +' ('+((d.intervention_rate||0)*100).toFixed(1)+'%)'
               +' · max='+d.max_cascade_signal.toFixed(3)
-              +(d.n_loop_releases?(' · loops='+d.n_loop_releases):'');
+              +(d.n_loop_releases?(' · loops='+d.n_loop_releases):'')
+              +chTxt;
+            eb.title=chTxt?'per-channel detections; * = record-only (never actuates)':'';
             msgEl.insertBefore(eb,msgEl.children[1]||null);
           }
           if(evt.n_input_tokens) statusParts.push(evt.n_input_tokens+' in');

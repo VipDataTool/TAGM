@@ -88,6 +88,17 @@ DEFAULTS = {
     "ecm_floor": 0.1,                 # ARBITRARY — no derivation. Prevents greedy collapse.
     "ecm_deadband": 0.75,              # σ-units of slope ignored as ordinary jitter
     "ecm_agreement": 2,               # Scales that must corroborate before signal fires
+    # ── ECM v4 (multi-channel) ──
+    # ecm_version selects the processor: "v2" = entropy-only (ecm.py),
+    # "v4" = pluggable channels (ecm_v4.py). Detector params above
+    # (n_scales/deadband/agreement) are shared by both versions.
+    "ecm_version": "v2",              # "v2" | "v4"
+    "ecm_channels": "entropy,density",  # comma list; v4 only
+    "ecm_entropy_weight": 1.0,        # >0 actuates
+    "ecm_density_weight": 0.0,        # 0.0 = RECORD-ONLY (measure first,
+                                      # couple to the actuator only after
+                                      # benign/adversarial traces separate)
+    "ecm_fusion": "max",              # "max" | "sum" over weighted signals
     "ecm_no_repeat_ngram": 4,         # no_repeat_ngram_size while ECM active (0 = off);
                                       # backstop against loops seeded during cooled steps
 }

@@ -37,6 +37,7 @@ def generate_chat_response_streaming(
     max_tokens: int = 256,
     temperature: float = 0.7,
     top_p: float = 0.9,
+    analyzer=None,
 ):
     """Generate a chat response, yielding SSE events as tokens stream.
 
@@ -105,16 +106,26 @@ def generate_chat_response_streaming(
         ecm_processor = None
 
         if ecm_active:
-            from src.engine.ecm import ECMProcessor
+            ecm_version = str(engine_config.get("ecm_version") or "v2")
 
-            ecm_processor = ECMProcessor(
-                temperature=temperature,
-                n_scales=int(engine_config.get("ecm_n_scales")),
-                gain=float(engine_config.get("ecm_gain")),
-                floor=float(engine_config.get("ecm_floor")),
-                deadband=float(engine_config.get("ecm_deadband")),
-                agreement=int(engine_config.get("ecm_agreement")),
-            )
+            if ecm_version == "v4" and analyzer is not None:
+                from src.engine.ecm_v4 import build_processor_from_config
+                ecm_processor = build_processor_from_config(
+                    analyzer, temperature=temperature)
+            else:
+                if ecm_version == "v4":
+                    logger.warning(
+                        "[ECM] v4 requested but no analyzer available — "
+                        "falling back to v2")
+                from src.engine.ecm import ECMProcessor
+                ecm_processor = ECMProcessor(
+                    temperature=temperature,
+                    n_scales=int(engine_config.get("ecm_n_scales")),
+                    gain=float(engine_config.get("ecm_gain")),
+                    floor=float(engine_config.get("ecm_floor")),
+                    deadband=float(engine_config.get("ecm_deadband")),
+                    agreement=int(engine_config.get("ecm_agreement")),
+                )
             generate_kwargs["temperature"] = 1.0
             generate_kwargs["logits_processor"] = [ecm_processor]
 
@@ -138,6 +149,16 @@ def generate_chat_response_streaming(
                     model.generate(**generate_kwargs)
             except Exception as e:
                 gen_error[0] = e
+            finally:
+                # v4 density hooks must never outlive the generation —
+                # closing here (inside the thread, lock still relevant)
+                # covers success, error, AND client-disconnect paths
+                # where the streaming generator is abandoned.
+                if ecm_processor is not None and hasattr(ecm_processor, "close"):
+                    try:
+                        ecm_processor.close()
+                    except Exception:
+                        logger.exception("[ECM] processor close failed")
 
         thread = threading.Thread(target=_generate, daemon=True)
         thread.start()
@@ -182,13 +203,13 @@ def generate_chat_response_streaming(
     }
 
     if ecm_processor is not None:
-        result["ecm_diagnostics"] = ecm_processor.diagnostics_to_dict()
-        diag = ecm_processor.get_diagnostics()
-        n_total = len(diag.per_token_entropy)
+        diag_dict = ecm_processor.diagnostics_to_dict()
+        result["ecm_diagnostics"] = diag_dict
         logger.info(
-            f"[ECM] {diag.n_interventions}/{n_total} tokens "
-            f"intervened, max_signal="
-            f"{diag.max_cascade_signal:.4f}"
+            f"[ECM {diag_dict.get('version', 'v2')}] "
+            f"{diag_dict.get('n_interventions', 0)}/"
+            f"{diag_dict.get('n_tokens', 0)} tokens intervened, "
+            f"max_signal={diag_dict.get('max_cascade_signal', 0.0):.4f}"
         )
 
     yield _sse(result)
