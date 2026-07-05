@@ -83,8 +83,6 @@ def run_cascade_detection(trace, n_scales=5, deadband=0.75, agreement=2,
         n_scales=n_scales,
         deadband=deadband,
         agreement=agreement,
-        warmup=warmup,
-        sigma_floor=sigma_floor,
     )
 
     signals = []
@@ -128,8 +126,10 @@ def load_model_pair(instruct_id, base_id):
     print(f"  instruct: {instruct_id}")
     print(f"  base:     {base_id}")
 
-    pipeline = Pipeline()
-    pipeline.load_model(instruct_id, base_id)
+    pipeline = Pipeline(instruct_id, base_id)
+    pipeline.load()
+    pipeline.load_base()
+    # model loaded via constructor
 
     analyzer = Analyzer(pipeline)
     print("Model pair loaded.\n")
@@ -357,6 +357,12 @@ def run_benchmark(prompts, pipeline, analyzer, args):
 
                 t0 = time.time()
                 response_text = None
+                entropy_cascade = None
+                density_cascade = None
+                kl_cascade = None
+                stress_cascade = None
+                per_token_entropy = None
+                response_text = None
 
                 try:
                     # --- Text to analyze ---
@@ -461,6 +467,8 @@ def run_benchmark(prompts, pipeline, analyzer, args):
                     out_f.write(json.dumps(error_rec) + "\n")
                     out_f.flush()
                     print(f"  ERROR: {e}")
+                    done += 1
+                    continue
 
                 done += 1
                 cat = prompt_row.get("category", "?")

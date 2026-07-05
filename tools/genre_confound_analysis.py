@@ -210,9 +210,11 @@ def main():
             cos_genre = float("nan")
             if target_reg in benign_centroids:
                 gc = benign_centroids[target_reg]
-                gc_pad = np.pad(gc, (0, max(0, max_len - len(gc))))
-                cos_genre = float(np.dot(tv_pad, gc_pad) /
-                                (np.linalg.norm(tv_pad) * np.linalg.norm(gc_pad) + 1e-10))
+                max_len2 = max(len(tv_pad), len(gc))
+                gc_pad = np.pad(gc, (0, max(0, max_len2 - len(gc))))
+                tv_pad2 = np.pad(tv_pad, (0, max(0, max_len2 - len(tv_pad))))
+                cos_genre = float(np.dot(tv_pad2, gc_pad) /
+                                (np.linalg.norm(tv_pad2) * np.linalg.norm(gc_pad) + 1e-10))
 
             src = r.get("transfer_source_id", "?")
             print(f"{src:<12} {target_reg:>10} {cos_harm:>10.4f} {cos_genre:>11.4f}")
