@@ -136,7 +136,19 @@ def attach_ecm_analysis(result_dict: dict) -> dict:
             "n_scales": n_scales,
             "deadband": deadband,
             "agreement": agreement,
+            "warmup": _replay_warmup_tokens(),
         },
         "channels": channels,
     }
     return result_dict
+
+
+def _replay_warmup_tokens() -> int:
+    """The detector's fixed warmup, surfaced for renderers.
+
+    No signal can fire before this index; the UI shades the region so a
+    quiet opening reads as 'not yet listening' rather than 'listened and
+    heard nothing'.
+    """
+    from src.engine.ecm_v4 import _WARMUP_TOKENS
+    return int(_WARMUP_TOKENS)

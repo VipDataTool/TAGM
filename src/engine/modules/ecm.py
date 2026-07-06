@@ -271,7 +271,7 @@ class EcmModule(TASMModule):
         "and category separability by ECM measures. Requires session "
         "results analyzed with ECM enabled."
     )
-    version = "2.0.0"
+    version = "2.1.0"
 
     # Operates on collected session data — standard analytical module
     min_results = 1
@@ -410,7 +410,8 @@ class EcmModule(TASMModule):
                 }
                 # Optionally include the full per-token traces
                 if include_traces:
-                    ecm_block = session_results[rec["index"]].get("ecm", {})
+                    src_result = session_results[rec["index"]]
+                    ecm_block = src_result.get("ecm", {})
                     ch_data = ecm_block.get("channels", {})
                     traces = {}
                     for ch_name, ch in ch_data.items():
@@ -422,6 +423,10 @@ class EcmModule(TASMModule):
                             ]
                     if traces:
                         detail["traces"] = traces
+                        # Index-aligned token strings for the strip renderer
+                        toks = src_result.get("tokens")
+                        if toks:
+                            detail["tokens"] = toks
                 record_details.append(detail)
 
         elapsed = round(_time.time() - t0, 2)
