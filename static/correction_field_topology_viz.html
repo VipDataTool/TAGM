@@ -260,7 +260,7 @@ function transformPayload(payload) {
   var barChannel = cc.bar_length || 'none';
   var filterChannel = cc.filter || 'none';
   var normScope = (payload.launch_params||{}).norm_scope || 'session';
-  var rankStyle = (payload.launch_params||{}).rank_style || 'terraced';
+  var rankStyle = (payload.launch_params||{}).rank_style || 'smooth';
 
   // Session scope: one set of logistic parameters per channel, pooled
   // across ALL prompts, so terrain heights are directly comparable
@@ -433,8 +433,8 @@ resize();
 window.addEventListener('resize', resize);
 
 scene.add(new THREE.AmbientLight(0xaabbcc, 1.0));
-var dl1 = new THREE.DirectionalLight(0xccddff, 1.0); dl1.position.set(3,10,6); scene.add(dl1);
-var dl2 = new THREE.DirectionalLight(0x667788, 0.5); dl2.position.set(-4,5,-3); scene.add(dl2);
+var dl1 = new THREE.DirectionalLight(0xccddff, 1.0); dl1.position.set(0,10,6); scene.add(dl1);
+var dl2 = new THREE.DirectionalLight(0x667788, 0.5); dl2.position.set(0,5,-3); scene.add(dl2);
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -564,14 +564,13 @@ function buildTerrain() {
   }
 
   // Surface mesh.
-  // terraced (default): ranks are ordinal, so each rank renders as a
-  // flat tread at its own height with a vertical riser to its neighbor
-  // — no invented continuity across the rank axis. Interpolation along
-  // the token axis is kept: tokens are sequential, so continuity there
-  // reads as trajectory rather than invention.
-  // smooth: legacy single-sheet interpolation across both axes.
+  // smooth (default): single-sheet interpolation across both axes —
+  // the spine-with-peaks look.
+  // terraced: ranks are ordinal, so each renders as a flat tread with
+  // a vertical riser to its neighbor — no invented continuity across
+  // the rank axis. Token-axis interpolation kept in both styles.
   var vsArr = [], csArr = [], ixArr = [];
-  var terraced = (CFG.rankStyle !== 'smooth');
+  var terraced = (CFG.rankStyle === 'terraced');
   var meshCols = terraced ? COLS * 2 : COLS;
   for (var t = 0; t < nT; t++) {
     for (var c = 0; c < COLS; c++) {
@@ -588,10 +587,16 @@ function buildTerrain() {
   var geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(vsArr, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(csArr, 3));
+  // Quad split mirrored about the spine. A uniform split direction
+  // facets every peak with the same diagonal lean across the whole
+  // surface; mirroring the diagonal at the spine makes left and right
+  // facets lean toward each other — peaks meet as chevrons.
+  var midCell = Math.floor(meshCols / 2);
   for (var t = 0; t < nT-1; t++) {
     for (var c = 0; c < meshCols-1; c++) {
       var a = t*meshCols+c, b = a+1, cc2 = a+meshCols, dd = cc2+1;
-      ixArr.push(a, b, cc2, b, dd, cc2);
+      if (c < midCell) ixArr.push(a, b, dd, a, dd, cc2);
+      else             ixArr.push(a, b, cc2, b, dd, cc2);
     }
   }
   geo.setIndex(ixArr);
@@ -745,7 +750,7 @@ function buildTerrain() {
 
         var status = null;
         if (!isSpine) {
-          if (c < K) status = row.statusRow[K+(K-1-c)] || null;
+          if (c < K) status = row.statusRow[K+c] || null;
           else status = row.statusRow[c-K-1] || null;
         }
 

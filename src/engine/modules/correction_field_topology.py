@@ -548,12 +548,12 @@ class CorrectionFieldTopologyModule(TASMModule):
             name="rank_style",
             display_name="Rank axis rendering",
             description=(
+                "smooth: continuous sheet — spine-with-peaks (default). "
                 "terraced: each rank is a flat tread with vertical "
-                "risers — no interpolation across the ordinal rank axis. "
-                "smooth: legacy continuous sheet."
+                "risers; no interpolation across the ordinal rank axis."
             ),
-            type="select", default="terraced",
-            options=["terraced", "smooth"],
+            type="select", default="smooth",
+            options=["smooth", "terraced"],
         ),
 
         # ── Channel bindings ──
@@ -849,7 +849,7 @@ class CorrectionFieldTopologyModule(TASMModule):
                 "token_limit": token_limit,
                 "palette": params.get("palette", "dual"),
                 "norm_scope": params.get("norm_scope", "session"),
-                "rank_style": params.get("rank_style", "terraced"),
+                "rank_style": params.get("rank_style", "smooth"),
                 "brightness_strength": float(
                     params.get("brightness_strength", 0.3)),
                 "accent_mode": effective_accent,
