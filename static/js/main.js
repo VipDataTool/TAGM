@@ -410,6 +410,10 @@ async function saveConfig(){
       ltp:{
         layerStrategy: $('cfgLtpLayerStrategy')?$('cfgLtpLayerStrategy').value:'late',
         k: $('cfgLtpK')?$('cfgLtpK').value:'8',
+        collect: $('cfgLtpCollect')?$('cfgLtpCollect').checked:true,
+      },
+      sfd:{
+        collect: $('cfgSfdCollect')?$('cfgSfdCollect').checked:true,
       },
       analysis:{
         computeTraj: $('cfgComputeTraj')?$('cfgComputeTraj').checked:true,
@@ -446,7 +450,10 @@ async function loadConfig(){
     if(c.ltp){
       if(c.ltp.layerStrategy&&$('cfgLtpLayerStrategy'))$('cfgLtpLayerStrategy').value=c.ltp.layerStrategy;
       if(c.ltp.k&&$('cfgLtpK'))$('cfgLtpK').value=c.ltp.k;
+      if($('cfgLtpCollect'))$('cfgLtpCollect').checked=c.ltp.collect!==false;
     }
+    // SFD settings
+    if($('cfgSfdCollect'))$('cfgSfdCollect').checked=!(c.sfd&&c.sfd.collect===false);
     // Analysis options
     if(c.analysis){
       if($('cfgComputeTraj'))$('cfgComputeTraj').checked=c.analysis.computeTraj!==false;
@@ -483,7 +490,7 @@ async function loadConfig(){
   }catch(e){}
 }
 
-function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';saveConfig();log('LTP config reset to defaults','done')}
+function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';if($('cfgLtpCollect'))$('cfgLtpCollect').checked=true;saveConfig();log('LTP config reset to defaults','done')}
 
 // ── ECM Configuration ─────────────────────────────────────────
 async function saveEcmConfig(){
@@ -671,8 +678,8 @@ function _buildAnalysisFormData(){
   fd.append('compute_trajectory',$('cfgComputeTraj').checked);
   fd.append('full_capture',$('cfgFullCapture')?$('cfgFullCapture').checked:false);
   fd.append('capture_responses',$('cfgCaptureResponses').checked);
-  fd.append('compute_ltp',$('computeLTP').checked);
-  fd.append('compute_sfd',$('computeSFD').checked);
+  fd.append('compute_ltp',$('cfgLtpCollect')?$('cfgLtpCollect').checked:true);
+  fd.append('compute_sfd',$('cfgSfdCollect')?$('cfgSfdCollect').checked:true);
   fd.append('compute_ecm',$('computeECM')?$('computeECM').checked:false);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
@@ -1139,8 +1146,8 @@ async function dtRerunSelected(){
     compute_trajectory:$('cfgComputeTraj')&&$('cfgComputeTraj').checked,
     capture_responses:$('cfgCaptureResponses')&&$('cfgCaptureResponses').checked,
     full_capture:$('cfgFullCapture')&&$('cfgFullCapture').checked,
-    compute_ltp:$('computeLTP')&&$('computeLTP').checked,
-    compute_sfd:$('computeSFD')&&$('computeSFD').checked,
+    compute_ltp:!$('cfgLtpCollect')||$('cfgLtpCollect').checked,
+    compute_sfd:!$('cfgSfdCollect')||$('cfgSfdCollect').checked,
     compute_ecm:$('computeECM')&&$('computeECM').checked,
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',

@@ -66,8 +66,6 @@
       <option value="jailbreak">Jailbreak</option>
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="sfd-badge">SFD</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeECM"><label for="computeECM" title="Entropic Cascade Mitigation — cascade-detector replay over the extracted per-token traces">Cascade Mitigation <span class="ecm-badge">ECM</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="cfgDeconstruct"><label for="cfgDeconstruct" title="Expand each prompt into its prefix ladder — one token/punctuation unit at a time — and analyze every rung as its own record. Punctuation earns its own rung. Records carry family/rung indices.">Deconstruct prompts (prefix ladder)</label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
@@ -141,7 +139,7 @@
             <div><strong style="color:var(--text-0)">Tau</strong> — Kendall tau correlation between base and instruct alternative token orderings. 1.0 = identical ranking, lower = RLHF reordered the priority structure</div>
             <div><strong style="color:var(--text-0)">Ovlp</strong> — Overlap. Fraction of top-k alternative tokens shared between base and instruct models</div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Entropic Cascade Mitigation (ECM)</div>
-            <div><strong style="color:var(--text-0)">ecm</strong> — Detector replay over the extracted per-token traces (stress always; KL and density when their checkboxes are on). Reports, per channel, where the cascade detector would have fired and how hard (σ-excess), with index-aligned per-token signals. Replay only — analysis mode never actuates. Detector parameters come from the ECM settings in Configuration</div>
+            <div><strong style="color:var(--text-0)">ecm</strong> — Detector replay over the extracted per-token traces (stress always; KL when its checkbox is on; density when SFD collection is enabled in Configuration). Reports, per channel, where the cascade detector would have fired and how hard (σ-excess), with index-aligned per-token signals. Replay only — analysis mode never actuates. Detector parameters come from the ECM settings in Configuration</div>
           </div>
         </div>
       </div>
@@ -157,6 +155,7 @@
       <div class="card-header"><h3>LTP Configuration</h3></div>
       <div class="card-body">
         <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Configuration for the Lateral Tension Profile measurement. Layer strategy determines which layers are probed. Counterfactual k controls how many alternative tokens are examined per position.</div>
+        <div class="checkbox-row" style="margin-bottom:12px"><input type="checkbox" id="cfgLtpCollect" checked onchange="saveConfig()"><label for="cfgLtpCollect">Collect LTP during analysis <span class="ltp-badge">LTP</span></label></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px">
           <div>
             <label style="font-size:var(--font-desc);color:var(--cyan)">Layer strategy</label>
@@ -175,6 +174,13 @@
           </div>
         </div>
         <button class="btn btn-sm btn-secondary" style="margin-top:12px" onclick="resetLtpConfig()">Reset to defaults</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>SFD Configuration</h3></div>
+      <div class="card-body">
+        <div style="font-size:var(--font-legend);color:var(--text-1);margin-bottom:12px;line-height:1.5">Spectral Field Density — per-token effective rank of activation energy across the alignment-delta subspace. Uses the precomputed SFD cache; density traces also feed the ECM replay's density channel and the v4 density signal.</div>
+        <div class="checkbox-row"><input type="checkbox" id="cfgSfdCollect" checked onchange="saveConfig()"><label for="cfgSfdCollect">Collect SFD during analysis <span class="sfd-badge">SFD</span></label></div>
       </div>
     </div>
     <div class="card">
