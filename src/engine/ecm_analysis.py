@@ -55,17 +55,19 @@ logger = logging.getLogger("tasm")
 
 
 def replay_trace(trace, n_scales: int, deadband: float, agreement: int,
-                 negate: bool = False) -> dict:
+                 negate: bool = False, warmup: int = None) -> dict:
     """Feed one per-token scalar trace through a fresh CascadeDetector.
 
     Returns the summary block described in the module docstring.
     None/NaN entries are recorded as 0.0 signal without advancing the
     detector (gap rule).
     """
-    from src.engine.ecm_v4 import CascadeDetector
+    from src.engine.ecm_v4 import CascadeDetector, _WARMUP_TOKENS
 
+    if warmup is None:
+        warmup = _WARMUP_TOKENS
     detector = CascadeDetector(n_scales=n_scales, deadband=deadband,
-                               agreement=agreement)
+                               agreement=agreement, warmup=warmup)
     signals = []
     n_observed = 0
     firing = []
@@ -112,23 +114,26 @@ def attach_ecm_analysis(result_dict: dict) -> dict:
     n_scales = int(engine_config.get("ecm_n_scales"))
     deadband = float(engine_config.get("ecm_deadband"))
     agreement = int(engine_config.get("ecm_agreement"))
+    warmup = int(engine_config.get("ecm_replay_warmup"))
 
     channels = {}
 
     stress = result_dict.get("per_token_stress")
     if stress:
         channels["stress"] = replay_trace(
-            stress, n_scales, deadband, agreement)
+            stress, n_scales, deadband, agreement, warmup=warmup)
 
     kl = result_dict.get("per_token_kl")
     if kl:
-        channels["kl"] = replay_trace(kl, n_scales, deadband, agreement)
+        channels["kl"] = replay_trace(kl, n_scales, deadband, agreement,
+                                      warmup=warmup)
 
     sfd = result_dict.get("sfd") or {}
     density = sfd.get("per_token_density") if isinstance(sfd, dict) else None
     if density:
         channels["density"] = replay_trace(
-            density, n_scales, deadband, agreement, negate=True)
+            density, n_scales, deadband, agreement, negate=True,
+            warmup=warmup)
 
     result_dict["ecm"] = {
         "mode": "replay",
@@ -136,19 +141,9 @@ def attach_ecm_analysis(result_dict: dict) -> dict:
             "n_scales": n_scales,
             "deadband": deadband,
             "agreement": agreement,
-            "warmup": _replay_warmup_tokens(),
+            "warmup": warmup,
         },
         "channels": channels,
     }
     return result_dict
 
-
-def _replay_warmup_tokens() -> int:
-    """The detector's fixed warmup, surfaced for renderers.
-
-    No signal can fire before this index; the UI shades the region so a
-    quiet opening reads as 'not yet listening' rather than 'listened and
-    heard nothing'.
-    """
-    from src.engine.ecm_v4 import _WARMUP_TOKENS
-    return int(_WARMUP_TOKENS)

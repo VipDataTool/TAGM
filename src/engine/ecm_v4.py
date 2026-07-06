@@ -114,10 +114,11 @@ class CascadeDetector:
     """
 
     def __init__(self, n_scales: int = 5, deadband: float = 0.75,
-                 agreement: int = 2):
+                 agreement: int = 2, warmup: int = _WARMUP_TOKENS):
         self.n_scales = n_scales
         self.deadband = max(0.0, float(deadband))
         self.agreement = max(1, min(int(agreement), n_scales))
+        self.warmup = max(0, int(warmup))
         # Dyadic decay rates: λ = 0.5, 0.25, ... → windows ≈ 2, 4, 8, ...
         self.lambdas = [0.5 ** (k + 1) for k in range(n_scales)]
         self.reset()
@@ -160,7 +161,7 @@ class CascadeDetector:
         kth = ranked[self.agreement - 1]
         signal = max(0.0, kth - self.deadband)
 
-        in_warmup = self._step < _WARMUP_TOKENS
+        in_warmup = self._step < self.warmup
         if in_warmup:
             signal = 0.0
 

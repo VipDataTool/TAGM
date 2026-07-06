@@ -453,6 +453,7 @@ async def add_prompt(prompt: str = Form(...), category: str = Form("")):
 _ECM_CONFIG_FILE = _PACKAGE_DIR.parent / "ecm_config.json"
 _ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
              "ecm_deadband", "ecm_agreement", "ecm_no_repeat_ngram",
+             "ecm_replay_warmup",
              # v4 (multi-channel) — load is key-presence guarded, so
              # pre-v4 config files lacking these simply keep defaults.
              "ecm_version", "ecm_channels", "ecm_entropy_weight",

@@ -502,6 +502,7 @@ async function saveEcmConfig(){
         ecm_n_scales:parseInt($('cfgEcmScales').value),
         ecm_deadband:parseFloat($('cfgEcmDeadband').value),
         ecm_agreement:parseInt($('cfgEcmAgreement').value),
+        ecm_replay_warmup:$('cfgEcmReplayWarmup')?parseInt($('cfgEcmReplayWarmup').value):4,
         ecm_no_repeat_ngram:parseInt($('cfgEcmNoRepeat').value),
         ecm_version:$('cfgEcmVersion')?$('cfgEcmVersion').value:'v2',
         ecm_entropy_weight:$('cfgEcmEntropyW')?parseFloat($('cfgEcmEntropyW').value):1.0,
@@ -520,6 +521,7 @@ async function loadEcmConfig(){
       if($('cfgEcmScales'))$('cfgEcmScales').value=r.config.ecm_n_scales||5;
       if($('cfgEcmDeadband'))$('cfgEcmDeadband').value=(r.config.ecm_deadband!=null?r.config.ecm_deadband:0.75);
       if($('cfgEcmAgreement'))$('cfgEcmAgreement').value=r.config.ecm_agreement||2;
+      if($('cfgEcmReplayWarmup'))$('cfgEcmReplayWarmup').value=(r.config.ecm_replay_warmup!=null?r.config.ecm_replay_warmup:4);
       if($('cfgEcmNoRepeat'))$('cfgEcmNoRepeat').value=(r.config.ecm_no_repeat_ngram!=null?r.config.ecm_no_repeat_ngram:4);
       if($('cfgEcmVersion'))$('cfgEcmVersion').value=r.config.ecm_version||'v2';
       if($('cfgEcmEntropyW'))$('cfgEcmEntropyW').value=(r.config.ecm_entropy_weight!=null?r.config.ecm_entropy_weight:1.0);

@@ -300,6 +300,16 @@ class EcmModule(TASMModule):
             type="bool", default=True,
         ),
         ModuleParameter(
+            name="strip_token_limit",
+            display_name="Strip token limit",
+            description=(
+                "Maximum tokens rendered per intervention strip. "
+                "0 = render the full trace. Truncation is visual only; "
+                "statistics and the JSONL always use the full trace."
+            ),
+            type="int", default=0, min_val=0, max_val=512,
+        ),
+        ModuleParameter(
             name="include_traces",
             display_name="Include per-token traces",
             description=(
@@ -351,6 +361,7 @@ class EcmModule(TASMModule):
         threshold = float(params.get("signal_threshold", 0.0))
         include_records = bool(params.get("include_per_record", True))
         include_traces = bool(params.get("include_traces", True))
+        strip_token_limit = int(params.get("strip_token_limit", 0) or 0)
 
         # ── Extract ECM records from session ──
         prog("Extracting ECM data from session results...")
@@ -452,6 +463,7 @@ class EcmModule(TASMModule):
             "n_ecm": n_ecm,
             "n_without_ecm": n_total - n_ecm,
             "signal_threshold": threshold,
+            "strip_token_limit": strip_token_limit,
             "detector": detector_config,
             "summary": {
                 "overall": overall,

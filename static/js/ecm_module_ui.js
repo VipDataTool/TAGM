@@ -66,16 +66,25 @@
     var gap = pitch > 2.5 ? 0.5 : 0;
     var segW = Math.max(0.4, pitch - 2 * gap);
 
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" ' +
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" ' +
       'style="width:100%;height:' + H + 'px;display:block;background:var(--bg-0);' +
       'border:1px solid var(--border);border-radius:3px">';
 
-    // Warmup shading — no signal is possible before this index
+    // Warmup zone — no signal is possible before this index
     var wu = Math.max(0, Math.min(warmup || 0, n));
     if (wu > 0) {
-      s += '<rect x="0" y="0" width="' + (wu * pitch).toFixed(1) + '" height="' + H +
-        '" fill="var(--text-3)" opacity="0.07"><title>warmup (first ' + wu +
+      var wx = wu * pitch;
+      s += '<rect x="0" y="0" width="' + wx.toFixed(1) + '" height="' + H +
+        '" fill="var(--text-3)" opacity="0.12"><title>warmup (first ' + wu +
         ' tokens): detector calibrating, cannot fire</title></rect>';
+      if (wu < n) {
+        s += '<line x1="' + wx.toFixed(1) + '" y1="0" x2="' + wx.toFixed(1) + '" y2="' + H +
+          '" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>';
+      }
+      if (wx > 52) {
+        s += '<text x="4" y="10" fill="var(--text-3)" font-size="8" ' +
+          'font-family="var(--mono)" opacity="0.8">WARMUP</text>';
+      }
     }
 
     for (var j = 0; j < n; j++) {
@@ -89,7 +98,7 @@
       // Baseline segment — every token gets one; fired tokens light up
       s += '<rect x="' + x.toFixed(2) + '" y="' + BASE + '" width="' + segW.toFixed(2) +
         '" height="' + (H - BASE - 3) + '" fill="var(--' + (fired ? accentVar : 'text-3') +
-        ')" opacity="' + (fired ? '0.95' : '0.18') + '">' + tip + '</rect>';
+        ')" opacity="' + (fired ? '0.95' : '0.35') + '">' + tip + '</rect>';
 
       // Amplitude bar
       if (fired) {
@@ -97,6 +106,15 @@
         s += '<rect x="' + x.toFixed(2) + '" y="' + (BASE - 2 - bh).toFixed(2) +
           '" width="' + segW.toFixed(2) + '" height="' + bh.toFixed(2) +
           '" fill="var(--' + accentVar + ')" opacity="0.55">' + tip + '</rect>';
+      }
+
+      // Inline token text when segments are wide enough to carry it
+      if (tok && pitch >= 26) {
+        var label = tok.trim() || '\u2423';   // visible mark for whitespace tokens
+        if (label.length > 10) label = label.slice(0, 9) + '\u2026';
+        s += '<text x="' + (j * pitch + pitch / 2).toFixed(1) + '" y="' + (BASE - 6) +
+          '" text-anchor="middle" fill="var(--text-2)" font-size="9" ' +
+          'font-family="var(--mono)">' + _esc(label) + tip + '</text>';
       }
     }
     s += '</svg>';
@@ -199,7 +217,7 @@
 
   // ── per-record rendering ───────────────────────────────────────
 
-  function renderRecord(rec, idx, warmup) {
+  function renderRecord(rec, idx, warmup, stripLimit) {
     var fired = rec.any_fired;
     var badge = fired
       ? '<span style="color:var(--orange)">' + rec.total_interventions + ' int, max σ=' + fmt(rec.max_signal, 3) + '</span>'
@@ -250,20 +268,26 @@
       var toks = rec.tokens;
       trNames.forEach(function (ch) {
         var color = ch === 'stress' ? 'orange' : (ch === 'kl' ? 'cyan' : 'red');
-        var sig = traces[ch] || [];
+        var full = traces[ch] || [];
         var pk = 0, nInt = 0;
-        for (var i = 0; i < sig.length; i++) {
-          if (sig[i] > 0) { nInt++; if (sig[i] > pk) pk = sig[i]; }
+        for (var i = 0; i < full.length; i++) {
+          if (full[i] > 0) { nInt++; if (full[i] > pk) pk = full[i]; }
         }
+        var lim = stripLimit > 0 ? Math.min(stripLimit, full.length) : full.length;
+        var sig = full.slice(0, lim);
+        var stoks = toks ? toks.slice(0, lim) : toks;
+        var count = (lim < full.length)
+          ? lim + ' of ' + full.length + ' tokens'
+          : full.length + (full.length === 1 ? ' token' : ' tokens');
         body += '<div style="margin-top:6px">' +
           '<div style="display:flex;justify-content:space-between;align-items:baseline">' +
           '<span style="font-size:10px;color:var(--' + color + ');font-family:var(--mono);' +
           'text-transform:uppercase;letter-spacing:.05em">' + _esc(ch) + ' signal</span>' +
           '<span style="font-size:10px;color:var(--text-3);font-family:var(--mono)">' +
-          sig.length + ' tokens' +
+          count +
           (nInt ? ' · ' + nInt + ' int · peak σ=' + pk.toFixed(3) : ' · quiet') +
           '</span></div>' +
-          interventionStrip(sig, toks, color, warmup) + '</div>';
+          interventionStrip(sig, stoks, color, warmup) + '</div>';
       });
     }
 
@@ -347,8 +371,9 @@
       h += '<div style="padding:6px 10px;font-size:10px;color:var(--text-3);' +
         'text-transform:uppercase;letter-spacing:.05em">Per-record ECM analysis — click to expand</div>';
       var cap = Math.min(recs.length, 200);
-      var warmup = (r.detector && r.detector.warmup) || 8;
-      for (var i = 0; i < cap; i++) h += renderRecord(recs[i], i, warmup);
+      var warmup = (r.detector && r.detector.warmup != null) ? r.detector.warmup : 8;
+      var stripLimit = r.strip_token_limit || 0;
+      for (var i = 0; i < cap; i++) h += renderRecord(recs[i], i, warmup, stripLimit);
       if (recs.length > cap) {
         h += '<div style="padding:6px 10px;font-size:11px;color:var(--text-3)">' +
           (recs.length - cap) + ' more in the JSONL.</div>';

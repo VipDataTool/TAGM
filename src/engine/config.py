@@ -88,6 +88,11 @@ DEFAULTS = {
     "ecm_floor": 0.1,                 # ARBITRARY — no derivation. Prevents greedy collapse.
     "ecm_deadband": 0.75,              # σ-units of slope ignored as ordinary jitter
     "ecm_agreement": 2,               # Scales that must corroborate before signal fires
+    "ecm_replay_warmup": 4,           # Replay-only cold-start guard (analysis mode).
+                                      # Runtime keeps the fixed 8 (= one variance window,
+                                      # 1/VAR_LAMBDA); replay never actuates, so a shorter
+                                      # warmup trades early-token sigma noise for coverage
+                                      # of prompt-length traces. 0 disables.
     # ── ECM v4 (multi-channel) ──
     # ecm_version selects the processor: "v2" = entropy-only (ecm.py),
     # "v4" = pluggable channels (ecm_v4.py). Detector params above

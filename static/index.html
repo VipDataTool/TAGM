@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="/static/css/main.css?v=ecm5">
+<link rel="stylesheet" href="/static/css/main.css?v=ecm6">
 </head>
 <body>
 <div class="header">
@@ -252,6 +252,11 @@
             <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Scales that must corroborate. 1 = v1 spike detection.</div>
           </div>
           <div>
+            <label style="font-size:var(--font-desc);color:var(--green)">Replay warmup</label>
+            <input type="number" id="cfgEcmReplayWarmup" value="4" step="1" min="0" max="16" style="width:80px" onchange="saveEcmConfig()">
+            <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Analysis-mode cold-start guard. Runtime keeps 8 (one σ window); replay never actuates, so shorter trades early σ-noise for coverage. 0 = off.</div>
+          </div>
+          <div>
             <label style="font-size:var(--font-desc);color:var(--green)">No-repeat n-gram</label>
             <input type="number" id="cfgEcmNoRepeat" value="4" step="1" min="0" max="12" style="width:80px" onchange="saveEcmConfig()">
             <div style="font-size:var(--font-legend);color:var(--text-3);margin-top:2px">Loop backstop while ECM is active. 0 = off.</div>
@@ -315,7 +320,7 @@
 </div>
 </div>
 
-<script src="/static/js/main.js?v=ecm5"></script>
-<script src="/static/js/ecm_module_ui.js?v=ecm5"></script>
+<script src="/static/js/main.js?v=ecm6"></script>
+<script src="/static/js/ecm_module_ui.js?v=ecm6"></script>
 </body>
 </html>
