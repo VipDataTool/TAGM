@@ -2162,12 +2162,14 @@ function renderModuleCard(m) {
   //   mi             → lime   (mechanistic-interpretability work)
   //   routing        → pink   (routing research: SFD, harm direction, ablation)
   //   legacy         → purple (legacy modules)
+  //   ecm            → blue   (ECM analysis)
   //   infrastructure → orange (utility: probe gen, dialogue)
   //   standard       → no border accent
   var tierClass = '';
   if      (m.tier === 'showpiece')      tierClass = ' mod-card--showpiece';
   else if (m.tier === 'mi')             tierClass = ' mod-card--mi';
   else if (m.tier === 'routing')        tierClass = ' mod-card--routing';
+  else if (m.tier === 'ecm')            tierClass = ' mod-card--ecm';
   else if (m.tier === 'legacy')         tierClass = ' mod-card--legacy';
   else if (m.tier === 'infrastructure') tierClass = ' mod-card--infra';
   var h = '<div class="mod-card' + tierClass + '" id="mod-' + m.name + '">';

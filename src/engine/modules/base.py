@@ -213,7 +213,8 @@ class ModuleRunner:
             ("harm_trajectory",              "routing"),
             ("concept_atoms",                "routing"),
             ("routing_ablation",             "routing"),
-            ("ecm",                          "routing"),
+            # ECM analysis (blue border in UI)
+            ("ecm",                          "ecm"),
             # Legacy (purple border in UI)
             ("comparative_analysis",          "legacy"),
         ]
