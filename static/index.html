@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="/static/css/main.css">
+<link rel="stylesheet" href="/static/css/main.css?v=ecm3">
 </head>
 <body>
 <div class="header">
@@ -68,7 +68,7 @@
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeLTP"><label for="computeLTP">Lateral Tension Profile <span class="ltp-badge">LTP</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="computeSFD"><label for="computeSFD">Spectral Field Density <span class="sfd-badge">SFD</span></label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeECM"><label for="computeECM">Entropic Cascade Mitigation <span class="ecm-badge">ECM</span></label></div>
+    <div class="checkbox-row"><input type="checkbox" id="computeECM"><label for="computeECM" title="Entropic Cascade Mitigation — cascade-detector replay over the extracted per-token traces">Cascade Mitigation <span class="ecm-badge">ECM</span></label></div>
     <div class="checkbox-row"><input type="checkbox" id="cfgDeconstruct"><label for="cfgDeconstruct" title="Expand each prompt into its prefix ladder — one token/punctuation unit at a time — and analyze every rung as its own record. Punctuation earns its own rung. Records carry family/rung indices.">Deconstruct prompts (prefix ladder)</label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
   </div>
@@ -309,7 +309,7 @@
 </div>
 </div>
 
-<script src="/static/js/main.js"></script>
-<script src="/static/js/ecm_module_ui.js"></script>
+<script src="/static/js/main.js?v=ecm3"></script>
+<script src="/static/js/ecm_module_ui.js?v=ecm3"></script>
 </body>
 </html>
