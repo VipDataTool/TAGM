@@ -7,9 +7,12 @@ Architecture:
     1. Capture H^{ℓ_low}_p — the prompt's contextualized residual stream
        at the probe's lower depth — by re-forwarding through the
        instruct model with a hook.
-    2. Reduce to a single beam vector b_p (mean / last / rowspace).
-    3. Project the beam through the model-side weight delta ΔW,
-       optionally restricted to a circuit (q, k, v, o, qk, vo, full).
+    2. Reduce to a single beam vector b_p (mean / last / max_token).
+    3. Project the beam through the model-side circuit delta operator
+       (q, k, v, o, qk, vo, full), built in the model's own forward
+       convention (row vectors, beam @ M) so the projection is the
+       pushforward, not the adjoint. 'qk' and 'vo' are exact deltas of
+       the routing bilinear and content composite; 'full' is their sum.
     4. For each probe in the lattice, form the prism direction
        Δp_i = p_i^{L_high} - p_i^{L_low}, then compute the signed
        cosine between Δp_i and the projected beam.
@@ -101,7 +104,7 @@ class CorrectionPrismModule(TASMModule):
         "concepts the correction's field aligns with (+) from concepts it "
         "runs against (−)."
     )
-    version = "0.1.0"
+    version = "0.2.0"
 
     min_results = 1
     requires_sfd = False
@@ -113,10 +116,12 @@ class CorrectionPrismModule(TASMModule):
             name="circuit",
             display_name="Circuit",
             description=(
-                "Which sub-circuit of ΔW to push the prompt's beam through. "
-                "'full' uses all four projections summed; 'qk' is the first-"
-                "order routing operator; 'vo' is the first-order content-"
-                "flow operator; q/k/v/o restrict to a single projection."
+                "Which circuit delta to push the prompt's beam through. "
+                "'qk' = exact Δ of the routing bilinear (W_Q^T·K̃); "
+                "'vo' = exact Δ of the content composite (Ṽ^T·W_O^T); "
+                "'full' = qk + vo, both residual-side. q/k/v/o restrict "
+                "to a single projection's delta (k/v in GQA-shared head "
+                "coordinates; o alone reads head space — exploratory)."
             ),
             type="select",
             default="full",
@@ -128,12 +133,14 @@ class CorrectionPrismModule(TASMModule):
             description=(
                 "How to reduce the prompt's per-token L_low residual to a "
                 "single beam vector. 'mean' = average over tokens (canonical "
-                "default). 'last' = take the last token. 'rowspace' = keep "
-                "the full T×d matrix and ask which probes lie in its rowspace."
+                "default). 'last' = take the last token. 'max_token' = keep "
+                "the full T×d matrix and report, per probe, the strongest "
+                "single-token alignment (signed by that token) — a per-token "
+                "maximum, not a rowspace projection."
             ),
             type="select",
             default="mean",
-            options=["mean", "last", "rowspace"],
+            options=["mean", "last", "max_token"],
         ),
         ModuleParameter(
             name="prism_metric",
@@ -296,14 +303,34 @@ class CorrectionPrismModule(TASMModule):
 
     # ── Helpers ────────────────────────────────────────────────
     def _make_circuit_operator(self, circuit, layer_idx):
-        """Build the circuit-restricted weight-delta operator at one layer.
+        """Build the circuit-restricted delta operator at one layer.
 
-        Returns a (d_in, d_out) numpy array, or None if the operator can't
-        be formed. The beam will be projected as `beam @ op` (so the
-        operator's "input" axis is d_model and its "output" axis depends
-        on the circuit). For first-order qk/vo, the operator has shape
-        (d_model, d_model) because the bilinear form folds the kv-grouped
-        axis away.
+        Convention: all operators act on ROW vectors, ``field = x @ M``,
+        matching the model's own forward convention (HF stores weights
+        (out, in); the forward action on a residual row-vector is
+        ``x @ W.T``). Every operator returned here therefore has its
+        input axis = d_model, so ``beam @ M`` is the model's actual
+        pushforward — not its adjoint.
+
+        Output spaces by circuit:
+          q          — query head space (d_model)
+          k, v       — KV head space, column-expanded to full head space
+                       by GQA sharing (each KV head serves
+                       heads_per_kv query heads), so all circuits are
+                       mutually graftable
+          o          — residual (note: W_O's true input is head space;
+                       pushing a residual beam through ΔW_O alone is a
+                       basis pun, kept as an exploratory option)
+          qk         — exact Δ of the routing bilinear W_Q^T·K̃ on
+                       residual pairs (K̃ = GQA-expanded W_K); the field
+                       is the beam's key-side sensitivity profile
+          vo         — exact Δ of the content composite Ṽ^T·W_O^T,
+                       residual → residual
+          full       — qk + vo (both residual-side exact deltas)
+
+        The qk/vo deltas telescope exactly:
+            Δ(A·B) = ΔA·B_inst + A_base·ΔB
+        (the ΔA·ΔB cross term is absorbed by mixing instruct and base).
         """
         adapter = self._pipeline.adapter
         store = self._pipeline.delta_store
@@ -324,63 +351,82 @@ class CorrectionPrismModule(TASMModule):
             except (KeyError, AttributeError):
                 return None
 
-        def _to_full_kv(mat):
-            """Lift a (kv_dim, d_model) GQA matrix to (d_model, d_model)
-            by repeating rows. If already (d_model, d_model), return as is."""
-            if mat.shape[0] == d_model:
+        def _lift_rows(mat):
+            """(kv_dim, d_model) → (d_model, d_model): repeat each KV
+            head's rows across the query heads it serves (GQA sharing).
+            Identity when already full."""
+            if mat is None or mat.shape[0] == d_model:
                 return mat
             if d_model % mat.shape[0] != 0:
                 return None
             return np.repeat(mat, d_model // mat.shape[0], axis=0)
 
-        if circuit == "full":
-            dq, dk, dv, do = (_delta(r) for r in ("q", "k", "v", "o"))
-            if all(x is None for x in (dq, dk, dv, do)):
+        def _expand_out(op):
+            """Expand a KV-space OUTPUT axis (columns) to full head
+            space by GQA sharing, so every circuit's field lives in a
+            common d_model-sized space and grafts compose."""
+            if op is None or op.shape[1] == d_model:
+                return op
+            if d_model % op.shape[1] != 0:
                 return None
-            acc = np.zeros((d_model, d_model), dtype=np.float32)
-            for d in (dq, do):
-                if d is not None and d.shape == (d_model, d_model):
-                    acc = acc + d
-            for d in (dk, dv):
-                if d is None:
-                    continue
-                full = _to_full_kv(d)
-                if full is not None and full.shape == (d_model, d_model):
-                    acc = acc + full
-            return acc
+            return np.repeat(op, d_model // op.shape[1], axis=1)
 
         if circuit in ("q", "k", "v", "o"):
-            return _delta(circuit)
+            d = _delta(circuit)
+            if d is None:
+                return None
+            # (out, in) → transpose for row-vector action; expand KV
+            # outputs to head space.
+            return _expand_out(d.T.copy())
 
         if circuit == "qk":
-            # First-order routing: ΔWQ · WK^{instruct}^T + WQ^{base} · ΔWK^T
+            # Routing bilinear on residual pairs:
+            #   score = (x_q W_Q^T)·(x_k K̃^T) = x_q (W_Q^T K̃) x_k^T
+            #   M_qk = W_Q^T · K̃,  ΔM = ΔQ^T·K̃_inst + Q_base^T·ΔK̃
             dq = _delta("q")
             dk = _delta("k")
             wq_inst = _instruct_weight("q")
             wk_inst = _instruct_weight("k")
             if dq is None or dk is None or wq_inst is None or wk_inst is None:
                 return None
-            wq_base = wq_inst - dq
-            dk_full = _to_full_kv(dk)
-            wk_inst_full = _to_full_kv(wk_inst)
-            if dk_full is None or wk_inst_full is None:
+            k_inst = _lift_rows(wk_inst)
+            k_delta = _lift_rows(dk)
+            if k_inst is None or k_delta is None:
                 return None
-            return dq @ wk_inst_full.T + wq_base @ dk_full.T
+            wq_base = wq_inst - dq
+            return dq.T @ k_inst + wq_base.T @ k_delta
 
         if circuit == "vo":
-            # First-order content-flow: ΔWV · WO^{instruct} + WV^{base} · ΔWO
+            # Content composite (row convention):
+            #   o = x Ṽ^T W_O^T  →  M_vo = Ṽ^T · W_O^T
+            #   ΔM = ΔṼ^T·O_inst^T + Ṽ_base^T·ΔO^T
             dv = _delta("v")
             do = _delta("o")
             wv_inst = _instruct_weight("v")
             wo_inst = _instruct_weight("o")
             if dv is None or do is None or wv_inst is None or wo_inst is None:
                 return None
-            dv_full = _to_full_kv(dv)
-            wv_inst_full = _to_full_kv(wv_inst)
-            if dv_full is None or wv_inst_full is None:
+            v_inst = _lift_rows(wv_inst)
+            v_delta = _lift_rows(dv)
+            if v_inst is None or v_delta is None:
                 return None
-            wv_base = wv_inst_full - dv_full
-            return dv_full @ wo_inst + wv_base @ do
+            v_base = v_inst - v_delta
+            return v_delta.T @ wo_inst.T + v_base.T @ do.T
+
+        if circuit == "full":
+            # The exact residual-side circuit delta: routing + content.
+            # (The previous elementwise sum of the four raw projection
+            # deltas mixed maps with different domains and was the delta
+            # of no map the model computes.)
+            m_qk = self._make_circuit_operator("qk", layer_idx)
+            m_vo = self._make_circuit_operator("vo", layer_idx)
+            if m_qk is None and m_vo is None:
+                return None
+            if m_qk is None:
+                return m_vo
+            if m_vo is None:
+                return m_qk
+            return m_qk + m_vo
 
         return None
 
@@ -388,7 +434,7 @@ class CorrectionPrismModule(TASMModule):
         """Re-forward one prompt and return its beam at layer_low.
 
         For 'mean' / 'last': returns a 1D vector of length d_model.
-        For 'rowspace':       returns the full (T, d_model) matrix.
+        For 'max_token':      returns the full (T, d_model) matrix.
         """
         cap = ActivationCapture()
         try:
@@ -407,7 +453,7 @@ class CorrectionPrismModule(TASMModule):
             if h is None:
                 return None, []
             h = h[0].float().cpu().numpy()
-            if beam_reduction == "rowspace":
+            if beam_reduction == "max_token":
                 return h, tokens
             if beam_reduction == "last":
                 return h[-1], tokens
@@ -420,7 +466,7 @@ class CorrectionPrismModule(TASMModule):
         """Project beam through op_prompt and probes through op_probe,
         then compute the prism decomposition.
 
-        beam:        (d_model,) for mean/last, or (T, d_model) for rowspace
+        beam:        (d_model,) for mean/last, or (T, d_model) for max_token
         prism_dirs:  (n_probes, d_model)  — Δp_i directions, L2-normalized
         op_prompt:   (d_in, d_out)  — circuit operator for the prompt beam
         op_probe:    (d_in, d_out)  — circuit operator for the probes
@@ -445,7 +491,8 @@ class CorrectionPrismModule(TASMModule):
             out[mask] = dots[mask] / denom[mask]
             return out
 
-        # rowspace: beam is (T, d_model); the field is a subspace.
+        # max_token: beam is (T, d_model); per probe, take the
+        # strongest single-token response (signed by that token).
         field_mat = beam @ op_prompt                    # (T, d_out)
         probes_field = prism_dirs @ op_probe            # (n_probes, d_out)
         sims = probes_field @ field_mat.T               # (n_probes, T)
@@ -624,16 +671,6 @@ class CorrectionPrismModule(TASMModule):
                         op_pr = self._make_circuit_operator(probe_circuit, ℓ)
                         if op_p is None or op_pr is None:
                             continue
-                        # Lift GQA-sized operators (kv_dim, d_model) to
-                        # (d_model, d_model) so matmul with beam/prism_dirs works.
-                        for label, op in [("prompt", op_p), ("probe", op_pr)]:
-                            if op.shape[0] != d_model and d_model % op.shape[0] == 0:
-                                expanded = np.repeat(
-                                    op, d_model // op.shape[0], axis=0)
-                                if label == "prompt":
-                                    op_p = expanded
-                                else:
-                                    op_pr = expanded
                     else:
                         op_p = self._make_circuit_operator(c, ℓ)
                         if op_p is None:
@@ -778,6 +815,18 @@ class CorrectionPrismModule(TASMModule):
                     direction = ("aligned" if mean_resp > signed_thresh
                                  else "anti-aligned" if mean_resp < -signed_thresh
                                  else "orthogonal")
+                    # Consistency: |mean over prompts| / mean|per prompt|.
+                    # 1.0 = unanimous sign across prompts; near 0 with a
+                    # large denominator = contested (responses cancel),
+                    # which the mean-based direction alone would
+                    # misreport as orthogonal.
+                    if valid_pi:
+                        _pp = primary_per_prompt[valid_pi, probe_i]
+                        _mabs = float(np.mean(np.abs(_pp)))
+                        consistency = (abs(mean_resp) / _mabs
+                                       if _mabs > 1e-12 else 1.0)
+                    else:
+                        consistency = 1.0
                     ptext = raw_probes[probe_i].get(
                         "text", raw_probes[probe_i].get("anchor_id", ""))
                     probes_info.append({
@@ -785,6 +834,7 @@ class CorrectionPrismModule(TASMModule):
                         "text": ptext,
                         "response": round(mean_resp, 6),
                         "direction": direction,
+                        "consistency": round(consistency, 4),
                         # Same skip rule the probe generator applies
                         # (len<3 OR in stoplist), so the Probe Activity
                         # tab can hide filler terms using the same source.
