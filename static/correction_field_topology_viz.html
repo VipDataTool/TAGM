@@ -132,13 +132,23 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
 'use strict';
 
 // ── Geometry constants (shoebox) ─────────────────────────────
-var K = 8;           // ranks per bank
+var K = 8;           // ranks per bank (overridden by payload geometry)
 var COLS = K*2+1;    // base bank + spine + instruct bank
 var SCX = 0.55;      // column spacing
 var X_MAX = K*SCX;
 var FY = -2.2;       // floor Y
 var CEILING_RATIO = 1.0;
 var CEILING = CEILING_RATIO * K * SCX;
+
+function applyGeometry(g) {
+  g = g || {};
+  K = g.k || 8;
+  SCX = (g.col_spacing != null) ? g.col_spacing : 0.55;
+  CEILING_RATIO = (g.ceiling_ratio != null) ? g.ceiling_ratio : 1.0;
+  COLS = K*2+1;
+  X_MAX = K*SCX;
+  CEILING = CEILING_RATIO * K * SCX;
+}
 var BG = [.047,.047,.07];
 var OFF = 0.032;     // grid/spine offset above surface
 
@@ -183,19 +193,45 @@ var ACCENT = {
 
 // ── Normalization ────────────────────────────────────────────
 
-function logisticNormalize(values) {
-  if (!values || values.length === 0) return [];
-  var min = Infinity, max = -Infinity;
-  for (var i = 0; i < values.length; i++) {
-    if (values[i] < min) min = values[i];
-    if (values[i] > max) max = values[i];
+function percentileSorted(sorted, p) {
+  if (!sorted.length) return 0;
+  var idx = p * (sorted.length - 1);
+  var lo = Math.floor(idx), hi = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// Robust logistic parameters: median-anchored, MAD-scaled.
+// The old mapping anchored on the midrange ((min+max)/2), so one outlier
+// defined both the center and steepness of the whole terrain. Percentile
+// spans are only robust at large n (an interpolated p95 over 8 values
+// reaches well into a single outlier), so scale comes from the median
+// absolute deviation instead — robust at any sample size. The 2.439
+// factor makes a normal distribution's p95 land at ~0.95, matching the
+// old envelope intent; outliers saturate into the sigmoid tails.
+function logisticParams(values) {
+  if (!values || values.length === 0) return { flat: true };
+  var sorted = values.slice().sort(function(a,b){return a-b});
+  var med = percentileSorted(sorted, 0.5);
+  var devs = values.map(function(v){return Math.abs(v - med)})
+                   .sort(function(a,b){return a-b});
+  var mad = percentileSorted(devs, 0.5);
+  if (mad > 1e-12) {
+    return { c: med, s: 2.944 / (2.439 * mad) };   // ln(19) ≈ 2.944
   }
-  var range = max - min;
-  if (range < 1e-12) return values.map(function(){return 0.5});
-  var mid = (min + max) / 2;
-  var steepness = 2.944 / (max - mid); // ln(19) ≈ 2.944 → maps max to ~0.95
+  // MAD degenerate (half the values identical): percentile span, then
+  // full range, then flat plateau at 0.5.
+  var span = percentileSorted(sorted, 0.95) - percentileSorted(sorted, 0.05);
+  if (span > 1e-12) return { c: med, s: 2 * 2.944 / span };
+  var range = sorted[sorted.length-1] - sorted[0];
+  if (range < 1e-12) return { flat: true };
+  return { c: (sorted[0] + sorted[sorted.length-1]) / 2, s: 2 * 2.944 / range };
+}
+
+function applyLogistic(values, prm) {
+  if (!values || values.length === 0) return [];
+  if (!prm || prm.flat) return values.map(function(){return 0.5});
   return values.map(function(v) {
-    return 1.0 / (1.0 + Math.exp(-steepness * (v - mid)));
+    return 1.0 / (1.0 + Math.exp(-prm.s * (v - prm.c)));
   });
 }
 
@@ -215,6 +251,7 @@ function minMaxNormalize(values) {
 // ── Transform payload → renderer data ────────────────────────
 
 function transformPayload(payload) {
+  applyGeometry(payload.geometry);
   var cats = {};
   var prompts = payload.prompts || [];
   var cc = (payload.launch_params||{}).channel_config || payload.channel_config || {};
@@ -222,6 +259,35 @@ function transformPayload(payload) {
   var brightnessChannel = cc.brightness || 'none';
   var barChannel = cc.bar_length || 'none';
   var filterChannel = cc.filter || 'none';
+  var normScope = (payload.launch_params||{}).norm_scope || 'session';
+  var rankStyle = (payload.launch_params||{}).rank_style || 'terraced';
+
+  // Session scope: one set of logistic parameters per channel, pooled
+  // across ALL prompts, so terrain heights are directly comparable
+  // between prompts. Per-prompt scope (the legacy behavior) makes every
+  // prompt fill the shoebox — good for shape reading, but two prompts
+  // differing by orders of magnitude render identically tall.
+  var gBankPrm = null, gPrimPrm = null;
+  if (normScope === 'session') {
+    var poolBank = [], poolPrim = [];
+    for (var pi = 0; pi < prompts.length; pi++) {
+      var pb = ((prompts[pi].banks || {})[heightMeasure]);
+      if (!pb) continue;
+      var iB = pb.instruct_bank || [], bB = pb.base_bank || [];
+      var n = Math.min((prompts[pi].tokens||[]).length, iB.length);
+      for (var i = 0; i < n; i++) {
+        var ib = iB[i]||[], bb = bB[i]||[];
+        for (var j = 0; j < K; j++) {
+          poolBank.push(ib[j] != null ? ib[j] : 0);
+          poolBank.push(bb[j] != null ? bb[j] : 0);
+        }
+      }
+      var prim = pb.primary || [];
+      for (var i = 0; i < n; i++) poolPrim.push(prim[i] != null ? prim[i] : 0);
+    }
+    gBankPrm = logisticParams(poolBank);
+    gPrimPrm = logisticParams(poolPrim);
+  }
 
   for (var pi = 0; pi < prompts.length; pi++) {
     var p = prompts[pi];
@@ -250,8 +316,10 @@ function transformPayload(payload) {
     var allPrimVals = [];
     for (var i = 0; i < nT; i++) allPrimVals.push(primary[i] != null ? primary[i] : 0);
 
-    var normBanks = logisticNormalize(allBankVals);
-    var normPrims = logisticNormalize(allPrimVals);
+    var normBanks = applyLogistic(allBankVals,
+        gBankPrm || logisticParams(allBankVals));
+    var normPrims = applyLogistic(allPrimVals,
+        gPrimPrm || logisticParams(allPrimVals));
 
     var idx = 0;
     var normI = [], normB = [];
@@ -336,7 +404,9 @@ function transformPayload(payload) {
       showLabels: (payload.launch_params||{}).show_labels !== false,
       showLegend: (payload.launch_params||{}).show_legend !== false,
       showSpine: (payload.launch_params||{}).show_spine !== false,
-      showBars: (payload.launch_params||{}).show_bars !== false
+      showBars: (payload.launch_params||{}).show_bars !== false,
+      rankStyle: rankStyle,
+      normScope: normScope
     }
   };
 }
@@ -462,15 +532,15 @@ function buildTerrain() {
   var zDepth = (nT-1) * scZ;
   var zOff = zDepth / 2;
 
-  // Build vertex grid
+  // Build logical grid (tread centers). Every overlay — grid lines,
+  // spine, labels, axis text — consumes these center points, so the
+  // render style below never touches overlay code.
   var vtx = [];
-  var vsArr = [], csArr = [], ixArr = [];
-
+  var cellCol = [];
   for (var t = 0; t < nT; t++) {
-    vtx.push([]);
+    vtx.push([]); cellCol.push([]);
     var row = rows[t];
     var z = -t * scZ + zOff;
-
     for (var c = 0; c < COLS; c++) {
       var x, normVal;
       if (c < K)       { x = (c - K) * SCX; normVal = row.bm[c]; }
@@ -479,9 +549,8 @@ function buildTerrain() {
 
       var y = FY + normVal * CEILING * gain;
       vtx[t].push({ x:x, y:y, z:z });
-      vsArr.push(x, y, z);
       var col = mixColor(normVal, row.brightness, Math.abs(x), c);
-      csArr.push(col.r, col.g, col.b);
+      cellCol[t].push({ r: col.r, g: col.g, b: col.b });
     }
   }
 
@@ -489,19 +558,39 @@ function buildTerrain() {
   for (var t = 0; t < nT; t++) {
     if (rows[t].filter != null && rows[t].filter < 0.5) {
       for (var c = 0; c < COLS; c++) {
-        var i3 = (t * COLS + c) * 3;
-        csArr[i3] *= 0.15; csArr[i3+1] *= 0.15; csArr[i3+2] *= 0.15;
+        cellCol[t][c].r *= 0.15; cellCol[t][c].g *= 0.15; cellCol[t][c].b *= 0.15;
       }
     }
   }
 
-  // Surface mesh
+  // Surface mesh.
+  // terraced (default): ranks are ordinal, so each rank renders as a
+  // flat tread at its own height with a vertical riser to its neighbor
+  // — no invented continuity across the rank axis. Interpolation along
+  // the token axis is kept: tokens are sequential, so continuity there
+  // reads as trajectory rather than invention.
+  // smooth: legacy single-sheet interpolation across both axes.
+  var vsArr = [], csArr = [], ixArr = [];
+  var terraced = (CFG.rankStyle !== 'smooth');
+  var meshCols = terraced ? COLS * 2 : COLS;
+  for (var t = 0; t < nT; t++) {
+    for (var c = 0; c < COLS; c++) {
+      var v = vtx[t][c], col = cellCol[t][c];
+      if (terraced) {
+        vsArr.push(v.x - SCX/2, v.y, v.z,  v.x + SCX/2, v.y, v.z);
+        csArr.push(col.r, col.g, col.b,  col.r, col.g, col.b);
+      } else {
+        vsArr.push(v.x, v.y, v.z);
+        csArr.push(col.r, col.g, col.b);
+      }
+    }
+  }
   var geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(vsArr, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(csArr, 3));
   for (var t = 0; t < nT-1; t++) {
-    for (var c = 0; c < COLS-1; c++) {
-      var a = t*COLS+c, b = a+1, cc2 = a+COLS, dd = cc2+1;
+    for (var c = 0; c < meshCols-1; c++) {
+      var a = t*meshCols+c, b = a+1, cc2 = a+meshCols, dd = cc2+1;
       ixArr.push(a, b, cc2, b, dd, cc2);
     }
   }

@@ -269,10 +269,14 @@ def compute_sfd(layer_acts: dict, cache: dict):
 
 # ── Rank displacement ──────────────────────────────────────────
 
-def compute_rank_displacement(instruct_cf, base_cf):
+def compute_rank_displacement(instruct_cf, base_cf, k=None):
     """Displacement between instruct and base counterfactual candidate sets.
 
     Pure computation — no model access. Identical to TASM's implementation.
+
+    ``k`` (terrain profile width) defaults to the widest candidate list
+    present, so profiles track the collected counterfactual depth
+    (ltp_k) instead of assuming 8.
     """
     from scipy.stats import kendalltau
 
@@ -280,7 +284,10 @@ def compute_rank_displacement(instruct_cf, base_cf):
         return None
 
     n_pos = min(len(instruct_cf), len(base_cf))
-    k = 8
+    if k is None:
+        widths = [len(a) for a in list(instruct_cf[:n_pos]) +
+                  list(base_cf[:n_pos]) if a]
+        k = max(widths) if widths else 8
     per_pos = []
     taus = []
     overlaps = []

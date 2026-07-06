@@ -25,9 +25,12 @@ All per-rank height values are logistic-normalized into a fixed
 vertical volume defined by the lattice geometry. The ceiling is
 proportional to the bank depth (k × column spacing), making the
 terrain volume a bounded "shoebox" regardless of which measure
-drives height. The logistic is parameterized per-prompt from the
-distribution's min/max so that every prompt fills the same visual
-envelope while preserving relative within-prompt contrast.
+drives height. The logistic is median-anchored and MAD-scaled
+(robust at any sample size — outliers saturate into the tails
+instead of defining the mapping). Scope is a module parameter:
+"session" pools one mapping across all prompts so heights are
+directly comparable between prompts (default); "per_prompt" gives
+the legacy fill-the-envelope behavior.
 
 Per-token scalars (brightness, bars) are min-max normalized to
 [0, 1] per-prompt for the same reason: visual consistency across
@@ -265,8 +268,8 @@ def _extract_rd_banks(r, n_tok):
                if i < len(per_pos) else 0.0
                for i in range(n)]
     i_bank = [list(i_profs[i]) for i in range(n)]
-    b_bank = [list(b_profs[i]) if i < len(b_profs) else [0.0] * K
-              for i in range(n)]
+    b_bank = [list(b_profs[i]) if i < len(b_profs)
+              else [0.0] * len(i_bank[i]) for i in range(n)]
     return primary, i_bank, b_bank
 
 
@@ -282,8 +285,8 @@ def _extract_ltp_banks(r, n_tok):
     primary = [float(tensions[i]) if i < len(tensions) else 0.0
                for i in range(n)]
     i_bank = [list(profs[i]) for i in range(n)]
-    b_bank = [list(base_profs[i]) if i < len(base_profs) else [0.0] * K
-              for i in range(n)]
+    b_bank = [list(base_profs[i]) if i < len(base_profs)
+              else [0.0] * len(i_bank[i]) for i in range(n)]
     return primary, i_bank, b_bank
 
 
@@ -303,9 +306,11 @@ def _cf_token_name(entry):
     return str(entry)
 
 
-def _classify_banks(cf_inst, cf_base, k=K):
+def _classify_banks(cf_inst, cf_base, k=None):
     inst_names = [_cf_token_name(e) for e in (cf_inst or [])]
     base_names = [_cf_token_name(e) for e in (cf_base or [])]
+    if k is None:
+        k = max(len(inst_names), len(base_names), 1)
     inst_set = set(n for n in inst_names if n)
     base_set = set(n for n in base_names if n)
 
@@ -426,6 +431,41 @@ def _build_prompt(r, token_limit, available_banks, available_scalars):
     }
 
 
+# ─── Width normalization ────────────────────────────────────────
+
+def _normalize_bank_widths(prompt_payloads, fallback=K):
+    """Uniform rank depth across the payload.
+
+    The lattice is one shoebox: every bank row and status row must share
+    a single k. Sessions collected at ltp_k != 8 (or mixed) arrive here
+    with their native widths; this pads everything to the widest row
+    seen (zeros for banks, 'matched' for status) and returns that k for
+    the geometry block.
+    """
+    k_eff = 0
+    for p in prompt_payloads:
+        for m in (p.get("banks") or {}).values():
+            for row in (m.get("instruct_bank") or []):
+                k_eff = max(k_eff, len(row))
+            for row in (m.get("base_bank") or []):
+                k_eff = max(k_eff, len(row))
+    if k_eff == 0:
+        k_eff = fallback
+
+    for p in prompt_payloads:
+        for m in (p.get("banks") or {}).values():
+            for key in ("instruct_bank", "base_bank"):
+                for row in (m.get(key) or []):
+                    if len(row) < k_eff:
+                        row.extend([0.0] * (k_eff - len(row)))
+        status = p.get("status") or {}
+        for key in ("instruct_status", "base_status"):
+            for row in (status.get(key) or []):
+                if len(row) < k_eff:
+                    row.extend(["matched"] * (k_eff - len(row)))
+    return k_eff
+
+
 # ─── Summary statistics ─────────────────────────────────────────
 
 def _compute_summary_stats(prompt_payloads, height_measure):
@@ -489,6 +529,31 @@ class CorrectionFieldTopologyModule(TASMModule):
             type="select",
             default="rank_displacement",
             options=list(BANK_MEASURES.keys()),
+        ),
+
+        ModuleParameter(
+            name="norm_scope",
+            display_name="Height normalization scope",
+            description=(
+                "session: one logistic mapping pooled across all prompts "
+                "— terrain heights are directly comparable between "
+                "prompts. per_prompt: every prompt fills the shoebox "
+                "(legacy) — good for shape reading, but heights are "
+                "relative to each prompt alone."
+            ),
+            type="select", default="session",
+            options=["session", "per_prompt"],
+        ),
+        ModuleParameter(
+            name="rank_style",
+            display_name="Rank axis rendering",
+            description=(
+                "terraced: each rank is a flat tread with vertical "
+                "risers — no interpolation across the ordinal rank axis. "
+                "smooth: legacy continuous sheet."
+            ),
+            type="select", default="terraced",
+            options=["terraced", "smooth"],
         ),
 
         # ── Channel bindings ──
@@ -724,7 +789,8 @@ class CorrectionFieldTopologyModule(TASMModule):
                 if height_measure in payload["banks"]:
                     prompts.append(payload)
 
-        prog(f"Built {len(prompts)} prompt payloads.")
+        k_eff = _normalize_bank_widths(prompts)
+        prog(f"Built {len(prompts)} prompt payloads (k={k_eff}).")
 
         if not prompts:
             return {
@@ -763,7 +829,7 @@ class CorrectionFieldTopologyModule(TASMModule):
 
         result = {
             "geometry": {
-                "k": K,
+                "k": k_eff,
                 "col_spacing": COL_SPACING,
                 "ceiling_ratio": CEILING_RATIO,
             },
@@ -782,6 +848,8 @@ class CorrectionFieldTopologyModule(TASMModule):
                 "record_limit": record_limit,
                 "token_limit": token_limit,
                 "palette": params.get("palette", "dual"),
+                "norm_scope": params.get("norm_scope", "session"),
+                "rank_style": params.get("rank_style", "terraced"),
                 "brightness_strength": float(
                     params.get("brightness_strength", 0.3)),
                 "accent_mode": effective_accent,
