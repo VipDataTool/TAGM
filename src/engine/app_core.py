@@ -302,6 +302,7 @@ def _read_analyze_flags(form, *, trajectory_default: bool) -> dict:
         "full_capture": _form_bool(form, "full_capture"),
         "compute_ltp": _form_bool(form, "compute_ltp"),
         "compute_sfd": _form_bool(form, "compute_sfd"),
+        "compute_ecm": _form_bool(form, "compute_ecm"),
         "ltp_k": int(form.get("ltp_k") or 8),
         "ltp_layer_strategy": (form.get("ltp_layer_strategy") or "signal").strip(),
         "ltp_svd_rank": int(form.get("ltp_svd_rank") or 0),
@@ -376,6 +377,9 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                     base_cache=bc,
                 )
                 rd = result_to_dict(result)
+                if flags.get("compute_ecm"):
+                    from src.engine.ecm_analysis import attach_ecm_analysis
+                    attach_ecm_analysis(rd)
                 if deconstruct:
                     rd["family_index"] = family_base + p.get("family_local", 0)
                     rd["rung_index"] = p.get("rung_index", 0)

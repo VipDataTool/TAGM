@@ -673,6 +673,7 @@ function _buildAnalysisFormData(){
   fd.append('capture_responses',$('cfgCaptureResponses').checked);
   fd.append('compute_ltp',$('computeLTP').checked);
   fd.append('compute_sfd',$('computeSFD').checked);
+  fd.append('compute_ecm',$('computeECM')?$('computeECM').checked:false);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',0);
@@ -1140,6 +1141,7 @@ async function dtRerunSelected(){
     full_capture:$('cfgFullCapture')&&$('cfgFullCapture').checked,
     compute_ltp:$('computeLTP')&&$('computeLTP').checked,
     compute_sfd:$('computeSFD')&&$('computeSFD').checked,
+    compute_ecm:$('computeECM')&&$('computeECM').checked,
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
     ltp_svd_rank:0,

@@ -390,6 +390,9 @@ async def session_rerun(request: Request):
                     compute_sfd=options.get("compute_sfd", False),
                 )
                 rd = result_to_dict(result)
+                if options.get("compute_ecm"):
+                    from src.engine.ecm_analysis import attach_ecm_analysis
+                    attach_ecm_analysis(rd)
                 rd["_index"] = idx
                 rd["_plot_keys"] = _plot_keys_for_result(rd)
                 # Preserve deconstruction-ladder identity: the rerun result
