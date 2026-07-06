@@ -32,6 +32,8 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
   display:flex; gap:12px; align-items:center; flex-wrap:wrap;
 }
 #info .tag { color:var(--cyan); }
+#info .chsel { background:#14141c; border:1px solid #2a2a36; color:var(--cyan);
+  font:inherit; font-size:11px; padding:1px 4px; border-radius:3px; cursor:pointer; }
 
 /* ── Bottom controls bar ── */
 #controls {
@@ -81,8 +83,14 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
 
 <div id="info" style="display:none">
   <span id="infoTokens"></span>
-  <span id="infoMeasure"></span>
-  <span id="infoChannels"></span>
+  <label style="font-size:10px;color:var(--text2)">height</label>
+  <select id="chHeight" class="chsel" title="Bank measure driving terrain elevation"></select>
+  <label style="font-size:10px;color:var(--text2)">brightness</label>
+  <select id="chBrightness" class="chsel" title="Per-token scalar modulating surface brightness"></select>
+  <label style="font-size:10px;color:var(--text2)">bar</label>
+  <select id="chBar" class="chsel" title="Per-token scalar driving label underline bars"></select>
+  <label style="font-size:10px;color:var(--text2)">filter</label>
+  <select id="chFilter" class="chsel" title="Per-token scalar; rows below threshold are dimmed"></select>
 </div>
 
 <div id="controls" style="display:none">
@@ -789,14 +797,8 @@ function buildTerrain() {
     axLabel('instruct \u2192', 2.2, 'left');
   }
 
-  // Update info bar
+  // Update info bar (channel selects are populated once at init)
   document.getElementById('infoTokens').textContent = nT + ' tokens \u00B7 shoebox ' + K + '\u00D7' + nT;
-  document.getElementById('infoMeasure').innerHTML = 'height: <span class="tag">' + CFG.heightMeasure + '</span>';
-  var chParts = [];
-  if (CFG.brightnessChannel !== 'none') chParts.push('brightness: ' + CFG.brightnessChannel);
-  if (CFG.barChannel !== 'none') chParts.push('bar: ' + CFG.barChannel);
-  if (CFG.filterChannel !== 'none') chParts.push('filter: ' + CFG.filterChannel);
-  document.getElementById('infoChannels').textContent = chParts.join(' \u00B7 ') || 'logistic-normalized';
 
   // Update legend
   updateLegend();
@@ -1033,6 +1035,48 @@ function loop() {
 }
 
 
+// ── Channel binding (client-side, no server round-trip) ─────────
+
+var RAW = null;   // the module payload, kept for re-transformation
+
+function initChannelSelects() {
+  var am = RAW.available_measures || {};
+  var banks = am.bank || [];
+  var scalars = ['none'].concat(am.scalar || []);
+  function fill(id, opts, cur) {
+    var sel = document.getElementById(id);
+    sel.innerHTML = opts.map(function(o){
+      return '<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>';
+    }).join('');
+    sel.addEventListener('change', rebindChannels);
+  }
+  fill('chHeight', banks, CFG.heightMeasure);
+  fill('chBrightness', scalars, CFG.brightnessChannel);
+  fill('chBar', scalars, CFG.barChannel);
+  fill('chFilter', scalars, CFG.filterChannel);
+}
+
+function rebindChannels() {
+  var lp = RAW.launch_params = RAW.launch_params || {};
+  var cc = lp.channel_config = lp.channel_config || {};
+  cc.height = document.getElementById('chHeight').value;
+  cc.spine = cc.height;
+  cc.brightness = document.getElementById('chBrightness').value;
+  cc.bar_length = document.getElementById('chBar').value;
+  cc.filter = document.getElementById('chFilter').value;
+
+  var keepCat = curCat, keepIdx = curIdx;
+  var transformed = transformPayload(RAW);
+  D = transformed.data;
+  CFG = transformed.config;
+  if (!D[keepCat]) keepCat = Object.keys(D)[0];
+  curCat = keepCat;
+  var entries = D[curCat] || [];
+  curIdx = Math.min(keepIdx, Math.max(0, entries.length - 1));
+  refreshPromptSelect();
+  buildTerrain();
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Init: fetch data and start
 // ═══════════════════════════════════════════════════════════════
@@ -1044,6 +1088,7 @@ fetch('/api/modules/correction_field_topology/results')
     var payload = d.results;
     if (payload.error) throw new Error(payload.error);
     if (!payload.prompts || !payload.prompts.length) throw new Error('No prompts in payload.');
+    RAW = payload;
 
     var transformed = transformPayload(payload);
     D = transformed.data;
@@ -1060,6 +1105,8 @@ fetch('/api/modules/correction_field_topology/results')
     rotateCCW = !!(payload.launch_params||{}).rotate_ccw;
     gain = ((payload.launch_params||{}).gain || 100) / 100;
     cameraPreset = (payload.launch_params||{}).camera_preset || 'overhead';
+
+    initChannelSelects();
 
     // Sync slider values to launch_params
     var gainPct = Math.round(gain * 100);
