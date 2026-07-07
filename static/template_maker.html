@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Template Maker — TAGM</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#1C2128; --bg2:#262C34; --bg3:#2D333B; --text:#E8ECEF; --text2:#6B7280; --text3:#5A6068; --border:#444C56; --cyan:#56B4E9; --orange:#E69F00; --green:#009E73; --red:#D55E00; }
+body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; margin:0; padding:16px; font-size:12px; }
+h1 { font-size:13px; margin:0 0 2px; }
+.sub { color:var(--text2); font-size:11px; margin-bottom:12px; }
+.cols { display:flex; gap:14px; align-items:flex-start; }
+.left { flex:0 0 380px; }
+.right { flex:1; min-width:0; }
+.panel { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:12px; }
+.panel-title { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+input[type=text], input[type=number], select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; padding:3px 6px; font-family:inherit; font-size:11px; }
+input[type=text] { width:100%; box-sizing:border-box; }
+button { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; padding:4px 10px; font-family:inherit; font-size:11px; cursor:pointer; }
+button:hover { border-color:var(--cyan); color:var(--cyan); }
+button.primary { background:var(--cyan); color:#10151C; border-color:var(--cyan); font-weight:600; }
+button.primary:hover { color:#000; }
+button.danger { border-color:var(--red); color:var(--red); background:transparent; }
+button.tiny { padding:1px 6px; font-size:10px; }
+.axis { border:1px solid var(--border); border-radius:4px; padding:8px; margin-bottom:8px; background:var(--bg); }
+.axis-head { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+.axis-head input { flex:1; }
+.val-row { display:flex; gap:4px; margin-bottom:3px; align-items:center; }
+.val-row input.val { flex:0 0 110px; }
+.val-row input.seed { flex:1; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; font-size:11px; }
+.stats .chip { background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:3px 8px; }
+.stats .warn { border-color:var(--orange); color:var(--orange); }
+.stats .hot { border-color:var(--red); color:var(--red); }
+table.grid { border-collapse:collapse; font-size:10px; }
+table.grid th, table.grid td { border:1px solid var(--border); padding:2px 4px; }
+table.grid th { background:var(--bg3); color:var(--text2); font-weight:500; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+table.grid td input { width:130px; border:none; background:transparent; color:var(--text); font-family:inherit; font-size:10px; }
+table.grid td input.derived { color:var(--text3); font-style:italic; }
+.echo { font-size:11px; line-height:1.6; }
+.echo .k { color:var(--text2); }
+.echo .ok { color:var(--green); }
+.echo .bad { color:var(--red); }
+#msg { min-height:16px; font-size:11px; margin-top:6px; white-space:pre-wrap; }
+#msg.err { color:var(--red); } #msg.ok { color:var(--green); }
+.toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.gridwrap { overflow:auto; max-height:46vh; border:1px solid var(--border); border-radius:4px; }
+label.inline { color:var(--text2); font-size:10px; }
+</style>
+</head>
+<body>
+<h1>Template Maker</h1>
+<div class="sub">Design an n-axis probe lattice. Axes fold into the generator's class × subclass contract; the echo panel shows exactly what the production parser sees.</div>
+
+<div class="cols">
+  <div class="left">
+    <div class="panel">
+      <div class="panel-title">Template</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <select id="loadSel" style="flex:1"><option value="">— load existing —</option></select>
+        <button class="tiny" onclick="loadSelected()">Load</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label class="inline">Name</label>
+        <input type="text" id="tplName" value="my_lattice.csv" style="flex:1">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
+        <label class="inline">L_low</label><input type="number" id="depthLow" value="0.50" step="0.05" min="0" max="1" style="width:64px">
+        <label class="inline">L_high</label><input type="number" id="depthHigh" value="0.75" step="0.05" min="0" max="1" style="width:64px">
+      </div>
+      <div class="sub" style="margin:6px 0 0">Depths are written into the CSV's <code>_meta</code> row in the positional convention automatically — you never have to know it exists. Clear both to defer to engine config.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Axes <span id="axisCount" style="color:var(--text2)"></span></div>
+      <div id="axes"></div>
+      <button class="tiny" onclick="addAxis()">+ Add axis</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Lattice mapping</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <label class="inline">Rows (subject)</label><select id="rowsAxis" onchange="onMapChange()"></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <label class="inline">Columns</label><select id="colsAxis" onchange="onMapChange()"></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label class="inline">Fold extra axes into</label>
+        <select id="foldTarget" onchange="render()"><option value="cols">columns</option><option value="rows">rows</option></select>
+      </div>
+      <div class="sub" style="margin-top:6px">Extra axes compose with the fold target using "×" — e.g. <code>era_1950s×technical</code>. Cell seeds derive from the joined axis-value seeds; click any cell to override.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Actions</div>
+      <div class="toolbar">
+        <button class="primary" onclick="saveTemplate()">Save</button>
+        <button onclick="exportTemplate()">Export ↓</button>
+        <button onclick="generateAndEmbed()" title="Save, then run the Probe Generator with this template (auto-embed on)">Generate &amp; Embed ▸</button>
+      </div>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel">
+      <div class="panel-title">Lattice</div>
+      <div class="stats" id="stats"></div>
+      <div class="gridwrap" style="margin-top:8px"><div id="grid"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">What the parser sees <span style="color:var(--text3)">(production code paths, after save)</span></div>
+      <div class="echo" id="echo"><span class="k">Save to populate.</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){try{
+
+var DELIM = "\u00d7";
+var SEP = "\u001f";
+
+var S = {
+  axes: [
+    { name: "subject", values: [ {v:"pets", seed:"household animals, companionship"},
+                                 {v:"feline", seed:"cats, cat behavior"} ] },
+    { name: "register", values: [ {v:"nouns", seed:"single-word terminology"},
+                                  {v:"phrase", seed:"multi-word phrases"} ] },
+  ],
+  rowsAxis: 0,
+  colsAxis: 1,
+  foldTarget: "cols",
+  overrides: {},        // coordKey -> seed string
+};
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function msg(t, cls){ var m=document.getElementById("msg"); m.textContent=t||""; m.className=cls||""; }
+
+// ── Lattice math ────────────────────────────────────────────
+function product(lists){
+  var out=[[]];
+  lists.forEach(function(list){
+    var next=[];
+    out.forEach(function(combo){ list.forEach(function(item){ next.push(combo.concat([item])); }); });
+    out=next;
+  });
+  return out;
+}
+function axisOrderFor(side){
+  // side 'rows'|'cols': primary axis first, then folded axes in
+  // declaration order (deterministic, recoverable).
+  var primary = side==="rows" ? S.rowsAxis : S.colsAxis;
+  var order=[primary];
+  if (S.foldTarget===side){
+    S.axes.forEach(function(_,i){ if(i!==S.rowsAxis && i!==S.colsAxis) order.push(i); });
+  }
+  return order;
+}
+function combos(side){
+  var order = axisOrderFor(side);
+  var lists = order.map(function(ai){ return S.axes[ai].values.map(function(val){ return {ai:ai, val:val}; }); });
+  return product(lists);
+}
+function comboLabel(c){ return c.map(function(m){ return m.val.v; }).join(DELIM); }
+function coordKey(rowC, colC){
+  var parts={};
+  rowC.concat(colC).forEach(function(m){ parts[m.ai]=m.val.v; });
+  return S.axes.map(function(_,i){ return parts[i]||""; }).join(SEP);
+}
+function derivedSeed(rowC, colC){
+  var seeds=[];
+  rowC.concat(colC).forEach(function(m){ if((m.val.seed||"").trim()) seeds.push(m.val.seed.trim()); });
+  return seeds.join(", ");
+}
+function cellSeed(rowC, colC){
+  var k=coordKey(rowC, colC);
+  return (k in S.overrides) ? S.overrides[k] : derivedSeed(rowC, colC);
+}
+
+// ── CSV writer (quoting-safe) ───────────────────────────────
+function csvCell(v){
+  v=String(v==null?"":v);
+  return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+}
+function buildCsv(){
+  var rows=combos("rows"), cols=combos("cols");
+  var colLabels=cols.map(comboLabel);
+  var lines=[];
+  lines.push(["subject","anchor_id"].concat(colLabels).map(csvCell).join(","));
+  var lo=document.getElementById("depthLow").value.trim();
+  var hi=document.getElementById("depthHigh").value.trim();
+  if (lo!=="" || hi!==""){
+    // Positional _meta convention: layer_low rides the anchor_id
+    // column, layer_high the first data column. Written here so the
+    // user never has to know.
+    var meta=["_meta", lo!==""?lo:"", hi!==""?hi:""];
+    while (meta.length < 2+colLabels.length) meta.push("");
+    lines.push(meta.map(csvCell).join(","));
+  }
+  rows.forEach(function(rc){
+    var line=[comboLabel(rc), ""];
+    cols.forEach(function(cc){ line.push(cellSeed(rc, cc)); });
+    lines.push(line.map(csvCell).join(","));
+  });
+  return lines.join("\n")+"\n";
+}
+function axesSidecar(){
+  return { version:1, delimiter:DELIM,
+    axes:S.axes, rows_axis:S.rowsAxis, cols_axis:S.colsAxis,
+    fold_target:S.foldTarget, overrides:S.overrides,
+    depths:{ low:document.getElementById("depthLow").value,
+             high:document.getElementById("depthHigh").value } };
+}
+
+// ── Rendering ───────────────────────────────────────────────
+function render(){
+  renderAxes(); renderMapping(); renderStats(); renderGrid();
+}
+function renderAxes(){
+  var host=document.getElementById("axes");
+  var h="";
+  S.axes.forEach(function(ax, ai){
+    h+='<div class="axis"><div class="axis-head">';
+    h+='<input type="text" value="'+esc(ax.name)+'" onchange="S.axes['+ai+'].name=this.value;render()" title="Axis name">';
+    h+='<button class="tiny danger" onclick="removeAxis('+ai+')" '+(S.axes.length<=2?'disabled title="Minimum shape is 2D"':'')+'>✕</button>';
+    h+='</div>';
+    ax.values.forEach(function(val, vi){
+      h+='<div class="val-row">';
+      h+='<input class="val" type="text" value="'+esc(val.v)+'" placeholder="value" onchange="S.axes['+ai+'].values['+vi+'].v=this.value;render()">';
+      h+='<input class="seed" type="text" value="'+esc(val.seed||"")+'" placeholder="seed phrase (optional)" onchange="S.axes['+ai+'].values['+vi+'].seed=this.value;render()">';
+      h+='<button class="tiny" onclick="moveVal('+ai+','+vi+',-1)">↑</button>';
+      h+='<button class="tiny" onclick="moveVal('+ai+','+vi+',1)">↓</button>';
+      h+='<button class="tiny danger" onclick="removeVal('+ai+','+vi+')" '+(ax.values.length<=1?'disabled':'')+'>✕</button>';
+      h+='</div>';
+    });
+    h+='<button class="tiny" onclick="addVal('+ai+')">+ value</button></div>';
+  });
+  host.innerHTML=h;
+  document.getElementById("axisCount").textContent="("+S.axes.length+"D)";
+}
+function renderMapping(){
+  ["rowsAxis","colsAxis"].forEach(function(id){
+    var sel=document.getElementById(id);
+    var cur=S[id];
+    var h="";
+    S.axes.forEach(function(ax,i){ h+='<option value="'+i+'"'+(i===cur?" selected":"")+'>'+esc(ax.name)+"</option>"; });
+    sel.innerHTML=h;
+  });
+  document.getElementById("foldTarget").value=S.foldTarget;
+}
+function onMapChange(){
+  var r=parseInt(document.getElementById("rowsAxis").value,10);
+  var c=parseInt(document.getElementById("colsAxis").value,10);
+  if (r===c){ msg("Rows and columns must be different axes.","err"); renderMapping(); return; }
+  S.rowsAxis=r; S.colsAxis=c; msg(""); render();
+}
+function renderStats(){
+  var rows=combos("rows"), cols=combos("cols");
+  var cells=rows.length*cols.length;
+  var lint=lintState();
+  var q=cells*50;
+  var cellCls = cells>=1000?"hot":(cells>=200?"warn":"");
+  var h='<span class="chip">'+S.axes.map(function(a){return a.values.length}).join(" × ")+' lattice</span>';
+  h+='<span class="chip '+cellCls+'">'+rows.length+' rows × '+cols.length+' cols = '+cells+' cells</span>';
+  h+='<span class="chip '+cellCls+'">≈ '+q.toLocaleString()+' queries @ 50/cell</span>';
+  lint.forEach(function(w){ h+='<span class="chip hot">'+esc(w)+'</span>'; });
+  document.getElementById("stats").innerHTML=h;
+}
+function lintState(){
+  var warns=[];
+  var names={};
+  S.axes.forEach(function(ax){
+    var n=(ax.name||"").trim().toLowerCase();
+    if(!n) warns.push("unnamed axis");
+    if(n in names) warns.push("duplicate axis name: "+n);
+    names[n]=1;
+    var vals={};
+    ax.values.forEach(function(val){
+      var v=(val.v||"").trim();
+      if(!v) warns.push("empty value in axis "+ax.name);
+      if(v.toLowerCase()==="subject"||v.toLowerCase()==="anchor_id") warns.push("reserved name: "+v);
+      if(v.indexOf(DELIM)>=0) warns.push("value contains the fold delimiter: "+v);
+      if(v in vals) warns.push("duplicate value in "+ax.name+": "+v);
+      vals[v]=1;
+    });
+  });
+  if(v_meta_conflict()) warns.push("a row is named _meta (reserved)");
+  return warns.filter(function(w,i,a){return a.indexOf(w)===i;});
+}
+function v_meta_conflict(){
+  return combos("rows").some(function(rc){ return comboLabel(rc)==="_meta"; });
+}
+function renderGrid(){
+  var rows=combos("rows"), cols=combos("cols");
+  if (rows.length*cols.length > 1600){
+    document.getElementById("grid").innerHTML=
+      '<div style="padding:10px;color:var(--text2)">'+ (rows.length*cols.length)
+      +' cells — too many to edit individually; seeds derive from axis values. Reduce axes to edit cells directly.</div>';
+    return;
+  }
+  var h='<table class="grid"><thead><tr><th></th>';
+  cols.forEach(function(cc){ h+='<th title="'+esc(comboLabel(cc))+'">'+esc(comboLabel(cc))+'</th>'; });
+  h+='</tr></thead><tbody>';
+  rows.forEach(function(rc, ri){
+    h+='<tr><th>'+esc(comboLabel(rc))+'</th>';
+    cols.forEach(function(cc, ci){
+      var k=coordKey(rc,cc);
+      var overridden=(k in S.overrides);
+      var v=cellSeed(rc,cc);
+      h+='<td><input class="'+(overridden?"":"derived")+'" value="'+esc(v)+'" '
+        +'title="'+(overridden?"override (clear to re-derive)":"derived from axis seeds")+'" '
+        +'data-key="'+esc(k)+'"></td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  document.getElementById("grid").innerHTML=h;
+  document.querySelectorAll("#grid input").forEach(function(inp){
+    inp.addEventListener("change", function(){
+      var k=inp.dataset.key;
+      if (inp.value.trim()==="") delete S.overrides[k];
+      else S.overrides[k]=inp.value;
+      renderGrid();
+    });
+  });
+}
+
+// ── Axis mutations ──────────────────────────────────────────
+window.addAxis=function(){
+  S.axes.push({name:"axis_"+(S.axes.length+1), values:[{v:"value_1",seed:""}]});
+  render();
+};
+window.removeAxis=function(ai){
+  if (S.axes.length<=2) return;
+  S.axes.splice(ai,1);
+  if (S.rowsAxis>=S.axes.length) S.rowsAxis=0;
+  if (S.colsAxis>=S.axes.length) S.colsAxis=S.axes.length-1;
+  if (S.rowsAxis===S.colsAxis) S.colsAxis=(S.rowsAxis+1)%S.axes.length;
+  S.overrides={};   // coordinates changed shape
+  render();
+};
+window.addVal=function(ai){ S.axes[ai].values.push({v:"",seed:""}); render(); };
+window.removeVal=function(ai,vi){
+  if (S.axes[ai].values.length<=1) return;
+  S.axes[ai].values.splice(vi,1); render();
+};
+window.moveVal=function(ai,vi,d){
+  var vals=S.axes[ai].values, j=vi+d;
+  if (j<0||j>=vals.length) return;
+  var t=vals[vi]; vals[vi]=vals[j]; vals[j]=t; render();
+};
+window.onMapChange=onMapChange;
+
+// ── Echo panel ──────────────────────────────────────────────
+function renderEcho(parsed, path){
+  var e=document.getElementById("echo");
+  if (!parsed || parsed.error){
+    e.innerHTML='<span class="bad">Parser error: '+esc(parsed?parsed.error:"?")+'</span>';
+    return;
+  }
+  var h='<div><span class="k">saved as</span> '+esc(path)+'</div>';
+  h+='<div><span class="k">classes ('+parsed.classes.length+'):</span> '+parsed.classes.map(esc).join(", ")+'</div>';
+  h+='<div><span class="k">columns ('+parsed.subclass_cols.length+'):</span> '+parsed.subclass_cols.map(esc).join(", ")+'</div>';
+  h+='<div><span class="k">cells:</span> '+parsed.n_cells
+    +' <span class="k">· depths:</span> '
+    +(parsed.layer_low!=null?('L'+Math.round(parsed.layer_low*100)):'engine config')
+    +' / '+(parsed.layer_high!=null?('L'+Math.round(parsed.layer_high*100)):'engine config')+'</div>';
+  var withSeeds=parsed.cells.filter(function(c){return (c[2]||"").trim()});
+  h+='<div><span class="k">seeded cells:</span> '+withSeeds.length+'/'+parsed.n_cells
+    +(withSeeds.length<parsed.n_cells?' <span class="k">(unseeded cells fall back to the class name)</span>':'')+'</div>';
+  h+='<div style="margin-top:4px"><span class="k">sample:</span></div>';
+  parsed.cells.slice(0,4).forEach(function(c){
+    h+='<div style="padding-left:10px">'+esc(c[0])+' '+DELIM+' '+esc(c[1])
+      +' <span class="k">→</span> '+esc(c[2]||"(class name)")+'</div>';
+  });
+  h+='<div class="ok" style="margin-top:6px">✓ This is the production parser\u2019s reading of the saved file.</div>';
+  e.innerHTML=h;
+}
+
+// ── Actions ─────────────────────────────────────────────────
+async function saveTemplate(){
+  var warns=lintState();
+  if (warns.length){ msg("Fix lint first: "+warns.join("; "),"err"); return null; }
+  var name=document.getElementById("tplName").value.trim();
+  msg("Saving…");
+  try{
+    var r=await fetch("/api/templates/save",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:name, csv:buildCsv(), axes:axesSidecar()})});
+    var d=await r.json();
+    if(!d.ok){ msg(d.error||"Save failed","err"); return null; }
+    renderEcho(d.parsed, d.path);
+    msg("Saved.","ok");
+    try{ if(window.opener && window.opener.loadTemplateOptions) window.opener.loadTemplateOptions(); }catch(e){}
+    return d.path;
+  }catch(e){ msg("Save failed: "+e.message,"err"); return null; }
+}
+function exportTemplate(){
+  var warns=lintState();
+  if (warns.length){ msg("Fix lint first: "+warns.join("; "),"err"); return; }
+  var name=document.getElementById("tplName").value.trim()||"template.csv";
+  var blob=new Blob([buildCsv()],{type:"text/csv"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },200);
+  msg("Exported "+name+".","ok");
+}
+async function generateAndEmbed(){
+  var path=await saveTemplate();
+  if(!path) return;
+  var name=document.getElementById("tplName").value.trim();
+  var out=name.replace(/\.csv$/i,"")+"_probes.csv";
+  msg("Starting Probe Generator…");
+  try{
+    var r=await fetch("/api/modules/probe_generator/run",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({params:{template_file:path, output_name:out, auto_embed:true}})});
+    var d=await r.json();
+    if(!d.ok){ msg("Generator refused: "+(d.error||"?"),"err"); return; }
+    pollGenerator();
+  }catch(e){ msg("Run failed: "+e.message,"err"); }
+}
+var _pollTimer=null;
+function pollGenerator(){
+  if(_pollTimer) clearInterval(_pollTimer);
+  _pollTimer=setInterval(async function(){
+    try{
+      var r=await fetch("/api/modules/probe_generator/status");
+      var d=await r.json();
+      var st=d.status||d.state||"?";
+      var last=(d.progress && d.progress.length)? d.progress[d.progress.length-1] : (d.last_progress||"");
+      msg("Generator: "+st+(last?(" — "+last):""), st==="error"?"err":"");
+      if(st==="completed"){ clearInterval(_pollTimer); msg("Generation complete — probe set embedded and activated (see the module card for full results).","ok"); }
+      if(st==="error"){ clearInterval(_pollTimer); }
+    }catch(e){ clearInterval(_pollTimer); msg("Status poll failed: "+e.message,"err"); }
+  },1500);
+}
+window.saveTemplate=saveTemplate;
+window.exportTemplate=exportTemplate;
+window.generateAndEmbed=generateAndEmbed;
+
+// ── Load existing ───────────────────────────────────────────
+async function refreshLoadList(){
+  try{
+    var r=await fetch("/api/templates");
+    var d=await r.json();
+    if(!d.ok) return;
+    var sel=document.getElementById("loadSel");
+    var h='<option value="">— load existing —</option>';
+    (d.templates||[]).forEach(function(t){
+      h+='<option value="'+esc(t.name)+'">'+esc(t.name)+' ('+t.n_classes+'×'+t.n_columns+')'+(t.has_axes?' ◆':'')+'</option>';
+    });
+    sel.innerHTML=h;
+  }catch(e){}
+}
+window.loadSelected=async function(){
+  var name=document.getElementById("loadSel").value;
+  if(!name) return;
+  msg("Loading…");
+  try{
+    var r=await fetch("/api/templates/"+encodeURIComponent(name));
+    var d=await r.json();
+    if(!d.ok){ msg(d.error||"Load failed","err"); return; }
+    document.getElementById("tplName").value=d.name;
+    if (d.axes && d.axes.axes){
+      S.axes=d.axes.axes; S.rowsAxis=d.axes.rows_axis||0;
+      S.colsAxis=(d.axes.cols_axis!=null)?d.axes.cols_axis:1;
+      S.foldTarget=d.axes.fold_target||"cols";
+      S.overrides=d.axes.overrides||{};
+      if (d.axes.depths){
+        document.getElementById("depthLow").value=d.axes.depths.low||"";
+        document.getElementById("depthHigh").value=d.axes.depths.high||"";
+      }
+    } else if (d.parsed && !d.parsed.error){
+      // Legacy 2D template: reconstruct axes; every cell seed becomes
+      // an override (legacy seeds are per-cell, not per-axis-value).
+      S.axes=[
+        {name:"subject", values:d.parsed.classes.map(function(v){return {v:v,seed:""}})},
+        {name:"columns", values:d.parsed.subclass_cols.map(function(v){return {v:v,seed:""}})},
+      ];
+      S.rowsAxis=0; S.colsAxis=1; S.foldTarget="cols"; S.overrides={};
+      d.parsed.cells.forEach(function(c){
+        if((c[2]||"").trim()) S.overrides[c[0]+SEP+c[1]]=c[2];
+      });
+      document.getElementById("depthLow").value=(d.parsed.layer_low!=null)?d.parsed.layer_low:"";
+      document.getElementById("depthHigh").value=(d.parsed.layer_high!=null)?d.parsed.layer_high:"";
+    }
+    render();
+    renderEcho(d.parsed, d.path);
+    msg("Loaded "+d.name+".","ok");
+  }catch(e){ msg("Load failed: "+e.message,"err"); }
+};
+
+if (typeof globalThis!=="undefined"){
+  globalThis.__tm={ S:S, buildCsv:buildCsv, combos:combos, comboLabel:comboLabel,
+                    cellSeed:cellSeed, lintState:lintState, render:render };
+}
+
+refreshLoadList();
+render();
+
+}catch(ex){document.body.insertAdjacentHTML("beforeend",'<pre style="color:#D55E00">'+String(ex.message)+"\n"+String(ex.stack)+"</pre>")}})();
+</script>
+</body>
+</html>

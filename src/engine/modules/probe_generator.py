@@ -34,6 +34,7 @@ import time
 from collections import Counter
 
 from src.engine import config as engine_config
+from src.probes.io import resolve_data_file
 from src.core.locks import MODEL_LOCK
 
 from .base import TASMModule, ModuleParameter
@@ -584,10 +585,8 @@ class ProbeGeneratorModule(TASMModule):
         if not template:
             return False, "No template file selected."
 
-        # Resolve path
-        path = template
-        if not os.path.isabs(path) and self._project_root:
-            path = os.path.join(self._project_root, path)
+        # Resolve path (root, then the template store)
+        path = resolve_data_file(self._project_root or os.getcwd(), template)
         if not os.path.exists(path):
             return False, f"Template file not found: {template}"
 
@@ -607,9 +606,8 @@ class ProbeGeneratorModule(TASMModule):
         # Validate stopword file if specified
         sw_file = params.get("stopword_file", "").strip()
         if sw_file:
-            sw_path = sw_file
-            if not os.path.isabs(sw_path) and self._project_root:
-                sw_path = os.path.join(self._project_root, sw_path)
+            sw_path = resolve_data_file(self._project_root or os.getcwd(),
+                                        sw_file)
             if not os.path.exists(sw_path):
                 return False, f"Stopword file not found: {sw_file}"
 
@@ -642,9 +640,8 @@ class ProbeGeneratorModule(TASMModule):
         stopword_path = None
         stopword_count = 0
         if sw_file:
-            stopword_path = sw_file
-            if not os.path.isabs(stopword_path) and self._project_root:
-                stopword_path = os.path.join(self._project_root, stopword_path)
+            stopword_path = resolve_data_file(
+                self._project_root or os.getcwd(), sw_file)
             stopwords, stopword_count = _load_stopwords(stopword_path)
             if progress:
                 progress(f"Loaded {stopword_count} stopwords from {sw_file}")
@@ -657,10 +654,9 @@ class ProbeGeneratorModule(TASMModule):
         stopword_hits = Counter()  # token -> times filtered
         seed_hits = Counter()      # token -> occurrences removed as seed echo
 
-        # Resolve template path
-        csv_path = template_file
-        if not os.path.isabs(csv_path) and self._project_root:
-            csv_path = os.path.join(self._project_root, csv_path)
+        # Resolve template path (root, then the template store)
+        csv_path = resolve_data_file(self._project_root or os.getcwd(),
+                                     template_file)
 
         # ── Parse template ──
         if progress:

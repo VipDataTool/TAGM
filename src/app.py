@@ -118,6 +118,7 @@ async def favicon():
     raise HTTPException(status_code=404)
 
 for _viz in ("chat", "roundtable", "domain_surface_viz",
+             "template_maker",
              "correction_prism_viz",
              "probe_diagnostic_viz",
              "correction_field_topology_viz"):
@@ -534,7 +535,58 @@ async def upload_template(file: UploadFile = File(...)):
     dest = templates_dir / filename
     with open(dest, "wb") as f:
         f.write(content)
-    return {"ok": True, "filename": filename}
+    # Return a path the module machinery can resolve from project root —
+    # the bare filename resolved against root pointed at nothing.
+    rel = os.path.relpath(dest, _PACKAGE_DIR.parent)
+    return {"ok": True, "filename": rel}
+
+@app.get("/api/templates")
+async def api_list_templates():
+    from src.probes.io import list_templates
+    root = str(_PACKAGE_DIR.parent)
+    return {"ok": True, "templates": list_templates(root)}
+
+@app.get("/api/templates/{name}")
+async def api_get_template(name: str):
+    from src.probes.io import load_template_raw, parse_template_echo
+    root = str(_PACKAGE_DIR.parent)
+    try:
+        csv_text, axes, path = load_template_raw(root, os.path.basename(name))
+    except FileNotFoundError:
+        return {"ok": False, "error": f"Template not found: {name}"}
+    try:
+        parsed = parse_template_echo(root, os.path.basename(name))
+    except Exception as e:
+        parsed = {"error": str(e)}
+    return {"ok": True, "name": os.path.basename(path), "csv": csv_text,
+            "axes": axes, "parsed": parsed,
+            "path": os.path.relpath(path, root)}
+
+@app.post("/api/templates/save")
+async def api_save_template(request: Request):
+    from src.probes.io import save_template, parse_template_echo
+    root = str(_PACKAGE_DIR.parent)
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON body."}
+    name = body.get("name") or ""
+    csv_text = body.get("csv") or ""
+    axes = body.get("axes")
+    if not csv_text.strip():
+        return {"ok": False, "error": "Empty template."}
+    try:
+        rel = save_template(root, name, csv_text, axes)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    # The guarantee: immediately re-read through the production parsers
+    # and echo back what the machinery will see.
+    try:
+        parsed = parse_template_echo(root, os.path.basename(rel))
+    except Exception as e:
+        return {"ok": False, "error": f"Saved, but the parser rejects it: {e}",
+                "path": rel}
+    return {"ok": True, "path": rel, "parsed": parsed}
 
 @app.post("/api/modules/{module_name}/run")
 async def run_module(module_name: str, request: Request):
@@ -983,8 +1035,8 @@ async def probe_diagnostic(file: Optional[str] = None):
               probe set from probe_config.json.
     """
     from src.probes.io import (
-        get_active_probe, load_probes, detect_level_cols, parse_meta,
-        probe_cache_path, load_probe_cache)
+        get_active_probe, get_active_probe_set, load_probes,
+        detect_level_cols, parse_meta, probe_cache_path, load_probe_cache)
     from collections import Counter, defaultdict
 
     _project_root = str(_PACKAGE_DIR.parent)
@@ -1032,6 +1084,24 @@ async def probe_diagnostic(file: Optional[str] = None):
         term_subjects[p["text"]].add(p["subject"])
         term_levels_per_subject[p["subject"]][p["text"]].add(p["level"])
 
+    # ── In-cell duplicates: same term twice in the same cell ──
+    # Invisible to both collision checks below, but inflates counts and
+    # drags intra-cell spread toward zero (a duplicate's pairwise
+    # similarity with itself is 1.0).
+    _seen = Counter()
+    for p in probes:
+        _seen[(p["subject"], p["level"], p["text"])] += 1
+    in_cell_duplicates = []
+    for (s_, l_, t_), n_ in _seen.items():
+        if n_ > 1:
+            in_cell_duplicates.append({
+                "term": t_, "subject": s_, "level": l_,
+                "level_name": (level_names[l_] if l_ < len(level_names)
+                               else str(l_)),
+                "count": n_,
+            })
+    in_cell_duplicates.sort(key=lambda r: (-r["count"], r["subject"], r["term"]))
+
     cross_class = []
     for term, subjs in term_subjects.items():
         if len(subjs) > 1:
@@ -1059,22 +1129,32 @@ async def probe_diagnostic(file: Optional[str] = None):
     embedding_tier = None
     if state.pipeline is not None and state.pipeline.loaded:
         model_id = state.pipeline.instruct_model_id
-        # Look for a cache at the subject-layer depth from CSV meta or default 0.50
-        if "layer_low" in meta:
-            try:
-                frac = max(0.0, min(1.0, float(meta["layer_low"])))
-            except Exception:
-                frac = 0.50
-        else:
-            try:
-                from src.engine import config as engine_config
-                frac = max(0.0, min(1.0, float(engine_config.get(
-                    "domain_embedding_layer_frac") or 0.50)))
-            except Exception:
-                frac = 0.50
 
-        cache_path = probe_cache_path(_project_root, filename, model_id,
-                                       frac, projected=False)
+        # When diagnosing the ACTIVE set, the probe_config record knows
+        # the exact depths it was embedded at — use the resolver rather
+        # than guessing, so config drift after apply can't point us at
+        # a missing or stale cache. The guess chain (CSV meta → engine
+        # config → 0.50) remains only for arbitrary ?file= sets that
+        # were never applied.
+        active = get_active_probe_set(_project_root)
+        if active is not None and active.probe_file == filename:
+            frac = active.subject_layer_frac()
+            cache_path = active.cache_path(_project_root, frac)
+        else:
+            if "layer_low" in meta:
+                try:
+                    frac = max(0.0, min(1.0, float(meta["layer_low"])))
+                except Exception:
+                    frac = 0.50
+            else:
+                try:
+                    from src.engine import config as engine_config
+                    frac = max(0.0, min(1.0, float(engine_config.get(
+                        "domain_embedding_layer_frac") or 0.50)))
+                except Exception:
+                    frac = 0.50
+            cache_path = probe_cache_path(_project_root, filename, model_id,
+                                          frac, projected=False)
         cache = load_probe_cache(cache_path)
         if cache and cache.get("embeddings"):
             import numpy as np
@@ -1122,9 +1202,22 @@ async def probe_diagnostic(file: Optional[str] = None):
                     mask = ~np.eye(n, dtype=bool)
                     inter_mean = 1.0 - float(cs[mask].mean())
                     inter_min = 1.0 - float(cs[mask].max())  # tightest pair
+                    # Name the offending pair — the number alone isn't
+                    # actionable.
+                    _masked = np.where(mask, cs, -np.inf)
+                    _i, _j = np.unravel_index(int(np.argmax(_masked)),
+                                              _masked.shape)
+                    def _cell_label(k):
+                        s_, l_ = k
+                        ln = (level_names[l_] if l_ < len(level_names)
+                              else str(l_))
+                        return f"{s_} \u00d7 {ln}"
+                    tightest_pair = [_cell_label(cell_keys[_i]),
+                                     _cell_label(cell_keys[_j])]
                 else:
                     inter_mean = None
                     inter_min = None
+                    tightest_pair = None
 
                 embedding_tier = {
                     "model_id": model_id,
@@ -1134,6 +1227,7 @@ async def probe_diagnostic(file: Optional[str] = None):
                         round(inter_mean, 4) if inter_mean is not None else None),
                     "inter_cell_min_distance": (
                         round(inter_min, 4) if inter_min is not None else None),
+                    "tightest_pair": tightest_pair,
                     "n_cells_with_centroid": len(cell_keys),
                 }
 
@@ -1156,6 +1250,7 @@ async def probe_diagnostic(file: Optional[str] = None):
         },
         "cross_class_collisions": cross_class,
         "cross_level_collisions": cross_level,
+        "in_cell_duplicates": in_cell_duplicates,
         "embedding_tier": embedding_tier,
     }
 

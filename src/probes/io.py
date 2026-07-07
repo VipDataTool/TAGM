@@ -46,6 +46,7 @@ Active-set state (single source of truth):
 from __future__ import annotations
 
 import csv
+import re
 import datetime as _dt
 import json
 import logging
@@ -743,4 +744,158 @@ def embed_and_activate_probe_set(pipeline, project_root, filename, progress=None
         "levels": level_names,
         "depths": [int(f * 100) for f in depths],
         "model_id": model_id,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Template store — one directory, one resolver
+# ═══════════════════════════════════════════════════════════════
+# Historically templates were referenced against three inconsistent
+# locations (repo root, root/templates, src/templates). Everything
+# below funnels through resolve_data_file / templates_dir so a bare
+# name means one thing everywhere.
+
+_TEMPLATE_DIR_CANDIDATES = ("src/templates", "templates")
+
+
+def templates_dir(project_root):
+    """The canonical template directory (first existing candidate;
+    src/templates is created if none exist — that is where the
+    shipped templates live)."""
+    for cand in _TEMPLATE_DIR_CANDIDATES:
+        d = os.path.join(project_root, cand)
+        if os.path.isdir(d):
+            return d
+    d = os.path.join(project_root, _TEMPLATE_DIR_CANDIDATES[0])
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def resolve_data_file(project_root, name):
+    """Resolve a template/stopword reference to an absolute path.
+
+    Order: absolute as-is; then relative to project root; then the
+    bare name inside each template directory candidate. Returns the
+    first existing path, else the root join (so callers' not-found
+    errors report a sensible location).
+    """
+    if not name:
+        return name
+    if os.path.isabs(name):
+        return name
+    root_join = os.path.join(project_root, name)
+    if os.path.exists(root_join):
+        return root_join
+    base = os.path.basename(name)
+    for cand in _TEMPLATE_DIR_CANDIDATES:
+        p = os.path.join(project_root, cand, base)
+        if os.path.exists(p):
+            return p
+    return root_join
+
+
+def _safe_template_name(name, suffix=".csv"):
+    base = os.path.basename(str(name or "")).strip()
+    base = re.sub(r"[^A-Za-z0-9._ \-]", "_", base)
+    if not base or base.startswith("."):
+        raise ValueError("Invalid template name.")
+    if not base.endswith(suffix):
+        raise ValueError(f"Template name must end in {suffix}")
+    return base
+
+
+def list_templates(project_root):
+    """List CSV templates in the store with a light structural summary."""
+    d = templates_dir(project_root)
+    out = []
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".csv"):
+            continue
+        path = os.path.join(d, fn)
+        n_classes = 0
+        n_cols = 0
+        try:
+            with open(path, newline="") as f:
+                reader = csv.DictReader(f)
+                headers = reader.fieldnames or []
+                lower = {h.strip().lower() for h in headers}
+                if "subject" not in lower:
+                    continue
+                cols = [h for h in headers
+                        if h.strip().lower() not in ("subject", "anchor_id")]
+                n_cols = len(cols)
+                seen = set()
+                for row in reader:
+                    v = (row.get("subject") or "").strip()
+                    if v and v != "_meta":
+                        seen.add(v)
+                n_classes = len(seen)
+        except Exception:
+            continue
+        rel = os.path.relpath(path, project_root)
+        entry = {"name": fn, "path": rel,
+                 "n_classes": n_classes, "n_columns": n_cols,
+                 "has_axes": os.path.exists(path + ".axes.json")}
+        out.append(entry)
+    return out
+
+
+def save_template(project_root, name, csv_text, axes=None):
+    """Write a template (and optional axes sidecar) into the store.
+
+    Returns the project-root-relative path the module machinery can
+    resolve.
+    """
+    base = _safe_template_name(name)
+    d = templates_dir(project_root)
+    path = os.path.join(d, base)
+    with open(path, "w", newline="") as f:
+        f.write(csv_text)
+    sidecar = path + ".axes.json"
+    if axes is not None:
+        with open(sidecar, "w") as f:
+            json.dump(axes, f, indent=1)
+    elif os.path.exists(sidecar):
+        os.remove(sidecar)   # stale sidecar must not describe a new file
+    return os.path.relpath(path, project_root)
+
+
+def load_template_raw(project_root, name):
+    """Return (csv_text, axes_or_None, resolved_path) for a template."""
+    path = resolve_data_file(project_root, name)
+    if not os.path.exists(path):
+        raise FileNotFoundError(name)
+    with open(path) as f:
+        csv_text = f.read()
+    axes = None
+    sidecar = path + ".axes.json"
+    if os.path.exists(sidecar):
+        try:
+            with open(sidecar) as f:
+                axes = json.load(f)
+        except Exception:
+            axes = None
+    return csv_text, axes, path
+
+
+def parse_template_echo(project_root, name):
+    """What the machinery will see: run the PRODUCTION parsers over a
+    template and return their interpretation. This is the maker's
+    no-erroneous-parsing guarantee — the same code paths the generator
+    executes at run time, not a validator that imitates them.
+    """
+    path = resolve_data_file(project_root, name)
+    from src.engine.modules.probe_generator import _parse_template
+    classes, subclass_cols, cell_seeds = _parse_template(path)
+    level_cols, level_names = detect_level_cols(path)
+    meta = parse_meta(path)
+    return {
+        "classes": classes,
+        "subclass_cols": subclass_cols,
+        "level_names": level_names,
+        "cells": [[cls, col, cell_seeds.get((cls, col), "")]
+                  for cls in classes for col in subclass_cols],
+        "n_cells": len(classes) * len(subclass_cols),
+        "layer_low": meta.get("layer_low"),
+        "layer_high": meta.get("layer_high"),
     }

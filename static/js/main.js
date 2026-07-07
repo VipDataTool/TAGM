@@ -2141,6 +2141,7 @@ async function loadModules() {
     if (!d.ok) { $('modulesContainer').innerHTML = '<div class="error-msg">Failed to load modules</div>'; return; }
     $('modulesLoading').style.display = 'none';
     renderModules(d.modules);
+    loadTemplateOptions();
   } catch(e) {
     $('modulesLoading').textContent = 'Failed to load modules: ' + e.message;
   }
@@ -2223,7 +2224,8 @@ function renderModuleCard(m) {
   // Probe Generator: diagnostic popout, available without requiring a fresh run.
   // Operates on whatever probe set is on disk (active set by default).
   if (m.name === 'probe_generator') {
-    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();popoutProbeDiagnostic()" title="Inspect lattice properties of the active probe set">↗ Probe Diagnostics</button>';
+    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();window.open(\'/template_maker\',\'_blank\',\'width=1280,height=900,scrollbars=yes\')" title="Design an n-axis probe lattice template">✎ Template Maker</button>';
+    h += '<button class="btn btn-sm btn-popout" onclick="event.stopPropagation();popoutProbeDiagnostic()" title="Inspect lattice properties of the active probe set">↗ Probe Diagnostics</button>';
   }
   if (m.name === 'token_pair_coupling') {
     h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
@@ -2312,11 +2314,58 @@ function renderParamControl(modName, p) {
   if (p.type === 'file') {
     return '<div class="file-input-wrapper"><input type="file" id="' + id + '" accept=".csv" data-param-type="file"></div>';
   }
+  if (p.type === 'server_file') {
+    // Select over the server-side template store, plus an inline upload
+    // that feeds the same store. Options populated by loadTemplateOptions().
+    var h = '<div style="display:flex;gap:6px;align-items:center">';
+    h += '<select id="' + id + '" data-server-file="1" style="flex:1;min-width:0"><option value="">— select —</option></select>';
+    h += '<label class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer;white-space:nowrap">Upload'
+       + '<input type="file" accept=".csv" style="display:none" onchange="uploadServerFile(this,\'' + id + '\')"></label>';
+    h += '</div>';
+    return h;
+  }
   if (p.type === 'textarea') {
     var val = (p.default || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return '<textarea id="' + id + '" rows="4" style="width:100%;resize:vertical;font-size:11px;line-height:1.5">' + val + '</textarea>';
   }
   return '<input type="text" id="' + id + '" value="' + (p.default || '') + '">';
+}
+
+var _templateList = [];
+async function loadTemplateOptions(selectId) {
+  try {
+    var r = await fetch('/api/templates');
+    var d = await r.json();
+    if (!d.ok) return;
+    _templateList = d.templates || [];
+    document.querySelectorAll('[data-server-file="1"]').forEach(function(sel) {
+      var cur = sel.value;
+      var h = '<option value="">— select —</option>';
+      _templateList.forEach(function(t) {
+        h += '<option value="' + escHtml(t.path) + '">' + escHtml(t.name)
+          + ' (' + t.n_classes + '×' + t.n_columns + ')</option>';
+      });
+      sel.innerHTML = h;
+      if (cur && _templateList.some(function(t){ return t.path === cur; })) sel.value = cur;
+      else if (selectId && sel.id === selectId.id && selectId.value) sel.value = selectId.value;
+    });
+  } catch (e) { /* store unavailable — selects stay empty */ }
+}
+
+async function uploadServerFile(inputEl, selectId) {
+  if (!inputEl.files || !inputEl.files.length) return;
+  var fd = new FormData();
+  fd.append('file', inputEl.files[0]);
+  try {
+    var r = await fetch('/api/modules/upload_template', {method:'POST', body:fd});
+    var d = await r.json();
+    if (!d.ok) { log('Template upload failed: ' + (d.error||'?'), 'error'); return; }
+    log('Template uploaded: ' + d.filename, 'done');
+    await loadTemplateOptions({id: selectId, value: d.filename});
+    var sel = $(selectId);
+    if (sel) sel.value = d.filename;
+  } catch (e) { log('Template upload failed: ' + e.message, 'error'); }
+  inputEl.value = '';
 }
 
 function getModuleParams(modName) {

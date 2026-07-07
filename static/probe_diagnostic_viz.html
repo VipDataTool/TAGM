@@ -69,6 +69,10 @@ th { color:var(--text2); font-weight:500; border-bottom:1px solid var(--border);
     <div class="section-title" id="clTitle">Cross-Level Collisions</div>
     <div id="clBody"></div>
   </div>
+  <div class="section">
+    <div class="section-title" id="dupTitle">In-Cell Duplicates</div>
+    <div id="dupBody"></div>
+  </div>
 </div>
 <div class="tip" id="tip"></div>
 <script>
@@ -114,6 +118,7 @@ function render(d) {
   summaryHtml += stat(s.mean_count, "Probes per cell (mean)");
   summaryHtml += stat(d.cross_class_collisions.length, "Cross-class shared");
   summaryHtml += stat(d.cross_level_collisions.length, "Cross-level shared");
+  summaryHtml += stat((d.in_cell_duplicates || []).length, "In-cell duplicates");
   document.getElementById("summary").innerHTML = summaryHtml;
 
   // Heatmap
@@ -125,6 +130,7 @@ function render(d) {
   // Collisions
   renderCrossClass(d);
   renderCrossLevel(d);
+  renderDuplicates(d);
 }
 
 function renderHeatmap(d) {
@@ -208,6 +214,10 @@ function renderEmbedding(d) {
   if (et.inter_cell_min_distance !== null) {
     html += pair("Inter-cell min distance", et.inter_cell_min_distance.toFixed(4));
   }
+  if (et.tightest_pair) {
+    html += pair("Tightest pair", et.tightest_pair[0].replace(/_/g, ' ')
+      + "  \u2194  " + et.tightest_pair[1].replace(/_/g, ' '));
+  }
   html += '</div>';
 
   // Intra-cell spread heatmap (re-uses heatmap shape)
@@ -255,7 +265,7 @@ function renderCrossClass(d) {
 
   if (rows.length === 0) {
     document.getElementById("ccBody").innerHTML =
-      '<div class="muted">No terms appear in more than one subject. Discriminative dedup is clean.</div>';
+      '<div class="muted">No terms appear in more than one subject.</div>';
     return;
   }
 
@@ -297,6 +307,32 @@ function renderCrossLevel(d) {
   });
   html += '</tbody></table></div>';
   document.getElementById("clBody").innerHTML = html;
+}
+
+function renderDuplicates(d) {
+  var rows = d.in_cell_duplicates || [];
+  document.getElementById("dupTitle").textContent =
+    "In-Cell Duplicates (" + rows.length + ")";
+
+  if (rows.length === 0) {
+    document.getElementById("dupBody").innerHTML =
+      '<div class="muted">No term appears more than once within the same cell.</div>';
+    return;
+  }
+
+  var html = '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">'
+    + 'Repeated rows inside one cell inflate its count and drag its intra-cell '
+    + 'spread toward zero (a duplicate is perfectly similar to itself).</div>';
+  html += '<div class="collisions"><table>';
+  html += '<thead><tr><th>Term</th><th>Cell</th><th>Copies</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    html += '<tr><td class="term">' + esc(r.term) + '</td>';
+    html += '<td class="subj-list">' + esc(r.subject.replace(/_/g, ' '))
+         + ' \u00d7 ' + esc(r.level_name) + '</td>';
+    html += '<td>' + r.count + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById("dupBody").innerHTML = html;
 }
 
 }catch(e){document.getElementById("err").textContent="Viz error: "+e.message+"\n"+e.stack}})();
