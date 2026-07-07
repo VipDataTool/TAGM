@@ -345,7 +345,7 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
             round(o["asm"], 2), round(o["sfd_d"], 3),
             o["pi"], o["pos"],
             round(best_dist, 4), level, near_subj,
-            round(near_angle, 4),  # index 14: kNN-weighted continuous angle
+            round(near_angle, 4),  # index 13: kNN-weighted continuous angle
         ])
 
     if progress:
@@ -1031,7 +1031,7 @@ class DomainSurfaceModule(TASMModule):
 
         # Log stratification summary
         if progress:
-            for level_idx in sorted(strat["by_level"].keys()):
+            for level_idx in sorted(strat["by_level"].keys(), key=float):
                 counts = strat["by_level"][level_idx]
                 total = sum(counts.values())
                 li = int(round(float(level_idx)))

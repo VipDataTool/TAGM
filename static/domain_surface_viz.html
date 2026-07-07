@@ -216,6 +216,10 @@ function ladderRender(){
       return Object.assign({}, r, { _active: activeScore });
     });
     ranked.sort(function(a, b){ return b._active - a._active; });
+    // Rank follows the ACTIVE metric. The server's stored rank is the
+    // count-metric rank; under proximity the displayed rank must come
+    // from this re-sort or tooltips report the wrong ordinal.
+    ranked.forEach(function(r, i){ r.rank = i + 1; });
     raysByRight[String(e.right_id)] = ranked.slice(0, topK);
   });
 
@@ -238,11 +242,15 @@ function ladderRender(){
   var rayEndX     = W - 260;  // where rays meet right column
   var rightLabelX = rayEndX + 12;
 
-  function leftY(i){ return headerH + i * rowH + rowH / 2; }
+  // Both columns distribute across the shared vertical span, so a
+  // short axis spreads to face the long one instead of clustering at
+  // the top.
+  var span = maxCount * rowH;
+  function leftY(i){
+    var step = span / Math.max(1, leftItems.length);
+    return headerH + (i + 0.5) * step;
+  }
   function rightY(i){
-    // Distribute right items along the same vertical span as the longest
-    // axis so they line up cleanly when both columns have similar size.
-    var span = maxCount * rowH;
     var step = span / Math.max(1, rightItems.length);
     return headerH + (i + 0.5) * step;
   }
@@ -325,6 +333,19 @@ function ladderRender(){
   });
 
   svg.innerHTML = s;
+
+  // Reset the compare tray: pinned panels from a previous render refer
+  // to rays (and possibly a different slice) that no longer exist.
+  var _trayEl = document.getElementById("compareTray");
+  if (_trayEl) _trayEl.classList.remove("visible");
+  ["compareA","compareB"].forEach(function(cid, ci){
+    var el = document.getElementById(cid);
+    if (el){
+      el.className = "compare-panel empty";
+      el.innerHTML = '<span>' + (ci === 0 ? 'Click a ray to pin (A)' : 'Click another to compare (B)') + '</span>';
+    }
+  });
+  document.body.style.paddingBottom = "";
 
   // ── Dual compare slots ──
   // Click rays to fill slot A, then B. Both metrics shown side by side.

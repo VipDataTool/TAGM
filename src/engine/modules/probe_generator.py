@@ -12,18 +12,16 @@ Process:
      using a prompt steered toward that specific cell
   3. Extract terms from all responses, count per-cell frequencies
   4. Frequency filter: discard terms below minimum threshold
-  5. Cross-class dedup: for each subclass, remove terms that
-     appear in more than one class
-  6. Cross-subclass dedup: for each class, remove terms that
-     appear in more than one subclass
-  7. Export flat CSV with columns: subject, subclass, text
+  5. Discriminative dedup: any term present in more than one cell
+     (anywhere in the lattice — same row, same column, or diagonal)
+     is removed from all cells. Cross-class / cross-subclass /
+     diagonal breakdowns are reported as diagnostics.
+  6. Export flat CSV with columns: subject, subclass, text
      One record per probe.
 
-The two-axis deduplication is the discriminative filter.  A term
-must be unique to its cell — unique to its class along the subclass
-axis, and unique to its subclass along the class axis.  What survives
-is the model-specific vocabulary fingerprint for each cell in the
-class × subclass lattice.
+Global uniqueness is the discriminative filter.  A term must be
+unique to its cell; what survives is the model-specific vocabulary
+fingerprint for each cell in the class × subclass lattice.
 
 No dependencies on other TASM modules.  Reads any conforming CSV.
 """
@@ -113,21 +111,142 @@ def _parse_template(csv_path):
 
 # ─── Tokenization ─────────────────────────────────────────────
 
-def _tokenize_response(text, stopwords=frozenset()):
-    """Extract terms from model output.
+_WORD_RE = re.compile(r"[a-zA-Z]+(?:[-'][a-zA-Z]+)*")
+_TERM_LINE_RE = re.compile(r"^[a-zA-Z][a-zA-Z' \-]*[a-zA-Z]$")
 
-    Captures alphabetic words including hyphenated compounds
-    (e.g. 'self-assembling', 'Bose-Einstein').  No BPE sub-token
-    restriction — any viable string that clears the stopword and
-    minimum-length filters is kept.
+
+def _tokenize_response(text, stopwords=frozenset()):
+    """Extract terms, honoring the prompt's one-term-per-line contract.
+
+    Primary path: each response line is a candidate term after list
+    markup is stripped (bullets, numbering, trailing punctuation).
+    Lines of one to five words survive as WHOLE terms — the multi-word
+    vocabulary the prompt explicitly requests is preserved instead of
+    being shredded into single words. Single-word terms pass the
+    stopword and length filters; a multi-word term is kept if at least
+    one of its words is a non-stopword.
+
+    Fallback: a response that doesn't look like a list (fewer than 3
+    line-terms extracted) is word-shredded with the historical regex,
+    so prose answers still yield vocabulary.
     """
+    terms = Counter()
+    for raw in text.splitlines():
+        t = raw.strip()
+        t = re.sub(r"^[\-\*\u2022\u00b7>]+\s*", "", t)   # bullets
+        t = re.sub(r"^\d+[\.\):]\s*", "", t)              # numbering
+        t = t.strip().strip(".,;:").strip().lower()
+        if len(t) < 3 or not _TERM_LINE_RE.match(t):
+            continue
+        words = t.split()
+        if len(words) > 5:
+            continue
+        if len(words) == 1:
+            if len(t) < 3 or t in stopwords:
+                continue
+            terms[t] += 1
+        else:
+            if all(w in stopwords for w in words):
+                continue
+            terms[t] += 1
+    if sum(terms.values()) >= 3:
+        return terms
+
+    # Fallback: word-shred prose
     words = Counter()
-    raw_words = re.findall(r"[a-zA-Z]+(?:[-'][a-zA-Z]+)*", text.lower())
-    for w in raw_words:
+    for w in _WORD_RE.findall(text.lower()):
         if len(w) < 3 or w in stopwords:
             continue
         words[w] += 1
     return words
+
+
+def _seed_filter(counts, seeds):
+    """Remove tokens that appear verbatim in the cell's own seed phrase.
+
+    Seed phrases steer the prompt, and the model reliably echoes them
+    back — so seed words masquerade as model vocabulary and, worse, as
+    DISCRIMINATIVE vocabulary, since each cell's seeds are unique to it
+    by construction. Returns (counts, removed_counter).
+    """
+    if not seeds:
+        return counts, Counter()
+    s = seeds.lower()
+    seed_words = set(_WORD_RE.findall(s))
+    removed = Counter()
+    for t in list(counts):
+        if t in seed_words or (" " in t and t in s):
+            removed[t] += counts[t]
+            del counts[t]
+    return counts, removed
+
+
+# ─── Discriminative filtering ─────────────────────────────────
+
+def _dedup(cell_vocab, classes, subclass_cols, min_freq, skip_dedup):
+    """Frequency filter + discriminative (global-uniqueness) dedup.
+
+    The discriminative contract is "a term must be unique to its cell."
+    The historical two-axis formulation (cross-class within a subclass
+    column, cross-subclass within a class) misses DIAGONAL collisions:
+    a token appearing in exactly two cells that share neither row nor
+    column — e.g. (physics, technical) and (chemistry, casual) — was
+    flagged by neither axis and survived in both cells, violating the
+    contract. Uniqueness is therefore enforced globally: any token
+    present in more than one frequency-filtered cell is removed from
+    all of them. The axis sets are still computed as diagnostics, and
+    tokens caught only by the global rule are reported separately as
+    the diagonal set.
+
+    Returns (discriminative, cross_class, cross_subclass, diagonal),
+    where discriminative maps (class, subclass_col) -> Counter.
+    """
+    filtered = {}
+    for key in cell_vocab:
+        filtered[key] = Counter({
+            tok: cnt for tok, cnt in cell_vocab[key].items()
+            if cnt >= min_freq
+        })
+    if skip_dedup:
+        return filtered, set(), set(), set()
+
+    # Global presence: how many cells contain each token
+    presence = Counter()
+    for key in filtered:
+        for tok in filtered[key]:
+            presence[tok] += 1
+    shared_global = {tok for tok, c in presence.items() if c > 1}
+
+    # Axis diagnostics (subsets of shared_global)
+    xclass = set()
+    for col in subclass_cols:
+        tc = Counter()
+        for cls in classes:
+            for tok in filtered.get((cls, col), {}):
+                tc[tok] += 1
+        for tok, cnt in tc.items():
+            if cnt > 1:
+                xclass.add(tok)
+    xsub = set()
+    for cls in classes:
+        ts = Counter()
+        for col in subclass_cols:
+            for tok in filtered.get((cls, col), {}):
+                ts[tok] += 1
+        for tok, cnt in ts.items():
+            if cnt > 1:
+                xsub.add(tok)
+    diagonal = shared_global - (xclass | xsub)
+
+    disc = {}
+    for cls in classes:
+        for col in subclass_cols:
+            key = (cls, col)
+            disc[key] = Counter({
+                tok: cnt for tok, cnt in filtered.get(key, {}).items()
+                if tok not in shared_global
+            })
+    return disc, xclass, xsub, diagonal
 
 
 # ─── Prompt Construction ──────────────────────────────────────
@@ -178,7 +297,7 @@ class ProbeGeneratorModule(TASMModule):
         "Result: a model-specific vocabulary fingerprint for each "
         "cell in the class × subclass lattice."
     )
-    version = "0.3.0"
+    version = "0.4.0"
 
     min_results = 0
     requires_sfd = False
@@ -227,6 +346,7 @@ class ProbeGeneratorModule(TASMModule):
         return [
             ModuleParameter(
                 name="template_file",
+                group="Template & Output",
                 display_name="Template File",
                 description=(
                     "CSV template with 'subject' column and one or more "
@@ -237,6 +357,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="output_name",
+                group="Template & Output",
                 display_name="Output File Name",
                 description=(
                     "Name for the generated probe file. "
@@ -247,6 +368,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="queries_per_cell",
+                group="Sampling",
                 display_name="Queries Per Cell",
                 description=(
                     "Number of times to query the model per class × subclass cell. "
@@ -259,6 +381,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="max_new_tokens",
+                group="Sampling",
                 display_name="Max Tokens Per Response",
                 description="Maximum tokens the model generates per query",
                 type="int",
@@ -268,6 +391,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="temperature",
+                group="Sampling",
                 display_name="Temperature",
                 description=(
                     "Sampling temperature. Lower values (0.5-0.7) produce "
@@ -282,6 +406,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="top_p",
+                group="Sampling",
+                advanced=True,
                 display_name="Top-P (Nucleus Sampling)",
                 description=(
                     "Nucleus sampling threshold. Limits token selection to "
@@ -295,6 +421,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="repetition_penalty",
+                group="Sampling",
+                advanced=True,
                 display_name="Repetition Penalty",
                 description=(
                     "Penalty for repeating tokens in generated text. "
@@ -308,6 +436,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="min_frequency",
+                group="Discriminative Filter",
                 display_name="Minimum Frequency",
                 description=(
                     "Minimum times a token must appear across all queries "
@@ -320,6 +449,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="prompt_template",
+                group="Sampling",
+                advanced=True,
                 display_name="Prompt Template",
                 description=(
                     "Template sent to the model for each cell. "
@@ -330,6 +461,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="export_catalog",
+                group="Diagnostics",
+                advanced=True,
                 display_name="Export Inference Catalog",
                 description=(
                     "Save a CSV log of every model query and response. "
@@ -340,6 +473,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="stopword_file",
+                group="Discriminative Filter",
                 display_name="Stopword File",
                 description=(
                     "Text file of words to exclude before discriminative "
@@ -352,6 +486,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="min_probes_per_cell",
+                group="Cell Resolution",
                 display_name="Min Probes Per Cell",
                 description=(
                     "Minimum discriminative tokens required per cell after "
@@ -366,6 +501,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="max_probes_per_cell",
+                group="Cell Resolution",
                 display_name="Max Probes Per Cell",
                 description=(
                     "Truncate each cell to this many probes (highest "
@@ -381,6 +517,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="auto_populate_batch",
+                group="Cell Resolution",
+                advanced=True,
                 display_name="Auto-Populate Queries Per Round",
                 description=(
                     "Number of additional queries to run per thin cell "
@@ -394,6 +532,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="auto_populate_max_rounds",
+                group="Cell Resolution",
+                advanced=True,
                 display_name="Auto-Populate Max Rounds",
                 description=(
                     "Maximum number of re-query rounds for thin cells. "
@@ -407,6 +547,8 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="skip_dedup",
+                group="Discriminative Filter",
+                advanced=True,
                 display_name="Skip Discriminative Deduplication",
                 description=(
                     "Bypass the two-axis dedup filter. Keeps every token "
@@ -421,6 +563,7 @@ class ProbeGeneratorModule(TASMModule):
             ),
             ModuleParameter(
                 name="auto_embed",
+                group="Template & Output",
                 display_name="Auto-Embed After Generation",
                 description=(
                     "Automatically embed and activate the generated probe "
@@ -512,6 +655,7 @@ class ProbeGeneratorModule(TASMModule):
 
         # Track which tokens get filtered for auditability
         stopword_hits = Counter()  # token -> times filtered
+        seed_hits = Counter()      # token -> occurrences removed as seed echo
 
         # Resolve template path
         csv_path = template_file
@@ -530,6 +674,12 @@ class ProbeGeneratorModule(TASMModule):
         if progress:
             progress(f"Loaded {n_classes} classes × {n_subclasses} subclasses "
                      f"= {total_cells} cells")
+
+        # Terms requested in the prompt, derived from the token budget:
+        # a term plus newline costs roughly 5-8 tokens, so asking for
+        # max_tokens terms (the old behavior) requested a list several
+        # times longer than the budget could hold.
+        ask_terms = max(10, max_tokens // 6)
 
         # ── Sample model output distribution per cell ──
         import torch
@@ -555,7 +705,7 @@ class ProbeGeneratorModule(TASMModule):
 
                     prompt_text = _build_cell_prompt(
                         cls, col, seeds, self._active_tokenizer,
-                        word_count=max_tokens,
+                        word_count=ask_terms,
                         template=prompt_template)
 
                     # Acquire inference lock to prevent concurrent model access
@@ -583,6 +733,8 @@ class ProbeGeneratorModule(TASMModule):
                         if _inf_lock:
                             _inf_lock.release()
                     word_counts = _tokenize_response(response, stopwords)
+                    word_counts, _seed_rm = _seed_filter(word_counts, seeds)
+                    seed_hits.update(_seed_rm)
                     vocab.update(word_counts)
 
                     # Track stopword hits for audit trail
@@ -608,55 +760,13 @@ class ProbeGeneratorModule(TASMModule):
 
         elapsed_sampling = time.time() - t0
 
-        # ── Dedup pipeline (reusable for auto-populate rounds) ──
-        def _run_dedup(cv):
-            """Apply frequency filter + cross-axis dedup.
-
-            When skip_dedup is True, only the frequency filter runs
-            and the cross-class / cross-subclass shared sets are empty.
-            """
-            filtered = {}
-            for key in cv:
-                filtered[key] = Counter({
-                    tok: cnt for tok, cnt in cv[key].items()
-                    if cnt >= min_freq
-                })
-            if skip_dedup:
-                # Raw mode: keep frequency-filtered vocab, no cross-axis removal
-                return filtered, set(), set()
-            xclass = set()
-            for col in subclass_cols:
-                tc = Counter()
-                for cls in classes:
-                    for tok in filtered.get((cls, col), {}):
-                        tc[tok] += 1
-                for tok, cnt in tc.items():
-                    if cnt > 1:
-                        xclass.add(tok)
-            xsub = set()
-            for cls in classes:
-                ts = Counter()
-                for col in subclass_cols:
-                    for tok in filtered.get((cls, col), {}):
-                        ts[tok] += 1
-                for tok, cnt in ts.items():
-                    if cnt > 1:
-                        xsub.add(tok)
-            shared = xclass | xsub
-            disc = {}
-            for cls in classes:
-                for col in subclass_cols:
-                    key = (cls, col)
-                    disc[key] = Counter({
-                        tok: cnt for tok, cnt in filtered.get(key, {}).items()
-                        if tok not in shared
-                    })
-            return disc, xclass, xsub
-
+        # ── Dedup pipeline (module-level; see _dedup) ──
         # Initial dedup pass
-        discriminative, cross_class_shared, cross_subclass_shared = \
-            _run_dedup(cell_vocab)
-        all_shared = cross_class_shared | cross_subclass_shared
+        discriminative, cross_class_shared, cross_subclass_shared, \
+            diagonal_shared = _dedup(cell_vocab, classes, subclass_cols,
+                                     min_freq, skip_dedup)
+        all_shared = (cross_class_shared | cross_subclass_shared
+                      | diagonal_shared)
 
         # ── Auto-populate thin cells ──
         auto_populate_rounds = 0
@@ -689,7 +799,7 @@ class ProbeGeneratorModule(TASMModule):
 
                         prompt_text = _build_cell_prompt(
                             cls, col, seeds, self._active_tokenizer,
-                            word_count=max_tokens,
+                            word_count=ask_terms,
                             template=prompt_template)
 
                         if _inf_lock:
@@ -716,6 +826,8 @@ class ProbeGeneratorModule(TASMModule):
                             if _inf_lock:
                                 _inf_lock.release()
                         word_counts = _tokenize_response(response, stopwords)
+                        word_counts, _seed_rm = _seed_filter(word_counts, seeds)
+                        seed_hits.update(_seed_rm)
                         cell_vocab[(cls, col)].update(word_counts)
 
                         if stopwords:
@@ -733,9 +845,12 @@ class ProbeGeneratorModule(TASMModule):
                         auto_populate_queries += 1
 
                 # Re-run full dedup after adding new vocabulary
-                discriminative, cross_class_shared, cross_subclass_shared = \
-                    _run_dedup(cell_vocab)
-                all_shared = cross_class_shared | cross_subclass_shared
+                discriminative, cross_class_shared, cross_subclass_shared, \
+                    diagonal_shared = _dedup(cell_vocab, classes,
+                                             subclass_cols, min_freq,
+                                             skip_dedup)
+                all_shared = (cross_class_shared | cross_subclass_shared
+                              | diagonal_shared)
 
             if progress and auto_populate_rounds > 0:
                 final_cnts = {(cls, col): len(discriminative[(cls, col)])
@@ -917,6 +1032,7 @@ class ProbeGeneratorModule(TASMModule):
             "total_shared_removed": len(all_shared),
             "cross_class_shared": len(cross_class_shared),
             "cross_subclass_shared": len(cross_subclass_shared),
+            "cross_diagonal_shared": len(diagonal_shared),
             "total_discriminative": total_disc,
             "per_subject": per_class,  # backward compat
             "shared_tokens": sorted(all_shared),
@@ -929,6 +1045,9 @@ class ProbeGeneratorModule(TASMModule):
             "stopwords_loaded": sorted(stopwords) if stopwords else [],
             "stopword_hits": dict(stopword_hits.most_common()),
             "stopword_total_filtered": sum(stopword_hits.values()),
+            # Seed-echo audit trail
+            "seed_hits": dict(seed_hits.most_common()),
+            "seed_total_filtered": sum(seed_hits.values()),
             # Cell resolution analysis
             "cell_resolution": cell_resolution,
         }

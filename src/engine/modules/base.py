@@ -35,6 +35,8 @@ class ModuleParameter:
     options: list = field(default_factory=list)   # for "select" type
     min_val: Optional[float] = None               # for numeric types
     max_val: Optional[float] = None
+    group: str = ""                               # UI section label
+    advanced: bool = False                        # collapsed by default
 
     def to_dict(self):
         d = asdict(self)

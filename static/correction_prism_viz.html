@@ -1234,18 +1234,24 @@ table.tok tr:hover td{background:#FFFFFF07}
       'the instruct model up to the probe\'s lower depth (<code>L_low</code>) and reducing the ' +
       'resulting <code>T × d_model</code> residual to a single vector. Default reduction is ' +
       '<code>mean</code> across token positions; <code>last</code> takes the final token; ' +
-      '<code>rowspace</code> keeps the full subspace (richer for context-mixed prompts).</dd></div>' +
+      '<code>max_token</code> keeps the full <code>T × d_model</code> matrix and reports, per probe, ' +
+      'the strongest single-token alignment, signed by that token — a per-token maximum, not a ' +
+      'rowspace projection (richer for context-mixed prompts, but the sign belongs to one token).</dd></div>' +
 
       '<div><dt>Circuit</dt>' +
-      '<dd>Which sub-component of the model-side weight delta <code>ΔW</code> the beam is projected ' +
-      'through. <code>full</code> is the sum across Q+K+V+O; <code>q/k/v/o</code> isolate a single ' +
-      'projection; <code>qk</code> and <code>vo</code> are first-order operators for the routing ' +
-      'and content-flow circuits respectively (computed as ' +
-      '<code>ΔW_Q · W_K^{instr,T} + W_Q^{base} · ΔW_K^T</code> for QK, and analogously for VO).</dd></div>' +
+      '<dd>Which circuit delta operator the beam is projected through, built in the model\'s own ' +
+      'forward convention so the projection is the pushforward <code>ΔW·b</code>, not its adjoint. ' +
+      '<code>qk</code> is the <i>exact</i> delta of the routing bilinear <code>W_Q^T·K̃</code> ' +
+      '(<code>Δ(A·B) = ΔA·B_instr + A_base·ΔB</code> — the cross term telescopes away); ' +
+      '<code>vo</code> is the exact delta of the content composite <code>Ṽ^T·W_O^T</code>, ' +
+      'residual → residual. <code>full = qk + vo</code>, the exact residual-side circuit delta. ' +
+      '<code>q/k/v/o</code> isolate a single projection\'s delta (<code>k/v</code> in GQA-shared ' +
+      'head coordinates; <code>o</code> alone reads head space — exploratory). ' +
+      '<code>K̃, Ṽ</code> denote GQA expansion: each KV head repeated across the query heads it serves.</dd></div>' +
 
       '<div><dt>Signed cosine</dt>' +
       '<dd>The default decomposition metric. For each probe, the signed cosine of the angle between ' +
-      'its probe-basis direction <code>Δp_i</code> and the beam-through-circuit <code>b · ΔW</code>. ' +
+      'its projected probe direction and the beam-through-circuit field <code>ΔW·b</code> (both sides pass through the circuit operator). ' +
       'Range <code>[−1, +1]</code>. ' +
       '<span style="color:var(--aligned)">Positive</span> = the correction pushed the prompt\'s ' +
       'field along this concept\'s natural depth-trajectory (aligned). ' +
@@ -1274,7 +1280,10 @@ table.tok tr:hover td{background:#FFFFFF07}
       'over active probes in scope, so it self-calibrates to the run\'s magnitudes instead of using a fixed ' +
       'cutoff. At <code>pct = 0</code> the band collapses to zero — a pure sign classifier where any nonzero ' +
       'response is directional; larger <code>pct</code> widens the orthogonal class. A cell with mixed signs ' +
-      'has internal disagreement that the cell value averages over.</dd></div>' +
+      'has internal disagreement that the cell value averages over. Each probe also reports ' +
+      '<code>consistency</code> — <code>|mean over prompts| / mean|per-prompt response|</code> — ' +
+      '1.0 means unanimous sign across the session; near 0 with real magnitude means <i>contested</i> ' +
+      '(responses cancel across prompts), which the direction label alone would show as orthogonal.</dd></div>' +
 
       '<div><dt>Degenerate probes</dt>' +
       '<dd>Probes whose <code>Δp_i = p_i^{L_high} − p_i^{L_low}</code> has near-zero norm — ' +

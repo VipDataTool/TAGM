@@ -2211,17 +2211,9 @@ function renderModuleCard(m) {
     h += '</div>';
   }
 
-  // Parameters
+  // Parameters — grouped sections; advanced params fold away
   if (m.parameters && m.parameters.length) {
-    h += '<div class="mod-params">';
-    m.parameters.forEach(function(p) {
-      h += '<div class="mod-param">';
-      h += '<label>' + escHtml(p.display_name) + '</label>';
-      h += renderParamControl(m.name, p);
-      if (p.description) h += '<div class="param-desc">' + escHtml(p.description) + '</div>';
-      h += '</div>';
-    });
-    h += '</div>';
+    h += '<div class="mod-params-wrap">' + renderParamSections(m) + '</div>';
   }
 
   // Actions
@@ -2259,6 +2251,41 @@ function toggleModCard(name) {
     body.style.display = 'none';
     if (chev) chev.textContent = '▶';
   }
+}
+
+function renderParamSections(m) {
+  function paramCell(p) {
+    var c = '<div class="mod-param">';
+    c += '<label>' + escHtml(p.display_name) + '</label>';
+    c += renderParamControl(m.name, p);
+    if (p.description) c += '<div class="param-desc">' + escHtml(p.description) + '</div>';
+    return c + '</div>';
+  }
+  function grouped(params) {
+    var order = [], byG = {};
+    params.forEach(function(p) {
+      var g = p.group || '';
+      if (!(g in byG)) { byG[g] = []; order.push(g); }
+      byG[g].push(p);
+    });
+    var out = '';
+    order.forEach(function(g) {
+      out += '<div class="mod-param-group">';
+      if (g) out += '<div class="mod-param-group-title">' + escHtml(g) + '</div>';
+      out += '<div class="mod-params">';
+      byG[g].forEach(function(p) { out += paramCell(p); });
+      out += '</div></div>';
+    });
+    return out;
+  }
+  var basic = m.parameters.filter(function(p) { return !p.advanced; });
+  var adv   = m.parameters.filter(function(p) { return p.advanced; });
+  var h = grouped(basic);
+  if (adv.length) {
+    h += '<details class="mod-adv"><summary>Advanced (' + adv.length + ')</summary>'
+      + grouped(adv) + '</details>';
+  }
+  return h;
 }
 
 function renderParamControl(modName, p) {
