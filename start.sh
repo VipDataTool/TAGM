@@ -31,4 +31,14 @@ echo "   Log file: tagm.log"
 echo ""
 
 cd "$(dirname "$0")"
-exec python -m src --host 0.0.0.0 --port 8000 "$@"
+
+# Kill any stale server still holding the port (orphaned terminals in
+# codespaces leave the old process running, so edits never take effect
+# and the new launch dies with "address already in use").
+PORT="${TAGM_PORT:-8000}"
+if fuser -k "${PORT}/tcp" 2>/dev/null; then
+  echo "-> Killed stale process on port ${PORT}, waiting for it to release..."
+  sleep 1
+fi
+
+exec python -m src --host 0.0.0.0 --port "$PORT" "$@"
