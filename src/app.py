@@ -540,6 +540,14 @@ async def upload_template(file: UploadFile = File(...)):
     rel = os.path.relpath(dest, _PACKAGE_DIR.parent)
     return {"ok": True, "filename": rel}
 
+@app.get("/api/health")
+async def health():
+    """Liveness probe. The port only opens after Python finishes
+    importing this module (torch, transformers, sklearn — a 10-30s
+    wall on cold starts), so anything that answers here is fully up.
+    start.sh polls this to print an unambiguous READY banner."""
+    return {"ok": True}
+
 @app.get("/api/templates")
 async def api_list_templates():
     from src.probes.io import list_templates
