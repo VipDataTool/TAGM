@@ -384,6 +384,7 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                 if deconstruct:
                     rd["family_index"] = family_base + p.get("family_local", 0)
                     rd["rung_index"] = p.get("rung_index", 0)
+                rd = _sanitize_for_json(rd)
                 state.session.add_result(rd)
                 results.append(rd)
 
@@ -446,6 +447,7 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                                 "max_new_tokens": harvest_tokens,
                                 "n_generated_tokens": harvest["n_tokens"],
                             }
+                            resp_rd = _sanitize_for_json(resp_rd)
                             state.session.add_result(resp_rd)
                             results.append(resp_rd)
 
