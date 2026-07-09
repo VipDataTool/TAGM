@@ -303,6 +303,7 @@ def _read_analyze_flags(form, *, trajectory_default: bool) -> dict:
         "compute_ltp": _form_bool(form, "compute_ltp"),
         "compute_sfd": _form_bool(form, "compute_sfd"),
         "compute_ecm": _form_bool(form, "compute_ecm"),
+        "ecm_harvest_tokens": int(form.get("ecm_harvest_tokens") or 0),
         "ltp_k": int(form.get("ltp_k") or 8),
         "ltp_layer_strategy": (form.get("ltp_layer_strategy") or "signal").strip(),
         "ltp_svd_rank": int(form.get("ltp_svd_rank") or 0),
@@ -387,17 +388,17 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                 results.append(rd)
 
                 # ── ECM harvest: generate response + analyze it ───
+                # The ECM checkbox is the single gate.  Token count
+                # comes from the form field (falls back to config).
                 harvest_tokens = int(
-                    engine_config.get("ecm_harvest_tokens") or 0)
-                if (flags.get("compute_ecm")
-                        and engine_config.get("ecm_active")
-                        and harvest_tokens > 0):
+                    flags.get("ecm_harvest_tokens")
+                    or engine_config.get("ecm_harvest_tokens") or 0)
+                if flags.get("compute_ecm") and harvest_tokens > 0:
                     try:
-                        if progress:
-                            progress(
-                                "harvesting",
-                                f"[{i+1}/{n}] generating response "
-                                f"({harvest_tokens} tokens)...")
+                        state.progress(
+                            "harvesting",
+                            f"[{i+1}/{n}] generating response "
+                            f"({harvest_tokens} tokens)...")
 
                         from src.engine.ecm_harvest import (
                             generate_harvest_response)
@@ -433,10 +434,10 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                                 base_cache=None,
                             )
                             resp_rd = result_to_dict(resp_result)
-                            if flags.get("compute_ecm"):
-                                from src.engine.ecm_analysis import (
-                                    attach_ecm_analysis as _attach_ecm)
-                                _attach_ecm(resp_rd)
+                            from src.engine.ecm_analysis import (
+                                attach_ecm_analysis as _attach_ecm)
+                            _attach_ecm(resp_rd)
+                            resp_rd["role"] = "assistant"
                             resp_rd["ecm_harvest"] = {
                                 "source_prompt": p["prompt"],
                                 "ecm_diagnostics": (
@@ -448,20 +449,19 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                             state.session.add_result(resp_rd)
                             results.append(resp_rd)
 
-                            if progress:
-                                n_iv = harvest["ecm_diagnostics"].get(
-                                    "n_interventions", 0)
-                                progress(
-                                    "harvesting",
-                                    f"  response: {harvest['n_tokens']} "
-                                    f"tokens, {n_iv} interventions")
+                            n_iv = harvest["ecm_diagnostics"].get(
+                                "n_interventions", 0)
+                            state.progress(
+                                "harvesting",
+                                f"  response: {harvest['n_tokens']} "
+                                f"tokens, {n_iv} interventions")
                     except Exception as he:
                         logger.exception(
                             f"Harvest failed for prompt {i}: "
                             f"{p.get('prompt', '')[:60]}")
-                        if progress:
-                            progress("error",
-                                     f"Harvest {i} failed: {he}")
+                        errors.append((i, f"ECM harvest: {he}"))
+                        state.progress("error",
+                                       f"Harvest {i} failed: {he}")
 
         except Exception as e:
             logger.exception(f"Analysis failed for work item {i}")
