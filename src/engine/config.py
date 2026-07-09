@@ -111,6 +111,14 @@ DEFAULTS = {
     "ecm_no_repeat_ngram": 4,         # no_repeat_ngram_size while ECM active (0 = off);
                                       # backstop against loops seeded during cooled steps
     "ecm_harvest_tokens": 64,         # When ECM is active during analysis, generate a
+    "harvest_seed": 42,               # RNG seed for plain (control) harvests.
+    "harvest_seed_ecm": True,         # Seed ECM runs too (True = same seed as
+                                      # plain for clean causal attribution;
+                                      # False = unseeded for naturalistic sampling).
+    "harvest_temperature": 0.7,       # Base sampling temperature for harvest generation.
+                                      # ECM-regulated runs pass this to the processor
+                                      # as the base; plain runs use it directly.
+    "harvest_top_p": 0.9,             # Nucleus sampling threshold for harvest generation.
                                       # short response and analyze it as its own record.
                                       # 0 = off (prompt analysis only, current behavior).
 }

@@ -4,9 +4,14 @@ Called from _analyze_prompt_list when response harvesting is enabled
 (harvest_responses + ecm_harvest_tokens > 0). Generation runs either
 through the live ECM processor (use_ecm=True: regulated, diagnostics
 captured) or as plain sampling at the same base temperature
-(use_ecm=False: the unregulated control condition — identical sampling
-law when ECM never intervenes, so ECM-vs-plain record pairs measure
-exactly what the regulator changed).
+(use_ecm=False: the unregulated control condition).
+
+Seeding: plain runs are always seeded for reproducibility. ECM runs
+are seeded when seed_ecm=True (same seed as plain → clean causal A/B)
+or unseeded when False (naturalistic sampling — the regulator acts on
+the natural distribution). Both modes are useful: seeded isolates ECM's
+causal effect; unseeded explores the trajectories ECM encounters in
+practice.
 """
 from __future__ import annotations
 
@@ -34,6 +39,7 @@ def generate_harvest_response(
     prompt: str,
     max_new_tokens: int = 64,
     seed: int = 42,
+    seed_ecm: bool = True,
     temperature: float = 0.7,
     top_p: float = 0.9,
     use_ecm: bool = True,
@@ -52,7 +58,7 @@ def generate_harvest_response(
         n_tokens : int
         ecm_diagnostics : dict | None  (per-token temp, signals,
                           interventions; None when use_ecm=False)
-        seed : int
+        seed : int | None     (None when unseeded)
         mode : str        "ecm" | "plain"
     """
     pipeline = analyzer.pipeline
@@ -95,7 +101,14 @@ def generate_harvest_response(
             )
 
     # ── Generate ───────────────────────────────────────────
-    _set_seed(seed)
+    # Plain runs are always seeded for a reproducible baseline.
+    # ECM runs are seeded when seed_ecm=True (same seed as plain →
+    # clean causal attribution) or unseeded when False (naturalistic
+    # sampling — the regulator acts on the natural distribution).
+    seeded = (not use_ecm) or seed_ecm
+    if seeded:
+        _set_seed(seed)
+    actual_seed = seed if seeded else None
     generate_kwargs = dict(
         **inputs,
         max_new_tokens=max_new_tokens,
@@ -131,6 +144,6 @@ def generate_harvest_response(
         "response_text": response_text,
         "n_tokens": len(new_ids),
         "ecm_diagnostics": ecm_diag,
-        "seed": seed,
+        "seed": actual_seed,
         "mode": "ecm" if ecm_proc is not None else "plain",
     }

@@ -414,6 +414,11 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                     harvest = generate_harvest_response(
                         state.analyzer, p["prompt"],
                         max_new_tokens=harvest_tokens,
+                        seed=int(engine_config.get("harvest_seed")),
+                        seed_ecm=bool(engine_config.get("harvest_seed_ecm")),
+                        temperature=float(
+                            engine_config.get("harvest_temperature")),
+                        top_p=float(engine_config.get("harvest_top_p")),
                         use_ecm=harvest_ecm,
                     )
                     resp_text = harvest["response_text"]

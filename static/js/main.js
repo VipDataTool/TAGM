@@ -500,6 +500,29 @@ async function syncHarvestToChatConfig(){
       body:JSON.stringify({analyze_responses:on})});
   }catch(e){console.error('Chat config sync failed',e)}
 }
+async function saveHarvestConfig(){
+  try{
+    await fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        harvest_temperature:parseFloat($('cfgHarvestTemp').value),
+        harvest_top_p:parseFloat($('cfgHarvestTopP').value),
+        harvest_seed:parseInt($('cfgHarvestSeed').value),
+        harvest_seed_ecm:$('cfgHarvestSeedEcm')?$('cfgHarvestSeedEcm').checked:true,
+      })
+    });
+  }catch(e){console.error('Harvest config save failed',e)}
+}
+async function loadHarvestConfig(){
+  try{
+    var r=await(await fetch('/api/engine_config')).json();
+    if(r.ok&&r.config){
+      if($('cfgHarvestTemp'))$('cfgHarvestTemp').value=(r.config.harvest_temperature!=null?r.config.harvest_temperature:0.7);
+      if($('cfgHarvestTopP'))$('cfgHarvestTopP').value=(r.config.harvest_top_p!=null?r.config.harvest_top_p:0.9);
+      if($('cfgHarvestSeed'))$('cfgHarvestSeed').value=(r.config.harvest_seed!=null?r.config.harvest_seed:42);
+      if($('cfgHarvestSeedEcm'))$('cfgHarvestSeedEcm').checked=(r.config.harvest_seed_ecm!=null?!!r.config.harvest_seed_ecm:true);
+    }
+  }catch(e){}
+}
 async function saveEcmConfig(){
   try{
     await fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -543,7 +566,7 @@ async function loadEcmConfig(){
 }
 // Re-sync ECM when tab becomes visible (catches changes made in chat UI)
 document.addEventListener('visibilitychange',function(){
-  if(!document.hidden) loadEcmConfig();
+  if(!document.hidden){ loadEcmConfig(); loadHarvestConfig(); }
 });
 
 async function restoreSessionFromDisk(){
@@ -1836,7 +1859,7 @@ function playChime() {
     // Initialize SSE event stream before anything else.
     initEventSource();
 
-    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();loadHepStatus();loadEcmConfig();
+    loadModelList();loadPromptLibrary();await loadConfig();vizRenderConfig();loadAdvancedParams();loadProbeFiles();loadHepStatus();loadEcmConfig();loadHarvestConfig();
     if($('chimeToggle'))$('chimeToggle').checked=localStorage.getItem('tagm_chime')==='1';
     const st=await(await fetch('/api/status')).json();
     if(st.user_info){$('userName').value=st.user_info.name||'';$('userOrg').value=st.user_info.organization||'';$('userProject').value=st.user_info.project||''}
