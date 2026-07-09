@@ -508,6 +508,7 @@ async function saveEcmConfig(){
         ecm_entropy_weight:$('cfgEcmEntropyW')?parseFloat($('cfgEcmEntropyW').value):1.0,
         ecm_density_weight:$('cfgEcmDensityW')?parseFloat($('cfgEcmDensityW').value):0.0,
         ecm_fusion:$('cfgEcmFusion')?$('cfgEcmFusion').value:'max',
+        ecm_harvest_tokens:$('cfgEcmHarvestTokens')?parseInt($('cfgEcmHarvestTokens').value):64,
       })
     });
   }catch(e){console.error('ECM config save failed',e)}
@@ -527,6 +528,7 @@ async function loadEcmConfig(){
       if($('cfgEcmEntropyW'))$('cfgEcmEntropyW').value=(r.config.ecm_entropy_weight!=null?r.config.ecm_entropy_weight:1.0);
       if($('cfgEcmDensityW'))$('cfgEcmDensityW').value=(r.config.ecm_density_weight!=null?r.config.ecm_density_weight:0.0);
       if($('cfgEcmFusion'))$('cfgEcmFusion').value=r.config.ecm_fusion||'max';
+      if($('cfgEcmHarvestTokens'))$('cfgEcmHarvestTokens').value=(r.config.ecm_harvest_tokens!=null?r.config.ecm_harvest_tokens:64);
     }
   }catch(e){}
 }
@@ -683,6 +685,7 @@ function _buildAnalysisFormData(){
   fd.append('compute_ltp',$('cfgLtpCollect')?$('cfgLtpCollect').checked:true);
   fd.append('compute_sfd',$('cfgSfdCollect')?$('cfgSfdCollect').checked:true);
   fd.append('compute_ecm',$('computeECM')?$('computeECM').checked:false);
+  fd.append('ecm_harvest_tokens',$('cfgEcmHarvestTokens')?$('cfgEcmHarvestTokens').value:0);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
   fd.append('ltp_svd_rank',0);

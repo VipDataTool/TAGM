@@ -66,7 +66,15 @@
       <option value="jailbreak">Jailbreak</option>
     </select>
     <div class="checkbox-row"><input type="checkbox" id="computeKL"><label for="computeKL">KL divergence (loads base model)</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="computeECM"><label for="computeECM" title="Entropic Cascade Mitigation — cascade-detector replay over the extracted per-token traces">Cascade Mitigation <span class="ecm-badge">ECM</span></label></div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="computeECM">
+      <label for="computeECM" title="Entropic Cascade Mitigation — cascade-detector replay over the extracted per-token traces">Cascade Mitigation <span class="ecm-badge">ECM</span></label>
+      <input type="number" id="cfgEcmHarvestTokens" value="64" min="0" max="512" step="16"
+             style="width:52px;margin-left:8px;font-size:11px"
+             title="Generate a short response (this many tokens) and analyze it as its own record. 0 = prompt analysis only."
+             onchange="saveEcmConfig()">
+      <label for="cfgEcmHarvestTokens" style="font-size:10px;color:var(--dim);margin-left:2px">tokens</label>
+    </div>
     <div class="checkbox-row"><input type="checkbox" id="cfgDeconstruct"><label for="cfgDeconstruct" title="Expand each prompt into its prefix ladder — one token/punctuation unit at a time — and analyze every rung as its own record. Punctuation earns its own rung. Records carry family/rung indices.">Deconstruct prompts (prefix ladder)</label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
   </div>

@@ -458,7 +458,7 @@ _ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
              # v4 (multi-channel) — load is key-presence guarded, so
              # pre-v4 config files lacking these simply keep defaults.
              "ecm_version", "ecm_channels", "ecm_entropy_weight",
-             "ecm_density_weight", "ecm_fusion"}
+             "ecm_density_weight", "ecm_fusion", "ecm_harvest_tokens"}
 _ECM_CONFIG_VERSION = 2
 
 def _load_ecm_config():

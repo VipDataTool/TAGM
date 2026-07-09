@@ -106,6 +106,9 @@ DEFAULTS = {
     "ecm_fusion": "max",              # "max" | "sum" over weighted signals
     "ecm_no_repeat_ngram": 4,         # no_repeat_ngram_size while ECM active (0 = off);
                                       # backstop against loops seeded during cooled steps
+    "ecm_harvest_tokens": 64,         # When ECM is active during analysis, generate a
+                                      # short response and analyze it as its own record.
+                                      # 0 = off (prompt analysis only, current behavior).
 }
 
 _config = dict(DEFAULTS)

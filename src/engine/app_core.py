@@ -385,6 +385,84 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                     rd["rung_index"] = p.get("rung_index", 0)
                 state.session.add_result(rd)
                 results.append(rd)
+
+                # ── ECM harvest: generate response + analyze it ───
+                harvest_tokens = int(
+                    engine_config.get("ecm_harvest_tokens") or 0)
+                if (flags.get("compute_ecm")
+                        and engine_config.get("ecm_active")
+                        and harvest_tokens > 0):
+                    try:
+                        if progress:
+                            progress(
+                                "harvesting",
+                                f"[{i+1}/{n}] generating response "
+                                f"({harvest_tokens} tokens)...")
+
+                        from src.engine.ecm_harvest import (
+                            generate_harvest_response)
+                        harvest = generate_harvest_response(
+                            state.analyzer,
+                            p["prompt"],
+                            max_new_tokens=harvest_tokens,
+                        )
+
+                        resp_text = harvest["response_text"]
+                        if resp_text:
+                            resp_cat = (p.get("category", "")
+                                        + ":response").lstrip(":")
+                            resp_result = state.analyzer.analyze_prompt(
+                                resp_text,
+                                category=resp_cat,
+                                compute_kl=flags.get("compute_kl", False),
+                                compute_full_trajectory=flags.get(
+                                    "compute_full_trajectory", True),
+                                capture_responses=flags.get(
+                                    "capture_responses", False),
+                                full_capture=flags.get(
+                                    "full_capture", False),
+                                compute_ltp=flags.get(
+                                    "compute_ltp", False),
+                                compute_sfd=flags.get(
+                                    "compute_sfd", False),
+                                ltp_k=flags.get("ltp_k", 8),
+                                ltp_layer_strategy=flags.get(
+                                    "ltp_layer_strategy", "signal"),
+                                ltp_svd_rank=flags.get(
+                                    "ltp_svd_rank", 0),
+                                base_cache=None,
+                            )
+                            resp_rd = result_to_dict(resp_result)
+                            if flags.get("compute_ecm"):
+                                from src.engine.ecm_analysis import (
+                                    attach_ecm_analysis as _attach_ecm)
+                                _attach_ecm(resp_rd)
+                            resp_rd["ecm_harvest"] = {
+                                "source_prompt": p["prompt"],
+                                "ecm_diagnostics": (
+                                    harvest["ecm_diagnostics"]),
+                                "seed": harvest["seed"],
+                                "max_new_tokens": harvest_tokens,
+                                "n_generated_tokens": harvest["n_tokens"],
+                            }
+                            state.session.add_result(resp_rd)
+                            results.append(resp_rd)
+
+                            if progress:
+                                n_iv = harvest["ecm_diagnostics"].get(
+                                    "n_interventions", 0)
+                                progress(
+                                    "harvesting",
+                                    f"  response: {harvest['n_tokens']} "
+                                    f"tokens, {n_iv} interventions")
+                    except Exception as he:
+                        logger.exception(
+                            f"Harvest failed for prompt {i}: "
+                            f"{p.get('prompt', '')[:60]}")
+                        if progress:
+                            progress("error",
+                                     f"Harvest {i} failed: {he}")
+
         except Exception as e:
             logger.exception(f"Analysis failed for work item {i}")
             errors.append((i, str(e)))
