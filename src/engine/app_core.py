@@ -317,9 +317,21 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
 
     A single prompt is just a one-element list, so this is the one place
     prompts become result records — there is no separate single-vs-batch
-    pipeline anymore. The two endpoints differ only in their response
+    pipeline anymore.  The two endpoints differ only in their response
     contract (sync inline result vs. async 'started'), which stays in the
     thin wrappers.
+
+    Pipeline phases (resource-efficient ordering):
+
+      1. **Harvest generation** — while the instruct model is resident,
+         generate ECM responses for every prompt that needs one.  Each
+         response is appended to the work list as an additional item.
+      2. **Base phase** — load the base model *once*, compute base caches
+         for every item (original prompts AND generated responses), then
+         unload.
+      3. **Instruct analysis** — run ``analyze_prompt`` for every item
+         with its base cache.  Prompt and response records go through
+         the identical analytical path.
 
     ``prompts``: list of ``{"prompt", "category"}`` dicts.
     ``flags``:   analyze_prompt kwargs from ``_read_analyze_flags``.
@@ -336,7 +348,10 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
     Each result is persisted via ``add_result`` as it is produced, per
     the engine's 'no separate save step' contract.
     """
+    from src.engine.ecm_analysis import attach_ecm_analysis
+
     work = expand_prompts(prompts, deconstruct)
+    n_prompts = len(work)
 
     # One session-stable family base for this whole call, so ladders
     # never collide with families already stored (or from other calls).
@@ -345,132 +360,126 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
 
     needs_base = (flags.get("compute_kl") or flags.get("capture_responses")
                   or flags.get("compute_ltp"))
-    base_caches: list = []
-    if needs_base:
-        base_caches = state.analyzer.run_base_phase(
-            work,
-            ltp_k=flags.get("ltp_k", 8),
-            compute_kl=flags.get("compute_kl", False),
-            capture_responses=flags.get("capture_responses", False),
-            progress=state.progress,
-        )
+
+    # Common kwargs for analyze_prompt — shared by every item so prompts
+    # and responses go through the identical analytical path.
+    analyze_kw = {
+        "compute_kl": flags.get("compute_kl", False),
+        "compute_full_trajectory": flags.get("compute_full_trajectory", True),
+        "capture_responses": flags.get("capture_responses", False),
+        "full_capture": flags.get("full_capture", False),
+        "compute_ltp": flags.get("compute_ltp", False),
+        "compute_sfd": flags.get("compute_sfd", False),
+        "ltp_k": flags.get("ltp_k", 8),
+        "ltp_layer_strategy": flags.get("ltp_layer_strategy", "signal"),
+        "ltp_svd_rank": flags.get("ltp_svd_rank", 0),
+    }
+
+    # Common kwargs for run_base_phase.
+    base_kw = {
+        "ltp_k": flags.get("ltp_k", 8),
+        "compute_kl": flags.get("compute_kl", False),
+        "capture_responses": flags.get("capture_responses", False),
+        "progress": state.progress,
+    }
+
+    harvest_tokens = int(
+        flags.get("ecm_harvest_tokens")
+        or engine_config.get("ecm_harvest_tokens") or 0)
+    do_harvest = flags.get("compute_ecm") and harvest_tokens > 0
 
     results: list[dict] = []
     errors: list[tuple] = []
+    harvest_meta: dict[int, dict] = {}  # work index → metadata
+
+    # ── Phase 1: Harvest generation (instruct model resident) ───
+    # Generate ECM responses while the instruct model is loaded.
+    # Each response is appended to `work` as an additional item so
+    # it flows through the same base + analysis phases as prompts.
+    if do_harvest:
+        from src.engine.ecm_harvest import generate_harvest_response
+        for i in range(n_prompts):
+            p = work[i]
+            try:
+                with _analysis_lock:
+                    state.progress(
+                        "harvesting",
+                        f"[{i+1}/{n_prompts}] generating response "
+                        f"({harvest_tokens} tokens)...")
+                    harvest = generate_harvest_response(
+                        state.analyzer, p["prompt"],
+                        max_new_tokens=harvest_tokens,
+                    )
+                    resp_text = harvest["response_text"]
+                    if resp_text:
+                        resp_idx = len(work)
+                        work.append({
+                            "prompt": resp_text,
+                            "category": (p.get("category", "")
+                                         + ":response").lstrip(":"),
+                        })
+                        harvest_meta[resp_idx] = {
+                            "source_prompt": p["prompt"],
+                            "ecm_diagnostics":
+                                harvest["ecm_diagnostics"],
+                            "seed": harvest["seed"],
+                            "max_new_tokens": harvest_tokens,
+                            "n_generated_tokens": harvest["n_tokens"],
+                        }
+                        n_iv = harvest["ecm_diagnostics"].get(
+                            "n_interventions", 0)
+                        state.progress(
+                            "harvesting",
+                            f"  response: {harvest['n_tokens']} "
+                            f"tokens, {n_iv} interventions")
+            except Exception as he:
+                logger.exception(
+                    f"Harvest failed for prompt {i}: "
+                    f"{p.get('prompt', '')[:60]}")
+                errors.append((i, f"ECM harvest: {he}"))
+                state.progress("error",
+                               f"Harvest {i} failed: {he}")
+
+    # ── Phase 2: Base phase (one model load for everything) ─────
+    base_caches: list = []
+    if needs_base:
+        base_caches = state.analyzer.run_base_phase(work, **base_kw)
+
+    # ── Phase 3: Instruct analysis (all items) ──────────────────
     n = len(work)
     for i, p in enumerate(work):
         if progress:
-            progress("analyzing", f"[{i+1}/{n}] {(p.get('prompt') or '')[:50]}...")
+            progress("analyzing",
+                     f"[{i+1}/{n}] {(p.get('prompt') or '')[:50]}...")
         try:
             with _analysis_lock:
                 bc = base_caches[i] if i < len(base_caches) else None
                 result = state.analyzer.analyze_prompt(
                     p["prompt"], category=p.get("category", ""),
-                    compute_kl=flags.get("compute_kl", False),
-                    compute_full_trajectory=flags.get("compute_full_trajectory", True),
-                    capture_responses=flags.get("capture_responses", False),
-                    full_capture=flags.get("full_capture", False),
-                    compute_ltp=flags.get("compute_ltp", False),
-                    compute_sfd=flags.get("compute_sfd", False),
-                    ltp_k=flags.get("ltp_k", 8),
-                    ltp_layer_strategy=flags.get("ltp_layer_strategy", "signal"),
-                    ltp_svd_rank=flags.get("ltp_svd_rank", 0),
-                    base_cache=bc,
+                    base_cache=bc, **analyze_kw,
                 )
                 rd = result_to_dict(result)
                 if flags.get("compute_ecm"):
-                    from src.engine.ecm_analysis import attach_ecm_analysis
                     attach_ecm_analysis(rd)
-                if deconstruct:
-                    rd["family_index"] = family_base + p.get("family_local", 0)
+                if i in harvest_meta:
+                    rd["role"] = "assistant"
+                    rd["ecm_harvest"] = harvest_meta[i]
+                elif deconstruct and i < n_prompts:
+                    rd["family_index"] = family_base + p.get(
+                        "family_local", 0)
                     rd["rung_index"] = p.get("rung_index", 0)
                 rd = _sanitize_for_json(rd)
                 state.session.add_result(rd)
                 results.append(rd)
-
-                # ── ECM harvest: generate response + analyze it ───
-                # The ECM checkbox is the single gate.  Token count
-                # comes from the form field (falls back to config).
-                harvest_tokens = int(
-                    flags.get("ecm_harvest_tokens")
-                    or engine_config.get("ecm_harvest_tokens") or 0)
-                if flags.get("compute_ecm") and harvest_tokens > 0:
-                    try:
-                        state.progress(
-                            "harvesting",
-                            f"[{i+1}/{n}] generating response "
-                            f"({harvest_tokens} tokens)...")
-
-                        from src.engine.ecm_harvest import (
-                            generate_harvest_response)
-                        harvest = generate_harvest_response(
-                            state.analyzer,
-                            p["prompt"],
-                            max_new_tokens=harvest_tokens,
-                        )
-
-                        resp_text = harvest["response_text"]
-                        if resp_text:
-                            resp_cat = (p.get("category", "")
-                                        + ":response").lstrip(":")
-                            resp_result = state.analyzer.analyze_prompt(
-                                resp_text,
-                                category=resp_cat,
-                                compute_kl=flags.get("compute_kl", False),
-                                compute_full_trajectory=flags.get(
-                                    "compute_full_trajectory", True),
-                                capture_responses=flags.get(
-                                    "capture_responses", False),
-                                full_capture=flags.get(
-                                    "full_capture", False),
-                                compute_ltp=flags.get(
-                                    "compute_ltp", False),
-                                compute_sfd=flags.get(
-                                    "compute_sfd", False),
-                                ltp_k=flags.get("ltp_k", 8),
-                                ltp_layer_strategy=flags.get(
-                                    "ltp_layer_strategy", "signal"),
-                                ltp_svd_rank=flags.get(
-                                    "ltp_svd_rank", 0),
-                                base_cache=None,
-                            )
-                            resp_rd = result_to_dict(resp_result)
-                            from src.engine.ecm_analysis import (
-                                attach_ecm_analysis as _attach_ecm)
-                            _attach_ecm(resp_rd)
-                            resp_rd["role"] = "assistant"
-                            resp_rd["ecm_harvest"] = {
-                                "source_prompt": p["prompt"],
-                                "ecm_diagnostics": (
-                                    harvest["ecm_diagnostics"]),
-                                "seed": harvest["seed"],
-                                "max_new_tokens": harvest_tokens,
-                                "n_generated_tokens": harvest["n_tokens"],
-                            }
-                            resp_rd = _sanitize_for_json(resp_rd)
-                            state.session.add_result(resp_rd)
-                            results.append(resp_rd)
-
-                            n_iv = harvest["ecm_diagnostics"].get(
-                                "n_interventions", 0)
-                            state.progress(
-                                "harvesting",
-                                f"  response: {harvest['n_tokens']} "
-                                f"tokens, {n_iv} interventions")
-                    except Exception as he:
-                        logger.exception(
-                            f"Harvest failed for prompt {i}: "
-                            f"{p.get('prompt', '')[:60]}")
-                        errors.append((i, f"ECM harvest: {he}"))
-                        state.progress("error",
-                                       f"Harvest {i} failed: {he}")
 
         except Exception as e:
             logger.exception(f"Analysis failed for work item {i}")
             errors.append((i, str(e)))
             if progress:
                 progress("error", f"Prompt {i} failed: {e}")
+
     return results, errors
+
 
 
 def _start_analysis_job(prompts: list[dict], flags: dict, *,
