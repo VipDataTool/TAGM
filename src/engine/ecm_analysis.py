@@ -17,6 +17,18 @@ Channels are whatever the analysis actually extracted:
     density  — result["sfd"]["per_token_density"] (SFD checkbox; negated
                at the source: collapse presents as a rise to the
                one-sided detector, matching DensitySignal's convention)
+    entropy  — ecm_harvest.ecm_diagnostics entropy trace (harvest
+               records only). This replays the SAME scalar sequence the
+               live detector observed during generation, so any live/
+               replay disagreement on this channel isolates pure
+               detector-origin effects (warmup: ecm_warmup vs
+               ecm_replay_warmup; state origin: generation step 0 vs
+               text position 0) — a calibration channel, not a new
+               measurement.
+
+Every channel block carries a "source" field naming the trace it read,
+so downstream consumers never have to guess which process produced the
+numbers.
 
 Detector hyperparameters come from engine config (ecm_n_scales,
 ecm_deadband, ecm_agreement) — the same values the Configuration
@@ -122,11 +134,13 @@ def attach_ecm_analysis(result_dict: dict) -> dict:
     if stress:
         channels["stress"] = replay_trace(
             stress, n_scales, deadband, agreement, warmup=warmup)
+        channels["stress"]["source"] = "analysis:per_token_stress"
 
     kl = result_dict.get("per_token_kl")
     if kl:
         channels["kl"] = replay_trace(kl, n_scales, deadband, agreement,
                                       warmup=warmup)
+        channels["kl"]["source"] = "analysis:per_token_kl"
 
     sfd = result_dict.get("sfd") or {}
     density = sfd.get("per_token_density") if isinstance(sfd, dict) else None
@@ -134,6 +148,19 @@ def attach_ecm_analysis(result_dict: dict) -> dict:
         channels["density"] = replay_trace(
             density, n_scales, deadband, agreement, negate=True,
             warmup=warmup)
+        channels["density"]["source"] = "analysis:sfd.per_token_density"
+
+    # Calibration channel: replay the live entropy trace (harvest
+    # records). Same input sequence the live detector saw — differences
+    # against the live signal isolate warmup/origin, never the data.
+    live = (result_dict.get("ecm_harvest") or {}).get("ecm_diagnostics")
+    if isinstance(live, dict):
+        ent = ((live.get("channels") or {}).get("entropy") or {})
+        trace = ent.get("per_token_value") or live.get("per_token_entropy")
+        if trace:
+            channels["entropy"] = replay_trace(
+                trace, n_scales, deadband, agreement, warmup=warmup)
+            channels["entropy"]["source"] = "live:ecm_harvest entropy trace"
 
     result_dict["ecm"] = {
         "mode": "replay",

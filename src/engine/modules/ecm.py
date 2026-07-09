@@ -137,6 +137,22 @@ def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
         if n_int > 0:
             any_fired = True
 
+    # Live actuation summary (harvest records carry the generation-time
+    # diagnostics under ecm_harvest.ecm_diagnostics, mode="live")
+    live = None
+    harvest = result.get("ecm_harvest")
+    if isinstance(harvest, dict):
+        hd = harvest.get("ecm_diagnostics")
+        if isinstance(hd, dict):
+            live = {
+                "version": hd.get("version", "v2"),
+                "n_interventions": hd.get("n_interventions", 0),
+                "intervention_rate": _f(hd.get("intervention_rate")) or 0.0,
+                "max_signal": _f(hd.get("max_cascade_signal")) or 0.0,
+                "n_tokens": hd.get("n_tokens", 0),
+                "n_loop_releases": hd.get("n_loop_releases", 0),
+            }
+
     # Also pull companion metrics from the result for correlation
     stress = _f(result.get("stress_score"))
     kl = _f(result.get("kl_divergence"))
@@ -155,6 +171,7 @@ def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
         "max_signal": round(max_signal_overall, 6),
         "any_fired": any_fired,
         "detector": detector,
+        "live": live,
         # Companion metrics for correlation analysis
         "stress_score": stress,
         "kl_divergence": kl,
@@ -265,7 +282,9 @@ class EcmModule(TASMModule):
     name = "ecm"
     display_name = "ECM — Entropic Cascade Mitigation"
     description = (
-        "Analyzes ECM cascade-detector replay data collected during "
+        "Audits ECM cascade-detector replays over analytical traces "
+        "(summary) and reports live actuation from harvest generation "
+        "(live_summary), collected during "
         "inference (via the ECM checkbox). Produces per-category "
         "intervention statistics, cross-channel signal correlations, "
         "and category separability by ECM measures. Requires session "
@@ -398,6 +417,39 @@ class EcmModule(TASMModule):
 
         overall = _aggregate_category(records)
 
+        # ── Live actuation aggregates (harvest records only) ──
+        # The replay audit above asks "would the detector fire on the
+        # analytical traces"; this section reports what the live
+        # controller actually did during generation.
+        def _agg_live(blocks: list[dict]) -> dict:
+            n = len(blocks)
+            fired = sum(1 for b in blocks if b["n_interventions"] > 0)
+            return {
+                "n": n,
+                "n_fired": fired,
+                "fired_frac": round(fired / n, 4) if n else 0.0,
+                "mean_interventions": _mean(
+                    [b["n_interventions"] for b in blocks]),
+                "mean_intervention_rate": _mean(
+                    [b["intervention_rate"] for b in blocks]),
+                "max_signal": round(max(
+                    (b["max_signal"] for b in blocks), default=0.0), 6),
+                "n_loop_releases": sum(
+                    b.get("n_loop_releases", 0) for b in blocks),
+            }
+
+        live_summary = None
+        live_records = [r for r in records if r.get("live")]
+        if live_records:
+            by_cat_live: dict[str, list] = {}
+            for r in live_records:
+                by_cat_live.setdefault(r["category"], []).append(r["live"])
+            live_summary = {
+                "overall": _agg_live([r["live"] for r in live_records]),
+                "categories": {c: _agg_live(v)
+                               for c, v in sorted(by_cat_live.items())},
+            }
+
         # ── Detector config (from first record) ──
         detector_config = records[0].get("detector", {}) if records else {}
 
@@ -415,6 +467,7 @@ class EcmModule(TASMModule):
                     "any_fired": rec["any_fired"],
                     "total_interventions": rec["total_interventions"],
                     "channels": rec["channels"],
+                    "live": rec["live"],
                     "stress_score": rec["stress_score"],
                     "kl_divergence": rec["kl_divergence"],
                     "density_mean": rec["density_mean"],
@@ -465,10 +518,16 @@ class EcmModule(TASMModule):
             "signal_threshold": threshold,
             "strip_token_limit": strip_token_limit,
             "detector": detector_config,
+            # "summary" is the REPLAY AUDIT: would the detector fire on
+            # the analytical traces of each record's text (mode=replay).
+            # "live_summary" is the ACTUATION RECORD: what the controller
+            # actually did during harvest generation (mode=live).
+            "summary_mode": "replay_audit",
             "summary": {
                 "overall": overall,
                 "categories": categories,
             },
+            "live_summary": live_summary,
             "records": record_details,
             "n_errors": 0,
             "n_pairs": n_ecm,

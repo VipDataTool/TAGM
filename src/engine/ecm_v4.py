@@ -512,11 +512,13 @@ class ECMProcessorV4:
                     "n_scales": ch.detector.n_scales,
                     "deadband": ch.detector.deadband,
                     "agreement": ch.detector.agreement,
+                    "warmup": ch.detector.warmup,
                 },
             }
 
         out = {
             "version": "v4",
+            "mode": "live",     # actuation record — replay audit lives in result["ecm"]
             "channels": channels,
             "per_token_fused_signal": d.per_token_fused,
             "per_token_temperature": d.per_token_temperature,
@@ -565,10 +567,11 @@ def build_processor_from_config(analyzer, temperature: float) -> ECMProcessorV4:
     n_scales = int(engine_config.get("ecm_n_scales"))
     deadband = float(engine_config.get("ecm_deadband"))
     agreement = int(engine_config.get("ecm_agreement"))
+    warmup = int(engine_config.get("ecm_warmup") or _WARMUP_TOKENS)
 
     def _detector() -> CascadeDetector:
         return CascadeDetector(n_scales=n_scales, deadband=deadband,
-                               agreement=agreement)
+                               agreement=agreement, warmup=warmup)
 
     requested = [s.strip() for s in
                  str(engine_config.get("ecm_channels") or "entropy").split(",")

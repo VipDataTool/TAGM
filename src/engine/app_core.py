@@ -459,8 +459,9 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                     base_cache=bc, **analyze_kw,
                 )
                 rd = result_to_dict(result)
-                if flags.get("compute_ecm"):
-                    attach_ecm_analysis(rd)
+                # Stamp harvest metadata BEFORE the ECM attach: the
+                # replay's entropy calibration channel reads the live
+                # trace from rd["ecm_harvest"].
                 if i in harvest_meta:
                     rd["role"] = "assistant"
                     rd["ecm_harvest"] = harvest_meta[i]
@@ -468,6 +469,8 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
                     rd["family_index"] = family_base + p.get(
                         "family_local", 0)
                     rd["rung_index"] = p.get("rung_index", 0)
+                if flags.get("compute_ecm"):
+                    attach_ecm_analysis(rd)
                 rd = _sanitize_for_json(rd)
                 state.session.add_result(rd)
                 results.append(rd)

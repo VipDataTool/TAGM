@@ -361,6 +361,8 @@ class ECMProcessor:
         d = self._diagnostics
         n_tokens = len(d.per_token_entropy)
         return {
+            "version": "v2",
+            "mode": "live",     # actuation record — replay audit lives in result["ecm"]
             "per_token_entropy": d.per_token_entropy,
             "per_token_cascade_signal": d.per_token_cascade_signal,
             "per_token_temperature": d.per_token_temperature,
