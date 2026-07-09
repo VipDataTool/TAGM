@@ -1,8 +1,12 @@
-"""ECM harvest — generate a short response and return it as text.
+"""Response harvest — generate a short response and return it as text.
 
-Called from _analyze_prompt_list when ECM is active and
-ecm_harvest_tokens > 0. Generates through the live ECM processor,
-captures diagnostics, returns the response text for re-analysis.
+Called from _analyze_prompt_list when response harvesting is enabled
+(harvest_responses + ecm_harvest_tokens > 0). Generation runs either
+through the live ECM processor (use_ecm=True: regulated, diagnostics
+captured) or as plain sampling at the same base temperature
+(use_ecm=False: the unregulated control condition — identical sampling
+law when ECM never intervenes, so ECM-vs-plain record pairs measure
+exactly what the regulator changed).
 """
 from __future__ import annotations
 
@@ -32,8 +36,9 @@ def generate_harvest_response(
     seed: int = 42,
     temperature: float = 0.7,
     top_p: float = 0.9,
+    use_ecm: bool = True,
 ) -> dict:
-    """Generate a short ECM-regulated response and return it with diagnostics.
+    """Generate a short response, ECM-regulated or plain (control).
 
     Called inside _analyze_prompt_list, which already holds MODEL_LOCK
     (aliased as _analysis_lock).  threading.Lock is NOT reentrant, so
@@ -45,8 +50,10 @@ def generate_harvest_response(
     dict with keys:
         response_text : str
         n_tokens : int
-        ecm_diagnostics : dict   (per-token temp, signals, interventions)
+        ecm_diagnostics : dict | None  (per-token temp, signals,
+                          interventions; None when use_ecm=False)
         seed : int
+        mode : str        "ecm" | "plain"
     """
     pipeline = analyzer.pipeline
     model = pipeline.active_model
@@ -68,22 +75,24 @@ def generate_harvest_response(
     inputs = tokenizer(text, return_tensors="pt").to(device)
     input_len = inputs["input_ids"].shape[1]
 
-    # ── Build ECM processor ────────────────────────────────
-    ecm_version = str(engine_config.get("ecm_version") or "v2")
-
-    if ecm_version == "v4":
-        from src.engine.ecm_v4 import build_processor_from_config
-        ecm_proc = build_processor_from_config(analyzer, temperature=temperature)
-    else:
-        from src.engine.ecm import ECMProcessor
-        ecm_proc = ECMProcessor(
-            temperature=temperature,
-            n_scales=int(engine_config.get("ecm_n_scales")),
-            gain=float(engine_config.get("ecm_gain")),
-            floor=float(engine_config.get("ecm_floor")),
-            deadband=float(engine_config.get("ecm_deadband")),
-            agreement=int(engine_config.get("ecm_agreement")),
-        )
+    # ── Build ECM processor (regulated mode only) ──────────
+    ecm_proc = None
+    if use_ecm:
+        ecm_version = str(engine_config.get("ecm_version") or "v2")
+        if ecm_version == "v4":
+            from src.engine.ecm_v4 import build_processor_from_config
+            ecm_proc = build_processor_from_config(
+                analyzer, temperature=temperature)
+        else:
+            from src.engine.ecm import ECMProcessor
+            ecm_proc = ECMProcessor(
+                temperature=temperature,
+                n_scales=int(engine_config.get("ecm_n_scales")),
+                gain=float(engine_config.get("ecm_gain")),
+                floor=float(engine_config.get("ecm_floor")),
+                deadband=float(engine_config.get("ecm_deadband")),
+                agreement=int(engine_config.get("ecm_agreement")),
+            )
 
     # ── Generate ───────────────────────────────────────────
     _set_seed(seed)
@@ -91,14 +100,17 @@ def generate_harvest_response(
         **inputs,
         max_new_tokens=max_new_tokens,
         do_sample=True,
-        temperature=1.0,          # ECM owns temperature
         top_p=top_p,
         pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-        logits_processor=[ecm_proc],
     )
-    nrn = int(engine_config.get("ecm_no_repeat_ngram") or 0)
-    if nrn > 0:
-        generate_kwargs["no_repeat_ngram_size"] = nrn
+    if ecm_proc is not None:
+        generate_kwargs["temperature"] = 1.0   # ECM owns temperature
+        generate_kwargs["logits_processor"] = [ecm_proc]
+        nrn = int(engine_config.get("ecm_no_repeat_ngram") or 0)
+        if nrn > 0:
+            generate_kwargs["no_repeat_ngram_size"] = nrn
+    else:
+        generate_kwargs["temperature"] = temperature   # plain control
 
     # NOTE: MODEL_LOCK is NOT acquired here.  The caller
     # (_analyze_prompt_list) already holds it via _analysis_lock,
@@ -108,16 +120,17 @@ def generate_harvest_response(
         with torch.no_grad():
             output_ids = model.generate(**generate_kwargs)
     finally:
-        if hasattr(ecm_proc, "close"):
+        if ecm_proc is not None and hasattr(ecm_proc, "close"):
             ecm_proc.close()
 
     new_ids = output_ids[0, input_len:]
     response_text = tokenizer.decode(new_ids, skip_special_tokens=True).strip()
-    ecm_diag = ecm_proc.diagnostics_to_dict()
+    ecm_diag = ecm_proc.diagnostics_to_dict() if ecm_proc is not None else None
 
     return {
         "response_text": response_text,
         "n_tokens": len(new_ids),
         "ecm_diagnostics": ecm_diag,
         "seed": seed,
+        "mode": "ecm" if ecm_proc is not None else "plain",
     }

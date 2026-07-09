@@ -493,10 +493,18 @@ async function loadConfig(){
 function resetLtpConfig(){$('cfgLtpLayerStrategy').value='late';$('cfgLtpK').value='8';if($('cfgLtpCollect'))$('cfgLtpCollect').checked=true;saveConfig();log('LTP config reset to defaults','done')}
 
 // ── ECM Configuration ─────────────────────────────────────────
+async function syncHarvestToChatConfig(){
+  try{
+    var on=$('cfgHarvestResponses')&&$('cfgHarvestResponses').checked;
+    await fetch('/api/chat/config',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({analyze_responses:on})});
+  }catch(e){console.error('Chat config sync failed',e)}
+}
 async function saveEcmConfig(){
   try{
     await fetch('/api/engine_config',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
+        ecm_active:$('computeECM')?$('computeECM').checked:false,
         ecm_gain:parseFloat($('cfgEcmGain').value),
         ecm_floor:parseFloat($('cfgEcmFloor').value),
         ecm_n_scales:parseInt($('cfgEcmScales').value),
@@ -517,6 +525,7 @@ async function loadEcmConfig(){
   try{
     var r=await(await fetch('/api/engine_config')).json();
     if(r.ok&&r.config){
+      if($('computeECM'))$('computeECM').checked=!!r.config.ecm_active;
       if($('cfgEcmGain'))$('cfgEcmGain').value=r.config.ecm_gain||0.5;
       if($('cfgEcmFloor'))$('cfgEcmFloor').value=r.config.ecm_floor||0.1;
       if($('cfgEcmScales'))$('cfgEcmScales').value=r.config.ecm_n_scales||5;
@@ -685,6 +694,7 @@ function _buildAnalysisFormData(){
   fd.append('compute_ltp',$('cfgLtpCollect')?$('cfgLtpCollect').checked:true);
   fd.append('compute_sfd',$('cfgSfdCollect')?$('cfgSfdCollect').checked:true);
   fd.append('compute_ecm',$('computeECM')?$('computeECM').checked:false);
+  fd.append('harvest_responses',$('cfgHarvestResponses')?$('cfgHarvestResponses').checked:false);
   fd.append('ecm_harvest_tokens',$('cfgEcmHarvestTokens')?$('cfgEcmHarvestTokens').value:0);
   fd.append('ltp_k',$('cfgLtpK').value);
   fd.append('ltp_layer_strategy',$('cfgLtpLayerStrategy').value);
@@ -1154,6 +1164,8 @@ async function dtRerunSelected(){
     compute_ltp:!$('cfgLtpCollect')||$('cfgLtpCollect').checked,
     compute_sfd:!$('cfgSfdCollect')||$('cfgSfdCollect').checked,
     compute_ecm:$('computeECM')&&$('computeECM').checked,
+    harvest_responses:$('cfgHarvestResponses')&&$('cfgHarvestResponses').checked,
+    ecm_harvest_tokens:parseInt(($('cfgEcmHarvestTokens')&&$('cfgEcmHarvestTokens').value)||0),
     ltp_k:parseInt(($('cfgLtpK')&&$('cfgLtpK').value)||8),
     ltp_layer_strategy:($('cfgLtpLayerStrategy')&&$('cfgLtpLayerStrategy').value)||'signal',
     ltp_svd_rank:0,

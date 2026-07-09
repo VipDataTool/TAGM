@@ -271,6 +271,9 @@ document.addEventListener('visibilitychange',function(){
     fetch('/api/engine_config').then(r=>r.json()).then(d=>{
       if(d.ok&&d.config) $('chkECM').checked=!!d.config.ecm_active;
     }).catch(()=>{});
+    fetch('/api/chat/config').then(r=>r.json()).then(d=>{
+      if(d.ok&&d.config) $('chkResponses').checked=!!d.config.analyze_responses;
+    }).catch(()=>{});
   }
 });
 

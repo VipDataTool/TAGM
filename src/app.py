@@ -1455,6 +1455,22 @@ def _load_chat_config():
 async def get_chat_config():
     return {"ok": True, "config": _load_chat_config()}
 
+@app.post("/api/chat/config")
+async def set_chat_config(request: Request):
+    """Merge posted keys into the chat config and persist."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON body."}
+    cfg = _load_chat_config()
+    cfg.update(body)
+    config_path = _PACKAGE_DIR.parent / "chat_config.json"
+    try:
+        config_path.write_text(json.dumps(cfg, indent=2))
+    except Exception as e:
+        return {"ok": False, "error": f"Write failed: {e}"}
+    return {"ok": True, "config": cfg}
+
 @app.post("/api/chat")
 async def chat(request: Request):
     from src.service.chat import generate_chat_response_streaming
