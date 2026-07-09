@@ -77,9 +77,27 @@ state.on_model_loaded(_module_runner.set_pipeline)
 app = FastAPI(title="TAGM", version="2.0.0")
 
 # Static files
+#
+# Served with `Cache-Control: no-cache` — which (despite the name) means
+# "cache, but revalidate before use."  StaticFiles already sends ETag and
+# Last-Modified, so revalidation is a 304 round-trip: always fresh after
+# a code change, near-free when nothing changed.  Without this header,
+# browsers apply heuristic freshness (~10% of file age) and serve stale
+# JS/CSS for days after an edit — the blank-page-until-hard-refresh bug.
+#
+# Deliberately NOT a BaseHTTPMiddleware: that would wrap every response
+# including the SSE streams (chat tokens, analyze_done events), a known
+# Starlette streaming pitfall.  Subclassing touches static files only.
+class RevalidatedStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
 _static_dir = _PACKAGE_DIR.parent / "static"
 if _static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+    app.mount("/static", RevalidatedStaticFiles(directory=str(_static_dir)),
+              name="static")
 
 # ─── Restore HEP state from DB ────────────────────────────────
 # If HEP was active when the server last ran, re-enable it so
