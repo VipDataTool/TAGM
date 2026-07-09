@@ -87,12 +87,15 @@ def build_deltas(base, inst):
 def analyze(text, tok_inst, inst, base, deltas):
     """Return per-response-token stress and ||h|| (and per-token KL vs base)."""
     msgs = [{"role": "user", "content": text}]
-    input_ids = tok_inst.apply_chat_template(
-        msgs, add_generation_prompt=True, return_tensors="pt").to(DEVICE)
-    gen = inst.generate(input_ids, max_new_tokens=MAX_NEW_TOKENS,
+    # two-step tokenization: robust across transformers versions
+    # (apply_chat_template(return_tensors=) can hand back a BatchEncoding, not a tensor)
+    prompt_text = tok_inst.apply_chat_template(
+        msgs, add_generation_prompt=True, tokenize=False)
+    enc = tok_inst(prompt_text, return_tensors="pt").to(DEVICE)
+    r0 = enc["input_ids"].shape[1]                       # response region start
+    gen = inst.generate(**enc, max_new_tokens=MAX_NEW_TOKENS,
                         do_sample=False, pad_token_id=tok_inst.eos_token_id)  # greedy
-    full = gen[0].unsqueeze(0)
-    r0 = input_ids.shape[1]                              # response region start
+    full = gen                                           # [1, seq]
 
     out = inst(full, output_hidden_states=True)
     hs = out.hidden_states                               # tuple [n_layers+1] of [1,seq,hid]
