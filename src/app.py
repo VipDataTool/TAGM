@@ -476,7 +476,12 @@ _ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
              # v4 (multi-channel) — load is key-presence guarded, so
              # pre-v4 config files lacking these simply keep defaults.
              "ecm_version", "ecm_channels", "ecm_entropy_weight",
-             "ecm_density_weight", "ecm_fusion", "ecm_harvest_tokens"}
+             "ecm_density_weight", "ecm_fusion", "ecm_harvest_tokens",
+             # Response Harvest generation params — persisted alongside ECM
+             # config so temp/top-p/seed survive restart (load is key-presence
+             # guarded, so older config files lacking these keep defaults).
+             "harvest_temperature", "harvest_top_p", "harvest_seed",
+             "harvest_seed_ecm"}
 _ECM_CONFIG_VERSION = 2
 
 def _load_ecm_config():
