@@ -1,15 +1,14 @@
-/* ECM Module — analytical results UI (v2).
+/* ECM Module — analytical results UI (v3).
  *
  * Drop-in: include AFTER main.js in static/index.html:
  *   <script src="js/ecm_module_ui.js"></script>
  *
- * Renders aggregate ECM replay analysis from session data.
- * The ECM checkbox collects cascade-detector replay data during
- * inference; this module analyzes and visualizes that data.
- *
- * Visual language matches the app's tokens (--bg-0, --text-2, --mono,
- * mod-results / metrics conventions). The per-record view shows
- * per-channel signal traces as SVG sparklines.
+ * v3: rebuilt in the MI/CFT visual language — sectioned collapsible
+ * headers, .mod-summary stat grids, .mod-tbl tables. Fully responsive
+ * (grids and 100%-width tables; no fixed left-hugging blocks). Every
+ * metric carries a title tooltip explaining what it measures. Channel
+ * coverage is explicit: missing channels are listed with the reason,
+ * never dropped silently.
  */
 (function () {
   'use strict';
@@ -32,33 +31,65 @@
     if (typeof _orig === 'function') return _orig(name, results);
   };
 
+  // ── shared metric tooltips ─────────────────────────────────────
+
+  var TIP = {
+    sigma: 'σ-excess: how far the detector signal rose above the deadband, in units of the trace\u2019s own typical volatility. 0 = quiet.',
+    fired: 'A record \u201Cfires\u201D when any channel\u2019s signal exceeds 0 (or the Fired threshold parameter, if set).',
+    firedPct: 'Fraction of records in this group that fired at least once.',
+    intRate: 'Interventions per token: firing steps divided by trace length.',
+    ints: 'Number of token steps where the detector signal was above zero.',
+    firstAt: 'Token index of the first firing step (after warmup).',
+    meanMax: 'Mean over records of each record\u2019s peak σ-excess.',
+    peak: 'Largest single σ-excess seen in this group.',
+    pearson: 'Pearson r between each record\u2019s peak replay signal and this result-level metric. |r|>0.3 highlighted.',
+    channel: 'stress: correction-field stress trace (always collected). kl: instruct-vs-base KL divergence (KL checkbox). density: SFD spectral density, negated so collapse reads as a rise (SFD collection). entropy: the live harvest entropy trace (calibration channel).',
+    live: 'What the runtime controller actually did during harvest generation (temperature was really modulated), as opposed to the replay audit, which asks whether the detector WOULD fire on the analytical traces.',
+    loopRel: 'Times the live controller released cooling because the token stream became periodic.',
+    coverage: 'Which results contributed each channel. Missing channels are listed with the reason \u2014 usually a collection checkbox that was off when the session ran.'
+  };
+
   // ── helpers ────────────────────────────────────────────────────
 
   function fmt(v, nd) {
-    if (v === null || v === undefined || v !== v) return '—';
+    if (v === null || v === undefined || v !== v) return '\u2014';
     if (typeof v !== 'number') return _esc(v);
     return v.toFixed(nd === undefined ? 3 : nd);
   }
 
-  function card(label, value, accent) {
-    return '<div style="background:var(--bg-0);border:1px solid var(--border);' +
-      'border-radius:4px;padding:8px 12px;min-width:96px">' +
-      '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;' +
-      'letter-spacing:.05em">' + _esc(label) + '</div>' +
-      '<div style="font-size:16px;font-weight:600;font-family:var(--mono);' +
-      (accent ? 'color:var(--' + accent + ')' : 'color:var(--text-1)') + '">' +
-      value + '</div></div>';
+  function section(title, bodyHtml, opts) {
+    opts = opts || {};
+    var collapsed = opts.collapsed ? ' collapsed' : '';
+    var tip = opts.tip ? ' title="' + _esc(opts.tip) + '"' : '';
+    return '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"' + tip + '>' +
+      _esc(title) + (opts.badge || '') + '</div>' +
+      '<div class="mod-results-body' + collapsed + '"' +
+      (opts.maxH ? ' style="max-height:' + opts.maxH + 'px"' : '') + '>' +
+      bodyHtml + '</div>';
   }
 
-  // ── intervention strip ───────────────────────────────────────
-  // One segment per token along a baseline; segments light up where
-  // the detector fired, with an amplitude bar (σ-excess) above.
-  // Warmup region is shaded: the detector cannot fire there.
+  function stat(label, value, detail, tip, color) {
+    return '<div class="mod-stat"' + (tip ? ' title="' + _esc(tip) + '"' : '') + '>' +
+      '<div class="stat-label">' + _esc(label) + '</div>' +
+      '<div class="stat-value"' + (color ? ' style="color:' + color + '"' : '') + '>' + value + '</div>' +
+      (detail ? '<div class="stat-detail">' + detail + '</div>' : '') +
+      '</div>';
+  }
 
-  function interventionStrip(signals, tokens, accentVar, warmup) {
+  function chColor(ch) {
+    return ch === 'stress' ? 'var(--orange)'
+      : ch === 'kl' ? 'var(--cyan)'
+      : ch === 'entropy' ? 'var(--green)'
+      : 'var(--red)';
+  }
+
+  // ── intervention strip (unchanged renderer, responsive by design:
+  //    fixed viewBox, width:100%) ──────────────────────────────────
+
+  function interventionStrip(signals, tokens, colorVar, warmup) {
     if (!signals || !signals.length) return '';
     var n = signals.length;
-    var W = 560, H = 46, BASE = 34;       // bars grow upward from BASE
+    var W = 560, H = 46, BASE = 34;
     var mx = 0;
     for (var i = 0; i < n; i++) if (signals[i] > mx) mx = signals[i];
     var scale = mx < 1e-8 ? 1 : mx;
@@ -70,7 +101,6 @@
       'style="width:100%;height:' + H + 'px;display:block;background:var(--bg-0);' +
       'border:1px solid var(--border);border-radius:3px">';
 
-    // Warmup zone — no signal is possible before this index
     var wu = Math.max(0, Math.min(warmup || 0, n));
     if (wu > 0) {
       var wx = wu * pitch;
@@ -95,22 +125,19 @@
       var tip = '<title>#' + j + (tok ? ' \u201C' + _esc(tok) + '\u201D' : '') +
         (fired ? '  \u03C3=' + v.toFixed(3) : '') + '</title>';
 
-      // Baseline segment — every token gets one; fired tokens light up
       s += '<rect x="' + x.toFixed(2) + '" y="' + BASE + '" width="' + segW.toFixed(2) +
-        '" height="' + (H - BASE - 3) + '" fill="var(--' + (fired ? accentVar : 'text-3') +
-        ')" opacity="' + (fired ? '0.95' : '0.35') + '">' + tip + '</rect>';
+        '" height="' + (H - BASE - 3) + '" fill="' + (fired ? colorVar : 'var(--text-3)') +
+        '" opacity="' + (fired ? '0.95' : '0.35') + '">' + tip + '</rect>';
 
-      // Amplitude bar
       if (fired) {
         var bh = (BASE - 4) * Math.min(1, v / scale);
         s += '<rect x="' + x.toFixed(2) + '" y="' + (BASE - 2 - bh).toFixed(2) +
           '" width="' + segW.toFixed(2) + '" height="' + bh.toFixed(2) +
-          '" fill="var(--' + accentVar + ')" opacity="0.55">' + tip + '</rect>';
+          '" fill="' + colorVar + '" opacity="0.55">' + tip + '</rect>';
       }
 
-      // Inline token text when segments are wide enough to carry it
       if (tok && pitch >= 26) {
-        var label = tok.trim() || '\u2423';   // visible mark for whitespace tokens
+        var label = tok.trim() || '\u2423';
         if (label.length > 10) label = label.slice(0, 9) + '\u2026';
         s += '<text x="' + (j * pitch + pitch / 2).toFixed(1) + '" y="' + (BASE - 6) +
           '" text-anchor="middle" fill="var(--text-2)" font-size="9" ' +
@@ -121,153 +148,213 @@
     return s;
   }
 
-  // ── category table ─────────────────────────────────────────────
+  // ── coverage section ───────────────────────────────────────────
 
-  function categoryTable(summary) {
-    var cats = summary.categories || {};
-    var keys = Object.keys(cats);
-    if (!keys.length) return '';
-    var cols = [
-      ['n', 'n', 0],
-      ['fired', 'n_fired', 0],
-      ['fired %', 'fired_frac', 2],
-      ['mean max σ', 'mean_max_signal', 3],
-      ['peak σ', 'max_max_signal', 3],
-      ['mean ints', 'mean_total_interventions', 1],
-    ];
-    var h = '<table style="font-size:11px;border-collapse:collapse;width:100%;margin-top:8px">';
-    h += '<tr style="color:var(--text-3);font-size:10px;text-transform:uppercase">' +
-      '<td style="padding:3px 8px">category</td>';
-    cols.forEach(function (c) { h += '<td style="padding:3px 8px;text-align:right">' + c[0] + '</td>'; });
-    h += '</tr>';
-    keys.forEach(function (k) {
-      var s = cats[k];
-      h += '<tr><td style="padding:3px 8px;color:var(--cyan);font-family:var(--mono)">' + _esc(k) + '</td>';
-      cols.forEach(function (c) {
-        h += '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' +
-          fmt(s[c[1]], c[2]) + '</td>';
-      });
-      h += '</tr>';
+  function coverageSection(r) {
+    var cov = r.coverage;
+    if (!cov) return '';
+    var h = '<table class="mod-tbl"><thead><tr>' +
+      '<th title="' + _esc(TIP.channel) + '">Channel</th>' +
+      '<th class="num" title="Results that contributed this channel to the replay">Available</th>' +
+      '<th class="num">Missing</th>' +
+      '<th>Why missing</th></tr></thead><tbody>';
+    Object.keys(cov).forEach(function (ch) {
+      var c = cov[ch];
+      var reasons = Object.keys(c.reasons || {}).map(function (k) {
+        return _esc(k) + ' (' + c.reasons[k] + ')';
+      }).join('; ') || '\u2014';
+      var okCol = c.available > 0 ? 'var(--green)' : 'var(--red)';
+      h += '<tr>' +
+        '<td style="color:' + chColor(ch) + ';font-weight:600">' + _esc(ch) + '</td>' +
+        '<td class="num" style="color:' + okCol + '">' + c.available + '</td>' +
+        '<td class="num" style="color:var(--text-3)">' + c.missing + '</td>' +
+        '<td style="white-space:normal;color:var(--text-2);font-size:10px">' + reasons + '</td>' +
+        '</tr>';
     });
-    h += '</table>';
+    h += '</tbody></table>';
+    var skipped = r.skipped || [];
+    if (skipped.length) {
+      h += '<div style="padding:8px 12px;font-size:10px;color:var(--text-3)">' +
+        skipped.length + ' result(s) had no replayable traces at all and were skipped.</div>';
+    }
     return h;
   }
 
-  // ── channel breakdown table ────────────────────────────────────
+  // ── category + channel tables ──────────────────────────────────
+
+  function categoryTable(summary) {
+    var cats = (summary && summary.categories) || {};
+    var keys = Object.keys(cats);
+    if (!keys.length) return '';
+    var h = '<table class="mod-tbl"><thead><tr>' +
+      '<th>Category</th>' +
+      '<th class="num">n</th>' +
+      '<th class="num" title="' + _esc(TIP.fired) + '">Fired</th>' +
+      '<th class="num" title="' + _esc(TIP.firedPct) + '">Fired %</th>' +
+      '<th class="num" title="' + _esc(TIP.meanMax) + '">Mean max σ</th>' +
+      '<th class="num" title="' + _esc(TIP.peak) + '">Peak σ</th>' +
+      '<th class="num" title="Mean firing steps per record">Mean ints</th>' +
+      '</tr></thead><tbody>';
+    keys.forEach(function (k) {
+      var s = cats[k];
+      h += '<tr>' +
+        '<td style="color:var(--cyan)">' + _esc(k) + '</td>' +
+        '<td class="num">' + (s.n || 0) + '</td>' +
+        '<td class="num">' + (s.n_fired || 0) + '</td>' +
+        '<td class="num">' + fmt(s.fired_frac, 2) + '</td>' +
+        '<td class="num">' + fmt(s.mean_max_signal, 3) + '</td>' +
+        '<td class="num">' + fmt(s.max_max_signal, 3) + '</td>' +
+        '<td class="num">' + fmt(s.mean_total_interventions, 1) + '</td>' +
+        '</tr>';
+    });
+    h += '</tbody></table>';
+    return h;
+  }
 
   function channelTable(channelAgg) {
     if (!channelAgg) return '';
     var keys = Object.keys(channelAgg);
     if (!keys.length) return '';
-
-    var h = '<div style="margin-top:10px;font-size:10px;color:var(--text-3);' +
-      'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Per-channel breakdown</div>';
-    h += '<table style="font-size:11px;border-collapse:collapse;width:100%">';
-    h += '<tr style="color:var(--text-3);font-size:10px;text-transform:uppercase">' +
-      '<td style="padding:3px 8px">channel</td>' +
-      '<td style="padding:3px 8px;text-align:right">records</td>' +
-      '<td style="padding:3px 8px;text-align:right">fired</td>' +
-      '<td style="padding:3px 8px;text-align:right">fired %</td>' +
-      '<td style="padding:3px 8px;text-align:right">mean int rate</td>' +
-      '<td style="padding:3px 8px;text-align:right">mean max σ</td>' +
-      '<td style="padding:3px 8px;text-align:right">peak σ</td>' +
-      '</tr>';
+    var h = '<table class="mod-tbl"><thead><tr>' +
+      '<th title="' + _esc(TIP.channel) + '">Channel</th>' +
+      '<th class="num">Records</th>' +
+      '<th class="num" title="' + _esc(TIP.fired) + '">Fired</th>' +
+      '<th class="num" title="' + _esc(TIP.firedPct) + '">Fired %</th>' +
+      '<th class="num" title="' + _esc(TIP.intRate) + '">Mean int rate</th>' +
+      '<th class="num" title="' + _esc(TIP.meanMax) + '">Mean max σ</th>' +
+      '<th class="num" title="' + _esc(TIP.peak) + '">Peak σ</th>' +
+      '</tr></thead><tbody>';
     keys.forEach(function (ch) {
       var s = channelAgg[ch];
-      var color = ch === 'stress' ? 'orange' : (ch === 'kl' ? 'cyan' : 'red');
       h += '<tr>' +
-        '<td style="padding:3px 8px;color:var(--' + color + ');font-family:var(--mono)">' + _esc(ch) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + (s.n_with_data || 0) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + (s.n_fired || 0) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + fmt(s.fired_frac, 2) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + fmt(s.mean_intervention_rate, 3) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + fmt(s.mean_max_signal, 3) + '</td>' +
-        '<td style="padding:3px 8px;text-align:right;font-family:var(--mono)">' + fmt(s.max_max_signal, 3) + '</td>' +
+        '<td style="color:' + chColor(ch) + ';font-weight:600">' + _esc(ch) + '</td>' +
+        '<td class="num">' + (s.n_with_data || 0) + '</td>' +
+        '<td class="num">' + (s.n_fired || 0) + '</td>' +
+        '<td class="num">' + fmt(s.fired_frac, 2) + '</td>' +
+        '<td class="num">' + fmt(s.mean_intervention_rate, 3) + '</td>' +
+        '<td class="num">' + fmt(s.mean_max_signal, 3) + '</td>' +
+        '<td class="num">' + fmt(s.max_max_signal, 3) + '</td>' +
         '</tr>';
     });
-    h += '</table>';
+    h += '</tbody></table>';
     return h;
   }
-
-  // ── correlation table ──────────────────────────────────────────
 
   function correlationTable(correlations) {
     if (!correlations) return '';
     var keys = Object.keys(correlations);
     if (!keys.length) return '';
-
-    var h = '<div style="margin-top:10px;font-size:10px;color:var(--text-3);' +
-      'text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">' +
-      'Signal–metric correlations (Pearson r)</div>';
-    h += '<table style="font-size:11px;border-collapse:collapse">';
+    var h = '<table class="mod-tbl" style="max-width:520px"><thead><tr>' +
+      '<th>Result metric</th>' +
+      '<th class="num" title="' + _esc(TIP.pearson) + '">Pearson r</th>' +
+      '<th class="num">n</th></tr></thead><tbody>';
     keys.forEach(function (k) {
       var c = correlations[k];
-      var r = c.pearson_r;
-      var rColor = r == null ? 'text-3' : (Math.abs(r) > 0.3 ? 'orange' : 'text-2');
+      var rv = c.pearson_r;
+      var col = rv == null ? 'var(--text-3)'
+        : Math.abs(rv) > 0.3 ? 'var(--orange)' : 'var(--text-1)';
       h += '<tr>' +
-        '<td style="padding:2px 10px;color:var(--text-2)">' + _esc(k) + '</td>' +
-        '<td style="padding:2px 10px;font-family:var(--mono);color:var(--' + rColor + ')">' +
-        fmt(r, 3) + '</td>' +
-        '<td style="padding:2px 10px;color:var(--text-3);font-size:10px">n=' + (c.n || 0) + '</td>' +
-        '</tr>';
+        '<td style="color:var(--text-1)">' + _esc(k) + '</td>' +
+        '<td class="num" style="color:' + col + '">' + fmt(rv, 3) + '</td>' +
+        '<td class="num" style="color:var(--text-3)">' + (c.n || 0) + '</td></tr>';
     });
-    h += '</table>';
+    h += '</tbody></table>';
+    return h;
+  }
+
+  // ── live actuation section ─────────────────────────────────────
+
+  function liveSection(live) {
+    if (!live || !live.overall) return '';
+    var o = live.overall;
+    var h = '<div class="mod-summary">';
+    h += stat('harvests', o.n || 0, null, 'Harvest generations that ran with ECM live');
+    h += stat('actuated', o.n_fired || 0,
+      'fired % ' + fmt(o.fired_frac, 2), 'Generations where the live controller reduced temperature at least once',
+      o.n_fired ? 'var(--orange)' : null);
+    h += stat('mean ints', fmt(o.mean_interventions, 1), null, TIP.ints);
+    h += stat('peak σ', fmt(o.max_signal, 3), null, TIP.sigma);
+    h += stat('loop releases', o.n_loop_releases || 0, null, TIP.loopRel);
+    h += '</div>';
+    var cats = live.categories || {};
+    var keys = Object.keys(cats);
+    if (keys.length) {
+      h += '<table class="mod-tbl"><thead><tr><th>Category</th>' +
+        '<th class="num">n</th><th class="num">Actuated</th>' +
+        '<th class="num" title="' + _esc(TIP.intRate) + '">Mean int rate</th>' +
+        '<th class="num" title="' + _esc(TIP.sigma) + '">Peak σ</th>' +
+        '</tr></thead><tbody>';
+      keys.forEach(function (k) {
+        var s = cats[k];
+        h += '<tr><td style="color:var(--cyan)">' + _esc(k) + '</td>' +
+          '<td class="num">' + (s.n || 0) + '</td>' +
+          '<td class="num">' + (s.n_fired || 0) + '</td>' +
+          '<td class="num">' + fmt(s.mean_intervention_rate, 3) + '</td>' +
+          '<td class="num">' + fmt(s.max_signal, 3) + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    }
     return h;
   }
 
   // ── per-record rendering ───────────────────────────────────────
 
-  function renderRecord(rec, idx, warmup, stripLimit) {
+  function renderRecord(rec, warmup, stripLimit) {
     var fired = rec.any_fired;
     var badge = fired
-      ? '<span style="color:var(--orange)">' + rec.total_interventions + ' int, max σ=' + fmt(rec.max_signal, 3) + '</span>'
+      ? '<span style="color:var(--orange);white-space:nowrap" title="' + _esc(TIP.sigma) + '">' +
+        rec.total_interventions + ' int \u00B7 max \u03C3=' + fmt(rec.max_signal, 3) + '</span>'
       : '<span style="color:var(--text-3)">quiet</span>';
 
     var head = '<div onclick="this.nextElementSibling.style.display=' +
       "this.nextElementSibling.style.display==='none'?'':'none'" + '" ' +
-      'style="cursor:pointer;display:flex;gap:10px;align-items:baseline;padding:6px 10px;' +
-      'border-top:1px solid var(--border);font-size:11px">' +
-      '<span style="color:var(--text-3);font-family:var(--mono)">#' + rec.index + '</span>' +
-      '<span style="color:var(--cyan);font-family:var(--mono)">' + _esc(rec.category) + '</span>' +
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+      'style="cursor:pointer;display:flex;gap:10px;align-items:baseline;padding:6px 12px;' +
+      'border-top:1px solid var(--border);font-size:11px;min-width:0">' +
+      '<span style="color:var(--text-3);font-family:var(--mono);flex-shrink:0">#' + rec.index + '</span>' +
+      '<span style="color:var(--cyan);font-family:var(--mono);flex-shrink:0">' + _esc(rec.category) + '</span>' +
+      '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
       'color:var(--text-2)">' + _esc(rec.prompt) + '</span>' +
       badge + '</div>';
 
-    // Expanded body
-    var body = '<div style="display:none;padding:8px 10px">';
+    var body = '<div style="display:none;padding:8px 12px">';
 
-    // Channel details
     var chs = rec.channels || {};
     var chNames = Object.keys(chs);
     if (chNames.length) {
-      body += '<table style="font-size:11px;border-collapse:collapse;margin-bottom:6px">';
-      body += '<tr style="color:var(--text-3);font-size:10px;text-transform:uppercase">' +
-        '<td style="padding:2px 8px">channel</td>' +
-        '<td style="padding:2px 8px;text-align:right">ints</td>' +
-        '<td style="padding:2px 8px;text-align:right">rate</td>' +
-        '<td style="padding:2px 8px;text-align:right">max σ</td>' +
-        '<td style="padding:2px 8px;text-align:right">first @</td></tr>';
+      body += '<table class="mod-tbl" style="margin-bottom:6px"><thead><tr>' +
+        '<th title="' + _esc(TIP.channel) + '">Channel</th>' +
+        '<th class="num" title="' + _esc(TIP.ints) + '">Ints</th>' +
+        '<th class="num" title="' + _esc(TIP.intRate) + '">Rate</th>' +
+        '<th class="num" title="' + _esc(TIP.sigma) + '">Max σ</th>' +
+        '<th class="num" title="' + _esc(TIP.firstAt) + '">First @</th>' +
+        '</tr></thead><tbody>';
       chNames.forEach(function (ch) {
         var d = chs[ch];
-        var color = ch === 'stress' ? 'orange' : (ch === 'kl' ? 'cyan' : 'red');
         body += '<tr>' +
-          '<td style="padding:2px 8px;color:var(--' + color + ');font-family:var(--mono)">' + _esc(ch) + '</td>' +
-          '<td style="padding:2px 8px;text-align:right;font-family:var(--mono)">' + (d.n_interventions || 0) + '</td>' +
-          '<td style="padding:2px 8px;text-align:right;font-family:var(--mono)">' + fmt(d.intervention_rate, 3) + '</td>' +
-          '<td style="padding:2px 8px;text-align:right;font-family:var(--mono)">' + fmt(d.max_signal, 3) + '</td>' +
-          '<td style="padding:2px 8px;text-align:right;font-family:var(--mono)">' +
-          (d.first_signal_idx != null ? d.first_signal_idx : '—') + '</td></tr>';
+          '<td style="color:' + chColor(ch) + ';font-weight:600">' + _esc(ch) + '</td>' +
+          '<td class="num">' + (d.n_interventions || 0) + '</td>' +
+          '<td class="num">' + fmt(d.intervention_rate, 3) + '</td>' +
+          '<td class="num">' + fmt(d.max_signal, 3) + '</td>' +
+          '<td class="num">' + (d.first_signal_idx != null ? d.first_signal_idx : '\u2014') + '</td>' +
+          '</tr>';
       });
-      body += '</table>';
+      body += '</tbody></table>';
     }
 
-    // Signal traces (segmented intervention strips)
+    var miss = rec.missing_channels || {};
+    var missNames = Object.keys(miss);
+    if (missNames.length) {
+      body += '<div style="font-size:10px;color:var(--text-3);margin-bottom:6px" title="' +
+        _esc(TIP.coverage) + '">missing: ' +
+        missNames.map(function (ch) {
+          return '<span style="color:' + chColor(ch) + '">' + _esc(ch) + '</span> (' + _esc(miss[ch]) + ')';
+        }).join(' \u00B7 ') + '</div>';
+    }
+
     var traces = rec.traces;
     if (traces) {
-      var trNames = Object.keys(traces);
       var toks = rec.tokens;
-      trNames.forEach(function (ch) {
-        var color = ch === 'stress' ? 'orange' : (ch === 'kl' ? 'cyan' : 'red');
+      Object.keys(traces).forEach(function (ch) {
         var full = traces[ch] || [];
         var pk = 0, nInt = 0;
         for (var i = 0; i < full.length; i++) {
@@ -280,24 +367,22 @@
           ? lim + ' of ' + full.length + ' tokens'
           : full.length + (full.length === 1 ? ' token' : ' tokens');
         body += '<div style="margin-top:6px">' +
-          '<div style="display:flex;justify-content:space-between;align-items:baseline">' +
-          '<span style="font-size:10px;color:var(--' + color + ');font-family:var(--mono);' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px">' +
+          '<span style="font-size:10px;color:' + chColor(ch) + ';font-family:var(--mono);' +
           'text-transform:uppercase;letter-spacing:.05em">' + _esc(ch) + ' signal</span>' +
           '<span style="font-size:10px;color:var(--text-3);font-family:var(--mono)">' +
-          count +
-          (nInt ? ' · ' + nInt + ' int · peak σ=' + pk.toFixed(3) : ' · quiet') +
+          count + (nInt ? ' \u00B7 ' + nInt + ' int \u00B7 peak \u03C3=' + pk.toFixed(3) : ' \u00B7 quiet') +
           '</span></div>' +
-          interventionStrip(sig, stoks, color, warmup) + '</div>';
+          interventionStrip(sig, stoks, chColor(ch), warmup) + '</div>';
       });
     }
 
-    // Companion metrics
     if (rec.stress_score != null || rec.kl_divergence != null || rec.density_mean != null) {
-      body += '<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;' +
+      body += '<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;flex-wrap:wrap;' +
         'font-family:var(--mono);color:var(--text-2)">';
-      if (rec.stress_score != null) body += '<span>stress=' + fmt(rec.stress_score, 3) + '</span>';
-      if (rec.kl_divergence != null) body += '<span>kl=' + fmt(rec.kl_divergence, 3) + '</span>';
-      if (rec.density_mean != null) body += '<span>density=' + fmt(rec.density_mean, 4) + '</span>';
+      if (rec.stress_score != null) body += '<span title="Result-level stress score">stress=' + fmt(rec.stress_score, 3) + '</span>';
+      if (rec.kl_divergence != null) body += '<span title="Result-level KL divergence (last token)">kl=' + fmt(rec.kl_divergence, 3) + '</span>';
+      if (rec.density_mean != null) body += '<span title="Mean SFD density over the sequence">density=' + fmt(rec.density_mean, 4) + '</span>';
       body += '</div>';
     }
 
@@ -314,74 +399,82 @@
       'style="padding:16px;color:var(--orange)">' + _esc(r.error) + '</div></div>';
 
     var o = (r.summary && r.summary.overall) || {};
-    var h = '<div class="mod-results">';
-    h += '<div class="mod-results-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">' +
-      'ECM Analysis Results</div>';
-    h += '<div class="mod-results-body">';
-
-    // Data coverage bar
-    h += '<div style="padding:8px 12px;font-size:11px;color:var(--text-2)">' +
-      'Analyzed <span style="color:var(--cyan);font-family:var(--mono)">' +
-      (r.n_ecm || 0) + '</span> of ' + (r.n_total || 0) + ' session results' +
-      (r.n_without_ecm ? ' <span style="color:var(--text-3)">(' + r.n_without_ecm +
-        ' without ECM data)</span>' : '') + '</div>';
-
-    // Summary cards
-    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">';
-    h += card('records', r.n_ecm || 0);
-    h += card('fired', o.n_fired || 0, o.n_fired ? 'orange' : null);
-    h += card('fired %', fmt(o.fired_frac, 2), o.fired_frac > 0 ? 'orange' : null);
-    h += card('mean max σ', fmt(o.mean_max_signal, 3));
-    h += card('peak σ', fmt(o.max_max_signal, 3), o.max_max_signal > 0.5 ? 'red' : null);
-    h += card('mean ints', fmt(o.mean_total_interventions, 1));
-    h += '</div>';
-
-    // Detector config
     var det = r.detector || {};
-    if (det.n_scales || det.deadband || det.agreement) {
-      h += '<div style="padding:0 12px 4px;font-size:10px;color:var(--text-3);font-family:var(--mono)">' +
-        'detector: scales=' + (det.n_scales || '?') +
-        ' deadband=' + (det.deadband || '?') +
-        'σ agreement=' + (det.agreement || '?') + '</div>';
-    }
+    var h = '<div class="mod-results">';
 
-    // Category table
-    h += '<div style="padding:0 12px 8px">' + categoryTable(r.summary || {}) + '</div>';
+    // Detector banner — what THIS replay used (Run-time parameters)
+    h += '<div style="padding:10px 16px;background:color-mix(in srgb,var(--blue) 10%,transparent);' +
+      'border-left:3px solid var(--blue);margin:8px 0;font-family:var(--mono);font-size:11px;color:var(--text-1)" ' +
+      'title="These are the module parameters used for this replay. Change them above and click Run \u2014 no re-analysis needed.">' +
+      '<span style="color:var(--blue);font-weight:700">REPLAY</span> ' +
+      'scales=' + (det.n_scales != null ? det.n_scales : '?') +
+      ' \u00B7 deadband=' + (det.deadband != null ? det.deadband : '?') + '\u03C3' +
+      ' \u00B7 agreement=' + (det.agreement != null ? det.agreement : '?') +
+      ' \u00B7 warmup=' + (det.warmup != null ? det.warmup : '?') +
+      '<span style="color:var(--text-2);margin-left:10px">' +
+      (r.n_ecm || 0) + '/' + (r.n_total || 0) + ' results replayed</span></div>';
 
-    // Per-channel breakdown (from overall)
+    // Overview stats
+    var ov = '<div class="mod-summary">';
+    ov += stat('records', r.n_ecm || 0, null, 'Results with at least one replayable trace');
+    ov += stat('fired', o.n_fired || 0, 'fired % ' + fmt(o.fired_frac, 2), TIP.fired,
+      o.n_fired ? 'var(--orange)' : null);
+    ov += stat('mean max σ', fmt(o.mean_max_signal, 3), null, TIP.meanMax);
+    ov += stat('peak σ', fmt(o.max_max_signal, 3), null, TIP.peak,
+      o.max_max_signal > 0.5 ? 'var(--red)' : null);
+    ov += stat('mean ints', fmt(o.mean_total_interventions, 1), null, TIP.ints);
+    ov += '</div>';
+    h += section('Replay Audit \u2014 Overview', ov,
+      { tip: 'Would the detector fire on the analytical traces, with the settings above?' });
+
+    // Coverage
+    h += section('Channel Coverage', coverageSection(r), { tip: TIP.coverage });
+
+    // Category separability
+    h += section('By Category', '<div style="padding:8px 12px">' +
+      categoryTable(r.summary || {}) + '</div>');
+
+    // Channel breakdown
     if (o.channels) {
-      h += '<div style="padding:0 12px 8px">' + channelTable(o.channels) + '</div>';
+      h += section('By Channel', '<div style="padding:8px 12px">' +
+        channelTable(o.channels) + '</div>', { tip: TIP.channel });
     }
 
-    // Correlations (from overall)
+    // Correlations
     if (o.correlations && Object.keys(o.correlations).length) {
-      h += '<div style="padding:0 12px 8px">' + correlationTable(o.correlations) + '</div>';
+      h += section('Signal\u2013Metric Correlations',
+        '<div style="padding:8px 12px">' + correlationTable(o.correlations) + '</div>',
+        { collapsed: true, tip: TIP.pearson });
     }
 
-    // JSONL path
-    if (r.jsonl_path) {
-      h += '<div style="padding:0 12px 8px;font-size:10px;color:var(--text-3);' +
-        'font-family:var(--mono)">full records → ' + _esc(r.jsonl_path) + '</div>';
+    // Live actuation
+    if (r.live_summary) {
+      h += section('Live Actuation (harvest generations)', liveSection(r.live_summary),
+        { collapsed: true, tip: TIP.live });
     }
 
     // Per-record details
     var recs = r.records || [];
     if (recs.length) {
-      h += '<div style="border-top:1px solid var(--border)">';
-      h += '<div style="padding:6px 10px;font-size:10px;color:var(--text-3);' +
-        'text-transform:uppercase;letter-spacing:.05em">Per-record ECM analysis — click to expand</div>';
+      var body = '';
       var cap = Math.min(recs.length, 200);
-      var warmup = (r.detector && r.detector.warmup != null) ? r.detector.warmup : 8;
+      var warmup = det.warmup != null ? det.warmup : 4;
       var stripLimit = r.strip_token_limit || 0;
-      for (var i = 0; i < cap; i++) h += renderRecord(recs[i], i, warmup, stripLimit);
+      for (var i = 0; i < cap; i++) body += renderRecord(recs[i], warmup, stripLimit);
       if (recs.length > cap) {
-        h += '<div style="padding:6px 10px;font-size:11px;color:var(--text-3)">' +
+        body += '<div style="padding:6px 12px;font-size:11px;color:var(--text-3)">' +
           (recs.length - cap) + ' more in the JSONL.</div>';
       }
-      h += '</div>';
+      if (r.jsonl_path) {
+        body += '<div style="padding:6px 12px;font-size:10px;color:var(--text-3);' +
+          'font-family:var(--mono);overflow-wrap:anywhere">full records \u2192 ' +
+          _esc(r.jsonl_path) + '</div>';
+      }
+      h += section('Per-Record Replays \u2014 click a row to expand', body,
+        { maxH: 700 });
     }
 
-    h += '</div></div>';
+    h += '</div>';
     return h;
   }
 

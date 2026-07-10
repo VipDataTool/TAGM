@@ -1,34 +1,33 @@
 """ECM Module — analytical module for Entropic Cascade Mitigation data.
 
-This module analyzes ECM replay data that was collected during the
-inference pipeline when the ECM checkbox was enabled. It does NOT run
-its own inference — it reads from session results, just like
-Comparative Analysis and Token Pair Coupling.
+This module REPLAYS the cascade detector over the per-token traces in
+session results, live at Run time. It does NOT run inference — it reads
+collected traces, like Comparative Analysis and Token Pair Coupling.
 
-Data source: the ``ecm`` block attached to each result by
-``ecm_analysis.attach_ecm_analysis()`` when the compute_ecm checkbox
-is checked. Each result's ECM block contains per-channel cascade
-detector replays (stress, kl, density) with per-token signal traces,
-intervention counts, and peak signal magnitudes.
+v3 architecture change (footgun removal): detector hyperparameters
+(scales, deadband, agreement, warmup) are MODULE PARAMETERS, applied
+when you click Run. Earlier versions read the frozen ``result["ecm"]``
+block computed at collection time with Configuration-panel values, so
+changing detector settings silently did nothing until a full re-analysis.
+Now the workflow is the intended one: run prompts once (traces are
+collected), open this module, adjust detector parameters, click Run,
+get a fresh analytical set. Iterating on detector settings never
+requires re-running inference.
 
-What this module produces:
-  - Per-category and overall aggregate ECM statistics
-  - Cross-channel signal correlation analysis
-  - Intervention-rate distributions and thresholds
-  - Category separability measured by ECM signals
-  - Per-record detail summaries with channel breakdowns
+Trace sources (collected during analysis; the module reports coverage
+and the reason for any missing channel — nothing is dropped silently):
 
-The module's parameters control aggregation thresholds and what to
-include in the output, NOT detector hyperparameters — those are set in
-the Configuration panel and take effect when the ECM checkbox collects
-data during analysis.
+    stress   — result["per_token_stress"]         (always collected)
+    kl       — result["per_token_kl"]             (KL divergence checkbox)
+    density  — result["sfd"]["per_token_density"] (SFD collection; negated:
+               collapse presents as a rise to the one-sided detector)
+    entropy  — ecm_harvest.ecm_diagnostics entropy trace (harvest records
+               generated with Cascade Mitigation ON; calibration channel)
 
-Architecture note: The ECM checkbox in the control panel is the data
-collection feature (like LTP and SFD). This module is the secondary
-analytical layer that reads the collected data. The detector
-hyperparameters (n_scales, deadband, agreement) in the Configuration
-tab control what the checkbox collects; this module only reads and
-summarizes what was collected.
+"Replay audit" = would the detector fire on these traces, where, how
+hard (σ-excess). "Live actuation" = what the runtime controller actually
+did during harvest generation. Both are reported; they are different
+questions.
 
 Original ECM concept and v2 formulation: Ostrander (2026).
 """
@@ -41,6 +40,7 @@ from pathlib import Path
 from typing import Optional
 
 from .base import TASMModule, ModuleParameter
+from src.engine.ecm_analysis import replay_trace
 
 logger = logging.getLogger("tasm")
 
@@ -85,49 +85,108 @@ def _pct(count, total):
     return round(count / total, 4) if total > 0 else 0.0
 
 
-# ── Per-result extraction ────────────────────────────────────────
+def _pearson(xs, ys):
+    """Simple Pearson r for two same-length sequences."""
+    n = len(xs)
+    if n < 3:
+        return None
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+    if sx < 1e-12 or sy < 1e-12:
+        return None
+    return round(cov / (sx * sy), 4)
 
-def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
-    """Extract ECM summary from a single session result.
 
-    Returns None if the result has no ECM data.
+# ── Trace discovery ──────────────────────────────────────────────
+# Each entry: channel name → (extractor, negate, human reason-if-missing)
+
+def _get_stress(result):
+    return result.get("per_token_stress")
+
+
+def _get_kl(result):
+    return result.get("per_token_kl")
+
+
+def _get_density(result):
+    sfd = result.get("sfd") or {}
+    return sfd.get("per_token_density") if isinstance(sfd, dict) else None
+
+
+def _get_entropy(result):
+    live = (result.get("ecm_harvest") or {}).get("ecm_diagnostics")
+    if isinstance(live, dict):
+        ent = ((live.get("channels") or {}).get("entropy") or {})
+        return ent.get("per_token_value") or live.get("per_token_entropy")
+    return None
+
+
+_CHANNEL_SOURCES = [
+    ("stress", _get_stress, False,
+     "no per_token_stress trace on this result"),
+    ("kl", _get_kl, False,
+     "KL divergence checkbox was off when this result was analyzed"),
+    ("density", _get_density, True,
+     "SFD collection was off when this result was analyzed"),
+    ("entropy", _get_entropy, False,
+     "no live entropy trace (harvest with Cascade Mitigation ON to record one)"),
+]
+
+
+# ── Per-result extraction: replay at Run time ────────────────────
+
+def _extract_ecm_record(result: dict, idx: int, det: dict) -> Optional[dict]:
+    """Replay all available traces for one result through fresh
+    CascadeDetectors using the module's detector parameters.
+
+    Returns None only if the result has no replayable traces at all;
+    the per-channel missing reasons are recorded either way via the
+    returned/accumulated coverage entry on the record.
     """
-    ecm = result.get("ecm")
-    if not ecm or not isinstance(ecm, dict):
-        return None
-    if ecm.get("mode") != "replay":
-        return None
-
-    channels = ecm.get("channels", {})
-    if not channels:
-        return None
-
-    detector = ecm.get("detector", {})
     category = result.get("category", "uncategorized")
     prompt = result.get("prompt", "")
 
-    # Per-channel summaries
     channel_summaries = {}
+    traces = {}
+    missing = {}
     total_interventions = 0
     total_tokens = 0
     max_signal_overall = 0.0
     any_fired = False
 
-    for ch_name, ch_data in channels.items():
-        n_int = ch_data.get("n_interventions", 0)
-        n_tok = ch_data.get("n_tokens", 0)
-        max_sig = ch_data.get("max_signal", 0.0)
-        mean_sig = ch_data.get("mean_signal", 0.0)
-        int_rate = ch_data.get("intervention_rate", 0.0)
-        first_idx = ch_data.get("first_signal_idx")
+    for ch_name, getter, negate, reason in _CHANNEL_SOURCES:
+        raw = None
+        try:
+            raw = getter(result)
+        except Exception:
+            raw = None
+        if raw is None or (hasattr(raw, "__len__") and len(raw) == 0):
+            missing[ch_name] = reason
+            continue
+        try:
+            block = replay_trace(
+                list(raw), det["n_scales"], det["deadband"],
+                det["agreement"], negate=negate, warmup=det["warmup"])
+        except Exception as e:
+            missing[ch_name] = f"replay failed: {e}"
+            continue
+
+        sig = block.get("per_token_signal") or []
+        traces[ch_name] = [round(float(v), 4) for v in sig]
+        n_int = block.get("n_interventions", 0)
+        n_tok = block.get("n_tokens", len(sig))
+        max_sig = block.get("max_signal", 0.0)
 
         channel_summaries[ch_name] = {
             "n_interventions": n_int,
             "n_tokens": n_tok,
-            "intervention_rate": int_rate,
+            "intervention_rate": block.get("intervention_rate", 0.0),
             "max_signal": max_sig,
-            "mean_signal": mean_sig,
-            "first_signal_idx": first_idx,
+            "mean_signal": block.get("mean_signal", 0.0),
+            "first_signal_idx": block.get("first_signal_idx"),
         }
         total_interventions += n_int
         if n_tok > total_tokens:
@@ -136,6 +195,9 @@ def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
             max_signal_overall = max_sig
         if n_int > 0:
             any_fired = True
+
+    if not channel_summaries:
+        return None
 
     # Live actuation summary (harvest records carry the generation-time
     # diagnostics under ecm_harvest.ecm_diagnostics, mode="live")
@@ -153,7 +215,7 @@ def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
                 "n_loop_releases": hd.get("n_loop_releases", 0),
             }
 
-    # Also pull companion metrics from the result for correlation
+    # Companion metrics from the result for correlation
     stress = _f(result.get("stress_score"))
     kl = _f(result.get("kl_divergence"))
     entropy = _f(result.get("entropy"))
@@ -170,8 +232,9 @@ def _extract_ecm_record(result: dict, idx: int) -> Optional[dict]:
         "n_tokens": total_tokens,
         "max_signal": round(max_signal_overall, 6),
         "any_fired": any_fired,
-        "detector": detector,
         "live": live,
+        "missing_channels": missing,
+        "_traces": traces,
         # Companion metrics for correlation analysis
         "stress_score": stress,
         "kl_divergence": kl,
@@ -254,43 +317,26 @@ def _aggregate_category(records: list[dict]) -> dict:
     }
 
 
-def _pearson(xs, ys):
-    """Simple Pearson r for two same-length sequences."""
-    n = len(xs)
-    if n < 3:
-        return None
-    mx = sum(xs) / n
-    my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
-    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
-    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
-    if sx < 1e-12 or sy < 1e-12:
-        return None
-    return round(cov / (sx * sy), 4)
-
-
 # ── Module ───────────────────────────────────────────────────────
 
 class EcmModule(TASMModule):
-    """Analytical module for ECM replay data collected during inference.
-
-    Reads the ``ecm`` block from session results (attached by the
-    compute_ecm checkbox) and produces aggregate statistics, category
-    comparisons, and per-channel breakdowns. Does not run inference.
+    """Analytical module replaying the cascade detector over session
+    traces with Run-time detector parameters. Does not run inference.
     """
 
     name = "ecm"
     display_name = "ECM — Entropic Cascade Mitigation"
     description = (
-        "Audits ECM cascade-detector replays over analytical traces "
-        "(summary) and reports live actuation from harvest generation "
-        "(live_summary), collected during "
-        "inference (via the ECM checkbox). Produces per-category "
-        "intervention statistics, cross-channel signal correlations, "
-        "and category separability by ECM measures. Requires session "
-        "results analyzed with ECM enabled."
+        "Replays the cascade detector over the per-token traces in this "
+        "session (stress; KL and density when collected; harvest entropy "
+        "when available) using the detector settings below — applied "
+        "when you click Run, so you can iterate on detector parameters "
+        "without re-running analysis. Reports where the detector would "
+        "fire and how hard (replay audit), what the live controller did "
+        "during harvest generation (live actuation), per-category "
+        "separability, and cross-channel correlations."
     )
-    version = "2.1.0"
+    version = "3.0.0"
 
     # Operates on collected session data — standard analytical module
     min_results = 1
@@ -299,44 +345,114 @@ class EcmModule(TASMModule):
     requires_rd = False
 
     parameters = [
+        # ── Detector — the actual cascade-detector math, applied at Run ──
         ModuleParameter(
-            name="signal_threshold",
-            display_name="Signal threshold",
+            name="n_scales",
+            display_name="EWMA time scales",
             description=(
-                "Minimum max_signal for a record to count as 'fired'. "
-                "Records below this are treated as ECM-quiet."
+                "How many moving averages watch the trace at once, at "
+                "doubling time horizons: scale 1 reacts in ~2 tokens, "
+                "scale 2 in ~4, scale 3 in ~8, and so on. More scales "
+                "extend sensitivity to slower drifts; fewer scales make "
+                "the detector a pure spike-catcher. Default 5 covers "
+                "~2–32 token horizons."
             ),
-            type="float", default=0.0, min_val=0.0, max_val=5.0,
+            type="int", default=5, min_val=2, max_val=8,
+            group="Detector (applied at Run — no re-analysis needed)",
         ),
         ModuleParameter(
-            name="include_per_record",
-            display_name="Include per-record details",
+            name="deadband",
+            display_name="Deadband (σ)",
             description=(
-                "Include per-record channel summaries in the output. "
-                "Disable for very large sessions to keep the results "
-                "payload small."
+                "Ignore-below threshold, in units of the trace's own "
+                "typical volatility (σ). A moving average's per-token "
+                "slope must exceed this to count at all. Raise it (e.g. "
+                "1.0–1.5) to silence jitter and keep only strong "
+                "excursions; lower it (e.g. 0.5) to expose mild "
+                "cascades. Directly trades false positives against "
+                "sensitivity."
+            ),
+            type="float", default=0.75, min_val=0.0, max_val=3.0,
+            group="Detector (applied at Run — no re-analysis needed)",
+        ),
+        ModuleParameter(
+            name="agreement",
+            display_name="Scale agreement",
+            description=(
+                "How many time scales must clear the deadband "
+                "simultaneously before the detector fires. 1 = any "
+                "single scale triggers (sensitive, spike-prone). 2+ "
+                "= corroboration required across horizons, rejecting "
+                "single-scale flukes. The reported σ-excess is the "
+                "WEAKEST corroborating scale's — conservative by "
+                "construction. Cannot exceed the number of scales."
+            ),
+            type="int", default=2, min_val=1, max_val=8,
+            group="Detector (applied at Run — no re-analysis needed)",
+        ),
+        ModuleParameter(
+            name="warmup",
+            display_name="Warmup tokens",
+            description=(
+                "Tokens at the start of each trace during which the "
+                "detector only calibrates (learning the trace's scale "
+                "and volatility) and cannot fire. Short prompts need "
+                "low warmup to produce any signal at all; response "
+                "traces (64 tokens) tolerate the default comfortably. "
+                "Live generation always uses 8; replaying with a "
+                "different value here is how you isolate warmup "
+                "effects."
+            ),
+            type="int", default=4, min_val=0, max_val=32,
+            group="Detector (applied at Run — no re-analysis needed)",
+        ),
+        # ── Aggregation ──
+        ModuleParameter(
+            name="signal_threshold",
+            display_name="Fired threshold (σ)",
+            description=(
+                "A record counts as 'fired' only if its peak σ-excess "
+                "meets this value. 0 = any nonzero signal counts. "
+                "Raise to focus fired-rate statistics on strong "
+                "detections only; per-token signals and traces are "
+                "unaffected."
+            ),
+            type="float", default=0.0, min_val=0.0, max_val=5.0,
+            group="Aggregation",
+        ),
+        # ── Output ──
+        ModuleParameter(
+            name="include_per_record",
+            display_name="Per-record details",
+            description=(
+                "Include every record's channel breakdown and prompt in "
+                "the results (and the JSONL export). Disable only for "
+                "very large sessions where the payload gets heavy."
             ),
             type="bool", default=True,
+            group="Output",
+        ),
+        ModuleParameter(
+            name="include_traces",
+            display_name="Per-token signal strips",
+            description=(
+                "Copy per-token σ-excess arrays into the results so the "
+                "in-app strips can render where each channel fired, "
+                "token by token. Disable for very large sessions."
+            ),
+            type="bool", default=True,
+            group="Output",
         ),
         ModuleParameter(
             name="strip_token_limit",
             display_name="Strip token limit",
             description=(
-                "Maximum tokens rendered per intervention strip. "
-                "0 = render the full trace. Truncation is visual only; "
-                "statistics and the JSONL always use the full trace."
+                "Maximum tokens rendered per signal strip. 0 = full "
+                "trace. Truncation is visual only — statistics and the "
+                "JSONL always use the full trace."
             ),
             type="int", default=0, min_val=0, max_val=512,
-        ),
-        ModuleParameter(
-            name="include_traces",
-            display_name="Include per-token traces",
-            description=(
-                "Copy per-token signal arrays into the module results "
-                "for the in-app visualizer. Disable for very large "
-                "sessions."
-            ),
-            type="bool", default=True,
+            group="Output", advanced=True,
         ),
     ]
 
@@ -354,15 +470,23 @@ class EcmModule(TASMModule):
         if not ok:
             return ok, msg
 
-        # Check that at least some results have ECM data
-        n_ecm = sum(1 for r in session_results
-                     if r.get("ecm") and isinstance(r["ecm"], dict)
-                     and r["ecm"].get("mode") == "replay")
-        if n_ecm == 0:
+        n_replayable = 0
+        for r in session_results:
+            for _, getter, _, _ in _CHANNEL_SOURCES:
+                try:
+                    t = getter(r)
+                except Exception:
+                    t = None
+                if t is not None and (not hasattr(t, "__len__") or len(t) > 0):
+                    n_replayable += 1
+                    break
+        if n_replayable == 0:
             return False, (
-                "No ECM data found in session results. Re-run analysis "
-                "with the ECM checkbox enabled to collect cascade "
-                "detector replay data."
+                "No replayable per-token traces found in this session. "
+                "Stress traces are collected by every analysis run; if "
+                "this is an imported or stripped session, re-run the "
+                "prompts. Enable the KL divergence checkbox and SFD "
+                "collection for the kl and density channels."
             )
         return True, "OK"
 
@@ -377,32 +501,67 @@ class EcmModule(TASMModule):
             logger.info(f"[ECM] {msg}")
 
         t0 = _time.time()
+        n_scales = int(params.get("n_scales", 5))
+        agreement = max(1, min(int(params.get("agreement", 2)), n_scales))
+        det = {
+            "n_scales": n_scales,
+            "deadband": float(params.get("deadband", 0.75)),
+            "agreement": agreement,
+            "warmup": int(params.get("warmup", 4)),
+        }
         threshold = float(params.get("signal_threshold", 0.0))
         include_records = bool(params.get("include_per_record", True))
         include_traces = bool(params.get("include_traces", True))
         strip_token_limit = int(params.get("strip_token_limit", 0) or 0)
 
-        # ── Extract ECM records from session ──
-        prog("Extracting ECM data from session results...")
+        # ── Replay every result's traces with the Run-time detector ──
+        prog(f"Replaying traces (scales={det['n_scales']}, "
+             f"deadband={det['deadband']}σ, agreement={det['agreement']}, "
+             f"warmup={det['warmup']})...")
         records = []
-        for i, result in enumerate(session_results):
-            rec = _extract_ecm_record(result, i)
-            if rec is not None:
-                # Apply threshold override
-                if threshold > 0:
-                    rec["any_fired"] = rec["max_signal"] >= threshold
-                records.append(rec)
-
+        skipped = []
+        coverage: dict[str, dict] = {
+            ch: {"available": 0, "missing": 0, "reasons": {}}
+            for ch, _, _, _ in _CHANNEL_SOURCES
+        }
         n_total = len(session_results)
+        for i, result in enumerate(session_results):
+            if progress and n_total > 20 and i % 10 == 0:
+                prog(f"Replaying {i + 1}/{n_total}...")
+            rec = _extract_ecm_record(result, i, det)
+            if rec is None:
+                skipped.append({
+                    "index": i,
+                    "prompt": (result.get("prompt") or "")[:80],
+                    "reason": "no replayable traces on this result",
+                })
+                for ch, _, _, reason in _CHANNEL_SOURCES:
+                    coverage[ch]["missing"] += 1
+                    coverage[ch]["reasons"][reason] = \
+                        coverage[ch]["reasons"].get(reason, 0) + 1
+                continue
+            if threshold > 0:
+                rec["any_fired"] = rec["max_signal"] >= threshold
+            for ch, _, _, _ in _CHANNEL_SOURCES:
+                if ch in rec["channels"]:
+                    coverage[ch]["available"] += 1
+                else:
+                    coverage[ch]["missing"] += 1
+                    reason = rec["missing_channels"].get(ch, "unavailable")
+                    coverage[ch]["reasons"][reason] = \
+                        coverage[ch]["reasons"].get(reason, 0) + 1
+            records.append(rec)
+
         n_ecm = len(records)
-        prog(f"Found ECM data in {n_ecm}/{n_total} results")
+        prog(f"Replayed {n_ecm}/{n_total} results")
 
         if not records:
             return {
                 "ok": False,
-                "error": "No ECM replay data found in session results.",
+                "error": "No replayable per-token traces in session results.",
                 "n_total": n_total,
                 "n_ecm": 0,
+                "skipped": skipped,
             }
 
         # ── Category breakdown ──
@@ -419,8 +578,8 @@ class EcmModule(TASMModule):
 
         # ── Live actuation aggregates (harvest records only) ──
         # The replay audit above asks "would the detector fire on the
-        # analytical traces"; this section reports what the live
-        # controller actually did during generation.
+        # analytical traces"; this reports what the live controller
+        # actually did during generation.
         def _agg_live(blocks: list[dict]) -> dict:
             n = len(blocks)
             fired = sum(1 for b in blocks if b["n_interventions"] > 0)
@@ -450,9 +609,6 @@ class EcmModule(TASMModule):
                                for c, v in sorted(by_cat_live.items())},
             }
 
-        # ── Detector config (from first record) ──
-        detector_config = records[0].get("detector", {}) if records else {}
-
         # ── Per-record details (optional) ──
         record_details = None
         if include_records:
@@ -467,30 +623,18 @@ class EcmModule(TASMModule):
                     "any_fired": rec["any_fired"],
                     "total_interventions": rec["total_interventions"],
                     "channels": rec["channels"],
+                    "missing_channels": rec["missing_channels"],
                     "live": rec["live"],
                     "stress_score": rec["stress_score"],
                     "kl_divergence": rec["kl_divergence"],
                     "density_mean": rec["density_mean"],
                 }
-                # Optionally include the full per-token traces
-                if include_traces:
+                if include_traces and rec["_traces"]:
+                    detail["traces"] = rec["_traces"]
                     src_result = session_results[rec["index"]]
-                    ecm_block = src_result.get("ecm", {})
-                    ch_data = ecm_block.get("channels", {})
-                    traces = {}
-                    for ch_name, ch in ch_data.items():
-                        sig = ch.get("per_token_signal")
-                        if sig:
-                            traces[ch_name] = [
-                                round(v, 4) if isinstance(v, float) else v
-                                for v in sig
-                            ]
-                    if traces:
-                        detail["traces"] = traces
-                        # Index-aligned token strings for the strip renderer
-                        toks = src_result.get("tokens")
-                        if toks:
-                            detail["tokens"] = toks
+                    toks = src_result.get("tokens")
+                    if toks:
+                        detail["tokens"] = toks
                 record_details.append(detail)
 
         elapsed = round(_time.time() - t0, 2)
@@ -517,7 +661,11 @@ class EcmModule(TASMModule):
             "n_without_ecm": n_total - n_ecm,
             "signal_threshold": threshold,
             "strip_token_limit": strip_token_limit,
-            "detector": detector_config,
+            # Detector settings actually used for THIS replay (the
+            # module's Run-time parameters, not collection-time config).
+            "detector": det,
+            "coverage": coverage,
+            "skipped": skipped,
             # "summary" is the REPLAY AUDIT: would the detector fire on
             # the analytical traces of each record's text (mode=replay).
             # "live_summary" is the ACTUATION RECORD: what the controller

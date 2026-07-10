@@ -2295,8 +2295,9 @@ function toggleModCard(name) {
 
 function renderParamSections(m) {
   function paramCell(p) {
-    var c = '<div class="mod-param">';
-    c += '<label>' + escHtml(p.display_name) + '</label>';
+    var tip = p.description ? ' title="' + escHtml(p.description) + '"' : '';
+    var c = '<div class="mod-param"' + tip + '>';
+    c += '<label' + tip + '>' + escHtml(p.display_name) + '</label>';
     c += renderParamControl(m.name, p);
     if (p.description) c += '<div class="param-desc">' + escHtml(p.description) + '</div>';
     return c + '</div>';

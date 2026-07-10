@@ -213,6 +213,7 @@ class ModuleRunner:
             ("arditi_benchmarks",             "routing"),
             ("harm_direction",               "routing"),
             ("harm_trajectory",              "routing"),
+            ("syco_signature",               "routing"),
             ("concept_atoms",                "routing"),
             ("routing_ablation",             "routing"),
             # ECM analysis (blue border in UI)
