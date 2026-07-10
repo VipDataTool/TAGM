@@ -129,12 +129,13 @@ def generate_chat_response_streaming(
             generate_kwargs["temperature"] = 1.0
             generate_kwargs["logits_processor"] = [ecm_processor]
 
-            # Backstop against n-gram loops seeded during cooled steps.
-            # The processor's loop guard stops cooling *into* a loop;
-            # this prevents the sampler from completing one at all.
+            # Backstop against n-gram loops seeded during cooled steps —
+            # now cooling-gated and generation-scoped inside the
+            # processor (see ecm_guard). The old generate-kwargs
+            # constraint was unconditional and included the prompt in
+            # its window.
             nrn = int(engine_config.get("ecm_no_repeat_ngram") or 0)
-            if nrn > 0:
-                generate_kwargs["no_repeat_ngram_size"] = nrn
+            ecm_processor.configure_no_repeat(nrn, input_len)
 
         # ── Launch generation in a thread ──────────────────────
         # MODEL_LOCK is acquired inside the thread, not here.

@@ -189,10 +189,26 @@ class ECMProcessor:
         # Effective windows ≈ 1/λ = 2, 4, 8, 16, 32 tokens
         self.lambdas = [0.5 ** (k + 1) for k in range(n_scales)]
 
+        self._nrn_guard = None   # installed via configure_no_repeat()
         self.reset()
+
+    def configure_no_repeat(self, ngram_size: int, prompt_len: int):
+        """Install the cooling-gated no-repeat guard for one generation.
+
+        Call after construction, once the prompt length is known and
+        before generate(). Replaces the old generate-kwargs
+        no_repeat_ngram_size, which was unconditional and included the
+        prompt in its window (see ecm_guard module docstring).
+        ngram_size < 2 disables the guard.
+        """
+        from src.engine.ecm_guard import CoolingGatedNoRepeat
+        self._nrn_guard = (CoolingGatedNoRepeat(ngram_size, prompt_len)
+                           if int(ngram_size or 0) >= 2 else None)
 
     def reset(self):
         """Reset all state for a new generation."""
+        if getattr(self, "_nrn_guard", None) is not None:
+            self._nrn_guard.reset()
         self._emas = [0.0] * self.n_scales
         self._emas_prev = [0.0] * self.n_scales
         self._var_mean = 0.0     # EW mean for the variance tracker
@@ -331,7 +347,19 @@ class ECMProcessor:
             temp_effective = self.base_temperature * (1.0 - self.gain * cascade_signal)
             temp_effective = max(self.floor, min(self.base_temperature, temp_effective))
 
-        # ── 6. Apply temperature scaling to logits ─────────────────
+        # ── 6. Cooling-gated no-repeat guard (see ecm_guard) ───────
+        # Armed only while cooling (and for n steps after); scans
+        # generated tokens only. Quiet generations apply zero bans,
+        # keeping the quiet ECM path behaviorally identical to the
+        # plain control.
+        if self._nrn_guard is not None:
+            self._nrn_guard.observe(temp_effective, self.base_temperature)
+            if self._nrn_guard.armed:
+                banned = self._nrn_guard.banned(input_ids[0].tolist())
+                if banned:
+                    scores[0, banned] = float("-inf")
+
+        # ── 6b. Apply temperature scaling to logits ────────────────
         scores_out = scores / temp_effective
 
         # ── 7. Record diagnostics ──────────────────────────────────
@@ -371,6 +399,8 @@ class ECMProcessor:
             "ema_trajectories": {str(k): v for k, v in d.ema_trajectories.items()},
             "n_interventions": d.n_interventions,
             "n_loop_releases": d.n_loop_releases,
+            "n_ngram_bans": (self._nrn_guard.n_bans
+                             if getattr(self, "_nrn_guard", None) else 0),
             "intervention_rate": round(d.n_interventions / n_tokens, 4) if n_tokens else 0.0,
             "max_cascade_signal": round(d.max_cascade_signal, 6),
             "n_tokens": n_tokens,

@@ -140,3 +140,17 @@ Known synthetic-only artifact: near-constant traces ride the σ floor (1e-2), pr
 2. ECM: flip deadband between Runs; confirm the REPLAY banner and results change; confirm coverage matches the checkboxes actually used.
 3. syco: inspect "no pivots" records; extend `syco_lexicon.csv` with observed cave-in phrasings; confirm worksheet round-trip (label → re-run → labeled aggregates).
 4. Cross-check: replay an existing jailbreak session through ECM v3 and confirm the structural-pivot spike exemplars still peak where the paper says they do.
+
+---
+
+## 9. Addendum (2026-07-10, later): cooling-gated no-repeat guard
+
+**Discovered by data, not review.** A seed-matched benign pair diverged from control at token #4 with ZERO interventions. Mechanism: the ECM path installed HF's `no_repeat_ngram_size=4` — unconditional (polices warm steps) and sequence-global (n-gram window includes the PROMPT). The prompt contained "tallest mountain in the"; at "The tallest mountain in", the guard banned " the", the exact token the plain control sampled. This breaks the causal attribution the paper's Table 2 relies on ("nothing else varies") — the guard varied.
+
+**Fix (files touched):** `src/engine/ecm_guard.py` (new — `CoolingGatedNoRepeat` + pure `banned_next_tokens`), `src/engine/ecm.py` and `src/engine/ecm_v4.py` (guard state, `configure_no_repeat(ngram_size, prompt_len)`, application in `__call__` before temperature scaling, `n_ngram_bans` diagnostic), `src/engine/ecm_harvest.py` and `src/service/chat.py` (drop the generate kwarg; call `configure_no_repeat(nrn, input_len)`).
+
+**Semantics now:** armed only while T_eff < T_base and for `ngram_size` steps after release; n-gram window = generated tokens only; ngram_size < 2 disables; quiet generations apply zero bans → the quiet ECM pipeline is behaviorally identical to plain control by construction. `ecm_no_repeat_ngram` config key unchanged in name, changed in meaning (update ECM_REFERENCE.md's parameter row accordingly).
+
+**Verified (CPU):** pure-logic unit tests — HF-semantics parity on generated ids, prompt-echo never banned even when armed, cooled loop-completion banned, release window decays after n steps; plus a token-for-token replay of the benign confound through the exact processor guard block showing zero masks on the quiet path. NOT verified here: torch masking line under real generation.
+
+**Smoke test additions:** (5) re-run the benign matched pair — ECM and plain must now be token-identical when interventions are zero; (6) confirm `n_ngram_bans` appears in harvest diagnostics and is 0 on quiet runs; (7) regenerate the paper's Table 2/3 matched pairs under the corrected control before publication.

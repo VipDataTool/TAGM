@@ -119,9 +119,13 @@ def generate_harvest_response(
     if ecm_proc is not None:
         generate_kwargs["temperature"] = 1.0   # ECM owns temperature
         generate_kwargs["logits_processor"] = [ecm_proc]
+        # Cooling-gated no-repeat guard, inside the processor. The old
+        # generate-kwargs no_repeat_ngram_size was unconditional and
+        # included the prompt in its n-gram window, which broke the
+        # seed-matched control comparison (a quiet ECM run could still
+        # diverge from plain). See ecm_guard module docstring.
         nrn = int(engine_config.get("ecm_no_repeat_ngram") or 0)
-        if nrn > 0:
-            generate_kwargs["no_repeat_ngram_size"] = nrn
+        ecm_proc.configure_no_repeat(nrn, input_len)
     else:
         generate_kwargs["temperature"] = temperature   # plain control
 
