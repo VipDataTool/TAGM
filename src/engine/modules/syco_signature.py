@@ -144,7 +144,7 @@ class SycophancySignatureModule(TASMModule):
         "the pivot (interference index). Exports a worksheet for "
         "manual caved/held labeling; never auto-judges."
     )
-    version = "0.1.0"
+    version = "0.2.0"
 
     min_results = 4
     requires_sfd = False
@@ -177,6 +177,20 @@ class SycophancySignatureModule(TASMModule):
                 "Widen to 3–4 if pivots land a token or two after the "
                 "actual distributional decision; keep tight to avoid "
                 "diluting the pivot with surrounding text."
+            ),
+            type="int", default=2, min_val=0, max_val=8,
+            group="Pivot detection",
+        ),
+        ModuleParameter(
+            name="min_pivot_pos",
+            display_name="Min pivot position",
+            description=(
+                "Ignore lexical pivots earlier than this token index. "
+                "The first one or two response tokens carry generic "
+                "response-start divergence (observed median KL 5.9 at "
+                "pos 0–1 vs 0.07 at pos 2+), which is a transition "
+                "artifact, not an agreement signature. Excluded pivots "
+                "are counted per record as early_pivots_excluded."
             ),
             type="int", default=2, min_val=0, max_val=8,
             group="Pivot detection",
@@ -327,6 +341,18 @@ class SycophancySignatureModule(TASMModule):
                 start = j + 1
         pivots.sort(key=lambda p: p["pos"])
 
+        # Response-start artifact filter: pos 0-1 pivots measure the
+        # prompt→response transition in KL terms, so they are excluded
+        # from the KL ratio — but agreement MASS is position-safe, so
+        # early pivots are kept in a separate list and still contribute
+        # to interference. Opening caves ("Yes, ...") are the most
+        # common cave form; dropping them entirely would blind the
+        # mass measurement at its most informative site.
+        min_pos = int(params.get("min_pivot_pos", 2))
+        early_pivots = [p for p in pivots if p["pos"] < min_pos]
+        n_early = len(early_pivots)
+        pivots = [p for p in pivots if p["pos"] >= min_pos]
+
         # Structural pivots: sentence-terminal tokens NOT inside a
         # lexical pivot window (they are the baseline, so they must
         # not overlap the thing being contrasted against them)
@@ -380,14 +406,30 @@ class SycophancySignatureModule(TASMModule):
             return round(total, 6)
 
         if mass_available:
-            for p in pivots:
-                mi = _mass_at(inst_alts, p["pos"])
-                mb = _mass_at(base_alts, p["pos"])
-                p["mass_instruct"] = mi
-                p["mass_base"] = mb
+            for p in pivots + early_pivots:
+                # Window-max anchoring: the agreement token realizes
+                # somewhere within the phrase, not necessarily at its
+                # first token ("You're right" starts with "You").
+                # Scan the forward window; interference is computed
+                # per position (both models loading agreement at the
+                # SAME point) and then maxed — the rigorous version.
+                hi = min(n, p["pos"] + window + 1)
+                best_mi = best_mb = best_ii = None
+                for j in range(p["pos"], hi):
+                    mi = _mass_at(inst_alts, j)
+                    mb = _mass_at(base_alts, j)
+                    if mi is not None and (best_mi is None or mi > best_mi):
+                        best_mi = mi
+                    if mb is not None and (best_mb is None or mb > best_mb):
+                        best_mb = mb
+                    if mi is not None and mb is not None:
+                        ii = min(mi, mb)
+                        if best_ii is None or ii > best_ii:
+                            best_ii = ii
+                p["mass_instruct"] = best_mi
+                p["mass_base"] = best_mb
                 p["interference_index"] = (
-                    round(min(mi, mb), 6)
-                    if mi is not None and mb is not None else None)
+                    round(best_ii, 6) if best_ii is not None else None)
 
         harvest = result.get("ecm_harvest") or {}
         rec = {
@@ -397,6 +439,8 @@ class SycophancySignatureModule(TASMModule):
             "response_text": (result.get("prompt") or "")[:400],
             "n_tokens": n,
             "n_pivots": len(pivots),
+            "early_pivots_excluded": n_early,
+            "early_pivots": early_pivots,
             "n_structural": len(structural),
             "pivots": pivots,
             "pivot_kl": p_agg,
@@ -421,6 +465,7 @@ class SycophancySignatureModule(TASMModule):
         p = {
             "lexicon_preset": str(params.get("lexicon_preset", "default")),
             "pivot_window": int(params.get("pivot_window", 2)),
+            "min_pivot_pos": int(params.get("min_pivot_pos", 2)),
             "aggregate": str(params.get("aggregate", "median")),
             "response_only": bool(params.get("response_only", True)),
             "mass_top_k": int(params.get("mass_top_k", 8)),
@@ -466,12 +511,13 @@ class SycophancySignatureModule(TASMModule):
             with_piv = [r for r in recs if r["n_pivots"] > 0]
             ratios = [r["suppression_ratio"] for r in with_piv
                       if r["suppression_ratio"] is not None]
-            ii = [pv["interference_index"] for r in with_piv
-                  for pv in r["pivots"]
+            def _allpv(r):
+                return list(r["pivots"]) + list(r.get("early_pivots") or [])
+            ii = [pv["interference_index"] for r in recs for pv in _allpv(r)
                   if pv.get("interference_index") is not None]
-            mi = [pv["mass_instruct"] for r in with_piv for pv in r["pivots"]
+            mi = [pv["mass_instruct"] for r in recs for pv in _allpv(r)
                   if pv.get("mass_instruct") is not None]
-            mb = [pv["mass_base"] for r in with_piv for pv in r["pivots"]
+            mb = [pv["mass_base"] for r in recs for pv in _allpv(r)
                   if pv.get("mass_base") is not None]
             return {
                 "n": len(recs),

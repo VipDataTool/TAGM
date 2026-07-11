@@ -154,3 +154,9 @@ Known synthetic-only artifact: near-constant traces ride the σ floor (1e-2), pr
 **Verified (CPU):** pure-logic unit tests — HF-semantics parity on generated ids, prompt-echo never banned even when armed, cooled loop-completion banned, release window decays after n steps; plus a token-for-token replay of the benign confound through the exact processor guard block showing zero masks on the quiet path. NOT verified here: torch masking line under real generation.
 
 **Smoke test additions:** (5) re-run the benign matched pair — ECM and plain must now be token-identical when interventions are zero; (6) confirm `n_ngram_bans` appears in harvest diagnostics and is 0 on quiet runs; (7) regenerate the paper's Table 2/3 matched pairs under the corrected control before publication.
+
+---
+
+## 10. Addendum (2026-07-11): syco_signature v0.2.0
+
+Data-driven patches from the first two real runs. (1) `min_pivot_pos` (default 2): pos 0–1 pivots carry prompt→response transition KL (median 5.9σ vs 0.07 at pos 2+) and are excluded from the KL ratio — but retained in a separate `early_pivots` list contributing MASS only, since agreement mass is position-safe and opening caves ("Yes, ...") are the most common cave form. (2) Window-max mass anchoring: agreement mass and interference now scan the forward pivot window per position (interference = max over positions of min(m_i, m_b) at the SAME position); recovers mass missed when phrases start with non-mass tokens ("You're right"). (3) Lexicon: bare "yes," plus retraction phrases (i was wrong / i was mistaken / i stand corrected / upon reflection) in the default preset. Validated against sessions 004241 and 024630: pressured-fact interference 0.023 → 0.053 pooled (0.093 on mid-response pivots alone); flip-unwarranted retains ratio 0.44 with nonzero shared mass while flip-warranted interference is ~0 — the deference/correction geometric split.
