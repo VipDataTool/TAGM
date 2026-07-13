@@ -1,16 +1,20 @@
-# TAGM — Transformer Alignment Geometric Metrology
+# TAGM — Transformer Alignment Gradient Metrology
 
-TASM-compatible backend for measuring alignment geometry in
-instruction-tuned language models. Extracts per-prompt stress
-signatures, lateral tension profiles, spectral field density,
-and rank displacement from weight-delta-mediated forward passes.
+TASM-compatible instrument for measuring alignment geometry in
+instruction-tuned language models. TAGM loads a base/instruct model
+pair, computes the weight deltas between them, and extracts per-prompt
+stress signatures, lateral tension profiles, spectral field density,
+and rank displacement from delta-mediated forward passes — all through
+a browser dashboard backed by a FastAPI server and a SQLite store.
+
+Supported model families: **Qwen 2.x** and **Llama 3.x** (adapter-based
+— new families are added by implementing a `ModelAdapter` subclass).
 
 ## Quick start (GitHub Codespaces)
 
-1. Open in Codespaces (a 4-core / 16GB machine is comfortable;
-   install dependencies per the local quick start below)
-2. `cd tagm && bash start.sh`
-3. Open http://localhost:8000
+1. Open the repo in Codespaces (a 4-core / 16 GB machine is comfortable)
+2. `bash start.sh` from the repo root
+3. Open the forwarded port → http://localhost:8000
 
 ## Quick start (local)
 
@@ -23,32 +27,45 @@ bash start.sh
 
 Open http://localhost:8000.
 
+`start.sh` cleans stale bytecode, auto-installs missing dependencies,
+and execs `python -m src`. You can also run the server module directly:
+
+```bash
+python -m src --host 0.0.0.0 --port 8000            # defaults
+python -m src --port 9000 --log-level debug --reload # development
+```
+
+Host and port are also configurable via the `TAGM_HOST` / `TAGM_PORT`
+environment variables. Per-request access logging is off by default
+(the frontend polls status endpoints every ~2 s); pass `--access-log`
+to enable it. Application logs go to `tagm.log`, downloadable from the
+UI or via `GET /api/log/download`.
+
 ## Dependencies
 
 Core runtime (all in `requirements.txt`):
 
-- **torch** — model inference (CPU-only recommended for Codespaces)
+- **torch** — model inference (CPU-only build recommended for Codespaces)
 - **transformers** + **accelerate** + **safetensors** — HuggingFace model loading
-- **fastapi** + **uvicorn** — HTTP server
+- **huggingface-hub** — model downloads
+- **fastapi** + **uvicorn** — HTTP server + SSE event stream
 - **python-multipart** — form data parsing (file uploads, analyze requests)
 - **numpy** + **scipy** — numerical computation
 - **matplotlib** — server-side plot rendering
-- **scikit-learn** — PCA for domain surface module
-- **huggingface-hub** — model downloads
-
-(System resource reporting reads `/proc/meminfo` directly — no psutil
-needed. Static files are served by Starlette directly — no aiofiles.)
+- **scikit-learn** — PCA for the domain surface module
 
 **sqlite3** ships with Python's standard library — no additional
-install needed for the database layer.
+install needed for the database layer. System resource reporting reads
+`/proc/meminfo` directly (no psutil), and static files are served by
+Starlette (no aiofiles).
 
-Optional: set `HF_TOKEN` environment variable for faster HuggingFace
-downloads and to avoid rate limits.
+Optional: set `HF_TOKEN` for faster HuggingFace downloads and to avoid
+rate limits.
 
 ## Architecture
 
 ```
-tagm/src/engine/      TASM-native computation engine
+src/engine/           TASM-native computation engine
   analyzer.py         Per-prompt extraction (stress, attribution, LTP, SFD)
   result.py           Flat PromptResult dataclass + serialization
   hooks.py            Adapter-based activation capture → flat key dict
@@ -58,18 +75,82 @@ tagm/src/engine/      TASM-native computation engine
   session.py          DB-backed session (SQLite via core/db.py)
   app_core.py         Core API endpoint handlers
   statistics.py       Bootstrap CIs, Cohen's d, threshold optimization
+  comparative.py      Batch comparative plots (category overlays, scatters)
+  visualizations.py   Per-prompt and batch plot rendering
+  deconstruct.py      Prefix-ladder expansion for deconstruction runs
+  counterfactuals.py  Full-vocabulary counterfactual probabilities
+  ecm.py / ecm_v4.py  Entropic Cascade Mitigation (v2 entropy-only, v4 multi-channel)
+  ecm_analysis.py     Replay-mode ECM trace analysis on stored results
+  ecm_harvest.py      ECM-regulated response harvesting during analysis
+  ablation.py         Ablation experiment machinery
+  interventions.py    Activation/weight intervention primitives
+  qk_intervention.py  QK-space interventions
+  attention_calibration.py  Attention calibration analyses
   modules/            TASM analysis modules (auto-discovered at startup)
 
-tagm/src/core/        Model + data infrastructure
-  adapter/            Model-family abstraction (Qwen2, Llama3)
-  pipeline.py         Model loading, delta computation, forward passes
+src/core/             Model + data infrastructure
+  adapter/            Model-family abstraction (Qwen 2.x, Llama 3.x)
+  pipeline.py         Model loading, delta computation, forward passes,
+                      instruct/base inference toggle
   deltas/             Weight delta computation from disk + spectral profiling
   cache.py            Disk cache management (~/.tagm/cache/)
   db.py               SQLite persistence layer
+  locks.py            Global model lock
 
-tagm/src/probes/      Probe CSV loading + per-depth embedding cache
-tagm/src/service/     Chat, plots, export
+src/probes/           Probe CSV loading + per-depth embedding cache
+src/service/          Chat (SSE-streamed), SSE event broker, plots, export
+src/templates/        Probe-generator lattice templates (subject × subclass CSVs)
+static/               Dashboard UI + module visualization pages
+roundtable_templates/ Batch templates for the Roundtable LMA module
+tools/                Standalone research harnesses (run outside the server)
 ```
+
+### Analysis modules
+
+Modules are auto-discovered from `src/engine/modules/` at startup — any
+file defining a `TASMModule` subclass registers itself. Currently:
+
+| Slug | Display name |
+|---|---|
+| `arditi_benchmarks` | Arditi Benchmark Analyses |
+| `comparative_analysis` | Comparative Analysis |
+| `concept_atoms` | Concept Atom Explorer |
+| `correction_field_topology` | Correction Field Topology |
+| `correction_prism` | Probe-Basis Decomposition |
+| `domain_surface` | Domain Surface Geometry |
+| `ecm` | ECM — Entropic Cascade Mitigation |
+| `harm_direction` | Harm Direction (SFD) |
+| `harm_trajectory` | Harm Trajectory |
+| `mechanistic_interpretability` | MI Readiness Analysis |
+| `mi_instrumentation` | MI Instrumentation |
+| `model_dialogue` | Model Dialogue Interface |
+| `probe_generator` | Probe Generator |
+| `roundtable_lma` | Roundtable LMA |
+| `routing_ablation` | Routing Ablation Experiment |
+| `syco_signature` | Sycophancy Signature |
+| `token_pair_coupling` | Token Pair Coupling |
+
+Several modules ship dedicated visualization pages served at the root:
+`/domain_surface_viz`, `/correction_prism_viz`,
+`/correction_field_topology_viz`, `/probe_diagnostic_viz`,
+`/template_maker`, `/roundtable`, and `/chat`.
+
+## How it works
+
+1. Load a model pair → Pipeline computes weight deltas from disk
+2. Click Analyze → form-data flags go to the engine
+3. Engine installs hooks (adapter resolves WHERE), runs one forward pass
+4. Extraction functions read activations + deltas, write to flat PromptResult
+5. `result_to_dict()` → compressed INSERT into SQLite → frontend reads via API
+
+The adapter tells us where to hook. The delta store tells us what
+changed. The extraction functions read both and write to flat fields.
+Results are persisted on every `add_result()` — there is no separate
+save step.
+
+With **Deconstruct** enabled, a single prompt expands into its prefix
+ladder; every rung is analyzed and stored with `family_index` /
+`rung_index` so records regroup downstream.
 
 ## Data management
 
@@ -131,18 +212,38 @@ setups:
 TAGM_DB_PATH=/tmp/test.db bash start.sh
 ```
 
-## How it works
+## High-Efficiency Pipeline (HEP)
 
-1. Load a model pair → Pipeline computes weight deltas from disk
-2. Click Analyze → form-data flags go to the engine
-3. Engine installs hooks (adapter resolves WHERE), runs one forward pass
-4. Extraction functions read activations + deltas, write to flat PromptResult
-5. `result_to_dict()` → compressed INSERT into SQLite → frontend reads via API
+For disk/RAM-constrained hosts (Codespaces), the High-Efficiency
+Pipeline switches the delta store from the in-memory backend to
+memory-mapped files under `~/.tagm/cache/deltas/*.tagm`, clears the
+HuggingFace cache, and optionally evicts the base model cache after
+delta computation.
 
-The adapter tells us where to hook. The delta store tells us what
-changed. The extraction functions read both and write to flat fields.
-Results are persisted on every `add_result()` — there is no separate
-save step.
+- `POST /api/hep/initialize` — clear HF cache, switch to mmap backend
+- `POST /api/hep/deactivate` — remove mmap deltas, return to memory mode
+- `GET /api/hep/status` — backend, mmap file size, disk/RAM headroom
+
+HEP state persists in the database and is restored on restart.
+
+## Entropic Cascade Mitigation (ECM)
+
+ECM is an adaptive sampling processor that tracks output-distribution
+entropy across a bank of dyadic-scale EWMAs during generation. When
+entropy rises coherently across scales (the cascade signature), it
+reduces effective temperature proportionally; a loop guard releases
+temperature if the token tail turns periodic. No auxiliary model, no
+trained discriminator — the model's own distributional uncertainty is
+the only signal.
+
+Two processor versions are selectable via `ecm_version`: **v2**
+(entropy-only, `engine/ecm.py`) and **v4** (pluggable multi-channel,
+`engine/ecm_v4.py`, e.g. entropy + density channels with configurable
+fusion). ECM applies to chat generation when `ecm_active` is on, can
+be replayed analytically over stored results (`compute_ecm`), and can
+harvest ECM-regulated responses during analysis
+(`harvest_responses` / `ecm_harvest_tokens`). All parameters are
+tunable from the Advanced Parameters panel.
 
 ## Probe system
 
@@ -158,8 +259,10 @@ N times per cell, counts token frequencies, then applies two-axis
 deduplication (cross-class and cross-subclass) so that each
 surviving term is unique to its lattice cell.
 
-Templates live in `tagm/templates/`. Each template defines a
-subject × subclass lattice.
+Templates live in `src/templates/`. Each template defines a
+subject × subclass lattice; the **Template Maker** page
+(`/template_maker`) builds new ones, and custom templates can be
+uploaded via `POST /api/modules/upload_template`.
 
 ### Embedding
 
@@ -167,8 +270,8 @@ The **Auto-Embed After Generation** checkbox (enabled by default) in
 the Probe Generator parameters automatically embeds and activates the
 generated probe set when generation completes. The probes are embedded
 through adapter-mediated hooks at configurable depths (L50, L75 by
-default), cached to `probe_cache/`, and activated — all as part of the
-same Run. No extra clicks needed.
+default), cached to `probe_cache/` at the project root, and activated
+— all as part of the same Run. No extra clicks needed.
 
 If auto-embed is unchecked, or if it fails, the **Embed & Activate
 Probe Set** button appears in the results panel as a manual fallback.
@@ -186,15 +289,31 @@ The **Probe Diagnostics** popout (↗ button on the Probe Generator
 card) inspects lattice properties of the active probe set: cell
 coverage, sample terms per cell, cross-class/cross-level collisions,
 and embedding-tier metrics when a probe cache exists for the loaded
-model.
+model. Cross-model comparison works by reusing one probe CSV across
+model pairs: each model gets its own embedding cache, and the lattice
+geometry (subjects, levels) provides the shared coordinate system for
+comparing cell-aggregated outputs.
 
-### Cross-model probe workflow
+## Roundtable LMA
 
-See `CROSS_MODEL.md` for the full cross-model comparison methodology.
-In brief: the same probe CSV produces separate per-model embedding
-caches, and the lattice geometry (subjects, levels) provides the
-shared coordinate system for comparing cell-aggregated outputs
-across models.
+The Roundtable module runs a configurable Language Model Array over
+the loaded model. Two paths through the same infrastructure:
+
+1. **Interactive** — Run with no template opens a chat workspace at
+   `/roundtable`: type an inquiry, select personas, apply methods and
+   tools, manage stages step by step.
+2. **Batch** — upload a CSV template (see `roundtable_templates/`);
+   columns are stages (PANEL / ANALYSIS / TOOL), rows are agent seeds,
+   cells are JSON dicts, and the pipeline marches through columns left
+   to right.
+
+## Chat
+
+The Model Dialogue Interface (`/chat`) generates from the active model
+— toggle between the instruct and base weights with
+`POST /api/set_inference_model`. Generation is streamed over SSE.
+Chat turns can optionally be analyzed and recorded into the session,
+and ECM diagnostics are returned in the response when ECM is active.
 
 ## API
 
@@ -202,7 +321,8 @@ across models.
 
 ```
 prompt, category, compute_kl, compute_ltp, compute_sfd,
-compute_trajectory, full_capture, capture_responses,
+compute_trajectory, compute_ecm, full_capture, capture_responses,
+harvest_responses, ecm_harvest_tokens,
 ltp_k, ltp_layer_strategy, ltp_svd_rank, deconstruct
 ```
 
@@ -212,9 +332,10 @@ announces completion exactly once via the `analyze_done` event on the
 `GET /api/events` SSE stream (payload:
 `{ok, n_results, n_prompts, n_errors, error}`). Fetch results via the
 session endpoints below. `POST /api/analyze_batch` (CSV upload) follows
-the same contract. Counterfactual probabilities everywhere are
-full-vocabulary softmax values, comparable across the instruct/base
-pair and against `instruct_topk` / `base_topk`.
+the same contract, with trajectories defaulting off for batch volume.
+Counterfactual probabilities everywhere are full-vocabulary softmax
+values, comparable across the instruct/base pair and against
+`instruct_topk` / `base_topk`.
 
 ### Session endpoints
 
@@ -234,6 +355,40 @@ POST /api/session/rerun              Re-analyze specific prompts
 GET  /api/models                     List registered model pairs
 POST /api/models                     Add or update a model pair
 POST /api/load_model                 Load a model pair into memory
+POST /api/set_inference_model        Toggle instruct/base for generation
+POST /api/reset                      Unload models, reset pipeline
+```
+
+### Modules
+
+```
+GET  /api/modules                    List discovered modules + parameters
+POST /api/modules/{name}/run         Start a module run (background thread)
+GET  /api/modules/{name}/status      Poll run status
+GET  /api/modules/{name}/results     Fetch module output
+POST /api/modules/{name}/reset       Clear module state
+GET  /api/modules/{name}/download_log
+```
+
+Probe-set application (`POST /api/probe_set/apply`) and probe
+embedding (`POST /api/modules/probe_generator/embed_active`) follow a
+background-thread + status-polling pattern with matching
+`*_status` GET endpoints.
+
+### Events, config, misc
+
+```
+GET  /api/events                     SSE stream (model_loaded, model_error,
+                                     analyze_done, export_ready, export_error,
+                                     progress, ...)
+GET  /api/status                     Pipeline/session state
+GET/POST /api/engine_config          Advanced Parameters (+ /reset)
+GET/POST /api/config                 UI preferences (DB-backed)
+GET/POST /api/prompts                Prompt library
+GET  /api/templates                  List probe templates (+ /{name}, /save)
+GET  /api/health                     Liveness check
+GET  /api/plots/{plot_key}           Batch comparative plots (PNG)
+GET  /api/plots/individual/{index}/{plot_key}   Per-result plots
 ```
 
 ### Export
@@ -249,9 +404,11 @@ GET  /api/export/download            Download the finished archive
 `model`, `n_results`, `results` — minus the three `per_token_*_emb`
 fields, which are split into `embeddings_*.csv.gz` companions, keyed
 back by `_embedding_files` / `_embedding_dims`), plus per-module
-reports under `modules/`. Tooling that read the old single-file
-gzipped JSON needs to read `session.json.gz` inside the zip and, if it
-used embeddings, join the CSVs.
+reports under `modules/`. Embedding float precision is configurable
+via the `embeddingPrecision` option (4–17 significant digits).
+Tooling that read the old single-file gzipped JSON needs to read
+`session.json.gz` inside the zip and, if it used embeddings, join the
+CSVs.
 
 ## Indexed result columns
 
@@ -270,3 +427,18 @@ sfd_density_mean, rd_mean_tau, rd_mean_overlap
 All other fields (per-token arrays, heatmaps, trajectories, LTP
 profiles, topk lists, etc.) are stored in the compressed blob and
 loaded on demand when the frontend requests a specific result.
+
+## Research tools
+
+`tools/` contains standalone harnesses that run outside the server,
+plus the prompt sets they consume:
+
+- `benchmark_harness.py` — offline cascade detection over prompt sets
+  (bridges the analyzer's per-token metrics with the v4 CascadeDetector)
+- `stress_hnorm_harness.py` — validity check: does `stress` measure the
+  alignment-delta subspace, or just residual-stream norm ‖h‖?
+- `genre_confound_analysis.py` — effective rank, angular concentration,
+  and transfer proximity from benchmark JSONL output
+- `ecm_ablation_v2.py`, `ecm_ab_report.py`, `ecm_coupling.py`,
+  `test_ecm_v4.py` — ECM ablation, A/B reporting, and channel-coupling
+  studies
