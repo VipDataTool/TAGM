@@ -37,7 +37,7 @@ from src.engine import config as engine_config
 from src.probes.io import resolve_data_file
 from src.core.locks import MODEL_LOCK
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, ModuleCancelled
 
 logger = logging.getLogger("tasm")
 
@@ -613,7 +613,7 @@ class ProbeGeneratorModule(TASMModule):
 
         return True, "OK"
 
-    def run(self, session_results, params, progress=None):
+    def run(self, session_results, params, progress=None, should_cancel=None):
         template_file = params.get("template_file", "")
         output_name = params.get("output_name", "auto_probes.csv").strip()
         n_queries = int(params.get("queries_per_cell", 50))
@@ -694,6 +694,15 @@ class ProbeGeneratorModule(TASMModule):
                 vocab = Counter()
 
                 for qi in range(n_queries):
+                    # The single longest loop in the codebase:
+                    # n_classes x n_subclasses x n_queries sampled
+                    # generations, and progress only every 5th query.  Poll
+                    # every query so a cancel costs at most one generate().
+                    # Nothing is mutated here — the model is only read — so
+                    # bailing out mid-lattice is safe; the partial vocabulary
+                    # is discarded by the runner.
+                    if should_cancel and should_cancel():
+                        raise ModuleCancelled("probe_generator")
                     if progress and (qi + 1) % 5 == 0:
                         progress(f"[{cell_idx}/{total_cells}] "
                                  f"{cls} × {sub_label}: "
@@ -789,6 +798,10 @@ class ProbeGeneratorModule(TASMModule):
                     seeds = cell_seeds.get((cls, col), cls.replace("_", " "))
 
                     for qi in range(ap_batch):
+                        # Covers the progress=None case; with progress set the
+                        # call below is itself the checkpoint.
+                        if should_cancel and should_cancel():
+                            raise ModuleCancelled("probe_generator")
                         if progress:
                             progress(f"Auto-populate: {cls} × {sub_label} "
                                      f"(+{qi+1}/{ap_batch})")
@@ -1095,6 +1108,11 @@ class ProbeGeneratorModule(TASMModule):
                     if progress:
                         progress(f"Auto-embed failed: {embed_result.get('error', 'Unknown')}")
 
+            except ModuleCancelled:
+                # progress() is also the cancel checkpoint and is called both
+                # here and inside embed_and_activate_probe_set — don't let the
+                # bare handler below relabel a cancellation as an embed error.
+                raise
             except Exception as e:
                 logger.exception("Auto-embed failed")
                 output["auto_embed"] = {"applied": False, "error": str(e)}

@@ -32,7 +32,7 @@ the combined verdict.
 import logging
 from typing import Any, Optional
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, ModuleCancelled
 from src.engine.ablation import (
     AblationConfig,
     AblationRunner,
@@ -427,6 +427,11 @@ class ArditiBenchmarksModule(TASMModule):
                 output["causal"] = self._run_causal(
                     fit_harm, params, gen_common, n_layers, prog)
                 output["plot_keys"].append("causal")
+            except ModuleCancelled:
+                # prog() is handed to AblationRunner and raises this on
+                # cancel; the bare handler below would file it as a
+                # sub-benchmark failure and let the run "complete".
+                raise
             except Exception as e:
                 logger.exception("[ARDITI-BENCH] causal sub-run failed")
                 output["causal"] = {"error": str(e)}
@@ -437,6 +442,8 @@ class ArditiBenchmarksModule(TASMModule):
                 output["steering"] = self._run_steering(
                     fit_safe, params, gen_common, n_layers, prog)
                 output["plot_keys"].append("steering")
+            except ModuleCancelled:
+                raise
             except Exception as e:
                 logger.exception("[ARDITI-BENCH] steering sub-run failed")
                 output["steering"] = {"error": str(e)}
@@ -453,6 +460,8 @@ class ArditiBenchmarksModule(TASMModule):
                     output["alpha_scan"] = self._run_alpha_scan(
                         fit_for_scan, params, gen_common, n_layers, prog)
                     output["plot_keys"].append("alpha_scan")
+                except ModuleCancelled:
+                    raise
                 except Exception as e:
                     logger.exception("[ARDITI-BENCH] alpha_scan sub-run failed")
                     output["alpha_scan"] = {"error": str(e)}

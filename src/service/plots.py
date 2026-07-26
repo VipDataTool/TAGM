@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger("src")
@@ -49,26 +50,62 @@ _ORANGE = "#d29922"
 _PURPLE = "#cc79a7"
 
 
+_MPL_RC = {
+    "figure.facecolor": _BG,
+    "axes.facecolor": _BG,
+    "axes.edgecolor": _GRID,
+    "axes.labelcolor": _FG,
+    "axes.titlecolor": _FG,
+    "xtick.color": _FG,
+    "ytick.color": _FG,
+    "grid.color": _GRID,
+    "text.color": _FG,
+    "font.size": 9,
+    "axes.grid": True,
+    "grid.alpha": 0.3,
+}
+
+_mpl_ready = False
+_mpl_setup_lock = threading.Lock()
+
+
 def _setup_matplotlib():
-    """Lazy matplotlib setup. Returns the configured plt module."""
+    """Configure matplotlib exactly once, process-wide.
+
+    Previously this rewrote the global ``plt.rcParams`` on *every* plot
+    call. Plots are dispatched through ``run_in_threadpool``, so
+    concurrent renders were mutating shared global state; one-shot
+    initialisation removes that race. rcParams are read by ``Figure``
+    at construction time, so setting them once at first use is enough.
+    """
+    global _mpl_ready
     import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    plt.rcParams.update({
-        "figure.facecolor": _BG,
-        "axes.facecolor": _BG,
-        "axes.edgecolor": _GRID,
-        "axes.labelcolor": _FG,
-        "axes.titlecolor": _FG,
-        "xtick.color": _FG,
-        "ytick.color": _FG,
-        "grid.color": _GRID,
-        "text.color": _FG,
-        "font.size": 9,
-        "axes.grid": True,
-        "grid.alpha": 0.3,
-    })
-    return plt
+    if not _mpl_ready:
+        with _mpl_setup_lock:
+            if not _mpl_ready:
+                matplotlib.use("Agg")
+                matplotlib.rcParams.update(_MPL_RC)
+                _mpl_ready = True
+    return matplotlib
+
+
+def _new_fig(figsize=_FIGSIZE_WIDE):
+    """Create a standalone Agg figure.
+
+    Object-oriented API on purpose: ``plt.subplots()`` registers the
+    figure in pyplot's global ``Gcf`` manager, so any exception between
+    creation and ``plt.close()`` leaked it permanently (a growing set of
+    live figures, each holding its rendered buffers). A bare ``Figure``
+    is owned by the caller and collected normally on every path —
+    success, handler exception, or client disconnect — and it is also
+    safe to build from several threadpool workers at once.
+    """
+    _setup_matplotlib()
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    fig = Figure(figsize=figsize, dpi=_DPI)
+    FigureCanvasAgg(fig)   # attach the Agg canvas so fig.savefig() works
+    return fig
 
 
 def _render(fig) -> bytes:
@@ -77,15 +114,12 @@ def _render(fig) -> bytes:
     fig.savefig(buf, format="png", dpi=_DPI, bbox_inches="tight",
                 facecolor=_BG)
     buf.seek(0)
-    data = buf.read()
-    import matplotlib.pyplot as plt
-    plt.close(fig)
-    return data
+    return buf.read()
 
 
 def _empty_plot(message: str) -> bytes:
-    plt = _setup_matplotlib()
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     ax.text(0.5, 0.5, message, ha="center", va="center",
             color=_FG, fontsize=11, transform=ax.transAxes)
     ax.set_axis_off()
@@ -113,7 +147,6 @@ def render_plot(key: str, result: dict) -> Optional[bytes]:
 # ── Per-prompt plot handlers ───────────────────────────────────────
 
 def _plot_signed_attribution(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     signed = r.get("signed_attr") or []
     tokens = r.get("tokens") or []
     if not signed or not tokens:
@@ -122,7 +155,8 @@ def _plot_signed_attribution(r: dict) -> bytes:
     signed = signed[:n]
     tokens = tokens[:n]
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     colors = [_RED if v < 0 else _GREEN for v in signed]
     ax.bar(range(n), signed, color=colors, edgecolor=_GRID, linewidth=0.5)
     ax.set_xticks(range(n))
@@ -135,7 +169,6 @@ def _plot_signed_attribution(r: dict) -> bytes:
 
 
 def _plot_stress_per_token(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     stress = r.get("per_token_stress") or []
     tokens = r.get("tokens") or []
     if not stress or not tokens:
@@ -144,7 +177,8 @@ def _plot_stress_per_token(r: dict) -> bytes:
     stress = stress[:n]
     tokens = tokens[:n]
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     ax.bar(range(n), stress, color=_BLUE, edgecolor=_GRID, linewidth=0.5)
     ax.set_xticks(range(n))
     ax.set_xticklabels(tokens, rotation=45, ha="right", fontsize=7)
@@ -155,7 +189,6 @@ def _plot_stress_per_token(r: dict) -> bytes:
 
 
 def _plot_distribution_metrics(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     fields = [("Top-2 share", r.get("top2_share")),
               ("Middle share", r.get("middle_share")),
               ("Interior CV", r.get("interior_cv")),
@@ -164,7 +197,8 @@ def _plot_distribution_metrics(r: dict) -> bytes:
     if not fields:
         return _empty_plot("No distribution metrics")
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_SQUARE)
+    fig = _new_fig(_FIGSIZE_SQUARE)
+    ax = fig.subplots()
     labels, values = zip(*fields)
     ax.barh(labels, values, color=_PURPLE, edgecolor=_GRID, linewidth=0.5)
     for i, v in enumerate(values):
@@ -176,7 +210,6 @@ def _plot_distribution_metrics(r: dict) -> bytes:
 
 
 def _plot_amplitude_trajectory(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     at = r.get("amplitude_trajectory")
     # amplitude_trajectory is a flat list of raw values;
     # amplitude_normalized is a separate flat list.
@@ -191,7 +224,8 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
     if not raw and not norm:
         return _empty_plot("No amplitude trajectory data")
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     x = list(range(len(norm or raw)))
     if norm:
         ax.plot(x, norm, color=_BLUE, label="Normalized", linewidth=1.5)
@@ -215,14 +249,14 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
 
 
 def _plot_heatmap(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     hm = r.get("heatmap") or []
     if not hm:
         return _empty_plot("No heatmap data")
 
     import numpy as np
     arr = np.array(hm)
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     im = ax.imshow(arr, aspect="auto", cmap="magma", origin="lower")
     ax.set_xlabel("Token position")
     ax.set_ylabel("Sublayer")
@@ -233,7 +267,6 @@ def _plot_heatmap(r: dict) -> bytes:
 
 
 def _plot_ltp_profiles(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     ltp = r.get("ltp") or {}
     profiles = ltp.get("profiles") or []
     base = ltp.get("base_profiles") or []
@@ -244,7 +277,8 @@ def _plot_ltp_profiles(r: dict) -> bytes:
     arr = np.array(profiles)
     base_arr = np.array(base) if base else None
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     # Heatmap of profiles (positions × k)
     im = ax.imshow(arr.T, aspect="auto", cmap="viridis", origin="lower")
     ax.set_xlabel("Token position")
@@ -256,7 +290,6 @@ def _plot_ltp_profiles(r: dict) -> bytes:
 
 
 def _plot_ltp_tension_magnitudes(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     ltp = r.get("ltp") or {}
     mags = ltp.get("tension_magnitudes") or []
     tokens = r.get("tokens") or []
@@ -265,7 +298,8 @@ def _plot_ltp_tension_magnitudes(r: dict) -> bytes:
     n = min(len(mags), len(tokens) if tokens else len(mags))
     mags = mags[:n]
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     ax.plot(range(n), mags, color=_PURPLE, linewidth=1.5,
              marker="o", markersize=3)
     ax.fill_between(range(n), mags, alpha=0.2, color=_PURPLE)
@@ -280,7 +314,6 @@ def _plot_ltp_tension_magnitudes(r: dict) -> bytes:
 
 
 def _plot_ltp_dual_trajectory(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     ltp = r.get("ltp") or {}
     semantic = ltp.get("semantic_trajectory_2d") or []
     tension = ltp.get("tension_trajectory_2d") or []
@@ -293,7 +326,8 @@ def _plot_ltp_dual_trajectory(r: dict) -> bytes:
     if s.ndim != 2 or s.shape[1] < 2 or t.shape[1] < 2:
         return _empty_plot("Trajectory data has wrong shape")
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_SQUARE)
+    fig = _new_fig(_FIGSIZE_SQUARE)
+    ax = fig.subplots()
     ax.plot(s[:, 0], s[:, 1], color=_BLUE, marker="o", markersize=4,
             label="Semantic", linewidth=1.5)
     ax.plot(t[:, 0], t[:, 1], color=_ORANGE, marker="s", markersize=4,
@@ -311,7 +345,6 @@ def _plot_ltp_dual_trajectory(r: dict) -> bytes:
 
 
 def _plot_ltp_summary_stats(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     ltp = r.get("ltp") or {}
     fields = [("Mean M", ltp.get("mean_M")),
               ("Mean V", ltp.get("mean_V")),
@@ -322,7 +355,8 @@ def _plot_ltp_summary_stats(r: dict) -> bytes:
     if not fields:
         return _empty_plot("No LTP summary data")
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_SQUARE)
+    fig = _new_fig(_FIGSIZE_SQUARE)
+    ax = fig.subplots()
     labels, values = zip(*fields)
     ax.barh(labels, values, color=_BLUE, edgecolor=_GRID, linewidth=0.5)
     for i, v in enumerate(values):
@@ -335,7 +369,6 @@ def _plot_ltp_summary_stats(r: dict) -> bytes:
 
 def _plot_ltp_profile_heatmap(r: dict) -> bytes:
     """Profile heatmap with base-instruct difference."""
-    plt = _setup_matplotlib()
     ltp = r.get("ltp") or {}
     profiles = ltp.get("profiles") or []
     base = ltp.get("base_profiles") or []
@@ -348,7 +381,8 @@ def _plot_ltp_profile_heatmap(r: dict) -> bytes:
     n = min(a.shape[0], b.shape[0])
     diff = a[:n] - b[:n]
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     vmax = float(np.abs(diff).max()) if diff.size else 1.0
     im = ax.imshow(diff.T, aspect="auto", cmap="RdBu_r", origin="lower",
                     vmin=-vmax, vmax=vmax)
@@ -361,7 +395,6 @@ def _plot_ltp_profile_heatmap(r: dict) -> bytes:
 
 
 def _plot_sfd_density(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     sfd = r.get("sfd") or {}
     density = sfd.get("per_token_density") or []
     tokens = r.get("tokens") or []
@@ -370,7 +403,8 @@ def _plot_sfd_density(r: dict) -> bytes:
     n = min(len(density), len(tokens) if tokens else len(density))
     density = density[:n]
 
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig = _new_fig(_FIGSIZE_WIDE)
+    ax = fig.subplots()
     ax.fill_between(range(n), density, alpha=0.4, color=_ORANGE)
     ax.plot(range(n), density, color=_ORANGE, linewidth=1.5)
     if tokens and len(tokens) >= n:
@@ -389,7 +423,6 @@ def _plot_sfd_density(r: dict) -> bytes:
 
 
 def _plot_rank_displacement(r: dict) -> bytes:
-    plt = _setup_matplotlib()
     rd = r.get("rank_displacement") or {}
 
     # Engine produces per_position (list of dicts) with total_disp and replacement_ratio
@@ -409,10 +442,14 @@ def _plot_rank_displacement(r: dict) -> bytes:
     x = range(len(disp))
     labels = tokens[:len(disp)] if tokens else [str(i) for i in x]
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+    fig = _new_fig((10, 6))
+    ax1, ax2 = fig.subplots(2, 1, sharex=True)
     ax1.bar(x, disp, color=_BLUE, edgecolor=_GRID, linewidth=0.5)
     ax1.set_ylabel("Total displacement")
-    ax1.set_title(f"Per-position rank displacement (τ={rd.get('mean_tau', 0):.3f})")
+    # mean_tau is None when no position had enough shared tokens to define it.
+    _mt = rd.get("mean_tau")
+    _mt_s = f"{_mt:.3f}" if _mt is not None else "n/a"
+    ax1.set_title(f"Per-position rank displacement (τ={_mt_s})")
     if repl:
         ax2.bar(x, repl, color=_RED, edgecolor=_GRID, linewidth=0.5)
         ax2.set_ylabel("Replacement ratio")
@@ -443,3 +480,80 @@ _PLOT_HANDLERS = {
 def list_plot_keys() -> list[str]:
     """Return all known plot keys."""
     return list(_PLOT_HANDLERS.keys())
+
+
+# ── Batch / comparative plots ──────────────────────────────────────
+#
+# Moved here from app.py so there is exactly one plot registry. These
+# render from the whole session rather than a single result, and the
+# functions live in engine.visualizations / engine.comparative.
+
+# Comparative plots: plot key → function name in engine.comparative.
+_BATCH_PLOT_DISPATCH = {
+    "exp_trajectory_overlay": "plot_trajectory_overlay",
+    "exp_difference_from_benign": "plot_difference_from_benign",
+    "exp_metric_scatters": "plot_metric_scatters",
+    "exp_behavioral_comparison": "plot_behavioral_comparison",
+    "exp_ltp_category_comparison": "plot_ltp_category_comparison",
+    "exp_ltp_m_vs_stress": "plot_ltp_m_vs_stress",
+    "exp_ltp_profile_shapes": "plot_ltp_profile_shape_distribution",
+    "exp_sfd_category_comparison": "plot_sfd_category_comparison",
+    "exp_sfd_vs_asm": "plot_sfd_vs_asm",
+    "exp_rank_displacement": "plot_rank_displacement_by_category",
+    "key_scatters": "plot_key_scatters",
+    "discriminative_sublayers": "plot_discriminative_sublayers",
+    "proof1_summary": "plot_proof1_summary",
+}
+
+# Aggregate-based plots (need SimpleNamespace for statistics extractors).
+_AGGREGATE_PLOT_KEYS = ("batch_summary", "separability")
+
+
+def _render_batch_plot(plot_key: str, results: list) -> Optional[bytes]:
+    """Render a batch comparative plot. Returns PNG bytes or None."""
+    import base64
+
+    if plot_key in _AGGREGATE_PLOT_KEYS:
+        from types import SimpleNamespace
+        from src.engine.statistics import aggregate_batch
+        from src.engine.visualizations import plot_batch_summary, plot_separability
+        ns_results = [SimpleNamespace(**r) for r in results]
+        agg = aggregate_batch(ns_results)
+        if plot_key == "batch_summary":
+            b64 = plot_batch_summary(agg)
+        else:
+            b64 = plot_separability(agg)
+        return base64.b64decode(b64) if b64 else None
+
+    # Comparative plots (use raw dicts — functions use r.get() style)
+    func_name = _BATCH_PLOT_DISPATCH.get(plot_key)
+    if func_name:
+        import src.engine.comparative as comp
+        func = getattr(comp, func_name, None)
+        if func:
+            b64 = func(results)
+            return base64.b64decode(b64) if b64 else None
+
+    return None
+
+
+def render_session_plot(plot_key: str, results: list) -> Optional[bytes]:
+    """One lookup for ``GET /api/plots/{plot_key}``.
+
+    Dispatches on the key itself instead of the old "try the batch
+    renderer, and if it returns None fall back to the per-prompt
+    renderer" chain — which quietly rendered a per-prompt plot of
+    result[0] whenever a genuine batch plot produced no image.
+
+    Returns PNG bytes, or None if the key is unknown / has no data.
+    """
+    if plot_key in _AGGREGATE_PLOT_KEYS or plot_key in _BATCH_PLOT_DISPATCH:
+        return _render_batch_plot(plot_key, results)
+    if plot_key in _PLOT_HANDLERS:
+        return render_plot(plot_key, results[0]) if results else None
+    return None
+
+
+def list_batch_plot_keys() -> list[str]:
+    """Return all known batch/comparative plot keys."""
+    return list(_AGGREGATE_PLOT_KEYS) + list(_BATCH_PLOT_DISPATCH.keys())

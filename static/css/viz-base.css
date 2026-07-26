@@ -1,0 +1,102 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+/* TAGM — shared chrome for the standalone visualization pages.
+ *
+ * Consolidates the Okabe-Ito palette that was copy-pasted into six files.
+ *
+ * NOTE ON --text2 / --text3: the copies disagreed. probe_diagnostic_viz.html
+ * had --text2:#6B7280 / --text3:#8B92A0 (text3 LIGHTER than text2, i.e. the
+ * scale inverted); domain_surface_viz.html and template_maker.html had
+ * --text3:#5A6068 (text3 dimmer than text2). The majority / monotonic reading
+ * wins here: text -> text2 -> text3 is progressively dimmer. probe_diagnostic
+ * therefore renders its tertiary text slightly dimmer than it used to.
+ */
+:root {
+  /* Type scale — pages may override per-page. */
+  --font-desc: 13px;
+  --font-legend: 12px;
+  --font-table: 12px;
+
+  /* Surfaces */
+  --bg: #1C2128;
+  --bg2: #262C34;
+  --bg3: #2D333B;
+  --border: #444C56;
+
+  /* Text (monotonically dimmer — see note above) */
+  --text: #E8ECEF;
+  --text2: #6B7280;
+  --text3: #5A6068;
+
+  /* Okabe-Ito colourblind-safe accents */
+  --cyan: #56B4E9;
+  --orange: #E69F00;
+  --green: #009E73;
+  --red: #D55E00;
+  --magenta: #CC79A7;
+  --yellow: #F0E442;
+  --blue: #0072B2;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  margin: 0;
+  padding: 16px;
+  font-size: var(--font-legend);
+}
+
+/* Panels */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.panel-title {
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+/* Buttons */
+button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--cyan); color: var(--cyan); }
+button.primary { background: var(--cyan); color: #10151C; border-color: var(--cyan); font-weight: 600; }
+button.primary:hover { color: #000; }
+button.danger { border-color: var(--red); color: var(--red); background: transparent; }
+button.tiny { padding: 1px 6px; font-size: 10px; }
+
+/* Form controls */
+input[type=text], input[type=number], select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+/* Error sink — every viz page has a top-level try/catch that writes here. */
+.viz-error, #err, #dsErr {
+  color: var(--red);
+  font-size: var(--font-desc);
+  padding: 10px;
+  white-space: pre-wrap;
+}

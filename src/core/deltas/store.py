@@ -254,6 +254,7 @@ class DeltaStore:
 # ═══════════════════════════════════════════════════════════════════
 
 import mmap
+import os
 import struct
 import logging
 from pathlib import Path
@@ -392,17 +393,53 @@ class MmapDeltaStore:
         n_entries = len(self._index)
         index_size = n_entries * _INDEX_ENTRY_SIZE
 
-        # We wrote data bytes starting at _data_buf_start (right after header).
-        # Now we need to insert the index between header and data.
-        # Read back all the data bytes we've written so far.
-        self._file.seek(self._data_buf_start)
-        data_bytes = self._file.read()
+        # We wrote data bytes starting at _data_buf_start (right after the
+        # header).  The index has to be inserted between header and data, so
+        # the data region must shift right by index_size.
+        #
+        # This used to be `data_bytes = self._file.read()` — the ENTIRE delta
+        # payload into one Python bytes object, then written back.  For a 7B
+        # pair that is an ~8 GB allocation plus an 8 GB rewrite at close,
+        # which is precisely the peak-memory spike the mmap backend exists to
+        # avoid.  Shift in fixed-size chunks instead, working backwards so a
+        # forward-overlapping move never overwrites bytes it has yet to read.
+        self._file.flush()
+        self._file.seek(0, os.SEEK_END)
+        data_end = self._file.tell()
+        data_len = data_end - self._data_buf_start
+        new_data_start = _HEADER_SIZE + index_size
+        shift = new_data_start - self._data_buf_start
 
-        # Rewrite: header + index + data
-        self._file.seek(0)
-        self._file.truncate()
+        if shift > 0 and data_len > 0:
+            self._file.truncate(data_end + shift)
+            chunk = 32 * 1024 * 1024
+            remaining = data_len
+            while remaining > 0:
+                n = min(chunk, remaining)
+                src = self._data_buf_start + remaining - n
+                self._file.seek(src)
+                buf = self._file.read(n)
+                self._file.seek(src + shift)
+                self._file.write(buf)
+                remaining -= n
+                del buf
+        elif shift < 0:
+            # Index is smaller than the gap reserved for it: move data left,
+            # front to back, then truncate the leftover tail.
+            chunk = 32 * 1024 * 1024
+            moved = 0
+            while moved < data_len:
+                n = min(chunk, data_len - moved)
+                self._file.seek(self._data_buf_start + moved)
+                buf = self._file.read(n)
+                self._file.seek(new_data_start + moved)
+                self._file.write(buf)
+                moved += n
+                del buf
+            self._file.truncate(new_data_start + data_len)
 
         # Header
+        self._file.seek(0)
         hdr = bytearray(_HEADER_SIZE)
         hdr[:len(_MAGIC)] = _MAGIC
         struct.pack_into("<I", hdr, 32, n_entries)
@@ -413,9 +450,7 @@ class MmapDeltaStore:
         for entry_bytes in self._index_entries_raw:
             self._file.write(entry_bytes)
 
-        # Data
-        self._data_start = _HEADER_SIZE + index_size
-        self._file.write(data_bytes)
+        self._data_start = new_data_start
         self._file.flush()
 
         self._metadata.n_deltas = n_entries

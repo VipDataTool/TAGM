@@ -14,6 +14,8 @@
   <h1><span>TAGM</span> Analyzer</h1>
   <span class="subtitle">Alignment Stress Map + Lateral Tension Profile</span>
   <span class="session-badge" id="sessionBadge">No session</span>
+  <!-- SSE connection indicator; shown only while the event stream is down. -->
+  <span class="sse-status" id="sseStatus" style="display:none"></span>
   <div class="status-pill idle" id="statusPill">NO MODEL</div>
 </div>
 <div class="main">
@@ -81,6 +83,10 @@
     </div>
     <div class="checkbox-row"><input type="checkbox" id="cfgDeconstruct"><label for="cfgDeconstruct" title="Expand each prompt into its prefix ladder — one token/punctuation unit at a time — and analyze every rung as its own record. Punctuation earns its own rung. Records carry family/rung indices.">Deconstruct prompts (prefix ladder)</label></div>
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePrompt()" disabled>Analyze</button>
+    <!-- Shown by _submitAnalysis only once the job is acknowledged as started;
+         hidden again on every exit path so it can never strand the UI. -->
+    <button class="btn" id="analyzeCancelBtn" onclick="cancelAnalysis(this)"
+            style="display:none;margin-top:4px;border:1px solid var(--red);color:var(--red);background:transparent">Cancel</button>
   </div>
 
   <!-- Batch -->
@@ -89,6 +95,8 @@
     <div style="display:flex;gap:4px;align-items:center">
       <div class="file-input-wrapper" style="flex:1"><input type="file" id="csvFile" accept=".csv"></div>
       <button class="btn btn-primary" id="batchBtn" onclick="analyzeBatch()" disabled style="flex:0 0 auto;width:auto;padding:7px 14px">Run Batch</button>
+      <button class="btn" id="batchCancelBtn" onclick="cancelAnalysis(this)"
+              style="display:none;flex:0 0 auto;width:auto;padding:7px 14px;border:1px solid var(--red);color:var(--red);background:transparent">Cancel</button>
     </div>
   </div>
 
@@ -358,6 +366,10 @@
 </div>
 </div>
 
+<!-- Shared helpers (plain scripts attaching to window.TAGM) must load first. -->
+<script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/api.js?v=1"></script>
+<script src="/static/js/common/download.js?v=1"></script>
 <script src="/static/js/main.js?v=ecm12"></script>
 <script src="/static/js/ecm_module_ui.js?v=ecm12"></script>
 <script src="/static/js/syco_module_ui.js?v=syco1"></script>

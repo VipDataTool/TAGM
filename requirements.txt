@@ -1,12 +1,74 @@
-torch
-transformers
-accelerate
-safetensors
-huggingface-hub
-numpy
-scipy
-fastapi
-uvicorn
-python-multipart
-matplotlib
-scikit-learn
+# TAGM runtime dependencies.
+#
+# Every floor below is justified by an API this codebase actually calls, and
+# every ceiling is the next major version. This file previously listed bare
+# package names, so a fresh Codespace could resolve a transformers or torch
+# release whose behaviour differs from the one the code was written against —
+# and for several of these the failure mode is a silently different NUMBER,
+# not an ImportError.
+#
+# These are RANGES, not a lockfile. For a reproducible environment, install
+# once and freeze:
+#
+#     pip install -r requirements.txt
+#     pip freeze > requirements.lock.txt
+#
+# then use `pip install -r requirements.lock.txt` elsewhere and in CI.
+
+# ── Model inference ─────────────────────────────────────────────
+# >=2.1  : torch.random.fork_rng(devices=[]) (core/deltas/spectral.py,
+#          engine/sfd.py), torch.promote_types (core/deltas/compute.py),
+#          torch.linalg.vector_norm, torch.svd_lowrank(q=, niter=).
+torch>=2.1,<3
+
+# >=4.56 : from_pretrained(dtype=...). Earlier releases accept only
+#          torch_dtype= and ignore an unrecognised kwarg, so core/pipeline.py
+#          would silently load in the checkpoint's own dtype instead of the
+#          requested one — every delta, stress score and LTP magnitude would
+#          then be computed at a different precision with no error raised.
+#          Also TextIteratorStreamer(timeout=), used by service/chat.py.
+transformers>=4.56,<5
+
+# >=0.26 : device_map / low_cpu_mem_usage support relied on by Pipeline.load().
+accelerate>=0.26,<2
+
+# >=0.4  : safe_open(..., framework="pt") streaming reads in
+#          core/deltas/compute.py.
+safetensors>=0.4,<1
+
+# >=0.23 : hf_hub_download / snapshot_download signatures used by the HEP
+#          shard-streaming path in core/deltas/compute.py.
+huggingface-hub>=0.23,<1
+
+# ── Numerical ───────────────────────────────────────────────────
+# >=1.26 : first release with full numpy-2 forward compatibility.
+#          Ceiling is <3, not <2: the codebase was audited for numpy-2
+#          removals (np.float_, np.trapz, np.in1d, np.row_stack, ...) and
+#          uses none of them, so numpy 2.x is supported.
+numpy>=1.26,<3
+
+# >=1.10 : scipy.stats.kendalltau / pearsonr result-object stability.
+scipy>=1.10,<2
+
+# ── HTTP server ─────────────────────────────────────────────────
+# >=0.110: APIRouter behaviour the src/api/* decomposition depends on.
+fastapi>=0.110,<1
+
+# >=0.27 : uvicorn.run host/port handling used by src/__main__.py.
+uvicorn>=0.27,<1
+
+# Imported directly (starlette.concurrency.iterate_in_threadpool in
+# src/app.py), not merely transitively via fastapi, so it is declared here.
+starlette>=0.36,<1
+
+# Form parsing for /api/analyze and the file-upload endpoints.
+python-multipart>=0.0.9,<1
+
+# ── Rendering ───────────────────────────────────────────────────
+# >=3.7  : the object-oriented Figure + FigureCanvasAgg path that
+#          service/plots.py uses to stay off pyplot's global figure registry
+#          (which leaked a figure on every failed render).
+matplotlib>=3.7,<4
+
+# >=1.3  : sklearn.decomposition.PCA, used by the domain-surface module.
+scikit-learn>=1.3,<2

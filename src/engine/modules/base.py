@@ -24,6 +24,31 @@ from typing import Any, Optional, Callable
 logger = logging.getLogger("tasm")
 
 
+def classify_category(category: Optional[str],
+                      harm_override: Optional[set] = None,
+                      safe_override: Optional[set] = None) -> Optional[str]:
+    """Canonical harm/safe classification, with optional per-module overrides.
+
+    WAS WRONG: six modules each carried their own harm/safe vocabulary and the
+    copies disagreed (``unknown`` was harmful in two and dropped in four;
+    ``mild`` was safe in three and dropped in one), so two modules reading the
+    same session reported contradictory ``n_harm``.  The canonical taxonomy now
+    lives in ``src.engine.metrics``; this wrapper exists only so modules that
+    expose user-editable category lists can layer an explicit override on top
+    of it.  Returns "harm", "safe", or None (= exclude from the contrast).
+    """
+    from src.engine.metrics import category_class
+
+    if category is None:
+        return None
+    c = category.strip().lower()
+    if harm_override and c in {x.strip().lower() for x in harm_override}:
+        return "harm"
+    if safe_override and c in {x.strip().lower() for x in safe_override}:
+        return "safe"
+    return category_class(c)
+
+
 @dataclass
 class ModuleParameter:
     """A parameter that the user can configure before running a module."""
@@ -103,7 +128,22 @@ class TASMModule:
         Args:
             session_results: list of result dicts from the session.
             params: user-supplied parameter values.
-            progress: callback for status updates, e.g. progress("Processing token 50/200")
+            progress: callback for status updates, e.g. progress("Processing token 50/200").
+                **Calling this is also the cancellation checkpoint**: it raises
+                ModuleCancelled if the user has requested a stop. Modules that
+                already report progress inside their loops therefore become
+                cancellable with no further changes.
+
+        A module may optionally declare a ``should_cancel`` keyword parameter::
+
+            def run(self, session_results, params, progress=None, should_cancel=None):
+
+        The runner detects it by signature and passes a zero-argument predicate.
+        Use it in hot loops that do not emit progress often enough (checking a
+        threading.Event is far cheaper than a progress update).
+
+        Cancellation unwinds by exception, so `finally` blocks still run —
+        weights get restored and hooks removed on the way out.
 
         Returns:
             dict with module-specific results. Must be JSON-serializable.
@@ -126,10 +166,27 @@ class TASMModule:
         }
 
 
+class ModuleCancelled(Exception):
+    """Raised inside a module's thread when the user requests cancellation.
+
+    Modules do not need to catch this — the runner treats it as the
+    "cancelled" terminal state rather than an error.  Any `finally` blocks in
+    the module still run, which is what makes cancelling an abliteration or a
+    hooked forward pass safe: weights are restored and hooks removed on the
+    way out.
+    """
+
+
 class _ModuleState:
     """Runtime state for a single module."""
     def __init__(self):
-        self.status = "idle"       # idle | running | completed | error
+        # idle | running | completed | partial | cancelled | error
+        #   partial   = returned a usable result set AND an "error" key, i.e.
+        #               an optional stage failed after the main analysis
+        #               succeeded.  The UI renders the results but flags it.
+        #   cancelled = the user stopped the run; any partial results are
+        #               discarded because they are not a complete analysis.
+        self.status = "idle"
         self.progress = ""
         self.results = None
         self.error = None
@@ -137,6 +194,10 @@ class _ModuleState:
         self.completed_at = None
         self.thread = None
         self.log_path = None
+        # Set by cancel_module(); polled cooperatively by the running module.
+        # There is no safe way to kill a Python thread mid-torch-op, so
+        # cancellation is cooperative by construction.
+        self.cancel_event = threading.Event()
 
 
 class ModuleRunner:
@@ -330,6 +391,36 @@ class ModuleRunner:
         logger.info(f"[MODULES] {name} reset to idle")
         return {"ok": True}
 
+    def cancel_module(self, name: str) -> dict:
+        """Request cancellation of a running module.
+
+        Cooperative: sets a flag the module notices at its next progress
+        report (or its next should_cancel() poll).  A module in the middle of
+        a single long torch op will not stop until that op returns — there is
+        no safe way to interrupt one — so the response says "requested", not
+        "stopped".
+        """
+        state = self._state.get(name)
+        if not state:
+            return {"ok": False, "error": f"Module '{name}' not found."}
+        if state.status != "running":
+            return {"ok": False,
+                    "error": f"Module '{name}' is not running "
+                             f"(status: {state.status})."}
+        state.cancel_event.set()
+        state.progress = "Cancelling — waiting for the current step to finish..."
+        logger.info(f"[MODULES] cancellation requested for {name}")
+        if self._event_hook:
+            try:
+                self._event_hook("module_status", {
+                    "name": name, "status": "running",
+                    "progress": state.progress,
+                })
+            except Exception:
+                pass
+        return {"ok": True, "message": f"Cancellation requested for '{name}'.",
+                "cancelling": True}
+
     def run_module(self, name: str, session_results: list,
                    params: dict, session_dir: Path = None) -> dict:
         """Start a module in a background thread.
@@ -358,8 +449,20 @@ class ModuleRunner:
         state.error = None
         state.started_at = time.time()
         state.completed_at = None
+        # Fresh token per run — a cancel from a previous run must not abort
+        # the next one.
+        state.cancel_event = threading.Event()
+        cancel_event = state.cancel_event
+
+        def _should_cancel() -> bool:
+            return cancel_event.is_set()
 
         def _progress(message: str):
+            # Progress reporting doubles as the cancellation checkpoint: the
+            # modules already call this inside their long loops, so raising
+            # here makes them cancellable without touching each loop.
+            if cancel_event.is_set():
+                raise ModuleCancelled(name)
             state.progress = message
             if self._event_hook:
                 now = time.time()
@@ -382,12 +485,51 @@ class ModuleRunner:
                     except Exception:
                         pass
 
-                results = mod.run(session_results, params, progress=_progress)
+                # Pass should_cancel only to modules that declare it, so
+                # existing three-argument run() signatures keep working.
+                kwargs = {"progress": _progress}
+                try:
+                    if "should_cancel" in inspect.signature(mod.run).parameters:
+                        kwargs["should_cancel"] = _should_cancel
+                except (TypeError, ValueError):
+                    pass
+
+                results = mod.run(session_results, params, **kwargs)
+                # A module may also return without raising after noticing the
+                # cancel flag; treat that as cancelled too.
+                if cancel_event.is_set():
+                    raise ModuleCancelled(name)
                 state.results = results
-                state.status = "completed"
+                # ERROR CONTRACT (was wrong): this used to set
+                # status="completed", has_results=True for anything that
+                # RETURNED, so the ~10 places that return {"error": ...} as a
+                # normal result were reported to the user as successful runs.
+                # One convention now: a returned dict carrying a truthy
+                # "error" key is a failure; raising is the other failure path.
+                returned_error = (results.get("error")
+                                  if isinstance(results, dict) else None)
+                # A module may return an error alongside a usable result set
+                # (e.g. an optional late stage failed after the main analysis
+                # succeeded).  Distinguish that from a total failure, so the
+                # UI does not show "error" over a panel full of valid results
+                # — or "completed" over nothing.
+                other_keys = [k for k in results
+                              if k != "error"] if isinstance(results, dict) else []
+                if returned_error and other_keys:
+                    state.status = "partial"
+                elif returned_error:
+                    state.status = "error"
+                else:
+                    state.status = "completed"
+                state.error = str(returned_error) if returned_error else None
                 state.completed_at = time.time()
                 elapsed = state.completed_at - state.started_at
-                logger.info(f"[MODULES] {name} completed in {elapsed:.1f}s")
+                if returned_error:
+                    logger.error(f"[MODULES] {name} finished with status "
+                                 f"'{state.status}' after {elapsed:.1f}s: "
+                                 f"{returned_error}")
+                else:
+                    logger.info(f"[MODULES] {name} completed in {elapsed:.1f}s")
 
                 # Persist results to session directory
                 if session_dir:
@@ -412,10 +554,34 @@ class ModuleRunner:
                 # Emit completion event AFTER all persistence work
                 if self._event_hook:
                     try:
-                        self._event_hook("module_status", {
-                            "name": name, "status": "completed",
+                        evt = {
+                            "name": name, "status": state.status,
                             "elapsed": round(elapsed, 1),
                             "has_log": state.log_path is not None,
+                        }
+                        if returned_error:
+                            evt["error"] = str(returned_error)
+                        self._event_hook("module_status", evt)
+                    except Exception:
+                        pass
+
+            except ModuleCancelled:
+                # Not an error: the user asked for this.  Any partial results
+                # are dropped — a half-finished analysis is not a result, and
+                # keeping it invites citing numbers from an aborted run.
+                state.status = "cancelled"
+                state.results = None
+                state.error = None
+                state.completed_at = time.time()
+                elapsed = state.completed_at - state.started_at
+                state.progress = f"Cancelled after {elapsed:.1f}s"
+                logger.info(f"[MODULES] {name} cancelled by user after "
+                            f"{elapsed:.1f}s")
+                if self._event_hook:
+                    try:
+                        self._event_hook("module_status", {
+                            "name": name, "status": "cancelled",
+                            "elapsed": round(elapsed, 1),
                         })
                     except Exception:
                         pass

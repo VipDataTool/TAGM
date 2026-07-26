@@ -232,13 +232,17 @@ class ResultsList:
 
     # ── Sequence protocol ───────────────────────────────────────
 
+    def _count_rows(self) -> int:
+        """Authoritative row count, straight from the database."""
+        row = self._db.query_one(
+            "SELECT COUNT(*) FROM results WHERE session_id = ?",
+            (self._session_id,),
+        )
+        return row[0] if row else 0
+
     def __len__(self) -> int:
         if self._len is None:
-            row = self._db.execute(
-                "SELECT COUNT(*) FROM results WHERE session_id = ?",
-                (self._session_id,),
-            ).fetchone()
-            self._len = row[0] if row else 0
+            self._len = self._count_rows()
         return self._len
 
     def __bool__(self) -> bool:
@@ -305,11 +309,11 @@ class ResultsList:
         offset = 0
         page = 200
         while True:
-            rows = self._db.execute(
+            rows = self._db.query_all(
                 "SELECT idx, data_blob FROM results "
                 "WHERE session_id = ? ORDER BY idx LIMIT ? OFFSET ?",
                 (self._session_id, page, offset),
-            ).fetchall()
+            )
             if not rows:
                 return
             offset += len(rows)
@@ -336,8 +340,20 @@ class ResultsList:
     # ── Mutations ───────────────────────────────────────────────
 
     def append(self, result_dict: dict) -> int:
-        """Insert a new result and return its index."""
-        idx = len(self)
+        """Insert a new result and return its index.
+
+        The index read, the INSERT, and the commit all happen inside ONE
+        transaction.  Previously the lock was taken for execute(), released,
+        then retaken for commit(), so another thread's commit in between could
+        flush this half-written row; and `idx = len(self)` read a cached length
+        that went stale as soon as anything else wrote to the session.
+        """
+        with self._db.transaction():
+            return self._append_locked(result_dict)
+
+    def _append_locked(self, result_dict: dict) -> int:
+        # Recomputed from the DB under the transaction lock, not from _len.
+        idx = self._count_rows()
         result_dict["_index"] = idx
         scalars = _extract_scalars(result_dict)
         blob = _compress(result_dict)
@@ -369,8 +385,11 @@ class ResultsList:
                 blob,
             ),
         )
-        self._db.commit()
-        self._len = (self._len or 0) + 1
+        # No commit here — the enclosing transaction() commits on exit.
+        # Invalidate rather than increment: if the enclosing commit fails and
+        # rolls back, an incremented _len would leave every later __len__ and
+        # __getitem__ off by one.  None forces a recount from the DB.
+        self._len = None
         return idx
 
     def clear(self):
@@ -387,10 +406,10 @@ class ResultsList:
     def _load(self, idx: int) -> dict:
         if idx in self._cache:
             return self._cache[idx]
-        row = self._db.execute(
+        row = self._db.query_one(
             "SELECT data_blob FROM results WHERE session_id = ? AND idx = ?",
             (self._session_id, idx),
-        ).fetchone()
+        )
         if row is None:
             raise IndexError(f"No result at index {idx} in session {self._session_id}")
         d = _decompress(row[0])
@@ -427,6 +446,8 @@ class Database:
         # transaction. RLock so transaction() can nest the per-statement
         # acquisitions.
         self._lock = threading.RLock()
+        # Depth of open transaction() blocks. >0 suppresses commit().
+        self._txn_depth = 0
         self._connect()
         self._bootstrap()
 
@@ -437,14 +458,28 @@ class Database:
         Use for any logical transaction spanning more than one execute()
         (e.g. delete-then-reinsert patterns) so no other thread can
         interleave statements or commit mid-way.
+
+        While a transaction is open, ``commit()`` is a NO-OP.  Several helpers
+        (create_session, insert_result, set_config, ...) commit internally, so
+        without this suppression a "transaction" wrapping them committed every
+        statement as it ran and rollback could only ever undo the last one —
+        which silently defeated the atomicity the caller asked for.  Nesting
+        is depth-counted: only the outermost block commits.
         """
         with self._lock:
+            self._txn_depth += 1
             try:
                 yield self
-                self._conn.commit()
             except Exception:
+                # Unwind to zero so a failed inner block cannot leave commits
+                # suppressed for the rest of the connection's life.
+                self._txn_depth = 0
                 self._conn.rollback()
                 raise
+            else:
+                self._txn_depth -= 1
+                if self._txn_depth == 0:
+                    self._conn.commit()
 
     # ── Connection management ───────────────────────────────────
 
@@ -497,16 +532,41 @@ class Database:
         self._conn.commit()
 
     def execute(self, sql: str, params=()) -> sqlite3.Cursor:
+        """Run a statement and return its cursor.
+
+        NOTE for SELECT callers: the lock is released when this returns, so
+        consuming the cursor afterwards reads rows *outside* the lock, and an
+        interleaved write on this shared connection can shift the result set
+        underneath you.  Use query_all()/query_one(), which fetch inside the
+        lock.  This method remains for INSERT/UPDATE/DELETE.
+        """
         with self._lock:
             return self._conn.execute(sql, params)
+
+    def query_all(self, sql: str, params=()) -> list:
+        """SELECT, fully fetched while the connection lock is still held."""
+        with self._lock:
+            return self._conn.execute(sql, params).fetchall()
+
+    def query_one(self, sql: str, params=()):
+        """Single-row SELECT, fetched while the connection lock is held."""
+        with self._lock:
+            return self._conn.execute(sql, params).fetchone()
 
     def executemany(self, sql: str, seq) -> sqlite3.Cursor:
         with self._lock:
             return self._conn.executemany(sql, seq)
 
     def commit(self):
+        """Commit, unless a transaction() block is open.
+
+        Suppressing the commit inside a transaction is what makes the helpers
+        that commit internally (create_session, insert_result, ...) safe to
+        compose into one atomic unit.
+        """
         with self._lock:
-            self._conn.commit()
+            if self._txn_depth == 0:
+                self._conn.commit()
 
     def close(self):
         with self._lock:
@@ -517,9 +577,9 @@ class Database:
     # ── Models ──────────────────────────────────────────────────
 
     def list_models(self) -> list[dict]:
-        rows = self.execute(
+        rows = self.query_all(
             "SELECT id, name, base, instruct, ram_gb, notes FROM models ORDER BY id"
-        ).fetchall()
+        )
         return [
             {"id": r[0], "name": r[1], "base": r[2],
              "instruct": r[3], "ram_gb": r[4], "notes": r[5]}
@@ -540,10 +600,10 @@ class Database:
         self.commit()
 
     def get_model(self, id: str) -> Optional[dict]:
-        row = self.execute(
+        row = self.query_one(
             "SELECT id, name, base, instruct, ram_gb, notes FROM models WHERE id = ?",
             (id,),
-        ).fetchone()
+        )
         if row is None:
             return None
         return {"id": row[0], "name": row[1], "base": row[2],
@@ -568,24 +628,24 @@ class Database:
         self.commit()
 
     def get_session_meta(self, session_id: str) -> Optional[dict]:
-        row = self.execute(
+        row = self.query_one(
             "SELECT session_id, model, started, status FROM sessions WHERE session_id = ?",
             (session_id,),
-        ).fetchone()
+        )
         if row is None:
             return None
         return {"session_id": row[0], "model": row[1],
                 "started": row[2], "status": row[3]}
 
     def list_sessions(self) -> list[dict]:
-        rows = self.execute(
+        rows = self.query_all(
             """SELECT s.session_id, s.model, s.started, s.status,
                       COUNT(r.id) as n_results
                FROM sessions s
                LEFT JOIN results r ON r.session_id = s.session_id
                GROUP BY s.session_id
                ORDER BY s.created_at DESC"""
-        ).fetchall()
+        )
         return [
             {"session_id": r[0], "model": r[1], "started": r[2],
              "status": r[3], "n_results": r[4]}
@@ -593,17 +653,17 @@ class Database:
         ]
 
     def session_result_count(self, session_id: str) -> int:
-        row = self.execute(
+        row = self.query_one(
             "SELECT COUNT(*) FROM results WHERE session_id = ?",
             (session_id,),
-        ).fetchone()
+        )
         return row[0] if row else 0
 
     def session_categories(self, session_id: str) -> dict[str, int]:
-        rows = self.execute(
+        rows = self.query_all(
             "SELECT category, COUNT(*) FROM results WHERE session_id = ? GROUP BY category",
             (session_id,),
-        ).fetchall()
+        )
         return {r[0] or "unknown": r[1] for r in rows}
 
     # ── Results ─────────────────────────────────────────────────
@@ -645,10 +705,10 @@ class Database:
         return cursor.lastrowid
 
     def get_result(self, session_id: str, idx: int) -> Optional[dict]:
-        row = self.execute(
+        row = self.query_one(
             "SELECT data_blob FROM results WHERE session_id = ? AND idx = ?",
             (session_id, idx),
-        ).fetchone()
+        )
         if row is None:
             return None
         d = _decompress(row[0])
@@ -658,11 +718,11 @@ class Database:
     def get_results_page(self, session_id: str, offset: int = 0,
                          limit: int = 50) -> list[dict]:
         """Load a page of full result dicts."""
-        rows = self.execute(
+        rows = self.query_all(
             "SELECT idx, data_blob FROM results "
             "WHERE session_id = ? ORDER BY idx LIMIT ? OFFSET ?",
             (session_id, limit, offset),
-        ).fetchall()
+        )
         out = []
         for idx, blob in rows:
             d = _decompress(blob)
@@ -672,7 +732,7 @@ class Database:
 
     def get_dashboard_rows(self, session_id: str) -> list[dict]:
         """Slim scalar-only rows for the dashboard — no decompression."""
-        rows = self.execute(
+        rows = self.query_all(
             """SELECT idx, prompt, category, seq_len,
                       stress_score, net_correction, entropy,
                       top2_share, middle_share, interior_cv,
@@ -685,7 +745,7 @@ class Database:
                WHERE session_id = ?
                ORDER BY idx""",
             (session_id,),
-        ).fetchall()
+        )
         out = []
         for r in rows:
             s = {
@@ -724,10 +784,10 @@ class Database:
         that an existing ladder still holds — even after remove_results
         reindexes idx.
         """
-        row = self.execute(
+        row = self.query_one(
             "SELECT MAX(family_index) FROM results WHERE session_id = ?",
             (session_id,),
-        ).fetchone()
+        )
         return int(row[0]) + 1 if row and row[0] is not None else 0
 
     def remove_results(self, session_id: str, indices: list[int]) -> None:
@@ -741,10 +801,10 @@ class Database:
                 [session_id] + list(indices),
             )
             # Reindex remaining rows
-            rows = self.execute(
+            rows = self.query_all(
                 "SELECT id, idx FROM results WHERE session_id = ? ORDER BY idx",
                 (session_id,),
-            ).fetchall()
+            )
             for new_idx, (row_id, _old_idx) in enumerate(rows):
                 self.execute(
                     "UPDATE results SET idx = ? WHERE id = ?",
@@ -760,10 +820,10 @@ class Database:
     # ── Config key-value store ──────────────────────────────────
 
     def get_config(self, namespace: str) -> dict:
-        rows = self.execute(
+        rows = self.query_all(
             "SELECT key, value FROM config WHERE namespace = ?",
             (namespace,),
-        ).fetchall()
+        )
         out = {}
         for k, v in rows:
             try:
@@ -793,9 +853,9 @@ class Database:
     # ── Prompts library ─────────────────────────────────────────
 
     def list_prompts(self) -> list[dict]:
-        rows = self.execute(
+        rows = self.query_all(
             "SELECT prompt, category FROM prompts ORDER BY id"
-        ).fetchall()
+        )
         return [{"prompt": r[0], "category": r[1]} for r in rows]
 
     def add_prompt(self, prompt: str, category: str = "") -> None:
@@ -815,10 +875,10 @@ class Database:
 
     def session_size_bytes(self, session_id: str) -> int:
         """Approximate bytes for one session's results."""
-        row = self.execute(
+        row = self.query_one(
             "SELECT SUM(LENGTH(data_blob)) FROM results WHERE session_id = ?",
             (session_id,),
-        ).fetchone()
+        )
         return row[0] or 0
 
 
@@ -881,11 +941,19 @@ def migrate_json_to_db(db: Database, project_root: Path) -> dict:
                 results = json.load(f)
 
             if isinstance(results, list) and results:
-                db.create_session(session_id, model_name, started)
-                for i, rd in enumerate(results):
-                    rd["_index"] = i
-                    db.insert_result(session_id, i, rd)
-                    summary["results"] += 1
+                # All-or-nothing.  Previously each result was inserted in its
+                # own transaction and the source file was renamed only after
+                # the loop, so one failing insert left the session
+                # half-imported AND left results.json in place — the next
+                # startup retried the same session_id and died on
+                # UNIQUE(session_id, idx) at i=0, permanently wedged, with the
+                # failure swallowed by the except below.
+                with db.transaction():
+                    db.create_session(session_id, model_name, started)
+                    for i, rd in enumerate(results):
+                        rd["_index"] = i
+                        db.insert_result(session_id, i, rd)
+                        summary["results"] += 1
 
                 results_file.rename(results_file.with_suffix(".json.migrated"))
                 if session_meta_file.exists():
@@ -895,7 +963,12 @@ def migrate_json_to_db(db: Database, project_root: Path) -> dict:
                     f"[migrate] Imported {summary['results']} results "
                     f"into session {session_id}")
         except Exception as e:
-            logger.warning(f"[migrate] results.json failed: {e}")
+            # The transaction rolled back, so the DB is clean and results.json
+            # is untouched; the next startup retries from scratch.
+            summary["results"] = 0
+            logger.warning(
+                f"[migrate] results.json failed, rolled back "
+                f"(will retry on next startup): {e}", exc_info=True)
 
     # ── ui_config.json ──────────────────────────────────────────
     config_file = project_root / "ui_config.json"
@@ -913,8 +986,8 @@ def migrate_json_to_db(db: Database, project_root: Path) -> dict:
     # ── prompts.csv ─────────────────────────────────────────────
     import csv
     prompts_file = project_root / "prompts.csv"
-    if prompts_file.exists() and db.execute(
-            "SELECT COUNT(*) FROM prompts").fetchone()[0] == 0:
+    if prompts_file.exists() and db.query_one(
+            "SELECT COUNT(*) FROM prompts")[0] == 0:
         try:
             with open(prompts_file, newline="", encoding="utf-8") as f:
                 for row in csv.DictReader(f):

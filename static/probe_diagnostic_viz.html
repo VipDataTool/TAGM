@@ -2,10 +2,13 @@
 <html>
 <head>
 <title>Probe Diagnostic — TAGM</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Shared palette + body chrome (was a local :root copy). NOTE: this page
+     used to define --text3:#8B92A0, i.e. LIGHTER than --text2 — the inverse of
+     every other copy. viz-base.css standardises on the monotonic scale, so
+     tertiary text here is now slightly dimmer than before. -->
+<link rel="stylesheet" href="/static/css/viz-base.css?v=1">
+<script src="/static/js/common/esc.js?v=1"></script>
 <style>
-:root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --text:#E8ECEF; --text2:#6B7280; --text3:#8B92A0; --border:#444C56; --green:#009E73; --orange:#E69F00; --red:#D55E00; --cyan:#56B4E9; --magenta:#CC79A7; --yellow:#F0E442; }
-body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; padding:16px; margin:0; font-size:var(--font-legend); }
 h2 { font-size:var(--font-desc); font-weight:700; margin:0 0 4px 0; }
 .subtitle { color:var(--text2); margin-bottom:14px; font-size:var(--font-legend); }
 .section { margin-bottom:22px; }
@@ -80,7 +83,7 @@ th { color:var(--text2); font-weight:500; border-bottom:1px solid var(--border);
 // Inherit fonts from opener if available
 try{if(window.opener){['--font-desc','--font-legend','--font-table'].forEach(function(p){var v=window.opener.getComputedStyle(window.opener.document.documentElement).getPropertyValue(p);if(v)document.documentElement.style.setProperty(p,v)})}}catch(e){}
 
-function esc(s){return String(s).replace(/[&<>"']/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function esc(s){ return TAGM.esc(s); }   // shared: static/js/common/esc.js (also null-safe)
 
 // Read optional ?file= query param
 var qs = new URLSearchParams(window.location.search);
@@ -185,7 +188,11 @@ function renderHeatmap(d) {
         + esc(td.dataset.level)
         + ' <span style="color:var(--text3);font-weight:400">('
         + n + (n === 1 ? ' probe' : ' probes') + ')</span></div>'
-        + (samp ? '<div class="tip-terms">' + samp + '</div>' : '<div class="tip-terms">(empty)</div>');
+        // samp was escaped on the way INTO data-sample, but reading
+        // td.dataset.sample hands back the browser-DECODED string, so
+        // re-injecting it raw here reinterpreted it as markup — the escape
+        // was undone by the round trip. Escape again on the way out.
+        + (samp ? '<div class="tip-terms">' + esc(samp) + '</div>' : '<div class="tip-terms">(empty)</div>');
       tip.style.display = "block";
     });
     td.addEventListener("mousemove", function(e){

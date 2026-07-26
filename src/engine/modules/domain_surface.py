@@ -236,7 +236,11 @@ def _build_observations(session_results, prompt_coords, anchor_pts,
     subj_idx = {s: i for i, s in enumerate(subjects)}
     obs_export = []
 
-    # Precompute probe embedding matrices
+    # Precompute probe embedding matrices.
+    # NOTE: when esc_probe_embs is None this silently substitutes the
+    # SUBJECT-depth probes for the escalation lookup. The caller records that
+    # substitution as depth_mode="split_depth_degraded" in the module output;
+    # do not add a fallback here without surfacing it there too.
     subj_probe_mat = np.array(probe_embs) if probe_embs is not None else None
     esc_probe_mat = np.array(esc_probe_embs) if esc_probe_embs is not None else subj_probe_mat
 
@@ -832,6 +836,23 @@ class DomainSurfaceModule(TASMModule):
                 max_val=0.5,
             ),
             ModuleParameter(
+                # WAS MISSING: run() reads params["pca_components"] but the
+                # parameter was never declared, so the UI could not set it and
+                # it was permanently pinned to the default of 2.
+                name="pca_components",
+                display_name="PCA Components",
+                description=(
+                    "Number of principal components in the co-fitted "
+                    "prompt/probe PCA. The surface plot uses the first two; "
+                    "higher values only change the reported variance "
+                    "breakdown, not the plotted coordinates."
+                ),
+                type="int",
+                default=2,
+                min_val=2,
+                max_val=10,
+            ),
+            ModuleParameter(
                 name="tv_min_appearances",
                 display_name="η² Min Token Appearances",
                 description=(
@@ -959,17 +980,39 @@ class DomainSurfaceModule(TASMModule):
         esc_frac = active.escalation_layer_frac()
 
         esc_probe_embs = None
+        # SILENT FALLBACK (was wrong): when the escalation probe cache was
+        # missing this logged a warning and then let _build_observations fall
+        # back to `esc_probe_mat = subj_probe_mat`, comparing ESCALATION-layer
+        # token embeddings against SUBJECT-layer probes — while the output was
+        # still shipped as split-depth with no indication in the result. The
+        # fallback is now recorded in the returned payload so the UI can show
+        # it.
+        depth_mode = "single_depth"          # subject == escalation layer
+        depth_fallback = False
+        depth_fallback_reason = None
         if esc_frac != subj_frac:
             if progress:
                 progress("Loading escalation-layer probe embeddings...")
             esc_raw = self._load_probe_embeddings(active, layer_frac=esc_frac)
             if esc_raw is not None and len(esc_raw) == len(probes):
                 esc_probe_embs = np.array(esc_raw)
+                depth_mode = "split_depth"
                 logger.info(f"[DOMAIN] Split-depth: escalation probes from "
                             f"L{int(esc_frac*100)}, subject probes from L{int(subj_frac*100)}")
             else:
-                logger.warning(f"[DOMAIN] Escalation probe cache not found at L{int(esc_frac*100)}, "
-                               f"using single-depth matching")
+                depth_mode = "split_depth_degraded"
+                depth_fallback = True
+                depth_fallback_reason = (
+                    f"Escalation probe cache missing or stale at "
+                    f"L{int(esc_frac*100)} (expected {len(probes)} embeddings). "
+                    f"Escalation-layer token embeddings are being matched "
+                    f"against SUBJECT-layer (L{int(subj_frac*100)}) probes, so "
+                    f"the ring/level axis is NOT a true escalation-depth "
+                    f"measurement. Re-apply the probe set in Configuration to "
+                    f"regenerate the cache.")
+                logger.warning(f"[DOMAIN] {depth_fallback_reason}")
+                if progress:
+                    progress(f"WARNING: {depth_fallback_reason}")
 
         # Co-fit PCA
         if progress:
@@ -1088,6 +1131,15 @@ class DomainSurfaceModule(TASMModule):
             "probe_file": probe_file,
             "level_names": level_names,
             "ladder": ladder,
+            # Explicit depth provenance. "split_depth_degraded" means the
+            # escalation-layer probe cache was unavailable and SUBJECT-layer
+            # probes were substituted; the level/ring axis is not a true
+            # escalation-depth measurement in that case.
+            "depth_mode": depth_mode,
+            "depth_fallback": depth_fallback,
+            "depth_fallback_reason": depth_fallback_reason,
+            "subject_layer_frac": subj_frac,
+            "escalation_layer_frac": esc_frac,
         }
 
         if progress:

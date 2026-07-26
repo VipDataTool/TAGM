@@ -37,7 +37,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, ModuleCancelled
 from src.engine.hooks import ActivationCapture
 from src.probes.io import (
     detect_level_cols,
@@ -509,7 +509,7 @@ class CorrectionPrismModule(TASMModule):
         return cosines[np.arange(cosines.shape[0]), idx]
 
     # ── Main ───────────────────────────────────────────────────
-    def run(self, session_results, params, progress=None):
+    def run(self, session_results, params, progress=None, should_cancel=None):
         def prog(msg):
             if progress:
                 progress(msg)
@@ -610,6 +610,11 @@ class CorrectionPrismModule(TASMModule):
         prompts_list = []
         n_prompts = len(session_results)
         for pi, r in enumerate(session_results):
+            # One hooked forward pass per prompt but progress only every 5th.
+            # Read-only capture (ActivationCapture removes its hooks in its
+            # own finally), so bailing out here leaves nothing behind.
+            if should_cancel and should_cancel():
+                raise ModuleCancelled("correction_prism")
             prompt_text = r.get("prompt", "") or ""
             if not prompt_text:
                 beams.append(None)
@@ -666,6 +671,11 @@ class CorrectionPrismModule(TASMModule):
             else:
                 layer_responses = [[] for _ in range(n_prompts)]
                 for ℓ in signal_layers:
+                    # n_layers x n_prompts prism projections with no progress
+                    # report anywhere inside — pure numpy, nothing to unwind,
+                    # so one layer is the cancellation granularity.
+                    if should_cancel and should_cancel():
+                        raise ModuleCancelled("correction_prism")
                     if grafting:
                         op_p = self._make_circuit_operator(prompt_circuit, ℓ)
                         op_pr = self._make_circuit_operator(probe_circuit, ℓ)

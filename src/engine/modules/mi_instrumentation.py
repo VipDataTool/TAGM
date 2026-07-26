@@ -23,28 +23,21 @@ import logging
 import numpy as np
 from collections import defaultdict
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, classify_category
+from src.engine.metrics import auroc as _metric_auroc, fit_direction_holdout
 
 logger = logging.getLogger("tasm")
 
 
 def _safe_auroc(scores, labels):
-    """Compute AUROC from score/label arrays. Returns 0.5 if degenerate."""
-    if len(scores) < 4:
-        return 0.5
-    pos = labels == 1
-    neg = labels == 0
-    n_pos, n_neg = pos.sum(), neg.sum()
-    if n_pos == 0 or n_neg == 0:
-        return 0.5
+    """Compute AUROC from score/label arrays. Returns 0.5 if degenerate.
 
-    # Wilcoxon-Mann-Whitney
-    pos_scores = scores[pos]
-    neg_scores = scores[neg]
-    u = 0.0
-    for ps in pos_scores:
-        u += (neg_scores < ps).sum() + 0.5 * (neg_scores == ps).sum()
-    return float(u / (n_pos * n_neg))
+    WAS WRONG (as a design): one of five divergent AUROC copies. Body now
+    delegates to the single verified implementation in src.engine.metrics.
+    Behaviour is unchanged (same n < 4 guard, same tie handling), so no
+    number produced by this function moves.
+    """
+    return _metric_auroc(scores, labels)
 
 
 class MIInstrumentationModule(TASMModule):
@@ -121,8 +114,15 @@ class MIInstrumentationModule(TASMModule):
         token_attrs = []      # per-prompt: list of (layer, position, value) for patching map
         prompt_tokens = []    # token lists per prompt
 
-        risk_cats = {"harmful", "jailbreak", "adversarial", "dual-use"} - safe_cats
-        all_cats = safe_cats | risk_cats
+        # TAXONOMY (was wrong): this derived risk_cats from a private literal
+        # set, one of six divergent vocabularies in this package. Prompts are
+        # now classified by the canonical taxonomy in src.engine.metrics, with
+        # the module's safe_categories parameter honoured as an explicit
+        # override on top of it. Practical effect: "risk"/"dangerous" now
+        # count as risk, "neutral"/"baseline"/"safe" now count as safe, and
+        # "unknown" is EXCLUDED. n_safe / n_risk will change.
+        def _cls(cat):
+            return classify_category(cat, safe_override=safe_cats)
 
         # Collect signal layers from first result that has them
         signal_layers = None
@@ -133,10 +133,13 @@ class MIInstrumentationModule(TASMModule):
                 break
 
         n_skipped = 0
+        n_unclassified = 0
         for ri, r in enumerate(session_results):
             cat = (r.get("category") or "").lower().strip()
-            if cat not in all_cats:
+            cls = _cls(cat)
+            if cls is None:
                 n_skipped += 1
+                n_unclassified += 1
                 continue
 
             emb = r.get("per_token_final_emb")
@@ -152,7 +155,7 @@ class MIInstrumentationModule(TASMModule):
                 prompt_emb /= norm
 
             embeddings.append(prompt_emb)
-            labels.append(0 if cat in safe_cats else 1)
+            labels.append(0 if cls == "safe" else 1)
             categories.append(cat)
             stress_scores.append(float(r.get("stress_score", 0) or 0))
 
@@ -196,7 +199,10 @@ class MIInstrumentationModule(TASMModule):
                              f"embeddings. Found {n_safe} safe, {n_risk} risk."}
 
         output = {"n_prompts": n_prompts, "n_safe": int(n_safe),
-                  "n_risk": int(n_risk), "hidden_dim": hidden_dim}
+                  "n_risk": int(n_risk), "hidden_dim": hidden_dim,
+                  # Prompts excluded because their category is neither harm
+                  # nor safe under the canonical taxonomy (e.g. "unknown").
+                  "n_excluded_unclassified": int(n_unclassified)}
 
         # ════════════════════════════════════════════════════════
         # 1. REFUSAL DIRECTION EXTRACTION
@@ -216,9 +222,26 @@ class MIInstrumentationModule(TASMModule):
 
         # Per-prompt cosine similarity with refusal direction
         cosines = embeddings @ refusal_dir
-        refusal_auroc = _safe_auroc(cosines, labels)
 
-        # Compare with stress score AUROC
+        # ── CIRCULAR EVALUATION (was wrong) ──────────────────────
+        # refusal_dir = mean_risk - mean_safe was fitted on ALL embeddings and
+        # then scored on those SAME embeddings, so `refusal_auroc` measured
+        # the fit, not the effect. The random-projection control below does
+        # not correct for it: a random direction was never fitted to the
+        # labels, so `delta_over_random` measured the value of fitting.
+        # cv_auroc refits the direction inside every fold and scores it
+        # out-of-fold, with a label-permutation null run through the same
+        # fit-and-score pipeline. On pure noise train_auroc can sit near 0.83
+        # while cv_auroc sits near 0.20 with p ~ 0.98.
+        # NUMBERS CHANGE: the headline "refusal AUROC" is now cv_auroc and
+        # will typically be LOWER than every previously reported value; the
+        # old number is preserved verbatim as refusal_train_auroc.
+        refusal_train_auroc = _safe_auroc(cosines, labels)
+        cv = fit_direction_holdout(risk_embs, safe_embs)
+        refusal_auroc = cv["cv_auroc"]
+
+        # Compare with stress score AUROC. NOTE: stress_score is not fitted to
+        # the labels at all, so this one is honest as an in-sample number.
         stress_arr = np.array(stress_scores, dtype=np.float32)
         stress_auroc = _safe_auroc(stress_arr, labels)
 
@@ -228,7 +251,18 @@ class MIInstrumentationModule(TASMModule):
             cat_cosines[cat].append(float(cosines[i]))
 
         output["refusal_direction"] = {
+            # Headline: out-of-fold, direction refitted per fold.
             "auroc": round(refusal_auroc, 4),
+            "cv_auroc": round(refusal_auroc, 4),
+            # IN-SAMPLE: the direction was fitted on the rows it scores.
+            # Kept only for comparison with cv_auroc; a large gap means the
+            # "direction" is mostly fitting noise.
+            "train_auroc": round(refusal_train_auroc, 4),
+            "cv_p_value": (round(cv["p_value"], 4)
+                           if cv["p_value"] is not None else None),
+            "cv_underpowered": bool(cv["underpowered"]),
+            "cv_n_risk": int(cv["n_pos"]),
+            "cv_n_safe": int(cv["n_neg"]),
             "stress_auroc": round(stress_auroc, 4),
             "refusal_norm": round(float(refusal_norm), 6),
             "mean_cosine_safe": round(float(cosines[labels == 0].mean()), 4),
@@ -248,7 +282,9 @@ class MIInstrumentationModule(TASMModule):
             },
         }
 
-        prog(f"Refusal direction: AUROC={refusal_auroc:.3f}, "
+        prog(f"Refusal direction: cv AUROC={refusal_auroc:.3f} "
+             f"(p={cv['p_value']}), in-sample train AUROC="
+             f"{refusal_train_auroc:.3f}, "
              f"stress AUROC={stress_auroc:.3f}, "
              f"separation={output['refusal_direction']['separation']:.4f}")
 
@@ -392,7 +428,14 @@ class MIInstrumentationModule(TASMModule):
         random_max = float(random_aurocs.max())
         random_p95 = float(np.percentile(random_aurocs, 95))
 
-        # Delta over random for each real measurement
+        # Delta over random for each real measurement.
+        # DEMOTED (was the primary control): a random direction was never
+        # fitted to the labels, so comparing a FITTED direction's in-sample
+        # AUROC against it measured the value of fitting, not the existence of
+        # a refusal direction. It is kept as a secondary control and is now
+        # computed against the out-of-fold cv_auroc, which is a fair contest.
+        # The correct primary control is cv_p_value above (permutation null
+        # through the identical fit-and-score pipeline).
         refusal_delta = refusal_auroc - random_mean
         stress_delta = stress_auroc - random_mean
 
@@ -401,13 +444,18 @@ class MIInstrumentationModule(TASMModule):
         stress_p = float((random_aurocs >= stress_auroc).mean())
 
         output["random_projection"] = {
+            "control_role": "secondary",
+            "note": ("Random directions are unfitted, so this cannot validate "
+                     "a fitted direction on its own. The primary control is "
+                     "refusal_direction.cv_p_value."),
             "n_trials": n_random,
             "random_mean_auroc": round(random_mean, 4),
             "random_std_auroc": round(random_std, 4),
             "random_max_auroc": round(random_max, 4),
             "random_p95_auroc": round(random_p95, 4),
             "refusal_direction": {
-                "auroc": round(refusal_auroc, 4),
+                "auroc": round(refusal_auroc, 4),   # cv_auroc, out-of-fold
+                "train_auroc": round(refusal_train_auroc, 4),  # in-sample
                 "delta_over_random": round(refusal_delta, 4),
                 "empirical_p": round(refusal_p, 4),
             },
@@ -429,7 +477,11 @@ class MIInstrumentationModule(TASMModule):
         prog("Generating summary...")
 
         output["summary"] = {
+            # Headline is the honest out-of-fold number.
             "refusal_auroc": round(refusal_auroc, 4),
+            "refusal_train_auroc_in_sample": round(refusal_train_auroc, 4),
+            "refusal_cv_p_value": (round(cv["p_value"], 4)
+                                   if cv["p_value"] is not None else None),
             "stress_auroc": round(stress_auroc, 4),
             "random_mean": round(random_mean, 4),
             "best_layer_auroc": round(

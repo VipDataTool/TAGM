@@ -18,7 +18,8 @@ import logging
 import numpy as np
 from collections import defaultdict
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, classify_category
+from src.engine.metrics import auroc as _metric_auroc
 
 logger = logging.getLogger("tasm")
 
@@ -60,9 +61,12 @@ def _extract_features(results, safe_cats=None):
         feature_names: list of str
         valid_mask: which results were usable
     """
-    if safe_cats is None:
-        safe_cats = {"benign", "mild"}
-    risk_cats = {"harmful", "jailbreak", "adversarial", "dual-use"} - safe_cats
+    # TAXONOMY (was wrong): risk_cats came from a private literal set, one of
+    # six divergent vocabularies in this package. Classification is now the
+    # canonical taxonomy in src.engine.metrics, with safe_cats honoured as an
+    # explicit override on top of it. Practical effect: "risk"/"dangerous"
+    # now count as risk and "safe"/"neutral"/"baseline" as safe, so n_safe /
+    # n_risk (and every downstream AUROC) can change.
     feature_names = list(METRIC_KEYS)
     rows = []
     labels = []
@@ -120,10 +124,11 @@ def _extract_features(results, safe_cats=None):
             else:
                 vals.append(np.nan)
 
-        # Binary label: safe vs risk based on configured categories
-        if cat in safe_cats:
+        # Binary label: safe vs risk (canonical taxonomy + safe override)
+        cls = classify_category(cat, safe_override=safe_cats)
+        if cls == "safe":
             label = 0
-        elif cat in risk_cats:
+        elif cls == "harm":
             label = 1
         else:
             valid.append(False)
@@ -161,17 +166,21 @@ def _extract_features(results, safe_cats=None):
 
 
 def _auroc(y_true, y_score):
-    """Compute AUROC without sklearn dependency."""
-    pos = y_score[y_true == 1]
-    neg = y_score[y_true == 0]
-    if len(pos) == 0 or len(neg) == 0:
-        return 0.5
+    """Compute AUROC. Argument order is (labels, scores) — see note.
 
-    n_pos, n_neg = len(pos), len(neg)
-    total = 0
-    for p in pos:
-        total += np.sum(neg < p) + 0.5 * np.sum(neg == p)
-    return total / (n_pos * n_neg)
+    WAS WRONG in two ways:
+      1. This was one of five divergent AUROC copies, and it was the ONLY one
+         that took its arguments in (y_true, y_score) order. The shared
+         implementation in src.engine.metrics uses (scores, labels), so the
+         arguments are swapped here rather than at every call site; the two
+         call sites (_cv_auroc and _per_metric_auroc) both pass labels first
+         and are unchanged.
+      2. It had NO small-n guard, so a 1-vs-1 comparison returned exactly 0.0
+         or 1.0. NUMBERS CHANGE: with fewer than 4 samples this now returns
+         0.5. In practice the module requires >= 3 per class and >= 10 total,
+         so only tiny CV folds are affected.
+    """
+    return _metric_auroc(y_score, y_true)
 
 
 def _logistic_predict(X, w, b):
@@ -384,20 +393,42 @@ def _random_projection_baseline(X, y, seq_lens, n_trials=10, seed=42,
 
 
 def _per_metric_auroc(X, y, feature_names):
-    """Single-feature AUROC for each metric."""
+    """Single-feature AUROC for each metric.
+
+    ORIENTATION SELECTION (was wrong): this reported ``max(auc, auc_inv)``,
+    picking the sign of each feature on the very data it is evaluated on.
+    Because AUROC(-s) = 1 - AUROC(s), that forces EVERY metric to score >= 0.5
+    and biases pure noise upward — the expected value under the null moves
+    from 0.50 to about 0.5 + 0.4/sqrt(n_eff). The multivariate path
+    (``_cv_auroc``) does not do this; it fits orientation on training folds
+    only.
+
+    NUMBERS CHANGE: "auroc" is now the raw, un-oriented value and may be
+    below 0.5 (which is informative: it means the metric points the other
+    way). The old figure is preserved verbatim as
+    "auroc_orientation_selected", flagged as optimistic.
+    """
     results = []
     for col in range(X.shape[1]):
         auc = _auroc(y, X[:, col])
-        # Also try inverted
         auc_inv = _auroc(y, -X[:, col])
-        best = max(auc, auc_inv)
+        oriented = max(auc, auc_inv)
         direction = "higher → risk" if auc >= auc_inv else "lower → risk"
         results.append({
             "metric": feature_names[col],
-            "auroc": round(float(best), 4),
+            # Raw: no orientation chosen on the evaluation data.
+            "auroc": round(float(auc), 4),
+            # Old behaviour, kept for continuity. Optimistic by construction:
+            # the sign was selected using the labels it is scored against.
+            "auroc_orientation_selected": round(float(oriented), 4),
+            "orientation_selected_is_optimistic": True,
+            # Distance from chance, sign-free and orientation-independent.
+            "abs_deviation_from_chance": round(float(abs(auc - 0.5)), 4),
             "direction": direction,
         })
-    results.sort(key=lambda x: x["auroc"], reverse=True)
+    # Rank by distance from chance so a strongly inverted metric is not
+    # buried below a noisy one that happened to point the "right" way.
+    results.sort(key=lambda x: x["abs_deviation_from_chance"], reverse=True)
     return results
 
 
@@ -426,12 +457,15 @@ def _amplification_check(results):
         }
 
     # Compute safe vs risk separation
+    # Same canonical taxonomy as _extract_features (this used yet another
+    # private literal pair of tuples).
     safe_vals = []
     risk_vals = []
     for cat, vals in by_cat.items():
-        if cat in ("benign", "mild"):
+        cls = classify_category(cat)
+        if cls == "safe":
             safe_vals.extend(vals)
-        elif cat in ("harmful", "jailbreak", "adversarial"):
+        elif cls == "harm":
             risk_vals.extend(vals)
 
     if safe_vals and risk_vals:

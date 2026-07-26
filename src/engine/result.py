@@ -39,6 +39,12 @@ class LTPResult:
     monitored_layers: List[int] = field(default_factory=list)
     k: int = 8
     svd_rank: int = 0
+    # Layers that actually produced a measurement vs. layers requested.  The
+    # summary means (mean_M/mean_V/mean_L) average only over the computed
+    # layers, so this pair makes the effective sample size visible instead of
+    # silently shrinking the means with zeros.
+    n_layers_computed: int = 0
+    n_layers_monitored: int = 0
 
 
 @dataclass
@@ -97,6 +103,12 @@ class PromptResult:
     n_negative_tokens: int = 0
     has_negative_tokens: bool = False
     per_layer_signed_attr: dict = field(default_factory=dict)
+    # Set to a human-readable reason when signed attribution could not be
+    # computed.  When this is non-None the attribution-derived scalars below
+    # (net_correction, entropy, top2_share, middle_share, interior_cv,
+    # n_negative_tokens) are dataclass DEFAULTS, not measurements — the
+    # statistics layer treats them as missing rather than as observed zeros.
+    attribution_unavailable: Optional[str] = None
 
     # Distribution metrics
     entropy: float = 0.0

@@ -1,8 +1,10 @@
 """Run TAGM as ``python -m src``.
 
-Starts the FastAPI server bound to 0.0.0.0:8000 by default. Host, port,
+Starts the FastAPI server bound to 127.0.0.1:8000 by default. Host, port,
 and log level are configurable via CLI flags or the TAGM_HOST / TAGM_PORT
-environment variables.
+environment variables. Binding to all interfaces (0.0.0.0) exposes an
+unauthenticated API that can load models and read files, so it is opt-in:
+set TAGM_HOST=0.0.0.0 or pass --host 0.0.0.0 deliberately.
 
 Access logging is off by default because TAGM's frontend polls the
 status/progress endpoints every ~2s, which otherwise floods the terminal
@@ -20,8 +22,10 @@ def main(argv: list[str] | None = None) -> None:
         prog="python -m src",
         description="Start the TAGM FastAPI server.",
     )
-    parser.add_argument("--host", default=os.environ.get("TAGM_HOST", "0.0.0.0"),
-                        help="Host to bind (default 0.0.0.0)")
+    # Loopback by default: the API is unauthenticated, so a LAN-visible
+    # bind is opt-in via TAGM_HOST / --host.
+    parser.add_argument("--host", default=os.environ.get("TAGM_HOST", "127.0.0.1"),
+                        help="Host to bind (default 127.0.0.1)")
     parser.add_argument("--port", type=int,
                         default=int(os.environ.get("TAGM_PORT", "8000")),
                         help="Port to bind (default 8000)")

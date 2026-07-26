@@ -154,7 +154,16 @@ class Analyzer:
 
         need_attn_output = full_capture
 
-        # Install hooks and run forward pass
+        # Install hooks and run forward pass.
+        #
+        # Everything from here until the matching remove() runs inside a
+        # try/finally.  Without it, any exception in the ~90 lines of
+        # measurement below leaves capture hooks attached to the SHARED
+        # instruct model: app_core catches per-prompt exceptions and carries
+        # on, so subsequent chat generations, probe embeddings and module runs
+        # would then execute with live capture hooks holding activation
+        # tensors.  That is exactly the interference INVARIANTS.md section 3
+        # cites as the reason for the model lock.
         self._capture.install(
             self.instruct_model, self.adapter,
             signal_layers=self.signal_layers,
@@ -164,7 +173,33 @@ class Analyzer:
             escalation_layer=escalation_layer,
             output_attentions=need_attn_output,
         )
+        try:
+            return self._analyze_hooked(
+                result, prompt, compute_kl, compute_full_trajectory,
+                capture_responses, full_capture, compute_ltp, compute_sfd,
+                ltp_k, ltp_layer_strategy, ltp_svd_rank, response_topk,
+                base_cache, need_attn_output, domain_layer, escalation_layer,
+            )
+        finally:
+            # Idempotent: remove() clears the handle list, and the normal path
+            # below has already called it.  clear() too — remove() detaches the
+            # hooks but does not drop the captured activation tensors, so on
+            # the exception path they would stay referenced on the shared
+            # ActivationCapture until the next prompt overwrote them.
+            self._capture.clear()
+            self._capture.remove()
 
+    def _analyze_hooked(
+        self, result, prompt, compute_kl, compute_full_trajectory,
+        capture_responses, full_capture, compute_ltp, compute_sfd,
+        ltp_k, ltp_layer_strategy, ltp_svd_rank, response_topk,
+        base_cache, need_attn_output, domain_layer, escalation_layer,
+    ) -> PromptResult:
+        """Body of analyze_prompt that runs with capture hooks installed.
+
+        Split out solely so the caller can guarantee hook removal in a
+        `finally`; the logic is unchanged.
+        """
         tokens, inputs, model_out = self._capture.forward(
             self.instruct_model, self.tokenizer, prompt,
             output_attentions=need_attn_output,
@@ -280,12 +315,15 @@ class Analyzer:
         heads_per_kv = n_heads // n_kv_heads
 
         layer_attrs = []
+        n_missing_attn = 0
 
         for layer_idx in self.signal_layers:
             h_key = f"layer_{layer_idx}_h"
             a_key = f"layer_{layer_idx}_attn"
 
             if h_key not in self._capture.activations or a_key not in self._capture.attn_weights:
+                if a_key not in self._capture.attn_weights:
+                    n_missing_attn += 1
                 continue
 
             h = self._capture.activations[h_key][0, :seq_len].float()
@@ -314,6 +352,16 @@ class Analyzer:
                 head_attrs.append(signed[-1, :])
                 layer_amp += d_norm[-1].item()
 
+                # NOTE: this check is an ALGEBRAIC IDENTITY, not a validation.
+                # With u_hat = delta/||delta|| and signed_j = a_j (u_hat . v_j),
+                #   sum_j a_j (u_hat . v_j) = u_hat . (sum_j a_j v_j)
+                #                           = u_hat . delta = ||delta||
+                # holds for ANY a and v.  It therefore passes regardless of
+                # whether dw_v, the head reshape or the GQA grouping is
+                # correct, and must not be read as evidence that the
+                # attribution decomposition was verified.  Retained only as a
+                # float-accumulation sanity check; "exact" means the sum did
+                # not lose precision, nothing more.
                 attr_sum = signed[-1, :].sum().item()
                 delta_norm_val = d_norm[-1].item()
                 error = abs(attr_sum - delta_norm_val)
@@ -323,6 +371,7 @@ class Analyzer:
                     "delta_norm": round(delta_norm_val, 8),
                     "error": float(f"{error:.2e}"),
                     "exact": error < engine_config.get("proof1_threshold"),
+                    "identity_only": True,
                 })
 
             layer_attr = torch.stack(head_attrs).mean(dim=0)
@@ -331,6 +380,22 @@ class Analyzer:
             result.per_layer_signed_attr[layer_idx] = layer_attr.float().numpy().tolist()
 
         if not layer_attrs:
+            # Every attribution-derived field (entropy, top2_share,
+            # middle_share, interior_cv, net_correction, n_negative_tokens,
+            # per_layer_amplitude) keeps its dataclass default of 0.0 here.
+            # Those zeros are indistinguishable from measured zeros once they
+            # reach bootstrap_ci, so record WHY they are absent instead of
+            # returning silently.  The usual cause is attention weights not
+            # being captured: need_attn_output is driven by full_capture,
+            # which defaults to False.
+            result.attribution_unavailable = (
+                "no attention weights captured "
+                f"({n_missing_attn}/{len(self.signal_layers)} signal layers "
+                "missing); enable full_capture to compute signed attribution"
+                if n_missing_attn else "no signal layer had both activations "
+                                       "and a v-projection delta"
+            )
+            logger.warning("[ATTR] %s", result.attribution_unavailable)
             return
 
         avg_attr = torch.stack(layer_attrs).mean(dim=0).float().numpy()
@@ -367,7 +432,10 @@ class Analyzer:
 
     def _extract_stress_score(self, result: PromptResult, seq_len: int):
         """Per-token stress: ||h @ dW_p^T|| / ||dW_p||_F for p in {q,k,v}."""
-        per_token_total = torch.zeros(seq_len)
+        # Accumulator must live on the same device as the activations it sums.
+        # A bare torch.zeros() is CPU-only and happens to work solely because
+        # Pipeline.device defaults to "cpu"; it raises on any GPU/MPS run.
+        per_token_total = torch.zeros(seq_len, device=self.device)
         n_layers = 0
 
         for layer_idx in self.signal_layers:
@@ -390,7 +458,7 @@ class Analyzer:
             per_token_total /= n_layers
 
         result.stress_score = float(per_token_total.mean().item())
-        result.per_token_stress = per_token_total.numpy()
+        result.per_token_stress = per_token_total.cpu().numpy()
 
     def _extract_amplitude_trajectory(self, result: PromptResult, seq_len: int):
         """Amplitude trajectory across all sublayers (attn + MLP per layer)."""
@@ -416,7 +484,8 @@ class Analyzer:
 
                 raw_sum = 0.0
                 norm_sum = 0.0
-                per_tok = torch.zeros(seq_len)
+                # Device-matched for the same reason as in _extract_stress_score.
+                per_tok = torch.zeros(seq_len, device=self.device)
 
                 for role in roles:
                     dw = self.delta_store.get_or_none(layer_idx, role)
@@ -433,7 +502,7 @@ class Analyzer:
 
                 raw_traj.append(raw_sum)
                 norm_traj.append(norm_sum)
-                heatmap_rows.append(per_tok.float().numpy())
+                heatmap_rows.append(per_tok.float().cpu().numpy())
 
         result.amplitude_trajectory = raw_traj
         result.amplitude_normalized = norm_traj

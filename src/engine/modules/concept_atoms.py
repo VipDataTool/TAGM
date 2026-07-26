@@ -35,7 +35,8 @@ import torch
 
 from src.engine import config as engine_config
 from src.core.locks import MODEL_LOCK
-from .base import TASMModule, ModuleParameter
+from .base import (TASMModule, ModuleParameter, classify_category,
+                   ModuleCancelled)
 
 if TYPE_CHECKING:
     pass
@@ -136,8 +137,17 @@ def compute_atom_directions(
     atoms: dict[str, dict],
     layer_range: list[int],
     progress: Optional[Callable] = None,
+    raw_norms_out: Optional[dict] = None,
+    should_cancel: Optional[Callable] = None,
 ) -> dict[str, dict[int, np.ndarray]]:
     """Compute per-atom, per-layer direction vectors via difference-of-means.
+
+    Args:
+        raw_norms_out: if given, filled with {atom_name: {layer: norm}} where
+            norm is ||pos_mean - neg_mean|| BEFORE unit-normalization. This is
+            the only quantity here that varies across layers; the returned
+            directions are all unit-norm, so anything computed from THEIR
+            norms is a constant (see calibrate_gamma).
 
     Returns:
         {atom_name: {layer_idx: unit_direction_vector}}
@@ -162,6 +172,11 @@ def compute_atom_directions(
 
                 for prompt in prompts:
                     prompt_count += 1
+                    # Progress only fires every 20th prompt but every prompt
+                    # is a full forward pass with hidden states, so poll every
+                    # iteration.  Read-only: nothing to unwind but MODEL_LOCK.
+                    if should_cancel and should_cancel():
+                        raise ModuleCancelled("concept_atoms")
                     if progress and prompt_count % 20 == 0:
                         progress(f"Atom directions: {prompt_count}/{total_prompts}")
 
@@ -182,6 +197,7 @@ def compute_atom_directions(
 
             # Compute direction per layer
             atom_dirs = {}
+            atom_norms = {}
             for li in layer_range:
                 if li not in pos_means or li not in neg_means:
                     continue
@@ -193,8 +209,11 @@ def compute_atom_directions(
                 norm = np.linalg.norm(direction)
                 if norm > 1e-10:
                     atom_dirs[li] = (direction / norm).astype(np.float32)
+                    atom_norms[li] = float(norm)
 
             directions[atom_name] = atom_dirs
+            if raw_norms_out is not None:
+                raw_norms_out[atom_name] = atom_norms
 
     if progress:
         progress(f"Computed directions for {len(directions)} atoms "
@@ -291,14 +310,31 @@ def clean_direction(
 ) -> np.ndarray:
     """SRA ridge-regression cleaning step.
 
-    Projects the dirty refusal direction onto the null space of the
-    Shield+Confound atom subspace (approximately, via ridge regularization).
+    Subtracts a RIDGE-SHRUNK least-squares reconstruction of the refusal
+    direction from the Shield+Confound atom subspace.
+
+    DOCSTRING WAS WRONG: this used to claim it "projects onto the null space
+    of the Shield+Confound subspace". It does not, and cannot at the default
+    lambda. The atom directions are unit-normalized (see
+    compute_atom_directions), so A has unit-norm columns and ``AtA`` has a
+    unit diagonal. With a single atom perfectly aligned with r, the ridge
+    solution is w = 1/(1 + lambda) — at lambda=1.0 that is w = 0.5, so
+    ``r_clean = r - 0.5*a`` and HALF the entangled component survives. True
+    null-space projection is the lambda -> 0 limit.
+
+    The lambda trade-off: small lambda removes more of the entangled
+    component but amplifies noise in near-collinear atom sets (AtA is close
+    to singular); large lambda is numerically stable but leaves a large
+    fraction of the entanglement in place. The default of 1.0 is DELIBERATELY
+    unchanged here — lowering it would move every number this module has ever
+    reported. Set ridge_lambda explicitly if you want closer to a projection.
 
     Args:
         r_dirty: [d_model] dirty refusal direction.
         atom_matrix_sc: [d_model, K_SC] matrix of Shield+Confound atom
-            directions as columns.
-        ridge_lambda: regularization strength.
+            directions as columns (unit-norm).
+        ridge_lambda: regularization strength. Retained fraction of an
+            aligned component is lambda/(1 + lambda) for an orthonormal A.
 
     Returns:
         r_clean: [d_model] cleaned direction, unit-normalized.
@@ -361,12 +397,30 @@ def calibrate_gamma(
     layer_range: list[int],
     mode: str = "fixed",
     fixed_value: float = 1.0,
+    raw_norms: Optional[dict] = None,
 ) -> dict[int, float]:
     """Compute per-layer gamma scaling factor.
+
+    WAS WRONG: mode="semantic_energy" was a silent no-op. It took
+    ``np.linalg.norm`` of the entries of ``atom_directions``, but those are
+    unit-normalized at the end of compute_atom_directions, so every norm was
+    exactly 1.0, ``max_norm`` was 1.0, and ``gamma[li] = 0.5 + 0.5*1.0 = 1.0``
+    for every layer — bit-identical to mode="fixed" with gamma=1.0. Users
+    selecting "semantic_energy" got full Arditi orthogonalization while
+    believing they had a per-layer schedule.
+
+    NUMBERS CHANGE: semantic_energy now produces a genuinely varying schedule
+    computed from the PRE-normalization difference-of-means norms (the only
+    quantity here that differs by layer), and RAISES rather than silently
+    degrading if those norms were not captured. Any previous run using
+    semantic_energy was in fact a fixed gamma=1.0 run.
 
     Args:
         mode: "fixed" or "semantic_energy".
         fixed_value: gamma value when mode is "fixed".
+        raw_norms: {atom_name: {layer: pre-normalization norm}}, as filled by
+            compute_atom_directions(raw_norms_out=...). Required for
+            "semantic_energy".
 
     Returns:
         {layer_idx: gamma}
@@ -374,28 +428,43 @@ def calibrate_gamma(
     if mode == "fixed":
         return {li: fixed_value for li in layer_range}
 
-    # Semantic energy proxy: gamma proportional to the largest Target atom norm
+    if mode != "semantic_energy":
+        raise ValueError(
+            f"Unknown gamma_mode {mode!r}; expected 'fixed' or "
+            f"'semantic_energy'.")
+
+    if not raw_norms:
+        raise ValueError(
+            "gamma_mode='semantic_energy' requires pre-normalization atom "
+            "norms (compute_atom_directions(raw_norms_out=...)). Refusing to "
+            "silently fall back to a fixed schedule — that is exactly the "
+            "no-op this mode used to be.")
+
+    # Semantic energy proxy: gamma proportional to the largest Target atom's
+    # PRE-normalization difference-of-means norm at each layer.
     target_norms = defaultdict(float)
-    for atom_name, atom_dirs in atom_directions.items():
+    for atom_name, per_layer in raw_norms.items():
         role = atoms.get(atom_name, {}).get("role", "")
         if role != "target":
             continue
         for li in layer_range:
-            d = atom_dirs.get(li)
-            if d is not None:
-                norm = float(np.linalg.norm(d.astype(np.float64)))
-                target_norms[li] = max(target_norms[li], norm)
+            n = per_layer.get(li)
+            if n is not None:
+                target_norms[li] = max(target_norms[li], float(n))
 
     if not target_norms:
-        logger.warning("[CAM] No Target atoms found for semantic energy proxy. "
-                       "Falling back to fixed gamma.")
-        return {li: fixed_value for li in layer_range}
+        raise ValueError(
+            "gamma_mode='semantic_energy' needs at least one Target atom with "
+            "a usable direction in the analysis layer range. Add a Target atom "
+            "to the registry or use gamma_mode='fixed'.")
 
-    # Normalize to [0.5, 1.0] range
     max_norm = max(target_norms.values())
     if max_norm < 1e-10:
-        return {li: fixed_value for li in layer_range}
+        raise ValueError(
+            "gamma_mode='semantic_energy': all Target atom norms are zero; "
+            "the semantic energy proxy carries no signal.")
 
+    # Normalize to [0.5, 1.0] range
     gamma = {}
     for li in layer_range:
         n = target_norms.get(li, 0.0)
@@ -520,8 +589,13 @@ class ConceptAtomModule(TASMModule):
                 "How to scale the ablation strength per layer. "
                 "'fixed' uses gamma_value for all layers. "
                 "'semantic_energy' scales proportionally to the largest "
-                "Target atom norm at each layer (SRA's Semantic Energy "
-                "Proxy). Use 'fixed' with gamma=1.0 for full "
+                "Target atom's pre-normalization difference-of-means norm at "
+                "each layer (SRA's Semantic Energy Proxy). NOTE: before this "
+                "fix, 'semantic_energy' was a silent no-op identical to "
+                "'fixed' with gamma=1.0 — earlier runs labelled "
+                "'semantic_energy' were really fixed gamma=1.0. It now "
+                "requires at least one Target atom and errors if it cannot "
+                "compute a real schedule. Use 'fixed' with gamma=1.0 for full "
                 "orthogonalization (Arditi-equivalent). Use gamma < 1.0 "
                 "for partial ablation."
             ),
@@ -665,7 +739,8 @@ class ConceptAtomModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results: list, params: dict,
-            progress: Callable = None) -> dict:
+            progress: Callable = None,
+            should_cancel: Callable = None) -> dict:
         results = {}
         t0 = time.time()
 
@@ -717,34 +792,77 @@ class ConceptAtomModule(TASMModule):
         results["analysis_layers"] = layer_range
 
         prog(f"Computing atom directions (layers {layer_start}-{layer_end-1})...")
+        atom_raw_norms: dict = {}
         atom_directions = compute_atom_directions(
             model, adapter, tokenizer, atoms, layer_range, progress=prog,
+            raw_norms_out=atom_raw_norms, should_cancel=should_cancel,
         )
 
         # ── Step 3: Compute raw refusal direction ──────────────────
         prog("Fitting raw refusal direction from session data...")
         from src.engine.ablation import DirectionFitter
+        from src.engine.metrics import (
+            HARM_CATEGORIES as CANON_HARM,
+            SAFE_CATEGORIES as CANON_SAFE,
+            fit_direction_holdout,
+        )
 
-        harm_cats = {"harmful", "jailbreak", "unknown"}
-        safe_cats = {"benign", "mild"}
+        # WAS WRONG: this module's private vocabulary treated "unknown" as
+        # HARMFUL, which silently inflated n_harm with unlabelled prompts, and
+        # dropped "adversarial"/"dual-use"/"risk". The canonical taxonomy
+        # excludes "unknown" instead of guessing. n_harm WILL CHANGE for
+        # sessions containing unknown-category prompts.
+        harm_cats = set(CANON_HARM)
+        safe_cats = set(CANON_SAFE)
         fitter = DirectionFitter(session_results, harm_cats, safe_cats)
         fit = fitter.difference_of_means(
             holdout_frac=params.get("refusal_holdout_frac", 0.20),
         )
 
         # Convert fitted direction to per-layer (same direction at all layers
-        # since DirectionFitter works on final-layer embeddings)
+        # since DirectionFitter works on final-layer embeddings).
+        # fit.vector is a torch.Tensor; .astype() does not exist on tensors,
+        # so this line used to raise AttributeError as soon as it ran.
+        fit_vec_np = fit.vector.detach().cpu().numpy().astype(np.float32)
         refusal_per_layer = {}
         for li in layer_range:
-            refusal_per_layer[li] = fit.vector.astype(np.float32)
+            refusal_per_layer[li] = fit_vec_np
+
+        # Honest cross-validated AUROC for the same contrast: the direction is
+        # refitted inside each fold and scored out-of-fold, with a
+        # label-permutation null. Compare cv_auroc against train_auroc.
+        harm_embs, safe_embs, n_excluded = [], [], 0
+        for r in session_results:
+            cls = classify_category(r.get("category"))
+            emb = r.get("per_token_final_emb")
+            if cls is None:
+                n_excluded += 1
+                continue
+            if not emb:
+                continue
+            arr = np.asarray(emb, dtype=np.float32).mean(axis=0)
+            (harm_embs if cls == "harm" else safe_embs).append(arr)
+
+        cv = None
+        if len(harm_embs) >= 2 and len(safe_embs) >= 2:
+            cv = fit_direction_holdout(np.array(harm_embs), np.array(safe_embs))
 
         results["refusal_direction"] = {
-            "auroc": round(fit.train_auroc, 4),
-            "holdout_auroc": round(fit.holdout_auroc, 4) if fit.holdout_auroc else None,
+            # RENAMED (was "auroc"): the value is IN-SAMPLE — the direction was
+            # fitted on the rows it is scored on — and the unqualified key
+            # invited it to be read as performance.
+            "train_auroc": round(fit.train_auroc, 4),
+            "cv_auroc": round(cv["cv_auroc"], 4) if cv else None,
+            "cv_p_value": (round(cv["p_value"], 4)
+                           if cv and cv["p_value"] is not None else None),
+            "cv_underpowered": cv["underpowered"] if cv else None,
             "n_harm": fit.n_harm,
             "n_safe": fit.n_safe,
+            "n_excluded_unclassified": n_excluded,
         }
-        prog(f"Refusal direction: AUROC={fit.train_auroc:.4f}")
+        prog(f"Refusal direction: train AUROC={fit.train_auroc:.4f} (in-sample)"
+             + (f", cv AUROC={cv['cv_auroc']:.4f} (p={cv['p_value']})"
+                if cv else ", cv AUROC unavailable (too few prompts)"))
 
         # ── Step 4: Orthogonality diagnostics ──────────────────────
         prog("Computing orthogonality map...")
@@ -809,10 +927,17 @@ class ConceptAtomModule(TASMModule):
         # ── Step 6: Gamma calibration ──────────────────────────────
         gamma_mode = params.get("gamma_mode", "fixed")
         gamma_value = params.get("gamma_value", 1.0)
-        gamma_schedule = calibrate_gamma(
-            atom_directions, atoms, layer_range,
-            mode=gamma_mode, fixed_value=gamma_value,
-        )
+        try:
+            gamma_schedule = calibrate_gamma(
+                atom_directions, atoms, layer_range,
+                mode=gamma_mode, fixed_value=gamma_value,
+                raw_norms=atom_raw_norms,
+            )
+        except ValueError as e:
+            # semantic_energy now fails loudly instead of silently degrading
+            # to a constant gamma of 1.0 (which is what it always did).
+            prog(f"ERROR: gamma calibration failed: {e}")
+            return {"error": f"Gamma calibration failed: {e}", **results}
         results["gamma"] = {
             "mode": gamma_mode,
             "per_layer": {str(li): round(g, 4) for li, g in gamma_schedule.items()},
@@ -828,7 +953,7 @@ class ConceptAtomModule(TASMModule):
                 # Get harmful prompts from session
                 harm_prompts = [
                     r["prompt"] for r in session_results
-                    if r.get("category", "").lower() in {"harmful", "jailbreak"}
+                    if classify_category(r.get("category")) == "harm"
                 ]
                 n_preview = min(params.get("preview_n_prompts", 10), len(harm_prompts))
                 preview_prompts = harm_prompts[:n_preview]
@@ -857,33 +982,52 @@ class ConceptAtomModule(TASMModule):
                     device = next(model.parameters()).device
                     preview_results = []
 
-                    with MODEL_LOCK:
-                        for i, prompt in enumerate(preview_prompts):
-                            if i % 3 == 0:
-                                prog(f"Preview generation: {i+1}/{n_preview}")
+                    # HOOK SAFETY (was wrong): intv.remove() sat after the
+                    # generation loop with no try/finally, and the enclosing
+                    # `except` below caught exactly the failures that skipped
+                    # it — leaving ablation hooks installed on the SHARED model
+                    # while the module reported "complete". Cleanup is now
+                    # unconditional.
+                    try:
+                        with MODEL_LOCK:
+                            for i, prompt in enumerate(preview_prompts):
+                                # One generate() per iteration but progress
+                                # only every third — poll each time.  The
+                                # enclosing `finally: intv.remove()` still runs
+                                # on the way out, so the ablation hooks come
+                                # off the shared model.
+                                if should_cancel and should_cancel():
+                                    raise ModuleCancelled("concept_atoms")
+                                if i % 3 == 0:
+                                    prog(f"Preview generation: {i+1}/{n_preview}")
 
-                            inputs = tokenizer(
-                                prompt, return_tensors="pt",
-                                add_special_tokens=True,
-                            ).to(device)
+                                # WAS WRONG: hardcoded True here while
+                                # compute_atom_directions() uses the configured
+                                # value, so the generations were tokenized
+                                # differently from the atom features.
+                                inputs = tokenizer(
+                                    prompt, return_tensors="pt",
+                                    add_special_tokens=engine_config.get(
+                                        "add_special_tokens"),
+                                ).to(device)
 
-                            with torch.no_grad():
-                                output = model.generate(
-                                    **inputs,
-                                    max_new_tokens=params.get("preview_max_tokens", 80),
-                                    do_sample=False,
-                                )
+                                with torch.no_grad():
+                                    output = model.generate(
+                                        **inputs,
+                                        max_new_tokens=params.get("preview_max_tokens", 80),
+                                        do_sample=False,
+                                    )
 
-                            new_tokens = output[0][inputs["input_ids"].shape[1]:]
-                            reply = tokenizer.decode(new_tokens, skip_special_tokens=True)
-                            refused = detector.detect(reply)
-                            preview_results.append({
-                                "prompt": prompt[:100],
-                                "reply": reply[:200],
-                                "refused": refused,
-                            })
-
-                    intv.remove()
+                                new_tokens = output[0][inputs["input_ids"].shape[1]:]
+                                reply = tokenizer.decode(new_tokens, skip_special_tokens=True)
+                                refused = detector.detect(reply)
+                                preview_results.append({
+                                    "prompt": prompt[:100],
+                                    "reply": reply[:200],
+                                    "refused": refused,
+                                })
+                    finally:
+                        intv.remove()
 
                     n_refused = sum(1 for r in preview_results if r["refused"])
                     results["preview"] = {
@@ -895,9 +1039,19 @@ class ConceptAtomModule(TASMModule):
                     prog(f"Preview: {n_refused}/{n_preview} refused "
                          f"({results['preview']['refusal_rate']:.0%})")
 
+            except ModuleCancelled:
+                # A user cancellation is not a preview failure.  Without this
+                # the bare `except Exception` below would swallow it and the
+                # module would report "error: Ablation preview failed".
+                raise
             except Exception as e:
+                # WAS WRONG: this recorded results["preview_error"] and the
+                # module still reported "completed" with has_results=True, so a
+                # failed intervention preview looked like a successful run.
+                # Setting "error" makes base.py mark the module as errored.
                 prog(f"Preview failed: {e}")
                 results["preview_error"] = str(e)
+                results["error"] = f"Ablation preview failed: {e}"
 
         # ── Step 8: Persist artifact ───────────────────────────────
         prog("Persisting artifact...")
@@ -935,14 +1089,26 @@ class ConceptAtomModule(TASMModule):
         if params.get("export_weights", False):
             prog("WARNING: Applying permanent weight modification...")
             try:
-                self._export_ablated_weights(
+                export_info = self._export_ablated_weights(
                     model, adapter, cleaned_per_layer,
-                    gamma_schedule, prog,
+                    gamma_schedule, prog, should_cancel,
                 )
-                results["export"] = {"status": "success"}
+                results["export"] = {"status": "success", **(export_info or {})}
+            except ModuleCancelled:
+                # The helper has already rolled every touched matrix back, so
+                # the model is unchanged. Report it as a cancellation, not as
+                # an export failure.
+                raise
             except Exception as e:
+                # WAS WRONG: a partial export used to be reported as
+                # {"status": "success"} because the per-layer failures were
+                # swallowed inside the helper. A failed export is now a module
+                # error (see base.py's error contract), and the weights have
+                # been rolled back by the helper.
                 prog(f"Export failed: {e}")
-                results["export"] = {"status": "failed", "error": str(e)}
+                results["export"] = {"status": "failed", "error": str(e),
+                                     "weights_rolled_back": True}
+                results["error"] = f"Ablated-weight export failed: {e}"
 
         elapsed = time.time() - t0
         results["elapsed_seconds"] = round(elapsed, 1)
@@ -954,22 +1120,66 @@ class ConceptAtomModule(TASMModule):
 
     def _export_ablated_weights(
         self, model, adapter, direction_per_layer, gamma_per_layer, progress,
+        should_cancel=None,
     ):
-        """Apply rank-one weight updates permanently. Irreversible."""
-        for li, direction in direction_per_layer.items():
-            gamma = gamma_per_layer.get(li, 1.0)
-            v = torch.tensor(direction, dtype=torch.float32)
-            v = v / (v.norm() + 1e-10)
+        """Apply rank-one weight updates permanently.
 
-            # Orthogonalize residual-stream writers at this layer
-            for role in ["o_proj", "down_proj"]:
-                try:
+        WAS WRONG: per-layer failures were caught and the loop continued, so a
+        partial failure left the model IRREVERSIBLY half-ablated (some layers
+        orthogonalized, others not) while run() still reported
+        {"status": "success"}. That state is not a model anyone can interpret.
+
+        Now: the original weights of every matrix we touch are snapshotted
+        first; any failure rolls them all back and raises, so the caller can
+        report the failure honestly. A partial export is never left in place.
+        """
+        saved: list[tuple] = []   # (module, original weight tensor)
+        n_modified = 0
+        try:
+            for li, direction in direction_per_layer.items():
+                # Cancel point at the TOP of the layer, i.e. between two
+                # complete layers — never between a matrix mutation and its
+                # snapshot.  Everything already modified is in `saved` and is
+                # rolled back by the handler below, so the model is never left
+                # half-ablated.
+                if should_cancel and should_cancel():
+                    raise ModuleCancelled("concept_atoms")
+                gamma = gamma_per_layer.get(li, 1.0)
+                v = torch.tensor(direction, dtype=torch.float32)
+                v = v / (v.norm() + 1e-10)
+
+                # Orthogonalize residual-stream writers at this layer
+                for role in ["o_proj", "down_proj"]:
                     target = adapter.resolve_hook_target(model, role, li)
+                    saved.append((target, target.weight.data.clone()))
                     W = target.weight.data.float()
                     # W shape: [d_out, d_in]; for residual writers d_out = d_model
                     proj = gamma * torch.outer(v, v @ W)
                     target.weight.data = (W - proj).to(target.weight.dtype)
-                except Exception as e:
-                    progress(f"  Layer {li} {role}: skipped ({e})")
+                    n_modified += 1
+        except ModuleCancelled:
+            # Roll back FIRST and report only through the logger: progress()
+            # is the cancellation checkpoint, so calling it here would raise
+            # again before the rollback ran and strand a half-ablated model.
+            for target, original in reversed(saved):
+                target.weight.data = original
+            logger.warning(
+                "[CAM] weight export cancelled after %d matrices; all "
+                "changes rolled back, model weights are unchanged.",
+                n_modified)
+            raise
+        except Exception as e:
+            # Same ordering rule as above: restore the weights before
+            # announcing anything, so a pending cancel cannot skip it.
+            for target, original in reversed(saved):
+                target.weight.data = original
+            progress(f"Weight export FAILED after {n_modified} matrices "
+                     f"({e}). Rolled back; model weights are unchanged.")
+            raise RuntimeError(
+                f"Weight export failed after modifying {n_modified} "
+                f"matrices; all changes were rolled back. Cause: {e}"
+            ) from e
 
-        progress("Weight export complete. Model is now permanently modified.")
+        progress(f"Weight export complete ({n_modified} matrices). "
+                 f"Model is now permanently modified.")
+        return {"n_matrices_modified": n_modified}

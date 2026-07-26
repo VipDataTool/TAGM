@@ -2,25 +2,19 @@
 <html>
 <head>
 <title>Template Maker — TAGM</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Shared palette + body/panel/button chrome (was a local :root copy). -->
+<link rel="stylesheet" href="/static/css/viz-base.css?v=1">
+<script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/api.js?v=1"></script>
+<script src="/static/js/common/download.js?v=1"></script>
 <style>
-:root { --bg:#1C2128; --bg2:#262C34; --bg3:#2D333B; --text:#E8ECEF; --text2:#6B7280; --text3:#5A6068; --border:#444C56; --cyan:#56B4E9; --orange:#E69F00; --green:#009E73; --red:#D55E00; }
-body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; margin:0; padding:16px; font-size:12px; }
+body { font-size:12px; }
 h1 { font-size:13px; margin:0 0 2px; }
 .sub { color:var(--text2); font-size:11px; margin-bottom:12px; }
 .cols { display:flex; gap:14px; align-items:flex-start; }
 .left { flex:0 0 380px; }
 .right { flex:1; min-width:0; }
-.panel { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:12px; }
-.panel-title { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text3); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px; }
-input[type=text], input[type=number], select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; padding:3px 6px; font-family:inherit; font-size:11px; }
 input[type=text] { width:100%; box-sizing:border-box; }
-button { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:3px; padding:4px 10px; font-family:inherit; font-size:11px; cursor:pointer; }
-button:hover { border-color:var(--cyan); color:var(--cyan); }
-button.primary { background:var(--cyan); color:#10151C; border-color:var(--cyan); font-weight:600; }
-button.primary:hover { color:#000; }
-button.danger { border-color:var(--red); color:var(--red); background:transparent; }
-button.tiny { padding:1px 6px; font-size:10px; }
 .axis { border:1px solid var(--border); border-radius:4px; padding:8px; margin-bottom:8px; background:var(--bg); }
 .axis-head { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
 .axis-head input { flex:1; }
@@ -86,7 +80,7 @@ label.inline { color:var(--text2); font-size:10px; }
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <label class="inline">Fold extra axes into</label>
-        <select id="foldTarget" onchange="render()"><option value="cols">columns</option><option value="rows">rows</option></select>
+        <select id="foldTarget"><option value="cols">columns</option><option value="rows">rows</option></select>
       </div>
       <div class="sub" style="margin-top:6px">Extra axes compose with the fold target using "×" — e.g. <code>era_1950s×technical</code>. Cell seeds derive from the joined axis-value seeds; click any cell to override.</div>
     </div>
@@ -134,7 +128,7 @@ var S = {
   overrides: {},        // coordKey -> seed string
 };
 
-function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function esc(s){ return TAGM.esc(s); }   // shared: static/js/common/esc.js
 function msg(t, cls){ var m=document.getElementById("msg"); m.textContent=t||""; m.className=cls||""; }
 
 // ── Lattice math ────────────────────────────────────────────
@@ -179,10 +173,7 @@ function cellSeed(rowC, colC){
 }
 
 // ── CSV writer (quoting-safe) ───────────────────────────────
-function csvCell(v){
-  v=String(v==null?"":v);
-  return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
-}
+function csvCell(v){ return TAGM.csvCell(v); }   // shared: static/js/common/download.js
 function buildCsv(){
   var rows=combos("rows"), cols=combos("cols");
   var colLabels=cols.map(comboLabel);
@@ -222,13 +213,13 @@ function renderAxes(){
   var h="";
   S.axes.forEach(function(ax, ai){
     h+='<div class="axis"><div class="axis-head">';
-    h+='<input type="text" value="'+esc(ax.name)+'" onchange="S.axes['+ai+'].name=this.value;render()" title="Axis name">';
+    h+='<input type="text" value="'+esc(ax.name)+'" data-ax="'+ai+'" data-field="name" title="Axis name">';
     h+='<button class="tiny danger" onclick="removeAxis('+ai+')" '+(S.axes.length<=2?'disabled title="Minimum shape is 2D"':'')+'>✕</button>';
     h+='</div>';
     ax.values.forEach(function(val, vi){
       h+='<div class="val-row">';
-      h+='<input class="val" type="text" value="'+esc(val.v)+'" placeholder="value" onchange="S.axes['+ai+'].values['+vi+'].v=this.value;render()">';
-      h+='<input class="seed" type="text" value="'+esc(val.seed||"")+'" placeholder="seed phrase (optional)" onchange="S.axes['+ai+'].values['+vi+'].seed=this.value;render()">';
+      h+='<input class="val" type="text" value="'+esc(val.v)+'" placeholder="value" data-ax="'+ai+'" data-val="'+vi+'" data-field="v">';
+      h+='<input class="seed" type="text" value="'+esc(val.seed||"")+'" placeholder="seed phrase (optional)" data-ax="'+ai+'" data-val="'+vi+'" data-field="seed">';
       h+='<button class="tiny" onclick="moveVal('+ai+','+vi+',-1)">↑</button>';
       h+='<button class="tiny" onclick="moveVal('+ai+','+vi+',1)">↓</button>';
       h+='<button class="tiny danger" onclick="removeVal('+ai+','+vi+')" '+(ax.values.length<=1?'disabled':'')+'>✕</button>';
@@ -326,6 +317,43 @@ function renderGrid(){
   });
 }
 
+// ── Axis editing (delegated) ────────────────────────────────
+// These inputs used to carry inline onchange="S.axes[i].name=this.value;
+// render()" handlers. Inline handlers are evaluated in global scope, but both
+// `S` and `render` live inside this IIFE and are not exported (only
+// globalThis.__tm has them), so every axis-name, value and seed edit threw
+// "ReferenceError: S is not defined" and was silently discarded. The grid
+// below always used addEventListener, which is why the bug went unnoticed.
+// One delegated listener on the #axes container: it is attached once and
+// survives renderAxes() replacing the container's innerHTML.
+function wireAxisEditing(){
+  document.getElementById("axes").addEventListener("change", function(e){
+    var t=e.target;
+    if(!t||t.tagName!=="INPUT") return;
+    var ai=parseInt(t.getAttribute("data-ax"),10);
+    if(isNaN(ai)||!S.axes[ai]) return;
+    var field=t.getAttribute("data-field");
+    var viAttr=t.getAttribute("data-val");
+    if(viAttr===null){
+      if(field==="name") S.axes[ai].name=t.value; else return;
+    } else {
+      var val=S.axes[ai].values[parseInt(viAttr,10)];
+      if(!val) return;
+      if(field==="v") val.v=t.value;
+      else if(field==="seed") val.seed=t.value;
+      else return;
+    }
+    render();
+  });
+  // Same defect: this select's inline onchange="render()" could not see
+  // render(), and even if it had, nothing copied the select's value back into
+  // S.foldTarget — renderMapping() would have reset it on the next render.
+  document.getElementById("foldTarget").addEventListener("change", function(){
+    S.foldTarget=this.value;
+    render();
+  });
+}
+
 // ── Axis mutations ──────────────────────────────────────────
 window.addAxis=function(){
   S.axes.push({name:"axis_"+(S.axes.length+1), values:[{v:"value_1",seed:""}]});
@@ -400,11 +428,7 @@ function exportTemplate(){
   var warns=lintState();
   if (warns.length){ msg("Fix lint first: "+warns.join("; "),"err"); return; }
   var name=document.getElementById("tplName").value.trim()||"template.csv";
-  var blob=new Blob([buildCsv()],{type:"text/csv"});
-  var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download=name;
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },200);
+  TAGM.downloadText(buildCsv(), name, "text/csv");   // shared: common/download.js
   msg("Exported "+name+".","ok");
 }
 async function generateAndEmbed(){
@@ -423,18 +447,39 @@ async function generateAndEmbed(){
   }catch(e){ msg("Run failed: "+e.message,"err"); }
 }
 var _pollTimer=null;
+var POLL_MAX_FAILS=5;   // ~7.5s of consecutive failures before giving up
 function pollGenerator(){
   if(_pollTimer) clearInterval(_pollTimer);
+  var fails=0;
   _pollTimer=setInterval(async function(){
+    var d;
     try{
-      var r=await fetch("/api/modules/probe_generator/status");
-      var d=await r.json();
-      var st=d.status||d.state||"?";
-      var last=(d.progress && d.progress.length)? d.progress[d.progress.length-1] : (d.last_progress||"");
-      msg("Generator: "+st+(last?(" — "+last):""), st==="error"?"err":"");
-      if(st==="completed"){ clearInterval(_pollTimer); msg("Generation complete — probe set embedded and activated (see the module card for full results).","ok"); }
-      if(st==="error"){ clearInterval(_pollTimer); }
-    }catch(e){ clearInterval(_pollTimer); msg("Status poll failed: "+e.message,"err"); }
+      d=await TAGM.getJSON("/api/modules/probe_generator/status");
+      if(!d.ok) throw new Error(d.error||"status unavailable");
+    }catch(e){
+      // A single transient failure (server restart, a dropped keep-alive)
+      // used to clearInterval and abandon a generation run that was still
+      // going. Tolerate a short burst before giving up.
+      fails++;
+      if(fails>=POLL_MAX_FAILS){
+        clearInterval(_pollTimer); _pollTimer=null;
+        msg("Status poll failed "+fails+" times, giving up: "+e.message,"err");
+      } else {
+        msg("Status poll failed ("+fails+"/"+POLL_MAX_FAILS+"), retrying: "+e.message,"");
+      }
+      return;
+    }
+    fails=0;
+    var st=d.status||d.state||"?";
+    // ModuleRunner.get_status() returns `progress` as a STRING
+    // (src/engine/modules/base.py). Indexing [length-1] rendered the last
+    // *character* of it.
+    var last=(typeof d.progress==="string")?d.progress
+            :(Array.isArray(d.progress)&&d.progress.length? d.progress[d.progress.length-1]
+            :(d.last_progress||""));
+    msg("Generator: "+st+(last?(" — "+last):""), st==="error"?"err":"");
+    if(st==="completed"){ clearInterval(_pollTimer); _pollTimer=null; msg("Generation complete — probe set embedded and activated (see the module card for full results).","ok"); }
+    if(st==="error"){ clearInterval(_pollTimer); _pollTimer=null; msg("Generator error: "+(d.error||last||"unknown"),"err"); }
   },1500);
 }
 window.saveTemplate=saveTemplate;
@@ -498,10 +543,20 @@ if (typeof globalThis!=="undefined"){
                     cellSeed:cellSeed, lintState:lintState, render:render };
 }
 
+wireAxisEditing();
 refreshLoadList();
 render();
 
-}catch(ex){document.body.insertAdjacentHTML("beforeend",'<pre style="color:#D55E00">'+String(ex.message)+"\n"+String(ex.stack)+"</pre>")}})();
+}catch(ex){
+  // textContent, not insertAdjacentHTML: an exception message can contain
+  // server- or user-derived text, and injecting it as markup made the error
+  // sink itself an XSS vector. Matches probe_diagnostic_viz / domain_surface_viz.
+  var _sink=document.createElement("pre");
+  _sink.style.color="#D55E00";
+  _sink.style.whiteSpace="pre-wrap";
+  _sink.textContent="Viz error: "+String(ex&&ex.message)+"\n"+String(ex&&ex.stack);
+  document.body.appendChild(_sink);
+}})();
 </script>
 </body>
 </html>

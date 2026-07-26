@@ -6,6 +6,9 @@
 <title>TAGM Roundtable</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/api.js?v=1"></script>
+<script src="/static/js/common/download.js?v=1"></script>
 <style>
 :root {
   --bg-0:#121212; --bg-1:#1E1E1E; --bg-2:#252525; --bg-3:#2d2d2d; --bg-4:#363636;
@@ -222,7 +225,9 @@ async function loadParticipants() {
         row.className = 'p-row';
         row.innerHTML = '<div class="p-info"><div class="p-name">' + esc(p.name) + '</div>'
           + '<div class="p-role">' + esc(p.role || 'no role') + '</div></div>'
-          + '<span class="p-del" onclick="deleteParticipant(\'' + p.id + '\')" title="Remove">×</span>';
+          // p.id lands inside a quoted JS string inside a quoted HTML
+          // attribute; unescaped it can close both and run arbitrary code.
+          + '<span class="p-del" onclick="deleteParticipant(\'' + esc(p.id) + '\')" title="Remove">×</span>';
         list.appendChild(row);
       });
     }
@@ -308,7 +313,7 @@ function renderControls() {
     h += '<option value="">Select a participant…</option>';
     participants.forEach(function(p) {
       if (!p.active) return;
-      h += '<option value="' + p.id + '">' + esc(p.name) + (p.role ? ' — ' + esc(p.role) : '') + '</option>';
+      h += '<option value="' + esc(p.id) + '">' + esc(p.name) + (p.role ? ' — ' + esc(p.role) : '') + '</option>';
     });
     h += '</select>';
     h += '<button class="ctl-btn ctl-btn-panel" onclick="applyPersona()">Apply</button>';
@@ -317,7 +322,7 @@ function renderControls() {
     h += '<select class="ctl-select" id="methodSelect">';
     h += '<option value="">Select a method…</option>';
     methods.forEach(function(m) {
-      h += '<option value="' + m.name + '">' + esc(m.name) + ' — ' + esc(m.description) + '</option>';
+      h += '<option value="' + esc(m.name) + '">' + esc(m.name) + ' — ' + esc(m.description) + '</option>';
     });
     h += '</select>';
     h += '<button class="ctl-btn ctl-btn-analysis" onclick="applyMethod()">Run</button>';
@@ -326,7 +331,7 @@ function renderControls() {
     h += '<select class="ctl-select" id="toolSelect">';
     h += '<option value="">Select a tool…</option>';
     tools.forEach(function(t) {
-      h += '<option value="' + t.name + '">' + esc(t.name) + ' — ' + esc(t.description) + '</option>';
+      h += '<option value="' + esc(t.name) + '">' + esc(t.name) + ' — ' + esc(t.description) + '</option>';
     });
     h += '</select>';
     h += '<button class="ctl-btn ctl-btn-tool" onclick="applyTool()">Run</button>';
@@ -373,10 +378,21 @@ async function send() {
 
   busy = true;
   addMsg('user', t);
-  await fetch('/api/roundtable/interactive/send', {method:'POST',
-    headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:t})});
-  busy = false;
-  setStatus('Message added');
+  // try/finally: a rejected fetch used to leave busy=true forever, which
+  // permanently wedged send/applyPersona/applyMethod/applyTool (they all
+  // early-return on `busy`) with no way back short of a page reload.
+  try {
+    var r = await TAGM.getJSON('/api/roundtable/interactive/send', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:t})});
+    // The body-level ok was ignored, so {"ok":false,"error":"No session"} was
+    // reported to the user as "Message added".
+    if (r.ok) setStatus('Message added');
+    else { addMsg('error', r.error || 'Send failed'); setStatus('Send failed'); }
+  } catch(e) {
+    addMsg('error', e.message); setStatus('Send failed');
+  } finally {
+    busy = false;
+  }
 }
 
 async function applyPersona() {
@@ -390,16 +406,17 @@ async function applyPersona() {
   busy = true;
   var th = addMsg('system', 'Generating…');
   setStatus('Generating…');
+  // busy is released in finally — see the comment in send().
   try {
-    var r = await (await fetch('/api/roundtable/interactive/apply_persona', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify({participant_id:pid})})).json();
+    var r = await TAGM.getJSON('/api/roundtable/interactive/apply_persona', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({participant_id:pid})});
     th.remove();
     if (r.ok) {
       addMsg('persona', r.response, r.name, r.role);
       setStatus(r.name + ' responded — ' + r.n_turns + ' turns');
-    } else addMsg('error', r.error);
-  } catch(e) { th.remove(); addMsg('error', e.message); }
-  busy = false;
+    } else { addMsg('error', r.error); setStatus('Failed'); }
+  } catch(e) { th.remove(); addMsg('error', e.message); setStatus('Failed'); }
+  finally { busy = false; }
 }
 
 async function applyMethod() {
@@ -410,13 +427,13 @@ async function applyMethod() {
   busy = true;
   var th = addMsg('system', 'Running ' + m + '…');
   try {
-    var r = await (await fetch('/api/roundtable/interactive/apply_method', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify({method:m})})).json();
+    var r = await TAGM.getJSON('/api/roundtable/interactive/apply_method', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({method:m})});
     th.remove();
     if (r.ok) { addMsg('analysis', r.output, m); setStatus(m + ' complete'); }
-    else addMsg('error', r.error);
-  } catch(e) { th.remove(); addMsg('error', e.message); }
-  busy = false;
+    else { addMsg('error', r.error); setStatus(m + ' failed'); }
+  } catch(e) { th.remove(); addMsg('error', e.message); setStatus(m + ' failed'); }
+  finally { busy = false; }
 }
 
 async function applyTool() {
@@ -427,33 +444,39 @@ async function applyTool() {
   busy = true;
   var th = addMsg('system', 'Running ' + t + '…');
   try {
-    var r = await (await fetch('/api/roundtable/interactive/apply_tool', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify({tool:t})})).json();
+    var r = await TAGM.getJSON('/api/roundtable/interactive/apply_tool', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({tool:t})});
     th.remove();
     if (r.ok) {
       var out = typeof r.result === 'string' ? r.result : JSON.stringify(r.result, null, 2);
       addMsg('tool', out, 'tool: ' + t);
       setStatus(t + ' complete');
-    } else addMsg('error', r.error);
-  } catch(e) { th.remove(); addMsg('error', e.message); }
-  busy = false;
+    } else { addMsg('error', r.error); setStatus(t + ' failed'); }
+  } catch(e) { th.remove(); addMsg('error', e.message); setStatus(t + ' failed'); }
+  finally { busy = false; }
 }
 
 function newStage() {
   if (!sessionActive) return;
   // Use current mode as the new stage type
   var nextType = currentMode;
-  fetch('/api/roundtable/interactive/new_stage', {method:'POST',
+  // Was .then().then() with neither an else branch nor a .catch: a rejected
+  // request or an {ok:false} body produced no divider, no pill update and no
+  // message — the click simply did nothing.
+  TAGM.getJSON('/api/roundtable/interactive/new_stage', {method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({stage_type:nextType})})
-  .then(function(r) { return r.json(); })
   .then(function(r) {
     if (r.ok) {
       addDivider(r.label);
       updatePill(nextType, r.label);
       setStatus('New stage: ' + r.label);
+    } else {
+      addMsg('error', r.error || 'Could not start a new stage');
+      setStatus('New stage failed');
     }
-  });
+  })
+  .catch(function(e) { addMsg('error', e.message); setStatus('New stage failed'); });
 }
 
 // Wire the mode buttons' "New Stage" to a separate button in the control bar
@@ -463,14 +486,15 @@ function newStage() {
 async function exportSession() {
   if (!sessionActive) return;
   try {
-    var r = await (await fetch('/api/roundtable/interactive/export')).json();
+    var r = await TAGM.getJSON('/api/roundtable/interactive/export');
     if (r.ok && r.export) {
-      var blob = new Blob([JSON.stringify(r.export, null, 2)], {type:'application/json'});
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'roundtable_' + r.export.session_id + '.json';
-      a.click();
+      // Shared helper — this copy never called URL.revokeObjectURL, so every
+      // export pinned its blob for the life of the tab.
+      TAGM.downloadText(JSON.stringify(r.export, null, 2),
+        'roundtable_' + r.export.session_id + '.json', 'application/json');
       setStatus('Exported');
+    } else {
+      addMsg('error', r.error || 'Nothing to export');
     }
   } catch(e) { addMsg('error', e.message); }
 }
@@ -552,7 +576,10 @@ function updatePill(type, label) {
 }
 
 function setStatus(m) { document.getElementById('status').textContent = m; }
-function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+// Shared, quote-safe escaper (static/js/common/esc.js). The old local copy
+// used textContent -> innerHTML, which does NOT escape quotes — unsound for
+// the value="..." and onclick="…('…')" attribute uses above.
+function esc(s) { return TAGM.esc(s); }
 
 document.getElementById('input').addEventListener('input', function() {
   this.style.height = '40px';

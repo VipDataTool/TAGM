@@ -13,6 +13,8 @@ Lifecycle:
 from __future__ import annotations
 
 import gc
+import hashlib
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -86,6 +88,9 @@ class Pipeline:
         log = progress or noop_progress
 
         log("loading", f"Loading instruct model: {self.instruct_model_id}")
+        # use_safetensors=True refuses .bin checkpoints, which go through
+        # torch's pickle loader.  Model ids arrive unvalidated from the HTTP
+        # API, so this keeps an arbitrary repo id from reaching a deserializer.
         self.instruct_model = AutoModelForCausalLM.from_pretrained(
             self.instruct_model_id,
             dtype=self.dtype,
@@ -93,6 +98,7 @@ class Pipeline:
             attn_implementation="eager",
             token=self.hf_token,
             low_cpu_mem_usage=True,
+            use_safetensors=True,
         )
 
         if self._explicit_adapter is not None:
@@ -115,11 +121,53 @@ class Pipeline:
 
         if delta_backend == "mmap":
             from src.core.deltas.store import MmapDeltaStore, DeltaStoreMetadata
-            # Filename encodes both model IDs so each pair gets its own cache
+            # The cache key must cover EVERY input that changes the stored
+            # deltas.  It previously used only instruct_model_id, so re-running
+            # the same instruct model against a DIFFERENT BASE silently reused
+            # the old deltas — and the file format carries no model identity,
+            # so nothing downstream could detect it.  The integrity spot-check
+            # below only verifies a tensor is finite and matches its own stored
+            # norm; it cannot tell right-base data from wrong-base data.
             safe_id = self.instruct_model_id.replace("/", "__").replace("\\", "__")
+            cache_key = "|".join([
+                self.instruct_model_id,
+                self.base_model_id or "",
+                self.adapter.family_id,
+                str(self.dtype),
+                repr(sorted(layer_filter) if layer_filter else None),
+            ])
+            key_hash = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()[:16]
             cache_dir = Path.home() / ".tagm" / "cache" / "deltas"
             cache_dir.mkdir(parents=True, exist_ok=True)
-            mmap_path = cache_dir / f"{safe_id}.tagm"
+            mmap_path = cache_dir / f"{safe_id}.{key_hash}.tagm"
+
+            # Reclaim caches written by the old naming scheme ({safe_id}.tagm,
+            # keyed on the instruct model alone).  They can never be reused —
+            # the key now includes a hash — so leaving them would silently leak
+            # multiple GB per model pair.
+            legacy_path = cache_dir / f"{safe_id}.tagm"
+            if legacy_path.exists() and legacy_path != mmap_path:
+                try:
+                    freed = legacy_path.stat().st_size
+                    legacy_path.unlink()
+                    log("deltas", f"Removed legacy delta cache "
+                                  f"{legacy_path.name} ({freed / 1e9:.1f} GB) — "
+                                  f"it was keyed on the instruct model only")
+                except OSError as e:
+                    log("deltas", f"Could not remove legacy delta cache "
+                                  f"{legacy_path.name}: {e}")
+
+            # A sidecar recording exactly what produced this file, so a stale
+            # or hand-copied cache can be rejected rather than trusted.
+            sidecar_path = mmap_path.with_name(mmap_path.name + ".json")
+            expected_sidecar = {
+                "instruct_model_id": self.instruct_model_id,
+                "base_model_id": self.base_model_id,
+                "adapter_family": self.adapter.family_id,
+                "dtype": str(self.dtype),
+                "layer_filter": sorted(layer_filter) if layer_filter else None,
+                "format_version": 1,
+            }
 
             placeholder_meta = DeltaStoreMetadata(
                 base_model_id=self.base_model_id,
@@ -129,8 +177,21 @@ class Pipeline:
                 layer_filter=None, n_layers=0, n_deltas=0,
             )
 
-            # Check for cached mmap file from a previous load
-            if mmap_path.exists() and mmap_path.stat().st_size > 256:
+            # Check for cached mmap file from a previous load.
+            # Reject it unless the sidecar matches this exact pair/dtype/filter.
+            sidecar_ok = False
+            if sidecar_path.exists():
+                try:
+                    sidecar_ok = (
+                        json.loads(sidecar_path.read_text()) == expected_sidecar)
+                except Exception as e:
+                    log("deltas", f"HEP: unreadable cache sidecar ({e}); recomputing")
+            elif mmap_path.exists():
+                log("deltas", "HEP: cached mmap has no sidecar (written by an "
+                              "older build); recomputing to guarantee the "
+                              "deltas match this model pair")
+
+            if sidecar_ok and mmap_path.exists() and mmap_path.stat().st_size > 256:
                 try:
                     cached_store = MmapDeltaStore(
                         self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
@@ -156,6 +217,22 @@ class Pipeline:
                             cached_store.close()
                             mmap_path.unlink(missing_ok=True)
                         else:
+                            # Replace the placeholder metadata with the real
+                            # thing.  Leaving layer_filter=None / n_layers=0 in
+                            # place made full_deltas_available() return True for
+                            # a filtered store and made LayerNotComputedError
+                            # report "n_layers=0", which points at the wrong
+                            # cause.
+                            cached_store._metadata = DeltaStoreMetadata(
+                                base_model_id=self.base_model_id,
+                                instruct_model_id=self.instruct_model_id,
+                                adapter_family=self.adapter.family_id,
+                                dtype=str(self.dtype).replace("torch.", ""),
+                                layer_filter=(sorted(layer_filter)
+                                              if layer_filter else None),
+                                n_layers=self.adapter.n_layers(self.instruct_model),
+                                n_deltas=n_entries,
+                            )
                             self.delta_store = cached_store
                             skip_delta_computation = True
                             log("deltas", f"HEP: reusing cached mmap — {n_entries} "
@@ -173,10 +250,14 @@ class Pipeline:
                     mmap_path.unlink(missing_ok=True)
 
             if not skip_delta_computation:
-                # Remove any partial file and create fresh
+                # Remove any partial file and create fresh.  The sidecar is
+                # written only after the store is fully flushed (below), so an
+                # interrupted run leaves no sidecar and is never reused.
                 mmap_path.unlink(missing_ok=True)
+                sidecar_path.unlink(missing_ok=True)
                 pre_store = MmapDeltaStore(
                     self.adapter, placeholder_meta, mmap_path, dtype=self.dtype)
+                self._pending_delta_sidecar = (sidecar_path, expected_sidecar)
                 log("deltas", f"Using mmap delta store: {mmap_path.name}")
 
         if not skip_delta_computation:
@@ -195,6 +276,19 @@ class Pipeline:
             # If mmap, finalize the file and reopen in read mode
             if delta_backend == "mmap" and hasattr(self.delta_store, 'reopen_readonly'):
                 self.delta_store.reopen_readonly()
+                # Only now is the file complete.  Writing the sidecar here (and
+                # not at creation time) means an interrupted or failed delta
+                # computation leaves a file with no sidecar, which the check
+                # above refuses to reuse.
+                pending = getattr(self, "_pending_delta_sidecar", None)
+                if pending is not None:
+                    sc_path, sc_data = pending
+                    try:
+                        sc_path.write_text(json.dumps(sc_data, indent=2))
+                    except Exception as e:
+                        log("deltas", f"HEP: could not write cache sidecar ({e}); "
+                                      f"this cache will be recomputed next load")
+                    self._pending_delta_sidecar = None
 
             # HEP: evict base model from HF cache after deltas are computed.
             if delta_backend == "mmap" and engine_config.get("hep_evict_base_cache"):
@@ -226,6 +320,7 @@ class Pipeline:
         if self.base_model is not None:
             return
         log("loading", f"Loading base model: {self.base_model_id}")
+        # See the note on the instruct load above.
         self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_id,
             dtype=self.dtype,
@@ -233,6 +328,7 @@ class Pipeline:
             attn_implementation="eager",
             token=self.hf_token,
             low_cpu_mem_usage=True,
+            use_safetensors=True,
         )
 
     def unload_base(self) -> None:

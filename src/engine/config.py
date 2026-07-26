@@ -42,7 +42,17 @@ DEFAULTS = {
     # ── Bootstrap Statistics ──
     "n_bootstrap": 5000,
     "ci_level": 0.95,
+    # threshold_steps is retained for backward compatibility with saved
+    # configs but is no longer used: best_threshold now evaluates every
+    # distinct split exactly instead of scanning a fixed linspace.
     "threshold_steps": 500,
+    # Label permutations used to build the null distribution for
+    # best_threshold. The reported accuracy is optimized in-sample, so this
+    # null is what makes it interpretable. 0 disables (not recommended).
+    "n_permutations": 200,
+    # False-discovery-rate level for the Benjamini-Hochberg correction applied
+    # across the metric x category grid in aggregate_batch.
+    "fdr_level": 0.05,
     "min_valid_separability": 5,
     "min_samples_d": 2,
 

@@ -6,6 +6,8 @@
 <title>Probe-Basis Decomposition — TAGM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/download.js?v=1"></script>
 <style>
 :root{
   /* aligned to the TAGM app shell */
@@ -269,7 +271,10 @@ table.tok tr:hover td{background:#FFFFFF07}
   var PROBE_CELL_MAP = {}; // { "si_li": [probe_idx, probe_idx, ...] }
 
   // ── Boot ───────────────────────────────────────────────────
-  function esc(s){var d=document.createElement("div");d.textContent=String(s==null?"":s);return d.innerHTML}
+  // Shared, quote-safe escaper (static/js/common/esc.js). The local copy used
+  // textContent -> innerHTML, which leaves " and ' intact — unsound anywhere
+  // the result lands in an attribute.
+  function esc(s){ return TAGM.esc(s); }
 
   fetch("/api/modules/correction_prism/results")
     .then(function(r){return r.json()})
@@ -1372,14 +1377,9 @@ table.tok tr:hover td{background:#FFFFFF07}
   var cpPage = 1, cpPageSize = 25, cpPrintAll = false, cpLastKey = null;
   var cpRows = [], cpSubj = "", cpLvl = "";
 
-  function csvCell(v){ v = String(v==null?"":v); if (/[",\n]/.test(v)) v = '"'+v.replace(/"/g,'""')+'"'; return v; }
-  function downloadBlob(name, text, mime){
-    var blob = new Blob([text], {type: mime||"text/plain"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a"); a.href = url; a.download = name;
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
-  }
+  // Shared: static/js/common/download.js (argument order kept for callers).
+  function csvCell(v){ return TAGM.csvCell(v); }
+  function downloadBlob(name, text, mime){ TAGM.downloadText(text, name, mime); }
   function scopeTag(){
     if (selPrompt !== "all") return "prompt"+(parseInt(selPrompt)+1);
     if (selClass) return "class_"+selClass;

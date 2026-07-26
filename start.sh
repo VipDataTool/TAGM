@@ -31,4 +31,7 @@ echo "   Log file: tagm.log"
 echo ""
 
 cd "$(dirname "$0")"
-exec python -m src --host 0.0.0.0 --port 8000 "$@"
+# Loopback by default — Codespaces/devcontainer port-forwarding works fine with
+# 127.0.0.1; binding this unauthenticated API to 0.0.0.0 must be opt-in
+# (TAGM_HOST=0.0.0.0 ./start.sh).
+exec python -m src --host "${TAGM_HOST:-127.0.0.1}" --port 8000 "$@"

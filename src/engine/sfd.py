@@ -30,8 +30,15 @@ class SFDLayerCache:
     spectral_entropy: float
     norm_entropy: float
     log_volume: float
-    stable_rank: float
-    frob_norm: float
+    # NOTE the `trunc_` prefix.  These are computed from the TRUNCATED top-k
+    # spectrum returned by torch.svd_lowrank, not from the exact tensor.
+    # INVARIANTS.md section 5 requires that frob_norm and stable_rank be exact
+    # and that only eff_rank derive from the truncation, so these are NOT the
+    # quantities that invariant describes.  They are named accordingly rather
+    # than silently mislabelled.  (core/deltas/spectral.py does honour the
+    # invariant and is the place to get exact values.)
+    trunc_stable_rank: float
+    trunc_frob_norm: float
 
 
 # ── Precomputation ──────────────────────────────────────────────
@@ -102,12 +109,26 @@ def precompute_sfd_cache(analyzer, k=None):
         try:
             dw_qk = torch.cat([dw_q.float().cpu(), dw_k.float().cpu()], dim=0)
 
+            actual_k = min(k_resolved, min(dw_qk.shape))
+            # Oversample by 8 and slice back to actual_k.  With q == k and the
+            # default niter=2, randomized SVD systematically underestimates the
+            # leading singular values for slowly-decaying spectra, biasing
+            # erank and the energy-mode truncation.
+            q_over = min(actual_k + 8, min(dw_qk.shape))
+            # svd_lowrank draws from the global torch RNG and takes no
+            # generator argument.  fork_rng gives us the requested determinism
+            # without leaking a reseed into the process: the previous
+            # torch.manual_seed() call here perturbed every later sampling
+            # operation (chat generation, module baselines) as a side effect of
+            # computing SFD.
             svd_seed = engine_config.get("sfd_svd_seed")
             if svd_seed is not None:
-                torch.manual_seed(svd_seed)
-
-            actual_k = min(k_resolved, min(dw_qk.shape))
-            U, S, V = torch.svd_lowrank(dw_qk, q=actual_k)
+                with torch.random.fork_rng(devices=[]):
+                    torch.manual_seed(int(svd_seed))
+                    U, S, V = torch.svd_lowrank(dw_qk, q=q_over, niter=2)
+            else:
+                U, S, V = torch.svd_lowrank(dw_qk, q=q_over, niter=2)
+            U, S, V = U[:, :actual_k], S[:actual_k], V[:, :actual_k]
 
             s = S.float().numpy().astype(np.float64)
             v_k = V.float().numpy().astype(np.float32).T  # (k, d_in)
@@ -149,7 +170,8 @@ def precompute_sfd_cache(analyzer, k=None):
                 V_k=v_k, S=s_pos.astype(np.float32),
                 erank=erank, spectral_entropy=float(H),
                 norm_entropy=float(norm_H), log_volume=log_vol,
-                stable_rank=stable_r, frob_norm=float(np.sqrt(frob2)),
+                trunc_stable_rank=stable_r,
+                trunc_frob_norm=float(np.sqrt(frob2)),
             )
             eranks.append(erank)
 
@@ -204,6 +226,19 @@ def compute_sfd(layer_acts: dict, cache: dict):
     accum_density = None
     n_layers_used = 0
 
+    # The number of retained singular directions is resolved PER LAYER: `keep`
+    # in precompute_sfd_cache drops degenerate values, and in "energy" mode
+    # k_energy is recomputed for each layer.  So w below has a different length
+    # from one layer to the next.  The previous code added those vectors
+    # directly, which raises ValueError on the first length change; the caller
+    # in analyzer.py swallowed it, so SFD silently became None for every prompt
+    # in energy mode.  Accumulate into a fixed-width buffer instead, tracking
+    # per-component counts so the average is over layers that actually
+    # contributed that component.
+    max_k = max((len(lc.S) for lc in layers_cache.values()), default=0)
+    accum_directions = None
+    direction_counts = None
+
     for layer_idx, layer_cache in layers_cache.items():
         acts = layer_acts.get(layer_idx)
         if acts is None:
@@ -214,7 +249,8 @@ def compute_sfd(layer_acts: dict, cache: dict):
         if n_tokens is None:
             n_tokens = acts.shape[0]
             accum_density = np.zeros(n_tokens)
-            accum_directions = [None] * n_tokens
+            accum_directions = np.zeros((n_tokens, max_k), dtype=np.float32)
+            direction_counts = np.zeros((n_tokens, max_k), dtype=np.int32)
 
         V_k = layer_cache.V_k
         S = layer_cache.S
@@ -233,11 +269,10 @@ def compute_sfd(layer_acts: dict, cache: dict):
             accum_density[t] += erank_t / layer_cache.erank if layer_cache.erank > 0 else 0.0
 
             # Accumulate weighted direction (layer-averaged)
-            w_normed = w / (np.linalg.norm(w) + 1e-10)
-            if accum_directions[t] is None:
-                accum_directions[t] = w_normed.astype(np.float32)
-            else:
-                accum_directions[t] = accum_directions[t] + w_normed.astype(np.float32)
+            w_normed = (w / (np.linalg.norm(w) + 1e-10)).astype(np.float32)
+            kw = min(len(w_normed), max_k)
+            accum_directions[t, :kw] += w_normed[:kw]
+            direction_counts[t, :kw] += 1
 
         n_layers_used += 1
 
@@ -246,11 +281,15 @@ def compute_sfd(layer_acts: dict, cache: dict):
 
     per_density = accum_density / n_layers_used
 
-    # Normalize accumulated directions across layers and serialize
+    # Normalize accumulated directions across layers and serialize.  Divide by
+    # the per-component contributor count, not n_layers_used: components beyond
+    # a given layer's k were never observed there and must not be diluted.
     per_directions = []
     for t in range(n_tokens):
-        if accum_directions[t] is not None:
-            d = accum_directions[t] / n_layers_used
+        counts = direction_counts[t]
+        if counts.any():
+            d = np.divide(accum_directions[t], np.maximum(counts, 1))
+            d = d[:int(np.max(np.nonzero(counts)) + 1)]
             per_directions.append([round(float(x), 6) for x in d])
         else:
             per_directions.append([])
@@ -291,6 +330,7 @@ def compute_rank_displacement(instruct_cf, base_cf, k=None):
     per_pos = []
     taus = []
     overlaps = []
+    n_tau_undefined = 0
     instruct_disp_profiles = []
     base_disp_profiles = []
     p = engine_config.get("serialization_precision")
@@ -369,15 +409,28 @@ def compute_rank_displacement(instruct_cf, base_cf, k=None):
         all_tokens = set(i_tokens) | set(b_tokens)
         overlaps.append(len(matched_tokens) / len(all_tokens) if all_tokens else 0.0)
 
+        # Positions with too few shared tokens have NO defined tau.  Appending
+        # 0.0 for them and averaging shrinks mean_tau toward zero by an amount
+        # that depends purely on how many positions were incomparable — and
+        # n_comparable below then reported the total position count, so the
+        # shrinkage was invisible in the output.
+        #
+        # `per_position_tau` must stay POSITION-INDEXED (visualizations.py and
+        # the frontend zip it against the token list), so record None here and
+        # exclude it from the mean below rather than compacting the list.
         shared = [tok for tok in i_tokens if tok in set(b_tokens)]
+        tau_val = None
         if len(shared) >= engine_config.get("rd_min_shared"):
             i_ranks = [i_tokens.index(tok) for tok in shared]
             b_ranks = [b_tokens.index(tok) for tok in shared]
             tau, _ = kendalltau(i_ranks, b_ranks)
-            taus.append(tau if not np.isnan(tau) else 0.0)
-        else:
-            taus.append(0.0)
+            if not np.isnan(tau):
+                tau_val = float(tau)
+        taus.append(tau_val)
+        if tau_val is None:
+            n_tau_undefined += 1
 
+    _defined_taus = [t for t in taus if t is not None]
     n = len(per_pos)
     return {
         'mean_matched': round(sum(x['n_matched'] for x in per_pos) / n, p) if n else 0,
@@ -390,10 +443,14 @@ def compute_rank_displacement(instruct_cf, base_cf, k=None):
         'per_position': per_pos,
         'instruct_disp_profiles': instruct_disp_profiles,
         'base_disp_profiles': base_disp_profiles,
-        'mean_tau': float(np.mean(taus)) if taus else 0.0,
+        # mean_tau averages only positions where tau was defined; None when
+        # none were.  n_comparable is that count, n_tau_undefined the rest.
+        # per_position_tau stays position-indexed, with None for undefined.
+        'mean_tau': (float(np.mean(_defined_taus)) if _defined_taus else None),
         'mean_overlap': float(np.mean(overlaps)) if overlaps else 0.0,
-        'per_position_tau': [round(t, p) for t in taus],
+        'per_position_tau': [None if t is None else round(t, p) for t in taus],
         'per_position_overlap': [round(o, p) for o in overlaps],
-        'n_comparable': len(taus),
+        'n_comparable': len(_defined_taus),
+        'n_tau_undefined': n_tau_undefined,
         'n_positions': n_pos,
     }

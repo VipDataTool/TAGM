@@ -3,7 +3,17 @@ let modelLoaded=false, sessionResults=[], dashResults=[], promptLibraryData=[], 
 var _promptTotal=0;
 
 function setStatus(s,t){const p=$('statusPill');p.className='status-pill '+s;p.textContent=t||s.toUpperCase()}
-function log(m,t=''){const el=$('progressLog'),d=document.createElement('div');d.className='entry '+t;d.textContent=m;el.appendChild(d);el.scrollTop=el.scrollHeight}
+// A long batch emits one progress event per prompt per stage; appending a
+// <div> for each without bound grew the log to tens of thousands of nodes and
+// made the page unusable. The server caps its own progress buffer at 1000, so
+// a 500-node visible tail loses nothing that isn't already in the log file.
+const LOG_MAX_ENTRIES=500;
+function log(m,t=''){
+  const el=$('progressLog'),d=document.createElement('div');
+  d.className='entry '+t;d.textContent=m;el.appendChild(d);
+  while(el.childElementCount>LOG_MAX_ENTRIES) el.removeChild(el.firstElementChild);
+  el.scrollTop=el.scrollHeight;
+}
 function clearLog(){$('progressLog').innerHTML=''}
 async function downloadLog(){
   // Server returns the file with Content-Disposition, so navigating to the
@@ -29,11 +39,31 @@ function toggleFeature(el){
   const ch=el.querySelector('.chevron');
   if(ch)ch.textContent=b.classList.contains('collapsed')?'\u25B6':'\u25BC';
 }
-function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+// The old implementation was `textContent -> innerHTML`, which escapes & < >
+// but NOT quotes. Every attribute-context use (title="...", value="...") was
+// therefore breakable with a single ' or ". Delegates to the shared quote-safe
+// escaper (static/js/common/esc.js); the inline fallback keeps main.js working
+// if that script fails to load.
+function escHtml(s){
+  if(window.TAGM&&window.TAGM.esc) return window.TAGM.esc(s);
+  if(s===null||s===undefined) return '';
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function fmtLN(v){if(v==null)return'';const s=v>0?'+':'',c=v>0.5?'positive':(v<-0.5?'negative':'neutral');return`<div class="metric-ln ${c}">${s}${v.toFixed(2)}sd</div>`}
 function mc(l,v,ln,fmt,cls){const fv=fmt?fmt(v):(typeof v==='number'?v.toFixed(4):v);const extra=cls?` ${cls}`:'';return`<div class="metric-cell${extra}"><div class="metric-label">${l}</div><div class="metric-value">${fv}</div>${fmtLN(ln)}</div>`}
 function switchMainTab(el,id){el.parentElement.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));$(id).classList.add('active')}
-function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;setTimeout(()=>el.innerHTML='',5000)}else el.innerHTML=''}
+// One timer handle per element. Previously every showError() call started an
+// anonymous 5s timeout with no handle, so a second error raised 4s after the
+// first was wiped 1s later by the first call's timer.
+const _errTimers={};
+function showError(elId,msg){
+  const el=$(elId);if(!el)return;
+  if(_errTimers[elId]){clearTimeout(_errTimers[elId]);delete _errTimers[elId]}
+  if(msg){
+    el.innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`;
+    _errTimers[elId]=setTimeout(()=>{delete _errTimers[elId];el.innerHTML=''},5000);
+  }else el.innerHTML='';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // SSE Event Stream — replaces all setInterval-based polling
@@ -41,6 +71,33 @@ function showError(elId,msg){const el=$(elId);if(msg){el.innerHTML=`<div class="
 
 let _eventSource = null;
 let _sseConnected = false;
+let _sseReconnectAttempts = 0;
+let _sseReconnectTimer = null;
+
+// ── Analyze run gating (stale-snapshot defence) ──────────────────
+// src/service/events.py keeps `analyze_done` in SNAPSHOT_TYPES, rewrites the
+// snapshot on every publish, never clears it, and replays the whole snapshot
+// to every (re)connecting client. So any EventSource reconnect mid-run — a
+// server restart, laptop sleep, a proxy blip — replays the PREVIOUS run's
+// analyze_done straight into the live waiter registered by _submitAnalysis:
+// the UI reports "Done" with a stale n_results while the job is still running,
+// and the genuine event later drains into an empty waiter array.
+//
+// The payload ({ok, n_results, n_prompts, n_errors, error} — see
+// src/engine/app_core.py _start_analysis_job) carries no job id, so there is
+// nothing to dedupe on. We gate on local state instead, and we cannot touch
+// events.py, so this is client-side only:
+//   * `_sseConnected` is false for the whole snapshot burst and only becomes
+//     true on the trailing `connected` frame (_handleProgressEvent already
+//     relies on exactly this) — so replayed terminal events are dropped.
+//   * `_analyzeAcked` is true only between "our POST returned {started:true}"
+//     and "we consumed a terminal event", so a terminal event belonging to
+//     nobody is dropped rather than resolving a future waiter.
+// The one legitimate ordering these two would break is a job finishing before
+// its own POST response is delivered; that event is parked in
+// `_pendingAnalyzeDone` and replayed the instant the POST is acknowledged.
+let _analyzeAcked = false;
+let _pendingAnalyzeDone = null;
 
 // One-shot waiter arrays: polling consumers register a callback here,
 // and the SSE handler resolves it when the corresponding event arrives.
@@ -55,7 +112,22 @@ const _sseWaiters = {
   module_status: {},  // keyed by module name
 };
 
+// Visible "connection lost" indicator in the header. Without it a dropped
+// stream is completely invisible: progress just stops.
+function setSseStatus(connected) {
+  var el = $('sseStatus');
+  if (!el) return;
+  if (connected) {
+    el.style.display = 'none';
+    el.textContent = '';
+  } else {
+    el.style.display = '';
+    el.textContent = '⚠ connection lost — reconnecting…';
+  }
+}
+
 function initEventSource() {
+  if (_sseReconnectTimer) { clearTimeout(_sseReconnectTimer); _sseReconnectTimer = null; }
   if (_eventSource) { try { _eventSource.close(); } catch(e) {} }
   _eventSource = new EventSource('/api/events');
   _eventSource.onmessage = function(e) {
@@ -63,15 +135,30 @@ function initEventSource() {
   };
   _eventSource.onerror = function() {
     _sseConnected = false;
-    // EventSource auto-reconnects with backoff.
-    // On reconnect, server replays snapshot.
+    setSseStatus(false);
+    // The browser only retries while readyState is CONNECTING. Once it goes
+    // CLOSED (server gone, TLS/proxy reset, some cross-origin failures) the
+    // browser gives up silently and the UI would wait forever with no signal.
+    // Reconnect ourselves with capped exponential backoff.
+    if (_eventSource && _eventSource.readyState === EventSource.CLOSED && !_sseReconnectTimer) {
+      var delay = Math.min(30000, 1000 * Math.pow(2, _sseReconnectAttempts));
+      _sseReconnectAttempts++;
+      _sseReconnectTimer = setTimeout(function() {
+        _sseReconnectTimer = null;
+        initEventSource();
+      }, delay);
+    }
   };
 }
 
 function _handleSSEEvent(evt) {
   switch (evt.type) {
     case 'connected':
+      // Sent by the server AFTER the snapshot replay, so everything before it
+      // on a reconnect is history, not news.
       _sseConnected = true;
+      _sseReconnectAttempts = 0;
+      setSseStatus(true);
       break;
     case 'progress':
       _handleProgressEvent(evt);
@@ -107,6 +194,8 @@ function _handleProgressEvent(evt) {
   // Only log progress events after the initial snapshot replay.
   // The 'connected' event signals the snapshot is done.
   if (!_sseConnected) return;
+  // Only 'error' is red. The 'cancelled' stage falls through to the neutral
+  // class on purpose — the user asked for the stop, so it is not a failure.
   var cls = evt.stage === 'error' ? 'error' : (evt.stage === 'ready' || evt.stage === 'done' ? 'done' : '');
   log('[' + evt.stage + '] ' + evt.message, cls);
 }
@@ -137,15 +226,29 @@ function _handleModuleStatusEvent(evt) {
     return;
   }
 
-  if (evt.status === 'completed') {
+  // 'partial' = the module produced usable results but an optional stage
+  // failed. It must render its results like a completed run while still
+  // surfacing the error, so it shares this branch rather than the error one.
+  if (evt.status === 'completed' || evt.status === 'partial') {
+    var isPartial = evt.status === 'partial';
     var prog2 = $('mod-progress-' + name);
     var btn = $('mod-run-' + name);
-    updateModuleStatus(name, 'completed');
+    setModuleCancelVisible(name, false);
+    updateModuleStatus(name, isPartial ? 'partial' : 'completed');
     playChime();
     if (btn) { btn.disabled = false; btn.textContent = 'Re-run'; }
     var elapsedStr = evt.elapsed ? evt.elapsed + 's' : '?';
-    if (prog2) prog2.textContent = 'Completed in ' + elapsedStr;
-    log('Module ' + name + ': completed in ' + elapsedStr, 'done');
+    if (prog2) {
+      prog2.textContent = isPartial
+        ? 'Completed with errors in ' + elapsedStr + ' — ' + (evt.error || 'unknown')
+        : 'Completed in ' + elapsedStr;
+    }
+    if (isPartial) {
+      log('Module ' + name + ': completed WITH ERRORS in ' + elapsedStr +
+          ' — ' + (evt.error || 'unknown'), 'error');
+    } else {
+      log('Module ' + name + ': completed in ' + elapsedStr, 'done');
+    }
     if (evt.has_log) {
       var existing = $('mod-log-' + name);
       if (!existing) {
@@ -168,8 +271,24 @@ function _handleModuleStatusEvent(evt) {
     var mw = (_sseWaiters.module_status[name] || []).splice(0);
     for (var j = 0; j < mw.length; j++) mw[j](evt);
 
+  } else if (evt.status === 'cancelled') {
+    // The user stopped the run. The runner DISCARDS results on cancel, so
+    // unlike completed/partial there is nothing to fetch or render, and this
+    // is logged as an ordinary event rather than an error.
+    updateModuleStatus(name, 'cancelled');
+    setModuleCancelVisible(name, false);
+    var btnC = $('mod-run-' + name);
+    if (btnC) { btnC.disabled = false; btnC.textContent = 'Run'; }
+    var elapsedC = evt.elapsed ? evt.elapsed + 's' : '?';
+    var progC = $('mod-progress-' + name);
+    if (progC) progC.textContent = 'Cancelled after ' + elapsedC;
+    log('Module ' + name + ': cancelled after ' + elapsedC);
+    var mwC = (_sseWaiters.module_status[name] || []).splice(0);
+    for (var c = 0; c < mwC.length; c++) mwC[c](evt);
+
   } else if (evt.status === 'error') {
     updateModuleStatus(name, 'error');
+    setModuleCancelVisible(name, false);
     var btn2 = $('mod-run-' + name);
     if (btn2) { btn2.disabled = false; btn2.textContent = 'Retry'; }
     var errMsg = evt.error || 'unknown';
@@ -182,16 +301,25 @@ function _handleModuleStatusEvent(evt) {
 }
 
 function _handleAnalyzeDone(evt) {
+  // Drop snapshot replays (see the _analyzeAcked comment block above).
+  if (!_sseConnected) return;
+  // A terminal event that beat its own POST response: park it, don't drop it.
+  if (!_analyzeAcked) { _pendingAnalyzeDone = evt; return; }
+  _analyzeAcked = false;
   var waiters = _sseWaiters.analyze_done.splice(0);
   for (var i = 0; i < waiters.length; i++) waiters[i](evt);
 }
 
+// export_ready/export_error are also SNAPSHOT_TYPES, so they are replayed on
+// every reconnect exactly like analyze_done. Drop the replay burst.
 function _handleExportReady(evt) {
+  if (!_sseConnected) return;
   var waiters = _sseWaiters.export_ready.splice(0);
   for (var i = 0; i < waiters.length; i++) waiters[i](evt);
 }
 
 function _handleExportError(evt) {
+  if (!_sseConnected) return;
   var waiters = _sseWaiters.export_error.splice(0);
   for (var i = 0; i < waiters.length; i++) waiters[i](evt);
 }
@@ -592,7 +720,7 @@ async function clearPlotCache(){
   if(!confirm('Delete all cached plot images? Data (CSV, JSON, metrics) will be kept.')) return;
   try{
     const r=await(await fetch('/api/session/clear_plots',{method:'POST'})).json();
-    if(r.ok){_cacheBytes=r.cache_size_bytes||0;updateSessionBadge();if($('cfgCacheSize'))$('cfgCacheSize').textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';log(`Plot cache cleared: ${r.freed_mb}MB freed`,'done')}
+    if(r.ok){_cacheBytes=r.cache_size_bytes||0;updateSessionBadge();if($('cfgCacheSize'))$('cfgCacheSize').textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';log(`Plot cache cleared: ${r.freed_mb||0}MB freed`,'done')}
     else{log('Clear failed: '+(r.error||''),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
@@ -601,7 +729,7 @@ async function clearAllSessionData(){
   if(!confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.')) return;
   try{
     const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
-    if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb}MB freed`,'done')}
+    if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb||0}MB freed`,'done')}
     else{log('Clear failed: '+(r.error||''),'error')}
   }catch(e){log('Clear error: '+e.message,'error')}
 }
@@ -696,7 +824,9 @@ async function setInferenceModel(cls){
   log('Switching inference model to '+cls+'…','');
   const fd=new FormData();fd.append('model_class',cls);
   try{const r=await(await fetch('/api/set_inference_model',{method:'POST',body:fd})).json();
-    if(!r.ok){showError('promptError',r.message||'Failed to switch inference model');sel.value=(cls==='base'?'instruct':'base')}
+    // Failure bodies are {ok:false, error}. r.message is kept as a fallback
+    // for any endpoint that still answers in the older shape.
+    if(!r.ok){showError('promptError',r.error||r.message||'Failed to switch inference model');sel.value=(cls==='base'?'instruct':'base')}
     else{log('Inference model: '+cls,'done')}
   }catch(e){log('Error switching model: '+e.message,'error');sel.value=(cls==='base'?'instruct':'base')}
   sel.disabled=false;
@@ -749,31 +879,128 @@ async function analyzeBatch(){
 // Both endpoints return {started:true} immediately and announce completion
 // via the single 'analyze_done' SSE event. The completion waiter is
 // registered BEFORE the POST so a fast job can't finish before we're
-// listening (which would hang us). If the start is rejected, the registered
-// resolver is simply drained by the next analyze_done — nothing awaits it.
+// listening (which would hang us).
+//
+// Every early-return path now removes that resolver. Previously it was left
+// in place: clicking Analyze while a job was running (the backend answers
+// {"ok":false,"error":"Analysis already running."}) left a stale resolver
+// behind, so the FIRST job's analyze_done drained two resolvers and ran
+// _onAnalyzeComplete twice — double chime, double dashboard reload, and the
+// second pass re-enabling a button the user had already re-used.
+//
+// A batch can legitimately run for hours, so there is no wall-clock timeout on
+// the wait. What we do guard is the case where no completion event can ever
+// arrive: the SSE stream being down continuously for _SSE_STALL_MS.
+const _SSE_STALL_MS = 60000;
+
+// Each submit button has its own Cancel sibling; only one job can run at a
+// time, so exactly one of these is ever visible.
+const _ANALYZE_CANCEL_FOR = {analyzeBtn:'analyzeCancelBtn', batchBtn:'batchCancelBtn'};
+
+// Single choke point for the cancel button's visible state. Hiding also
+// clears the disabled/"Cancelling…" state so the next run starts clean.
+function _setAnalyzeCancel(el, visible){
+  if(!el) return;
+  el.style.display = visible ? '' : 'none';
+  el.disabled = false;
+  el.textContent = 'Cancel';
+}
+
+// POST /api/analyze/cancel. Like module cancel, the response only says the
+// request was accepted: the job stops after the current prompt finishes and
+// announces itself with analyze_done{cancelled:true}. The button therefore
+// stays disabled here and is only reset when that event arrives.
+async function cancelAnalysis(el){
+  if(el){ el.disabled=true; el.textContent='Cancelling…'; }
+  try{
+    const d=await(await fetch('/api/analyze/cancel',{method:'POST'})).json();
+    if(!d.ok){
+      if(el){ el.disabled=false; el.textContent='Cancel'; }
+      log('Cancel refused: '+(d.error||'unknown'),'error');
+      return;
+    }
+    log('Cancellation requested — stopping after the current prompt finishes. Records already collected are kept.');
+  }catch(e){
+    if(el){ el.disabled=false; el.textContent='Cancel'; }
+    log('Cancel failed: '+e.message,'error');
+  }
+}
+
 async function _submitAnalysis(url, fd, btn, errorElId){
   setLoading(btn,true);
+  // Resolved up front so every early return below can hide it.
+  var cancelEl = $(_ANALYZE_CANCEL_FOR[btn && btn.id] || '');
+  _setAnalyzeCancel(cancelEl,false);
   if(errorElId) showError(errorElId,'');
-  var donePromise=new Promise(function(resolve){ _sseWaiters.analyze_done.push(resolve); });
+  var resolveDone;
+  var donePromise=new Promise(function(resolve){ resolveDone=resolve; _sseWaiters.analyze_done.push(resolve); });
+  function dropWaiter(){
+    var i=_sseWaiters.analyze_done.indexOf(resolveDone);
+    if(i>=0) _sseWaiters.analyze_done.splice(i,1);
+  }
+  _pendingAnalyzeDone=null;   // discard anything parked by an abandoned run
   var data;
   try{
     data=await(await fetch(url,{method:'POST',body:fd})).json();
   }catch(e){
+    dropWaiter();
     log('Error: '+e.message,'error');
     if(errorElId) showError(errorElId,'Failed to start analysis: '+e.message);
     setLoading(btn,false);
     return;
   }
   if(!data.ok||!data.started){
+    dropWaiter();
     var msg=data.error||'Failed to start analysis.';
     log('Error: '+msg,'error');
     if(errorElId) showError(errorElId,msg);
     setLoading(btn,false);
     return;
   }
+  // The POST is acknowledged: from here a terminal event is ours to consume.
+  _analyzeAcked=true;
+  // A job is genuinely in flight now, so Cancel becomes meaningful. Every
+  // exit below hides it again — there is no path out of this function that
+  // leaves it showing.
+  _setAnalyzeCancel(cancelEl,true);
+  if(_pendingAnalyzeDone){
+    var parked=_pendingAnalyzeDone; _pendingAnalyzeDone=null;
+    _handleAnalyzeDone(parked);
+  }
   log((data.n_prompts||1)>1?('Batch started: '+data.n_prompts+' prompts...'):'Analyzing...');
-  var evt=await donePromise;
-  await _onAnalyzeComplete(evt, btn, errorElId);
+
+  var stallResolve, downSince=null;
+  var stallPromise=new Promise(function(resolve){ stallResolve=resolve });
+  var stallTimer=setInterval(function(){
+    if(_sseConnected){ downSince=null; return }
+    if(downSince===null){ downSince=Date.now(); return }
+    if(Date.now()-downSince>=_SSE_STALL_MS) stallResolve(null);
+  },2000);
+
+  var evt=await Promise.race([donePromise, stallPromise]);
+  clearInterval(stallTimer);
+  // The job is over (or unreachable) either way: retire the button here,
+  // BEFORE _onAnalyzeComplete's several awaits, so it can't be clicked
+  // against a job that has already stopped.
+  _setAnalyzeCancel(cancelEl,false);
+
+  if(evt===null){
+    // Stream has been dead for a minute; the completion event can no longer
+    // reach us. Give the user back a usable UI instead of a wedged button.
+    dropWaiter();
+    _analyzeAcked=false;
+    log('Connection to the server has been down for '+(_SSE_STALL_MS/1000)+'s — cannot confirm completion. Use Refresh to check whether results landed.','error');
+    if(errorElId) showError(errorElId,'Connection lost — completion unknown. Refresh the session.');
+    setLoading(btn,false);
+    return;
+  }
+  try{
+    await _onAnalyzeComplete(evt, btn, errorElId);
+  }finally{
+    // Belt and braces: if a renderer inside _onAnalyzeComplete throws, the
+    // cancel button still must not survive the job it belonged to.
+    _setAnalyzeCancel(cancelEl,false);
+  }
 }
 
 // Completion handler for the unified analyze_done event. Errors are surfaced
@@ -803,6 +1030,21 @@ async function _onAnalyzeComplete(evt, btn, errorElId){
   // ...then the slim dashboard (the table's preferred source; also carries _index).
   try{await refreshSession()}catch(de){log('Session refresh: '+de.message,'error')}
   dtGoPage(Math.ceil((_promptTotal||1)/_dtPageSize)||1);
+
+  // Cancelled runs arrive with ok=true (a cancellation is not a failure) and
+  // KEEP every prompt that finished before the stop — unlike a cancelled
+  // module, whose partial results are discarded. Report the kept count and
+  // stop here: the branches below would otherwise call zero records an error
+  // and a short run a plain "Done". No chime — the user is at the keyboard,
+  // they just clicked Cancel.
+  if(evt.cancelled){
+    if((evt.n_errors||0)>0){
+      log(evt.n_errors+' prompt(s) failed'+(evt.error?': '+evt.error:''),'error');
+    }
+    log('Analysis cancelled — '+(evt.n_results||0)+' record(s) kept','done');
+    setLoading(btn,false);
+    return;
+  }
 
   // Content-level outcome — surfaced after the dashboard is current.
   if((evt.n_results||0)===0){
@@ -1166,8 +1408,10 @@ async function dtRemoveSelected(){
   try{
     const r=await(await fetch('/api/session/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})})).json();
     if(r.ok){
-      log(`Removed ${r.removed} results (${r.remaining} remaining)`,'done');
-      _promptTotal=r.remaining;
+      // Contract: POST /api/session/remove -> {ok, removed, n_results}.
+      // (Was reading r.remaining, which the server never sent -> "undefined".)
+      log(`Removed ${r.removed} results (${r.n_results} remaining)`,'done');
+      _promptTotal=r.n_results;
       dashResults=[];
       updateSessionBadge();renderDataTable();
     } else { log('Remove failed: '+(r.error||'unknown'),'error') }
@@ -1197,8 +1441,11 @@ async function dtRerunSelected(){
   try{
     const r=await(await fetch('/api/session/rerun',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices,options})})).json();
     if(r.ok){
-      log(`Reran ${r.rerun} prompts (${r.total} total in session)`,'done');
-      _promptTotal=r.total;
+      // Contract: POST /api/session/rerun -> {ok, n_rerun, n_errors, n_results}.
+      // (Was reading r.rerun / r.total, neither of which the server sent.)
+      log(`Reran ${r.n_rerun} prompts (${r.n_results} total in session)`
+          +((r.n_errors||0)>0?` — ${r.n_errors} failed`:''),(r.n_errors||0)>0?'error':'done');
+      _promptTotal=r.n_results;
       dashResults=[];
       updateSessionBadge();dashResults=[];renderDataTable();
     } else { log('Rerun failed: '+(r.error||'unknown'),'error') }
@@ -1253,12 +1500,16 @@ async function dtViewSelected(){
 }
 
 function _buildRecordCardHtml(r,plotKeys,idx){
-  // Build a self-contained record card for popout display
+  // Build a self-contained record card for popout display.
+  // NOTE: this HTML is handed to document.write() in a new window. r.category
+  // looks like a fixed dropdown value in the UI, but batch CSV rows carry an
+  // arbitrary category string (src/engine/app_core.py), so it is escaped both
+  // as text and as the class name pillClass() derives from it.
   let h=`<div class="card">
     <div class="card-header record-header">
       <h3>${escHtml(r.prompt)}</h3>
       <div class="record-meta">
-        ${r.category?`<span class="pill ${pillClass(r.category)}">${r.category}</span>`:''}
+        ${r.category?`<span class="pill ${escHtml(pillClass(r.category))}">${escHtml(r.category)}</span>`:''}
         <span style="font-family:var(--mono);font-size:12px;color:var(--text-1)">#${idx} · ${r.seq_len} tokens</span>
         ${r.ltp?'<span class="ltp-badge">LTP</span>':''}
       </div>
@@ -2145,7 +2396,8 @@ function _buildCandidateGraphAggregateFromGraphs(graphs){
     }
     promptH+='<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">';
     promptH+='<td style="padding:3px 8px;color:#b1bac4;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(g.prompt)+'">'+escHtml(g.prompt.substr(0,40))+'</td>';
-    promptH+='<td style="padding:3px 4px;color:'+cc+'">'+g.category.substr(0,4)+'</td>';
+    // Same batch-CSV-sourced category as the record card — escape it.
+    promptH+='<td style="padding:3px 4px;color:'+cc+'">'+escHtml(String(g.category||'').substr(0,4))+'</td>';
     promptH+='<td style="text-align:right;padding:3px 4px;color:'+cfCol+';font-weight:600">'+(g.contestedFrac*100).toFixed(0)+'%</td>';
     promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.nDualRole+'</td>';
     promptH+='<td style="text-align:right;padding:3px 4px;color:#b1bac4">'+g.switchRate.toFixed(2)+'</td>';
@@ -2199,7 +2451,14 @@ function renderModules(modules) {
 
   // Resume polling for any running modules
   modules.forEach(function(m) {
-    if (m.status === 'running') startModulePoll(m.name);
+    if (m.status === 'running') {
+      // /api/modules carries the live progress line; restore it so a card
+      // re-rendered mid-run (page reload, or Refresh with SSE down) does not
+      // show a blank status next to an enabled-looking Cancel button.
+      var p = $('mod-progress-' + m.name);
+      if (p && m.progress) p.textContent = m.progress;
+      startModulePoll(m.name);
+    }
     if (m.has_results) fetchModuleResults(m.name);
   });
 }
@@ -2257,7 +2516,21 @@ function renderModuleCard(m) {
 
   // Actions
   h += '<div class="mod-actions">';
-  h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '" onclick="event.stopPropagation();runModule(\'' + m.name + '\')">Run</button>';
+  // A module can already be running when this card is (re-)rendered — on
+  // first load, or after a manual Refresh while SSE was down. Render the
+  // running state honestly instead of an inviting, enabled "Run".
+  var isRunning = m.status === 'running';
+  h += '<button class="btn btn-primary btn-sm" id="mod-run-' + m.name + '"' +
+       (isRunning ? ' disabled' : '') +
+       ' onclick="event.stopPropagation();runModule(\'' + m.name + '\')">' +
+       (isRunning ? 'Running...' : 'Run') + '</button>';
+  // Cancel is only meaningful while the module is running; POST is
+  // /api/modules/{name}/cancel and merely REQUESTS a stop.
+  h += '<button class="btn btn-sm" id="mod-cancel-' + m.name + '"' +
+       ' style="' + (isRunning ? '' : 'display:none;') +
+       'border:1px solid var(--red);color:var(--red);background:transparent"' +
+       ' title="Stop this module at its next checkpoint. Partial results are discarded."' +
+       ' onclick="event.stopPropagation();cancelModule(\'' + m.name + '\')">Cancel</button>';
   h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" title="Clear results and restore all parameters to defaults" onclick="event.stopPropagation();resetModule(\'' + m.name + '\')">Reset Defaults</button>';
   // Probe Generator: diagnostic popout, available without requiring a fresh run.
   // Operates on whatever probe set is on disk (active set by default).
@@ -2339,7 +2612,9 @@ function renderParamControl(modName, p) {
     var s = '<select id="' + id + '">';
     p.options.forEach(function(o) {
       var sel = o === p.default ? ' selected' : '';
-      s += '<option value="' + o + '"' + sel + '>' + o + '</option>';
+      // Module metadata is developer-authored, but it reaches here as JSON
+      // over HTTP; escape it like any other untrusted value.
+      s += '<option value="' + escHtml(o) + '"' + sel + '>' + escHtml(o) + '</option>';
     });
     s += '</select>';
     return s;
@@ -2364,10 +2639,11 @@ function renderParamControl(modName, p) {
     return h;
   }
   if (p.type === 'textarea') {
-    var val = (p.default || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    return '<textarea id="' + id + '" rows="4" style="width:100%;resize:vertical;font-size:11px;line-height:1.5">' + val + '</textarea>';
+    return '<textarea id="' + id + '" rows="4" style="width:100%;resize:vertical;font-size:11px;line-height:1.5">' + escHtml(p.default || '') + '</textarea>';
   }
-  return '<input type="text" id="' + id + '" value="' + (p.default || '') + '">';
+  // Attribute context: an unescaped quote in p.default closed the value="" and
+  // let the rest of the string become markup.
+  return '<input type="text" id="' + id + '" value="' + escHtml(p.default || '') + '">';
 }
 
 var _templateList = [];
@@ -2435,7 +2711,8 @@ async function resetModule(name) {
       var res = $('mod-results-' + name);
       if (res) res.innerHTML = '';
       var btn = $('mod-run-' + name);
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Run'; }
+      setModuleCancelVisible(name, false);
       // Remove download log button
       var logBtn = $('mod-log-' + name);
       if (logBtn) logBtn.remove();
@@ -2454,6 +2731,42 @@ async function resetModule(name) {
     }
   } catch(e) {
     console.error('Reset failed:', e);
+  }
+}
+
+// Show/hide a module's Cancel button. Hiding also resets its label and
+// enabled state, so the next run never inherits a stuck "Cancelling…".
+function setModuleCancelVisible(name, visible) {
+  var c = $('mod-cancel-' + name);
+  if (!c) return;
+  c.style.display = visible ? '' : 'none';
+  c.disabled = false;
+  c.textContent = 'Cancel';
+}
+
+async function cancelModule(name) {
+  var btn = $('mod-cancel-' + name);
+  var prog = $('mod-progress-' + name);
+  if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+  if (prog) prog.textContent = 'Cancelling…';
+  try {
+    const r = await fetch('/api/modules/' + name + '/cancel', {method: 'POST'});
+    const d = await r.json();
+    if (!d.ok) {
+      // Request refused (usually: the module already finished). Hand the
+      // button back rather than leaving a dead "Cancelling…".
+      if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+      log('Module ' + name + ': cancel refused — ' + (d.error || 'unknown'), 'error');
+      return;
+    }
+    // IMPORTANT: this response only confirms the REQUEST was accepted.
+    // Cancellation is cooperative, so the module keeps running until its next
+    // checkpoint; the module_status SSE event with status 'cancelled' is the
+    // only thing that actually ends the run and restores the buttons.
+    log('Module ' + name + ': cancellation requested — stopping at the next checkpoint');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+    log('Module ' + name + ': cancel failed — ' + e.message, 'error');
   }
 }
 
@@ -2511,6 +2824,9 @@ async function runModule(name) {
       return;
     }
     updateModuleStatus(name, 'running');
+    // Only offer Cancel once the backend confirms the run actually started;
+    // module_status ('completed' | 'partial' | 'cancelled' | 'error') hides it.
+    setModuleCancelVisible(name, true);
     // Stash start time on poller dict for elapsed-time computation on completion.
     // (The backend also reports elapsed; this is a fallback for when
     // started_at/completed_at are missing.)
@@ -2541,12 +2857,17 @@ function updateModuleStatus(name, status) {
 }
 
 async function fetchModuleResults(name) {
-  try {
-    const r = await fetch('/api/modules/' + name + '/results');
-    const d = await r.json();
-    if (!d.ok) return;
-    renderModuleResults(name, d.results);
-  } catch(e) { /* silent */ }
+  // This endpoint raises HTTPException(404) with a FastAPI {"detail": ...}
+  // body (src/app.py), which has no `ok` field at all — the old code read
+  // d.ok === undefined, returned, and swallowed the reason entirely.
+  // TAGM.getJSON normalizes {detail} and {ok:false,error} to one shape.
+  const d = await TAGM.getJSON('/api/modules/' + name + '/results');
+  if (!d.ok) {
+    if (d.status !== 404) log('Module ' + name + ' results: ' + d.error, 'error');
+    return;
+  }
+  try { renderModuleResults(name, d.results); }
+  catch(e) { log('Module ' + name + ' render failed: ' + e.message, 'error'); }
 }
 
 function renderModuleResults(name, results) {

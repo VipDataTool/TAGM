@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import queue
 import threading
 
 import torch
@@ -29,6 +31,14 @@ from src.core.locks import MODEL_LOCK
 from src.engine import config as engine_config
 
 logger = logging.getLogger("src")
+
+# Wall-clock budget for a single streamed token, and for the generation
+# thread to finish after the stream ends.  TextIteratorStreamer defaults
+# to timeout=None, i.e. an unbounded blocking get() on its queue: if the
+# generation thread dies without putting the sentinel (OOM killer, a C-level
+# abort inside model.generate), the reader blocks forever and — before this
+# generator was moved off the event loop — took the whole server with it.
+_STREAM_TIMEOUT = float(os.environ.get("TAGM_CHAT_STREAM_TIMEOUT", "300"))
 
 
 def generate_chat_response_streaming(
@@ -89,7 +99,8 @@ def generate_chat_response_streaming(
 
         # Streamer: yields decoded text chunks as tokens are generated
         streamer = TextIteratorStreamer(
-            tokenizer, skip_prompt=True, skip_special_tokens=True)
+            tokenizer, skip_prompt=True, skip_special_tokens=True,
+            timeout=_STREAM_TIMEOUT)
 
         generate_kwargs = dict(
             **inputs,
@@ -170,21 +181,40 @@ def generate_chat_response_streaming(
         return
 
     # ── Stream tokens ──────────────────────────────────────────
-    # TextIteratorStreamer blocks on __next__ until a token is ready
-    # or generation completes. We yield SSE events as they arrive.
+    # TextIteratorStreamer blocks on __next__ until a token is ready,
+    # generation completes, or _STREAM_TIMEOUT elapses (queue.Empty).
+    # This whole generator is driven from a worker thread by the caller
+    # (starlette.concurrency.iterate_in_threadpool), never the event loop.
     full_response = []
     try:
         for chunk in streamer:
             if chunk:
                 full_response.append(chunk)
                 yield _sse({"type": "token", "text": chunk})
+    except queue.Empty:
+        # Wedged generation thread: report it instead of hanging. The
+        # thread is a daemon and its finally-block still closes any ECM
+        # hooks, so abandoning it here is safe.
+        logger.error(
+            f"[chat] generation stalled: no token in {_STREAM_TIMEOUT:.0f}s")
+        yield _sse({"type": "error",
+                    "error": f"Generation stalled (no token in "
+                             f"{_STREAM_TIMEOUT:.0f}s)"})
+        return
     except Exception as e:
         logger.exception("[chat] streaming error")
         yield _sse({"type": "error", "error": str(e)})
         return
 
-    # Wait for the generation thread to finish
-    thread.join()
+    # Wait for the generation thread to finish. Bounded for the same
+    # reason as the streamer timeout — an unbounded join() on a wedged
+    # thread never returns.
+    thread.join(timeout=_STREAM_TIMEOUT)
+    if thread.is_alive():
+        logger.error("[chat] generation thread did not exit after streaming")
+        yield _sse({"type": "error",
+                    "error": "Generation thread did not exit."})
+        return
 
     if gen_error[0]:
         yield _sse({"type": "error", "error": str(gen_error[0])})

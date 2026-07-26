@@ -56,14 +56,31 @@ def compute_spectral_profile(
         log("spectral", "No deltas in store; skipping spectral profile")
         return
 
-    # Deterministic low-rank SVD
-    torch.manual_seed(42)
+    # Deterministic low-rank SVD.
+    #
+    # fork_rng, not a bare torch.manual_seed(42): the latter reseeds the
+    # PROCESS-wide generator at model-load time, so every later sampling
+    # operation (chat generation, module random baselines) silently inherited
+    # a fixed seed as a side effect of profiling the deltas.
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        _profile_all(store, svd_k, keep_singular_values, log, n)
 
+
+def _profile_all(store, svd_k, keep_singular_values, log, n):
+    """Body of compute_spectral_profile; split out only so the caller can
+    wrap it in fork_rng."""
     for i, ((layer_idx, role), delta) in enumerate(store.items()):
         try:
             d = delta.float().cpu()
             k = min(svd_k, min(d.shape))
-            U, S, Vh = torch.svd_lowrank(d, q=k)
+            # Oversample by 8 and slice back to k.  With q == k and the
+            # default niter=2, randomized SVD systematically underestimates
+            # the leading singular values for slowly-decaying spectra, which
+            # biases eff_rank and both energy shares.
+            q_over = min(k + 8, min(d.shape))
+            U, S, Vh = torch.svd_lowrank(d, q=q_over, niter=2)
+            S = S[:k]
             s = S.float().numpy().astype(np.float64)
 
             # Effective rank: exp(Shannon entropy of normalized s-distribution).

@@ -129,6 +129,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); col
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/static/js/common/esc.js?v=1"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
 // Correction Field Topology Viewer — Standalone
@@ -1045,8 +1046,11 @@ function initChannelSelects() {
   var scalars = ['none'].concat(am.scalar || []);
   function fill(id, opts, cur) {
     var sel = document.getElementById(id);
+    // Measure names come straight from the module payload. This page had no
+    // escaper at all and interpolated them raw into both the value attribute
+    // and the option text.
     sel.innerHTML = opts.map(function(o){
-      return '<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>';
+      return '<option value="'+TAGM.esc(o)+'"'+(o===cur?' selected':'')+'>'+TAGM.esc(o)+'</option>';
     }).join('');
     sel.addEventListener('change', rebindChannels);
   }

@@ -34,17 +34,25 @@ import logging
 import numpy as np
 from collections import defaultdict
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, classify_category
+from src.engine.metrics import (
+    HARM_CATEGORIES,
+    SAFE_CATEGORIES as BENIGN_CATEGORIES,
+    permutation_auroc_p,
+    auroc as _metric_auroc,
+)
 
 logger = logging.getLogger("tasm")
 
 
 # ── Category sets ───────────────────────────────────────────────
-# Lowercase category labels used to partition session results
-# into harm and benign groups for fingerprinting.
-
-HARM_CATEGORIES = {"harmful", "jailbreak", "adversarial", "risk", "dangerous"}
-BENIGN_CATEGORIES = {"benign", "safe", "neutral"}
+# WAS WRONG: this module's private vocabulary silently DROPPED "mild" (and
+# "baseline"/"user_baseline") from both classes, so those prompts contributed
+# to neither the fingerprint nor the separability statistics while the module
+# reported no exclusion. The canonical taxonomy in src.engine.metrics treats
+# "mild" as SAFE. NUMBERS CHANGE: n_benign, the benign fingerprint means/stds,
+# and therefore every trajectory value (which is z-scored against the benign
+# baseline) will differ for any session containing mild prompts.
 
 
 class HarmTrajectoryModule(TASMModule):
@@ -126,8 +134,9 @@ class HarmTrajectoryModule(TASMModule):
 
         # Check that we have at least two categories
         cats = {r.get("category", "unknown").lower() for r in session_results}
-        has_harm = bool(cats & HARM_CATEGORIES)
-        has_benign = bool(cats & BENIGN_CATEGORIES)
+        classes = {classify_category(c) for c in cats}
+        has_harm = "harm" in classes
+        has_benign = "safe" in classes
         if not has_harm or not has_benign:
             available = ", ".join(sorted(cats))
             return False, (
@@ -202,13 +211,16 @@ class HarmTrajectoryModule(TASMModule):
         benign_densities = []
         benign_tensions = []
 
+        n_excluded_prompts = 0
         for pf in prompt_features:
-            cat = pf["category"].lower()
-            is_harm = cat in HARM_CATEGORIES
-            is_benign = cat in BENIGN_CATEGORIES
+            cls = classify_category(pf["category"])
+            is_harm = cls == "harm"
+            is_benign = cls == "safe"
 
             if fp_mode == "mild_as_benign" and not is_harm:
                 is_benign = True
+            if not is_harm and not is_benign:
+                n_excluded_prompts += 1
 
             for feat in pf["features"]:
                 d = feat["sfd_density"]
@@ -226,7 +238,9 @@ class HarmTrajectoryModule(TASMModule):
         )
 
         prog(f"Fingerprint: {fingerprint['n_harm_tokens']} harm, "
-             f"{fingerprint['n_benign_tokens']} benign tokens")
+             f"{fingerprint['n_benign_tokens']} benign tokens "
+             f"({n_excluded_prompts} prompts excluded — category is neither "
+             f"harm nor safe under the canonical taxonomy)")
 
         # ── Phase 3: Run accumulator ────────────────────────────
 
@@ -312,13 +326,19 @@ class HarmTrajectoryModule(TASMModule):
 
         harm_peaks = []
         benign_peaks = []
-        for cat, peaks in category_peaks.items():
-            if cat.lower() in HARM_CATEGORIES:
-                harm_peaks.extend(peaks)
-            elif cat.lower() in BENIGN_CATEGORIES:
-                benign_peaks.extend(peaks)
+        harm_lens = []
+        benign_lens = []
+        for pt in trajectories:
+            cls = classify_category(pt["category"])
+            if cls == "harm":
+                harm_peaks.append(pt["peak_signal"])
+                harm_lens.append(pt["seq_len"])
+            elif cls == "safe":
+                benign_peaks.append(pt["peak_signal"])
+                benign_lens.append(pt["seq_len"])
 
-        separability = _compute_separability(harm_peaks, benign_peaks)
+        separability = _compute_separability(
+            harm_peaks, benign_peaks, harm_lens, benign_lens)
 
         # Per-category summary
         category_summary = {}
@@ -366,9 +386,13 @@ class HarmTrajectoryModule(TASMModule):
         )[:50]
 
         d_str = separability.get("cohens_d", "N/A")
-        prog(f"Complete. {n} prompts, Cohen's d = {d_str}")
+        prog(f"Complete. {n} prompts, Cohen's d = {d_str}, "
+             f"peak AUROC = {separability.get('peak_auroc', 'N/A')} "
+             f"(permutation p = {separability.get('permutation_p', 'N/A')}), "
+             f"{n_excluded_prompts} prompts excluded (unclassified category)")
 
         return {
+            "n_excluded_prompts": n_excluded_prompts,
             "fingerprint": fingerprint,
             "trajectories": trajectories,
             "separability": separability,
@@ -402,8 +426,27 @@ def _build_fingerprint(harm_d, harm_t, benign_d, benign_t):
     }
 
 
-def _compute_separability(harm_peaks, benign_peaks):
-    """Cohen's d and basic separation statistics."""
+def _compute_separability(harm_peaks, benign_peaks,
+                          harm_lens=None, benign_lens=None):
+    """Cohen's d, separation statistics, a permutation null, and a length control.
+
+    CIRCULARITY (was wrong): the trajectory signal is z-scored against the
+    benign fingerprint means (Phase 2 -> Phase 3), and `threshold` below is
+    then set to the midpoint of the harm/benign peak means computed from the
+    SAME prompts. `midpoint_accuracy` is therefore accuracy at a threshold
+    chosen on the test data — it can only be optimistic, and it is not a
+    held-out number under any reading. It is retained (renamed
+    `midpoint_accuracy_in_sample`) but `permutation_p` is the number to read:
+    it shuffles the harm/benign labels and recomputes the AUROC, absorbing
+    the selection the fingerprint performed.
+
+    LENGTH CONFOUND (was wrong): `peak_signal = max(curve)` where `curve` is a
+    decayed CUMULATIVE sum, so it grows with seq_len with no length control at
+    all — a class that simply has longer prompts separates for free. When
+    sequence lengths are supplied we additionally report the AUROC after
+    removing the linear dependence on seq_len, using the existing
+    `mechanistic_interpretability._residualize_length`.
+    """
     if not harm_peaks or not benign_peaks:
         return {"error": "insufficient data for separability"}
 
@@ -414,10 +457,10 @@ def _compute_separability(harm_peaks, benign_peaks):
     pooled = np.sqrt((h_std ** 2 + b_std ** 2) / 2)
     d = (h_mean - b_mean) / pooled if pooled > 0 else 0
 
-    # Simple threshold: midpoint between means
+    # Simple threshold: midpoint between means (chosen ON these same data)
     threshold = (h_mean + b_mean) / 2
 
-    # Classification accuracy at midpoint threshold
+    # Classification accuracy at midpoint threshold — IN-SAMPLE.
     correct = (
         sum(1 for p in harm_peaks if p >= threshold) +
         sum(1 for p in benign_peaks if p < threshold)
@@ -425,14 +468,59 @@ def _compute_separability(harm_peaks, benign_peaks):
     total = len(harm_peaks) + len(benign_peaks)
     accuracy = correct / total if total > 0 else 0
 
-    return {
+    scores = np.array(list(harm_peaks) + list(benign_peaks), dtype=np.float64)
+    labels = np.array([1] * len(harm_peaks) + [0] * len(benign_peaks))
+    peak_auroc = _metric_auroc(scores, labels)
+    perm_p = permutation_auroc_p(scores, labels)
+
+    out = {
         "harm_peak_mean": round(h_mean, 6),
         "harm_peak_std": round(h_std, 6),
         "benign_peak_mean": round(b_mean, 6),
         "benign_peak_std": round(b_std, 6),
         "cohens_d": round(float(d), 4),
         "midpoint_threshold": round(float(threshold), 6),
-        "midpoint_accuracy": round(float(accuracy), 4),
+        # RENAMED from "midpoint_accuracy": the threshold is fitted on these
+        # very data, so this is not an out-of-sample accuracy.
+        "midpoint_accuracy_in_sample": round(float(accuracy), 4),
+        "peak_auroc": round(float(peak_auroc), 4),
+        "permutation_p": (round(float(perm_p), 4)
+                          if perm_p is not None else None),
         "n_harm": len(harm_peaks),
         "n_benign": len(benign_peaks),
     }
+
+    # ── Length control ──────────────────────────────────────────
+    if harm_lens and benign_lens and len(harm_lens) == len(harm_peaks) \
+            and len(benign_lens) == len(benign_peaks):
+        try:
+            from .mechanistic_interpretability import _residualize_length
+            seq_lens = np.array(list(harm_lens) + list(benign_lens),
+                                dtype=np.float64)
+            X = scores.reshape(-1, 1)
+            X_res = _residualize_length(X, seq_lens)
+            res_auroc = _metric_auroc(X_res[:, 0], labels)
+            res_p = permutation_auroc_p(X_res[:, 0], labels)
+            r = np.corrcoef(scores, seq_lens)[0, 1]
+            out["length_control"] = {
+                "peak_vs_seq_len_r": (round(float(r), 4)
+                                      if np.isfinite(r) else None),
+                "length_residualized_auroc": round(float(res_auroc), 4),
+                "length_residualized_permutation_p": (
+                    round(float(res_p), 4) if res_p is not None else None),
+                "mean_seq_len_harm": round(float(np.mean(harm_lens)), 1),
+                "mean_seq_len_benign": round(float(np.mean(benign_lens)), 1),
+                "note": ("peak_signal is the max of a decayed cumulative sum "
+                         "and grows with sequence length; compare "
+                         "length_residualized_auroc against peak_auroc."),
+            }
+        except Exception as e:   # pragma: no cover - defensive only
+            logger.warning(f"[HARM_TRAJ] Length control failed: {e}")
+            out["length_control"] = {"error": str(e)}
+    else:
+        out["length_control"] = {
+            "error": "sequence lengths unavailable; peak_signal is NOT "
+                     "length-controlled and grows with seq_len."
+        }
+
+    return out

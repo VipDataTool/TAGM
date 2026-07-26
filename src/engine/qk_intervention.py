@@ -17,17 +17,21 @@ Design constraints (from literature):
     cast back to model dtype before returning.
 
 Integration:
-  - Hooks attach to `model.model.layers[i].self_attn` via register_forward_pre_hook
-    to intercept the hidden states before Q/K/V projection, OR via a custom
-    post-projection hook if the attention module exposes Q/K tensors.
-  - For HuggingFace models with `attn_implementation="eager"`, we can hook
-    after the Q projection and before the attention score computation.
+  - Hooks attach to `model.model.layers[i].self_attn.q_proj` with a forward
+    post-hook, so they see the raw Q tensor before reshape/RoPE and can
+    modify it per head before attention scores are computed.
+  - Hooking `self_attn` itself does NOT work: its forward returns a tuple,
+    not a tensor, so a hook written against a q_proj output silently
+    no-ops.  That was the bug in the old `install()`.
 
 Usage:
     qk_intv = QKRoutingIntervention()
-    qk_intv.install(model, adapter, per_head_directions, risk_head_mask)
-    out = model.generate(**inputs)  # Q vectors modified at risk heads
-    qk_intv.remove()
+    try:
+        qk_intv.install_on_q_proj(model, adapter, per_head_directions,
+                                  risk_head_mask)
+        out = model.generate(**inputs)  # Q vectors modified at risk heads
+    finally:
+        qk_intv.remove()
 """
 from __future__ import annotations
 
@@ -67,109 +71,25 @@ class QKRoutingIntervention:
         per_head_directions: dict[tuple[int, int], np.ndarray],
         risk_head_mask: Optional[dict[int, list[int]]] = None,
     ) -> None:
-        """Install Q-projection hooks on the model.
+        """Deprecated alias for install_on_q_proj().
 
-        Args:
-            model: The loaded HuggingFace model.
-            adapter: TAGM model adapter for structure introspection.
-            per_head_directions: Mapping (layer_idx, head_idx) -> direction
-                vector of shape [d_head], unit-normalized. Only heads with
-                entries here are intervened on.
-            risk_head_mask: Optional mapping layer_idx -> list of head indices
-                to intervene on. If None, all heads with directions are used.
+        This method used to register its hook on `self_attn` while the hook
+        body was written for a `q_proj` output.  `self_attn.forward` returns a
+        tuple, so the hook's `isinstance(output, torch.Tensor)` guard was
+        always False and the hook returned the output unmodified — while
+        logging "Installed Q-projection hooks" and setting `_installed = True`.
+        Any experiment routed through it silently measured NO intervention and
+        would have been read as a genuine null result.
+
+        It now delegates to the correct implementation.  Call
+        install_on_q_proj() directly in new code.
         """
-        self.remove()
-
-        n_layers = adapter.n_layers(model)
-        n_heads, _ = adapter.attention_heads(model)
-        d_head = adapter.head_dim(model)
-        first_param = next(model.parameters())
-        device, dtype = first_param.device, first_param.dtype
-
-        # Group directions by layer
-        layer_dirs: dict[int, dict[int, np.ndarray]] = {}
-        for (li, hi), direction in per_head_directions.items():
-            if risk_head_mask is not None and hi not in risk_head_mask.get(li, []):
-                continue
-            if li not in layer_dirs:
-                layer_dirs[li] = {}
-            layer_dirs[li][hi] = direction
-
-        if not layer_dirs:
-            logger.warning("[QK-ROUTING] No risk heads selected; no hooks installed.")
-            return
-
-        # Build per-layer projector tensors
-        for li, head_dirs in layer_dirs.items():
-            # Start with identity (no intervention) for all heads
-            projector = torch.eye(d_head, dtype=torch.float32).unsqueeze(0).expand(
-                n_heads, -1, -1).clone()
-
-            for hi, direction in head_dirs.items():
-                v = torch.tensor(direction, dtype=torch.float32)
-                v = v / (v.norm() + 1e-12)
-                # P = I - v v^T  (project out v)
-                projector[hi] = torch.eye(d_head, dtype=torch.float32) - torch.outer(v, v)
-
-            self._projectors[li] = projector.to(device=device)
-
-            # Hook into the self_attn module at this layer
-            attn_module = model.model.layers[li].self_attn
-            hook = attn_module.register_forward_hook(
-                self._make_q_projection_hook(li, n_heads, d_head, dtype)
-            )
-            self._hooks.append(hook)
-
-        n_risk = sum(len(hd) for hd in layer_dirs.values())
-        logger.info(
-            f"[QK-ROUTING] Installed Q-projection hooks: "
-            f"{len(layer_dirs)} layers, {n_risk} risk heads"
+        logger.warning(
+            "[QK-ROUTING] install() is deprecated and previously applied NO "
+            "intervention; delegating to install_on_q_proj()."
         )
-        self._installed = True
-
-    def _make_q_projection_hook(self, layer_idx: int, n_heads: int,
-                                 d_head: int, model_dtype: torch.dtype):
-        """Create a forward hook that modifies the attention output.
-
-        For eager attention, the self_attn module receives hidden_states
-        and produces (attn_output, attn_weights, past_key_value). We
-        intercept the query computation by hooking into the module's
-        internals.
-
-        Implementation note: HuggingFace's eager attention computes
-        Q = self.q_proj(hidden_states) inside forward(). We cannot
-        intercept Q mid-computation with a module-level hook. Instead,
-        we hook the q_proj Linear directly with a post-hook that
-        modifies Q after projection but before it enters the attention
-        score computation.
-        """
-        projector = self._projectors[layer_idx]
-
-        def hook(module, input, output):
-            """Hook on q_proj: output is the raw Q tensor [batch, seq, n_heads*d_head].
-
-            We reshape to [batch, seq, n_heads, d_head], apply per-head
-            projection, and reshape back.
-            """
-            if not isinstance(output, torch.Tensor):
-                return output
-
-            orig_shape = output.shape
-            batch, seq_len = orig_shape[0], orig_shape[1]
-
-            # Reshape: [batch, seq, n_heads * d_head] -> [batch, seq, n_heads, d_head]
-            q = output.view(batch, seq_len, n_heads, d_head)
-
-            # Project in fp32 for numerical stability
-            q_f32 = q.float()
-            # Einsum: for each head, apply its projector matrix
-            # q_projected[b, s, h, :] = projector[h, :, :] @ q[b, s, h, :]
-            q_projected = torch.einsum('hij,bshj->bshi', projector.float(), q_f32)
-
-            # Cast back and reshape
-            return q_projected.to(dtype=output.dtype).view(orig_shape)
-
-        return hook
+        return self.install_on_q_proj(
+            model, adapter, per_head_directions, risk_head_mask)
 
     def install_on_q_proj(
         self,

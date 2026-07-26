@@ -167,6 +167,29 @@ async function send(){
       })
     });
 
+    // /api/chat only streams SSE on the happy path. With no model loaded it
+    // answers HTTP 200 with a plain {"ok":false,"error":"No model loaded."}
+    // JSON body (src/app.py). The reader loop below skips every line that
+    // isn't "data: ", so that body produced an empty assistant bubble and no
+    // error at all. Detect both the HTTP failure and the non-SSE body.
+    const ctype=(resp.headers.get('content-type')||'').toLowerCase();
+    if(!resp.ok||ctype.indexOf('text/event-stream')===-1){
+      let detail='';
+      try{
+        const body=await resp.json();
+        detail=body.error||body.detail||'';
+      }catch(pe){
+        detail=resp.ok?'unreadable response':('HTTP '+resp.status+' '+resp.statusText);
+      }
+      msgEl.remove();
+      addMsg('error',detail||('HTTP '+resp.status));
+      setStatus('Error: '+(detail||resp.status));
+      busy=false;
+      $('sendBtn').disabled=false;
+      input.focus();
+      return;
+    }
+
     const reader=resp.body.getReader();
     const decoder=new TextDecoder();
     let buffer='';

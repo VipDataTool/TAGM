@@ -8,14 +8,48 @@ import numpy as np
 from typing import List, Dict
 from scipy import stats as sp_stats
 import math
+import zlib
 from src.engine import config as engine_config
+
+# Base seed for every resampling procedure here.  Each call derives its actual
+# seed from this plus a hash of its own input, so results stay reproducible
+# while different metrics no longer share an identical resample sequence.
+_BASE_SEED = 42
+
+
+def _seeded_rng(*arrays) -> np.random.Generator:
+    """Deterministic RNG whose stream depends on the data it will resample.
+
+    Previously every call did `default_rng(42)`, so two metrics with the same
+    n were resampled with the *identical* index sequence and their CI widths
+    were deterministically coupled rather than independent.
+    """
+    h = _BASE_SEED
+    for arr in arrays:
+        a = np.ascontiguousarray(np.asarray(arr, dtype=np.float64))
+        h = zlib.crc32(a.tobytes(), h & 0xFFFFFFFF)
+    return np.random.default_rng(h & 0xFFFFFFFF)
 
 
 def _safe_float(v):
-    """Convert to float, replacing NaN/Inf with 0."""
+    """Convert to float, replacing NaN/Inf with 0.
+
+    Prefer `_opt_float` for reported statistics: collapsing a NaN statistic to
+    an exact 0.0 makes "undefined" indistinguishable from "no effect".
+    """
     v = float(v)
     if math.isnan(v) or math.isinf(v):
         return 0.0
+    return v
+
+
+def _opt_float(v):
+    """Convert to float, returning None (not 0.0) for NaN/Inf."""
+    if v is None:
+        return None
+    v = float(v)
+    if math.isnan(v) or math.isinf(v):
+        return None
     return v
 
 
@@ -24,15 +58,35 @@ def _clean_values(vals):
     return [v for v in vals if not (math.isnan(v) or math.isinf(v))]
 
 
+def _pooled_sd(a: np.ndarray, b: np.ndarray) -> float:
+    """Degrees-of-freedom weighted pooled SD.
+
+    The previous form, sqrt((s_a^2 + s_b^2)/2), is the equal-n special case.
+    Callers here routinely pool four benign categories against a single target
+    category, so n is unequal and the two forms differ materially.
+    """
+    na, nb = len(a), len(b)
+    if na < 2 or nb < 2:
+        return 0.0
+    num = (na - 1) * a.var(ddof=1) + (nb - 1) * b.var(ddof=1)
+    return float(np.sqrt(num / (na + nb - 2)))
+
+
 def cohens_d(group_a: list, group_b: list) -> float:
-    """Cohen's d effect size with pooled standard deviation."""
+    """Signed Cohen's d (group_b - group_a) with df-weighted pooled SD.
+
+    Signed, not absolute.  Taking abs() here discarded the direction of every
+    effect ("benign > harmful" and "harmful > benign" became identical) and,
+    when bootstrapped, produced a folded distribution whose lower CI bound was
+    almost always > 0 even for two samples from the same distribution.
+    """
     a, b = np.array(_clean_values(group_a)), np.array(_clean_values(group_b))
     if len(a) < engine_config.get("min_samples_d") or len(b) < engine_config.get("min_samples_d"):
         return 0.0
-    pooled_std = np.sqrt((a.std(ddof=1)**2 + b.std(ddof=1)**2) / 2)
+    pooled_std = _pooled_sd(a, b)
     if pooled_std == 0:
         return 0.0
-    return _safe_float(abs(a.mean() - b.mean()) / pooled_std)
+    return _safe_float((b.mean() - a.mean()) / pooled_std)
 
 
 def bootstrap_ci(values: list, n_boot: int = None,
@@ -45,14 +99,20 @@ def bootstrap_ci(values: list, n_boot: int = None,
         n_boot = engine_config.get("n_bootstrap")
     if ci is None:
         ci = engine_config.get("ci_level")
-    values = np.array(_clean_values(list(values)))
+    raw = list(values)
+    values = np.array(_clean_values(raw))
+    # Non-finite values are dropped, which silently shrinks n.  Report how many
+    # so a metric that NaNs on half the corpus is not mistaken for a clean one.
+    n_dropped = len(raw) - len(values)
     if len(values) < 1:
-        return {"estimate": 0.0, "ci_low": 0.0, "ci_high": 0.0, "n": 0}
+        return {"estimate": 0.0, "ci_low": 0.0, "ci_high": 0.0, "n": 0,
+                "n_dropped": n_dropped}
     if len(values) < 2:
         val = _safe_float(statistic(values))
-        return {"estimate": val, "ci_low": val, "ci_high": val, "n": len(values)}
+        return {"estimate": val, "ci_low": val, "ci_high": val,
+                "n": len(values), "n_dropped": n_dropped}
 
-    rng = np.random.default_rng(42)
+    rng = _seeded_rng(values)
     boot_stats = []
     for _ in range(n_boot):
         sample = rng.choice(values, size=len(values), replace=True)
@@ -65,6 +125,7 @@ def bootstrap_ci(values: list, n_boot: int = None,
         "ci_low": _safe_float(np.percentile(boot_stats, alpha * 100)),
         "ci_high": _safe_float(np.percentile(boot_stats, (1 - alpha) * 100)),
         "n": len(values),
+        "n_dropped": n_dropped,
     }
 
 
@@ -79,60 +140,165 @@ def bootstrap_effect_size(group_a: list, group_b: list,
     min_d = engine_config.get("min_samples_d")
     if len(a) < min_d or len(b) < min_d:
         d = cohens_d(list(a), list(b))
+        # Not enough data to bootstrap.  Say so explicitly rather than emitting
+        # a zero-width CI that reads like a precise estimate.
         return {"estimate": _safe_float(d), "ci_low": _safe_float(d),
-                "ci_high": _safe_float(d), "n_a": len(a), "n_b": len(b)}
+                "ci_high": _safe_float(d), "n_a": len(a), "n_b": len(b),
+                "insufficient_n": True, "excludes_zero": False}
 
-    rng = np.random.default_rng(42)
+    rng = _seeded_rng(a, b)
     boot_ds = []
     for _ in range(n_boot):
         sa = rng.choice(a, size=len(a), replace=True)
         sb = rng.choice(b, size=len(b), replace=True)
-        ps = np.sqrt((sa.std(ddof=1)**2 + sb.std(ddof=1)**2) / 2)
-        d = abs(sa.mean() - sb.mean()) / ps if ps > 0 else 0
+        ps = _pooled_sd(sa, sb)
+        # Signed, matching cohens_d.  Bootstrapping |d| gives a folded
+        # distribution bounded below by 0, so ci_low could never straddle zero
+        # and the interval was structurally unable to report "no effect".
+        d = (sb.mean() - sa.mean()) / ps if ps > 0 else 0.0
         boot_ds.append(d)
 
     boot_ds = np.array(boot_ds)
     alpha = (1 - ci) / 2
+    lo = _safe_float(np.percentile(boot_ds, alpha * 100))
+    hi = _safe_float(np.percentile(boot_ds, (1 - alpha) * 100))
     return {
         "estimate": _safe_float(cohens_d(list(a), list(b))),
-        "ci_low": _safe_float(np.percentile(boot_ds, alpha * 100)),
-        "ci_high": _safe_float(np.percentile(boot_ds, (1 - alpha) * 100)),
+        "ci_low": lo,
+        "ci_high": hi,
         "n_a": len(a),
         "n_b": len(b),
+        "insufficient_n": False,
+        # Now a meaningful test: with a signed bootstrap an interval that
+        # straddles zero genuinely indicates no detectable effect.
+        "excludes_zero": bool(lo > 0 or hi < 0),
     }
 
 
-def best_threshold(benign_vals: list, harmful_vals: list) -> dict:
-    """Find optimal classification threshold by brute-force sweep."""
-    all_vals = [(v, "b") for v in benign_vals] + [(v, "h") for v in harmful_vals]
-    if not all_vals:
-        return {"threshold": 0, "accuracy": 0, "direction": ">="}
+def _sweep_best_accuracy(sorted_vals: np.ndarray, labels_sorted: np.ndarray):
+    """Exact best split accuracy over all thresholds and both directions.
 
-    vals = [v for v, _ in all_vals]
-    best_acc = 0
-    best_t = 0
-    best_dir = ">="
+    `labels_sorted` is 1 for harmful, 0 for benign, ordered by ascending value.
+    Returns (best_accuracy, best_threshold, best_direction).
 
-    for t in np.linspace(min(vals), max(vals), engine_config.get("threshold_steps")):
-        # harmful >= threshold
-        c_high = sum(1 for v, c in all_vals
-                     if (v >= t and c == "h") or (v < t and c == "b"))
-        # harmful < threshold
-        c_low = sum(1 for v, c in all_vals
-                    if (v < t and c == "h") or (v >= t and c == "b"))
-        if c_high >= c_low:
-            acc = c_high / len(all_vals)
-            d = ">="
-        else:
-            acc = c_low / len(all_vals)
-            d = "<"
-        if acc > best_acc:
-            best_acc = acc
-            best_t = t
-            best_dir = d
+    This replaces the old fixed `threshold_steps` linspace scan: it is exact
+    (every distinct split is considered, not a 500-point approximation) and it
+    is O(n log n) rather than O(steps * n), which is what makes the permutation
+    null below affordable.
+    """
+    n = len(labels_sorted)
+    if n == 0:
+        return 0.0, 0.0, ">="
+    cum_h = np.concatenate(([0], np.cumsum(labels_sorted)))          # (n+1,)
+    cum_b = np.arange(n + 1) - cum_h                                  # (n+1,)
+    total_h = cum_h[-1]
+    # Predict harmful when v >= t, with t placed at split index i.
+    acc_high = (total_h - cum_h + cum_b) / n
+    # The complementary rule ("harmful when v < t") is exactly 1 - acc_high.
+    acc_low = 1.0 - acc_high
+
+    # Only split indices that a real threshold can actually realize: the start,
+    # the end, and each boundary between DISTINCT values.  Splitting inside a
+    # run of tied values would put equal numbers on opposite sides of a single
+    # threshold, which is impossible — allowing it overstates the achievable
+    # accuracy on any metric with ties.
+    boundaries = np.ones(n + 1, dtype=bool)
+    if n > 1:
+        boundaries[1:n] = sorted_vals[1:] != sorted_vals[:-1]
+
+    masked_high = np.where(boundaries, acc_high, -np.inf)
+    masked_low = np.where(boundaries, acc_low, -np.inf)
+    i_high = int(np.argmax(masked_high))
+    i_low = int(np.argmax(masked_low))
+    if masked_high[i_high] >= masked_low[i_low]:
+        best_acc, i, direction = float(masked_high[i_high]), i_high, ">="
+    else:
+        best_acc, i, direction = float(masked_low[i_low]), i_low, "<"
+    if i < n:
+        best_t = float(sorted_vals[i])
+    else:
+        best_t = float(sorted_vals[-1]) + 1.0
+    return best_acc, best_t, direction
+
+
+def best_threshold(benign_vals: list, harmful_vals: list,
+                   n_perm: int = None) -> dict:
+    """Best in-sample split accuracy, with a label-permutation null.
+
+    IMPORTANT: `accuracy` is optimized and evaluated on the same data.  It is
+    the maximum over every candidate threshold and both directions, so it is
+    biased upward and is NOT an estimate of out-of-sample performance.  With
+    the small n this tool routinely runs (min_samples_d defaults to 2), a
+    perfect in-sample split is the *expected* outcome under pure noise.
+
+    `p_value` is what makes the number interpretable: it is the fraction of
+    label permutations that achieve at least this accuracy.  Read the pair
+    together, never `accuracy` alone.
+    """
+    b = np.array(_clean_values(list(benign_vals)), dtype=np.float64)
+    h = np.array(_clean_values(list(harmful_vals)), dtype=np.float64)
+    n = len(b) + len(h)
+    if n == 0:
+        return {"threshold": 0.0, "accuracy": 0.0, "direction": ">=",
+                "n": 0, "p_value": None, "null_mean": None,
+                "in_sample": True}
+
+    vals = np.concatenate([b, h])
+    labels = np.concatenate([np.zeros(len(b)), np.ones(len(h))])
+    order = np.argsort(vals, kind="mergesort")
+    sorted_vals = vals[order]
+    sorted_labels = labels[order]
+
+    best_acc, best_t, direction = _sweep_best_accuracy(sorted_vals, sorted_labels)
+
+    # Permutation null: shuffle the labels, re-run the same maximizing sweep.
+    # Because the sweep is the same procedure, the null absorbs the selection
+    # bias exactly.
+    if n_perm is None:
+        n_perm = int(engine_config.get("n_permutations") or 0) or 200
+    p_value = None
+    null_mean = None
+    null_p95 = None
+    if len(b) > 0 and len(h) > 0 and n_perm > 0:
+        rng = _seeded_rng(b, h)
+        null_accs = np.empty(n_perm, dtype=np.float64)
+        perm_labels = sorted_labels.copy()
+        for j in range(n_perm):
+            rng.shuffle(perm_labels)
+            null_accs[j] = _sweep_best_accuracy(sorted_vals, perm_labels)[0]
+        # +1 in numerator and denominator: the observed labelling is itself one
+        # draw from the null, which keeps the test valid at small n_perm.
+        p_value = float((1 + np.sum(null_accs >= best_acc)) / (1 + n_perm))
+        null_mean = float(null_accs.mean())
+        null_p95 = float(np.percentile(null_accs, 95))
 
     return {"threshold": float(best_t), "accuracy": float(best_acc),
-            "direction": best_dir}
+            "direction": direction, "n": int(n),
+            "n_benign": int(len(b)), "n_harmful": int(len(h)),
+            "p_value": p_value, "null_mean": null_mean, "null_p95": null_p95,
+            "in_sample": True}
+
+
+def benjamini_hochberg(p_values: List[float], fdr: float = 0.05) -> dict:
+    """Benjamini-Hochberg step-up procedure.
+
+    Returns {"threshold": float|None, "n_significant": int, "fdr": float}.
+    `threshold` is the largest p that survives; compare each raw p against it.
+
+    aggregate_batch runs 16 metrics x 4 target categories plus a pooled pass,
+    so raw p-values there are not directly interpretable.
+    """
+    ps = sorted(p for p in p_values if p is not None)
+    m = len(ps)
+    if m == 0:
+        return {"threshold": None, "n_significant": 0, "fdr": fdr, "n_tests": 0}
+    thresh = None
+    for i, p in enumerate(ps, start=1):
+        if p <= (i / m) * fdr:
+            thresh = p
+    n_sig = sum(1 for p in ps if thresh is not None and p <= thresh)
+    return {"threshold": thresh, "n_significant": n_sig,
+            "fdr": fdr, "n_tests": m}
 
 
 # ─── Metric extraction registry ──────────────────────────────────
@@ -170,15 +336,29 @@ def _get_rd_val(r, rd_key):
     return None
 
 
+def _attr_val(r, key):
+    """Attribution-derived scalar, or None if attribution never ran.
+
+    When signed attribution is unavailable (typically because attention
+    weights were not captured — full_capture defaults to False) these fields
+    keep their dataclass default of 0.0.  Feeding those zeros to bootstrap_ci
+    as if they were observations is the difference between "we measured no
+    correction" and "we did not measure".
+    """
+    if getattr(r, 'attribution_unavailable', None):
+        return None
+    return getattr(r, key, None)
+
+
 # Each entry: (stat_key, extractor) where extractor(PromptResult) -> float | None.
 ALL_METRICS_REGISTRY = [
     # ASM
     ("stress_score",   lambda r: getattr(r, 'stress_score', None)),
-    ("entropy",        lambda r: getattr(r, 'entropy', None)),
-    ("top2_share",     lambda r: getattr(r, 'top2_share', None)),
-    ("middle_share",   lambda r: getattr(r, 'middle_share', None)),
-    ("interior_cv",    lambda r: getattr(r, 'interior_cv', None)),
-    ("net_correction", lambda r: getattr(r, 'net_correction', None)),
+    ("entropy",        lambda r: _attr_val(r, 'entropy')),
+    ("top2_share",     lambda r: _attr_val(r, 'top2_share')),
+    ("middle_share",   lambda r: _attr_val(r, 'middle_share')),
+    ("interior_cv",    lambda r: _attr_val(r, 'interior_cv')),
+    ("net_correction", lambda r: _attr_val(r, 'net_correction')),
     # KL
     ("kl_divergence",  lambda r: getattr(r, 'kl_divergence', None)),
     # LTP (ltp_mean_L excluded: constant 1.0, zero variance)
@@ -341,6 +521,32 @@ def aggregate_batch(results: list) -> dict:
     # ── Length correlation diagnostics ────────────────────────────
     len_corr = length_correlations(results)
 
+    # ── Multiple-comparison correction ────────────────────────────
+    # 16 metrics x 4 target categories, plus a pooled pass, all reported from
+    # the same session.  Without this the raw threshold p-values are not
+    # interpretable: at FDR 0.05 you expect ~3 "hits" from noise alone.
+    all_ps = []
+    for pair in separability.values():
+        for entry in pair.values():
+            all_ps.append(entry.get("threshold", {}).get("p_value"))
+    for entry in separability_legacy.values():
+        all_ps.append(entry.get("threshold", {}).get("p_value"))
+    fdr_level = engine_config.get("fdr_level") or 0.05
+    correction = benjamini_hochberg(all_ps, fdr=fdr_level)
+
+    # Annotate each test with its own verdict so the UI cannot show a bare p.
+    def _mark(entry):
+        p = entry.get("threshold", {}).get("p_value")
+        thr = correction["threshold"]
+        entry["threshold"]["significant_fdr"] = bool(
+            p is not None and thr is not None and p <= thr)
+
+    for pair in separability.values():
+        for entry in pair.values():
+            _mark(entry)
+    for entry in separability_legacy.values():
+        _mark(entry)
+
     return {
         "n_total": len(results),
         "categories": cat_summaries,
@@ -348,4 +554,5 @@ def aggregate_batch(results: list) -> dict:
         "separability_pairwise": separability,
         "length_correlations": len_corr,
         "correlations": correlations,
+        "multiple_comparisons": correction,
     }

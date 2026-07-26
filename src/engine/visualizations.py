@@ -553,9 +553,16 @@ def plot_rank_displacement(result) -> str:
     fig.patch.set_facecolor("#121212")
     _style_ax(ax, "Rank Displacement (per position)")
 
-    colors = ["#009E73" if t > 0.5 else ("#E69F00" if t > 0 else "#D55E00")
-              for t in taus[:n]]
-    ax.bar(range(n), taus[:n], color=colors, width=0.75, edgecolor="none")
+    # per_position_tau is position-indexed and carries None where tau was
+    # undefined (too few shared tokens).  Draw those as a zero-height bar in a
+    # muted colour rather than plotting them as a real tau of 0.
+    vals = [0.0 if t is None else t for t in taus[:n]]
+    colors = [
+        "#4B5563" if t is None
+        else ("#009E73" if t > 0.5 else ("#E69F00" if t > 0 else "#D55E00"))
+        for t in taus[:n]
+    ]
+    ax.bar(range(n), vals, color=colors, width=0.75, edgecolor="none")
     ax.set_xticks(range(n))
     ax.set_xticklabels(tokens[:n], rotation=50, ha="right",
                        fontsize=12, color="#9CA3AF")
@@ -564,11 +571,14 @@ def plot_rank_displacement(result) -> str:
     ax.set_ylabel("Kendall tau", fontsize=13)
     ax.set_ylim(-1.1, 1.1)
 
+    # mean_tau is None when no position had enough shared tokens for a
+    # defined Kendall tau; n_comparable / n_positions makes that visible.
     mean_tau = rd.get("mean_tau")
-    overlap = rd.get("mean_overlap")
+    overlap = rd.get("mean_overlap") or 0.0
     n_comp = rd.get("n_comparable", 0)
     n_pos = rd.get("n_positions", 0)
-    info = (f"mean tau={mean_tau:.3f}  |  "
+    tau_str = f"{mean_tau:.3f}" if mean_tau is not None else "n/a"
+    info = (f"mean tau={tau_str}  |  "
             f"overlap={overlap*100:.0f}%  |  "
             f"{n_comp}/{n_pos} pos")
     ax.text(0.99, 0.95, info, transform=ax.transAxes, ha="right", va="top",

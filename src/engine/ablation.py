@@ -44,6 +44,7 @@ import numpy as np
 import torch
 
 from src.engine import config as engine_config
+from src.engine.metrics import auroc as metrics_auroc
 from src.core.locks import MODEL_LOCK
 from src.engine.interventions import (
     ActivationIntervention,
@@ -314,20 +315,16 @@ class DirectionFitter:
 
 
 def _safe_auroc(scores: np.ndarray, labels: np.ndarray) -> float:
-    """Wilcoxon-Mann-Whitney AUROC. Matches mi_instrumentation._safe_auroc."""
-    if len(scores) < 4:
-        return 0.5
-    pos = labels == 1
-    neg = labels == 0
-    n_pos, n_neg = int(pos.sum()), int(neg.sum())
-    if n_pos == 0 or n_neg == 0:
-        return 0.5
-    ps = scores[pos]
-    ns = scores[neg]
-    u = 0.0
-    for p in ps:
-        u += (ns < p).sum() + 0.5 * (ns == p).sum()
-    return float(u / (n_pos * n_neg))
+    """Wilcoxon-Mann-Whitney AUROC.
+
+    WAS WRONG (as a design, not as arithmetic): this was one of five separate
+    AUROC implementations in the codebase that had drifted apart — two of the
+    others had no small-n guard and one took its arguments in the opposite
+    order. The body now delegates to the single verified implementation in
+    ``src.engine.metrics``; behaviour here is unchanged (same guard at n < 4,
+    same tie handling), so no number produced by this function moves.
+    """
+    return metrics_auroc(scores, labels)
 
 
 # ── Generation + intervention runner ───────────────────────────────

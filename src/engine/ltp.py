@@ -114,6 +114,16 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
     all_layer_tension_points = {l: [] for l in monitored}
     all_layer_profiles = {l: [] for l in monitored}
     all_layer_base_profiles = {l: [] for l in monitored}
+    # Positions where tau is well-defined.  A position with a degenerate
+    # residual step has no forward direction, so the forward/lateral split is
+    # undefined there — such positions must be excluded from the per-layer
+    # aggregates rather than counted as "100% lateral" (which is what a
+    # zero tau silently produces).
+    all_layer_tau_defined = {l: [] for l in monitored}
+    # Layers that were actually computed.  Layers skipped below (missing
+    # activation or missing delta) must not contribute 0.0 to mean_M/mean_V/
+    # mean_L — that is a downward bias, not a measurement.
+    computed_layers = []
 
     for layer_idx in monitored:
         h_key = f"layer_{layer_idx}_h"
@@ -122,7 +132,14 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
             if h_key not in activations:
                 continue
 
-        h = activations[h_key][0]
+        # Promote to float32 *before* any arithmetic.  The tau direction below
+        # is h[i] - h[i-1]: two nearly-identical large vectors.  Subtracting
+        # them in bf16 (the Pipeline default dtype) is catastrophic
+        # cancellation — bf16 carries 8 mantissa bits, so the surviving
+        # difference can have ~100% relative error per component.  tau is the
+        # entire basis for the forward/lateral split, so every LTP output
+        # (mean_M, mean_V, tension_magnitudes, profiles, prc) depends on it.
+        h = activations[h_key][0].float()
         if h.shape[0] < seq_len:
             continue
 
@@ -134,16 +151,23 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
             continue
         # All tension math in float32: dot products and weighted sums over
         # hidden_size accumulate visible rounding error in bf16.
-        dw_v_half = dw_v_full.float() * 0.5
+        #
+        # A `* 0.5` factor used to be applied here.  It was inherited from TASM
+        # with no derivation in this codebase or in INVARIANTS.md, and it
+        # scaled every LTP magnitude to half the value the definition implies.
+        # Removed: LTP magnitudes are now the projection of the actual weight
+        # delta, so they are 2x their previously reported values.
+        dw_v = dw_v_full.float()
 
         W_O = analyzer.adapter.o_proj_weight(model, layer_idx).float()
+        computed_layers.append(layer_idx)
 
         def _project_alts(alts_list, chosen_id, tau, return_laterals=False):
             magnitudes = []
             laterals = [] if return_laterals else None
             for alt_id, alt_prob in alts_list:
                 d_ic = (W_u[alt_id].float() - W_u[chosen_id].float())
-                delta_val = torch.matmul(dw_v_half, d_ic)
+                delta_val = torch.matmul(dw_v, d_ic)
                 expanded = delta_val.view(n_kv_heads, head_dim) \
                     .repeat_interleave(heads_per_kv, dim=0).reshape(-1)
                 proj = torch.matmul(W_O, expanded)
@@ -166,17 +190,22 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
                     torch.zeros(hidden_size, device=device))
                 all_layer_profiles[layer_idx].append(np.zeros(k))
                 all_layer_base_profiles[layer_idx].append(np.zeros(k))
+                all_layer_tau_defined[layer_idx].append(False)
                 continue
 
+            # h is already float32 (promoted at capture); the residual step is
+            # therefore differenced at full precision.
             if i > 0:
-                diff = (h[i] - h[i - 1]).float()
+                diff = h[i] - h[i - 1]
             elif seq_len > 1:
-                diff = (h[1] - h[0]).float()
+                diff = h[1] - h[0]
             else:
                 diff = torch.zeros(hidden_size, device=device)
             diff_norm = diff.norm()
-            tau = (diff / diff_norm if diff_norm > 1e-8
+            tau_defined = bool(diff_norm > 1e-8)
+            tau = (diff / diff_norm if tau_defined
                    else torch.zeros(hidden_size, device=device))
+            all_layer_tau_defined[layer_idx].append(tau_defined)
 
             instruct_magnitudes, inst_laterals = _project_alts(
                 inst_alts, chosen_id, tau, return_laterals=True)
@@ -221,9 +250,16 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
         points = all_layer_tension_points.get(layer_idx, [])
         if not points:
             continue
+        tau_ok = all_layer_tau_defined.get(layer_idx, [])
         magnitudes = [p.norm().item() for p in points]
-        non_zero = [i for i, m in enumerate(magnitudes) if m > 1e-10]
-        result.lateral_coverage[layer_idx] = len(non_zero) / seq_len if seq_len > 0 else 0.0
+        # A position counts only if tau was well-defined there.  Positions with
+        # a degenerate residual step would otherwise report the whole
+        # projection as lateral and inflate both coverage and magnitude.
+        defined = [i for i in range(len(magnitudes))
+                   if i < len(tau_ok) and tau_ok[i]]
+        non_zero = [i for i in defined if magnitudes[i] > 1e-10]
+        result.lateral_coverage[layer_idx] = (
+            len(non_zero) / len(defined) if defined else 0.0)
         if not non_zero:
             result.offset_magnitude[layer_idx] = 0.0
             result.offset_variance[layer_idx] = 0.0
@@ -233,10 +269,17 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
         result.offset_magnitude[layer_idx] = mean_offset.norm().item()
         result.offset_variance[layer_idx] = float(np.var([magnitudes[i] for i in non_zero]))
 
-    if monitored:
-        result.mean_M = np.mean([result.offset_magnitude.get(l, 0.0) for l in monitored])
-        result.mean_V = np.mean([result.offset_variance.get(l, 0.0) for l in monitored])
-        result.mean_L = np.mean([result.lateral_coverage.get(l, 0.0) for l in monitored])
+    # Average over layers that were actually computed.  Averaging a default of
+    # 0.0 over skipped layers shrinks every LTP summary toward zero by an
+    # amount that depends on how many layers happened to be unavailable.
+    summary_layers = [l for l in computed_layers if l in result.offset_magnitude]
+    if summary_layers:
+        result.mean_M = np.mean([result.offset_magnitude[l] for l in summary_layers])
+        result.mean_V = np.mean([result.offset_variance[l] for l in summary_layers])
+        result.mean_L = np.mean([result.lateral_coverage.get(l, 0.0)
+                                 for l in summary_layers])
+    result.n_layers_computed = len(summary_layers)
+    result.n_layers_monitored = len(monitored)
 
     # PRC (Peak Rank Concentration)
     PRC_THRESHOLD = 0.02

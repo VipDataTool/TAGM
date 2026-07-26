@@ -32,7 +32,14 @@ from collections import defaultdict
 import numpy as np
 import torch
 
-from .base import TASMModule, ModuleParameter
+from .base import (TASMModule, ModuleParameter, classify_category,
+                   ModuleCancelled)
+from src.engine.metrics import (
+    HARM_CATEGORIES,
+    SAFE_CATEGORIES,
+    auroc as _metric_auroc,
+    auroc_with_n,
+)
 from src.engine.ablation import (
     AblationConfig,
     AblationRunner,
@@ -50,9 +57,13 @@ logger = logging.getLogger("src")
 
 
 # ── Category sets ──────────────────────────────────────────────────
-
-HARM_CATEGORIES = {"harmful", "jailbreak"}
-SAFE_CATEGORIES = {"benign", "mild"}
+# WAS WRONG: this module carried a private {"harmful","jailbreak"} /
+# {"benign","mild"} vocabulary that disagreed with the five other copies in
+# this package.  HARM_CATEGORIES / SAFE_CATEGORIES are now re-exported from
+# src.engine.metrics so every module counts the same prompts.  Practical
+# effect here: "adversarial", "dual-use", "risk" and "dangerous" now count as
+# harm (they were silently dropped), and "safe"/"neutral"/"baseline" now
+# count as safe.  n_harm / n_safe will change for existing sessions.
 
 
 # ── Harm Probe ─────────────────────────────────────────────────────
@@ -71,6 +82,12 @@ class HarmProbe:
         self.bias = 0.0
         self.train_auroc = 0.0
         self.holdout_auroc = 0.0
+        # The holdout can be as small as 1-vs-1 (see fit()), which no rank
+        # statistic can interpret. Track that explicitly instead of letting
+        # a meaningless 0.0/1.0 flow into a boolean verdict.
+        self.holdout_underpowered = True
+        self.holdout_n_pos = 0
+        self.holdout_n_neg = 0
 
     def fit(self, features: np.ndarray, labels: np.ndarray,
             holdout_frac: float = 0.2, seed: int = 42) -> None:
@@ -124,7 +141,21 @@ class HarmProbe:
         train_scores = X_train @ self.weights + self.bias
         hold_scores = X_hold @ self.weights + self.bias
         self.train_auroc = self._auroc(train_scores, y_train)
-        self.holdout_auroc = self._auroc(hold_scores, y_hold)
+        # NUMBERS CHANGE HERE: the old local _auroc had no small-n guard, so
+        # the 1-vs-1 holdout produced by n_hold_* = max(1, ...) above returned
+        # exactly 0.0 or 1.0.  The shared implementation returns 0.5 (chance)
+        # when either class is too small, and we now carry the sample sizes.
+        hold_stats = auroc_with_n(hold_scores, y_hold)
+        self.holdout_auroc = hold_stats["auroc"]
+        self.holdout_n_pos = hold_stats["n_pos"]
+        self.holdout_n_neg = hold_stats["n_neg"]
+        self.holdout_underpowered = hold_stats["underpowered"]
+        if self.holdout_underpowered:
+            logger.warning(
+                "[HARM-PROBE] Holdout is %d harm vs %d safe — too small for a "
+                "rank statistic. holdout_auroc reported as chance (0.5); no "
+                "survival verdict will be issued.",
+                self.holdout_n_pos, self.holdout_n_neg)
 
     def predict(self, features: np.ndarray) -> np.ndarray:
         """Score new samples. Higher = more harm-like."""
@@ -134,22 +165,22 @@ class HarmProbe:
 
     def to_dict(self) -> dict:
         return {
+            # train_auroc is IN-SAMPLE (the probe was fitted on these rows).
             "train_auroc": round(self.train_auroc, 4),
             "holdout_auroc": round(self.holdout_auroc, 4),
+            "holdout_n_harm": self.holdout_n_pos,
+            "holdout_n_safe": self.holdout_n_neg,
+            "holdout_underpowered": self.holdout_underpowered,
             "regularization": self.reg,
         }
 
     @staticmethod
     def _auroc(scores, labels):
-        pos = scores[labels == 1]
-        neg = scores[labels == 0]
-        if len(pos) == 0 or len(neg) == 0:
-            return 0.5
-        concordant = sum(
-            float(np.sum(neg < sp) + 0.5 * np.sum(neg == sp))
-            for sp in pos
-        )
-        return concordant / (len(pos) * len(neg))
+        # WAS WRONG: a private, unguarded copy of Wilcoxon-Mann-Whitney (one
+        # of five divergent copies in this package). Now delegates to the
+        # single verified implementation in src.engine.metrics, which returns
+        # 0.5 rather than 0.0/1.0 when a class has fewer than 4 samples.
+        return _metric_auroc(scores, labels)
 
 
 # ── Safety Attention Score ─────────────────────────────────────────
@@ -183,32 +214,44 @@ def compute_sas(
     cap = ActivationCapture()
     cap.install(model, adapter, signal_layers=layers, output_attentions=True)
 
-    for i, prompt in enumerate(prompts):
-        if progress and i % 10 == 0:
-            progress(f"SAS: prompt {i+1}/{len(prompts)}")
+    # HOOK SAFETY (was wrong): cap.remove() used to sit after the loop with no
+    # try/finally, so any failure inside left capture hooks installed on the
+    # shared model forever. Matches correction_prism._beam_activation.
+    try:
+        for i, prompt in enumerate(prompts):
+            if progress and i % 10 == 0:
+                progress(f"SAS: prompt {i+1}/{len(prompts)}")
 
-        n_inst = instruction_token_counts[i]
-        with torch.no_grad():
-            tokens, inputs, output = cap.forward(
-                model, tokenizer, prompt, output_attentions=True
-            )
+            n_inst = instruction_token_counts[i]
+            with torch.no_grad():
+                tokens, inputs, output = cap.forward(
+                    model, tokenizer, prompt, output_attentions=True
+                )
 
-        # Extract attention weights from output
-        # output.attentions is a tuple of [batch, n_heads, seq, seq] per layer
-        if hasattr(output, 'attentions') and output.attentions is not None:
-            for layer_offset, li in enumerate(layers):
-                if layer_offset >= len(output.attentions):
-                    continue
-                attn = output.attentions[layer_offset]  # [1, n_heads, seq, seq]
-                if attn is None:
-                    continue
-                attn = attn[0].cpu().numpy()  # [n_heads, seq, seq]
-                for hi in range(min(n_heads, attn.shape[0])):
-                    # SAS = mean attention to instruction tokens across all positions
-                    inst_mass = attn[hi, :, :n_inst].sum(axis=-1).mean()
-                    sas_accum[(li, hi)].append(float(inst_mass))
-
-    cap.remove()
+            # Extract attention weights from output.
+            # output.attentions is a tuple over ALL model layers, indexed by
+            # ABSOLUTE layer index — [batch, n_heads, seq, seq] each.
+            # WAS WRONG: this indexed by the caller's list position
+            # (enumerate offset), which is only correct when `layers` happens
+            # to be [0..k-1]. Any non-contiguous or non-zero-based layer list
+            # mislabelled every head in the SAS table.
+            if hasattr(output, 'attentions') and output.attentions is not None:
+                n_attn_layers = len(output.attentions)
+                assert max(layers) < n_attn_layers, (
+                    f"SAS: requested layer {max(layers)} but the model "
+                    f"returned attentions for only {n_attn_layers} layers; "
+                    f"attention indexing would be wrong.")
+                for li in layers:
+                    attn = output.attentions[li]  # [1, n_heads, seq, seq]
+                    if attn is None:
+                        continue
+                    attn = attn[0].cpu().numpy()  # [n_heads, seq, seq]
+                    for hi in range(min(n_heads, attn.shape[0])):
+                        # SAS = mean attention to instruction tokens across all positions
+                        inst_mass = attn[hi, :, :n_inst].sum(axis=-1).mean()
+                        sas_accum[(li, hi)].append(float(inst_mass))
+    finally:
+        cap.remove()
 
     # Aggregate
     per_head = {k: float(np.mean(v)) for k, v in sas_accum.items()}
@@ -313,6 +356,7 @@ def apply_arditi_abliteration(
     adapter,
     direction: torch.Tensor,
     progress: Optional[Callable] = None,
+    should_cancel: Optional[Callable] = None,
 ) -> dict:
     """Apply Arditi weight orthogonalization to all residual-writing matrices.
 
@@ -340,6 +384,11 @@ def apply_arditi_abliteration(
     # Per-layer: o_proj and down_proj
     n_layers = adapter.n_layers(model)
     for li in range(n_layers):
+        # Safe cancel point: the caller snapshotted the full state_dict before
+        # calling us and restores it in a `finally`, so bailing out part-way
+        # through the sweep still leaves the shared model intact.
+        if should_cancel and should_cancel():
+            raise ModuleCancelled("routing_ablation")
         if progress and li % 4 == 0:
             progress(f"Orthogonalizing layer {li}/{n_layers}...")
 
@@ -590,12 +639,29 @@ class RoutingAblationModule(TASMModule):
         return True, "OK"
 
     def run(self, session_results: list, params: dict,
-            progress: Callable[[str], None] = None) -> dict:
+            progress: Callable[[str], None] = None,
+            should_cancel: Callable[[], bool] = None) -> dict:
         """Execute the routing ablation experiment."""
 
         def prog(msg):
             if progress:
                 progress(msg)
+            logger.info(f"[ROUTING-ABLATION] {msg}")
+
+        def teardown_prog(msg):
+            """Progress that can never abort the caller.
+
+            prog() doubles as the cancellation checkpoint (see base.py), so
+            calling it from a `finally:` would raise ModuleCancelled *inside*
+            the cleanup it is announcing — skipping the weight restore and
+            leaving the server's shared model permanently orthogonalized.
+            Teardown paths report through this instead.
+            """
+            try:
+                if progress:
+                    progress(msg)
+            except ModuleCancelled:
+                pass
             logger.info(f"[ROUTING-ABLATION] {msg}")
 
         results = {
@@ -620,11 +686,19 @@ class RoutingAblationModule(TASMModule):
             seed=0,
             holdout_side="harm",
         )
+        n_excluded = sum(
+            1 for r in session_results
+            if classify_category(r.get("category")) is None
+        )
         results["refusal_direction"] = {
             "method": fit.method,
             "hidden_dim": fit.hidden_dim,
             "n_harm": fit.n_harm,
             "n_safe": fit.n_safe,
+            # Prompts whose category is neither harm nor safe under the
+            # canonical taxonomy (e.g. "unknown") are EXCLUDED, not guessed.
+            # Reported so the exclusion is visible rather than silent.
+            "n_excluded_unclassified": n_excluded,
             "train_auroc": round(fit.train_auroc, 4),
             "n_heldout": len(fit.heldout_prompts),
         }
@@ -635,14 +709,24 @@ class RoutingAblationModule(TASMModule):
         # ── Baseline measurements ──────────────────────────────────
         prog("Collecting baseline measurements...")
 
-        # Harm probe (baseline)
-        probe_features, probe_labels = self._collect_probe_features(
-            session_results, prog,
-            position=params.get("probe_position", "mean"),
-        )
+        # Harm probe (baseline).
+        # NUMBERS CHANGE HERE: the baseline used to read the CACHED
+        # per_token_final_emb (per-token L2-normalized, sliced from the
+        # analyzer's start_pos, tokenized with the chat template), while the
+        # post-ablation probe ran a live forward and took the raw
+        # hidden_states[-1] mean. Those are NOT the same feature, so the
+        # reported harm_probe delta confounded the ablation with the change
+        # of extraction. Both sides now run the identical live extraction.
+        probe_features, probe_labels, n_probe_excluded = \
+            self._collect_probe_features_live(
+                model, adapter, tokenizer, session_results, prog
+            )
         baseline_probe = HarmProbe(regularization=1.0)
         baseline_probe.fit(probe_features, probe_labels)
         results["baseline_harm_probe"] = baseline_probe.to_dict()
+        results["baseline_harm_probe"]["n_excluded_prompts"] = n_probe_excluded
+        results["baseline_harm_probe"]["feature_source"] = (
+            "live_forward_final_hidden_state_mean")
         prog(f"Baseline harm probe: train={baseline_probe.train_auroc:.4f}, "
              f"holdout={baseline_probe.holdout_auroc:.4f}")
 
@@ -652,7 +736,7 @@ class RoutingAblationModule(TASMModule):
             # Fall back to all harmful prompts if holdout is empty
             eval_prompts = [
                 r["prompt"] for r in session_results
-                if r.get("category", "").lower() in HARM_CATEGORIES
+                if classify_category(r.get("category")) == "harm"
             ][:20]
 
         prog(f"Baseline generation: {len(eval_prompts)} prompts...")
@@ -660,7 +744,8 @@ class RoutingAblationModule(TASMModule):
         baseline_gen = self._generate_batch(
             model, tokenizer, eval_prompts,
             max_new_tokens=params.get("max_new_tokens", 120),
-            detector=detector, progress=prog, tag="baseline"
+            detector=detector, progress=prog, tag="baseline",
+            should_cancel=should_cancel,
         )
         results["baseline_generation"] = baseline_gen
 
@@ -669,7 +754,7 @@ class RoutingAblationModule(TASMModule):
             prog("Computing baseline KL logits...")
             neutral_prompts = [
                 r["prompt"] for r in session_results
-                if r.get("category", "").lower() in SAFE_CATEGORIES
+                if classify_category(r.get("category")) == "safe"
             ][:params.get("n_kl_prompts", 20)]
             kl_baseline = compute_first_token_kl(
                 model, tokenizer, neutral_prompts, progress=prog
@@ -705,6 +790,10 @@ class RoutingAblationModule(TASMModule):
                 self._pre_sfd_cache = precompute_sfd_cache(ctx)
                 prog(f"SFD cache captured: {self._pre_sfd_cache.get('n_layers', 0)} layers, "
                      f"k={self._pre_sfd_cache.get('k', '?')}")
+            except ModuleCancelled:
+                # prog() raises this; a bare `except Exception` would turn a
+                # user cancellation into a bogus "capture failed" result.
+                raise
             except Exception as e:
                 prog(f"SFD cache capture failed: {e}")
                 self._pre_sfd_cache = None
@@ -719,95 +808,142 @@ class RoutingAblationModule(TASMModule):
                 k: v.clone() for k, v in model.state_dict().items()
             }
 
-            # Apply orthogonalization
-            ablation_info = apply_arditi_abliteration(
-                model, adapter, fit.vector, progress=prog
-            )
-            results["stage1_ablation_info"] = ablation_info
-
-            # Post-ablation generation
-            prog(f"Post-ablation generation: {len(eval_prompts)} prompts...")
-            post_gen = self._generate_batch(
-                model, tokenizer, eval_prompts,
-                max_new_tokens=params.get("max_new_tokens", 120),
-                detector=detector, progress=prog, tag="post_residual"
-            )
-            results["stage1_generation"] = post_gen
-
-            # Post-ablation harm probe
-            prog("Re-collecting harm probe features post-ablation...")
-            post_features, post_labels = self._collect_probe_features_live(
-                model, adapter, tokenizer, session_results, prog
-            )
-            post_probe = HarmProbe(regularization=1.0)
-            post_probe.fit(post_features, post_labels)
-            results["stage1_harm_probe"] = post_probe.to_dict()
-            prog(f"Post-ablation harm probe: holdout={post_probe.holdout_auroc:.4f} "
-                 f"(baseline={baseline_probe.holdout_auroc:.4f})")
-
-            # Post-ablation KL
-            if kl_baseline is not None:
-                prog("Computing post-ablation KL...")
-                kl_post = compute_first_token_kl(
-                    model, tokenizer, neutral_prompts,
-                    baseline_logits=kl_baseline["logits"],
-                    progress=prog,
+            # EXCEPTION SAFETY (was wrong): everything between the
+            # orthogonalization and the load_state_dict below used to run
+            # WITHOUT a try/finally.  Any failure in ~80 lines of generation,
+            # probing, SAS or KL left the server's SHARED model permanently
+            # orthogonalized for every later request and every other module,
+            # and the user saw a plain error rather than a warning that their
+            # loaded model was now corrupt.  Restoration is now unconditional.
+            try:
+                # Apply orthogonalization
+                ablation_info = apply_arditi_abliteration(
+                    model, adapter, fit.vector, progress=prog,
+                    should_cancel=should_cancel,
                 )
-                results["stage1_kl"] = kl_post
-                prog(f"Post-ablation KL: {kl_post.get('kl', '?')}")
+                results["stage1_ablation_info"] = ablation_info
 
-            # Post-ablation SAS
-            if params.get("measure_sas", True):
-                prog("Computing post-ablation SAS...")
-                sas_post = compute_sas(
-                    model, adapter, tokenizer,
-                    eval_prompts[:30], inst_counts[:30],
-                    signal_layers[:8],
-                    progress=prog,
+                # Post-ablation generation
+                prog(f"Post-ablation generation: {len(eval_prompts)} prompts...")
+                post_gen = self._generate_batch(
+                    model, tokenizer, eval_prompts,
+                    max_new_tokens=params.get("max_new_tokens", 120),
+                    detector=detector, progress=prog, tag="post_residual",
+                    should_cancel=should_cancel,
                 )
-                results["stage1_sas"] = sas_post
+                results["stage1_generation"] = post_gen
 
-            # Summary
-            results["stage1_summary"] = {
-                "baseline_refusal_rate": baseline_gen["refusal_rate"],
-                "post_refusal_rate": post_gen["refusal_rate"],
-                "delta": round(baseline_gen["refusal_rate"] - post_gen["refusal_rate"], 4),
-                "baseline_harm_probe": baseline_probe.holdout_auroc,
-                "post_harm_probe": post_probe.holdout_auroc,
-                "harm_probe_survived": post_probe.holdout_auroc > 0.70,
-                "kl": results.get("stage1_kl", {}).get("kl"),
-            }
-            prog(f"Stage 1 summary: refusal {baseline_gen['refusal_rate']:.0%} → "
-                 f"{post_gen['refusal_rate']:.0%}, "
-                 f"harm probe {baseline_probe.holdout_auroc:.3f} → "
-                 f"{post_probe.holdout_auroc:.3f}")
-
-            # SFD direction persistence check (on ablated model)
-            if params.get("measure_sfd_persistence", True):
-                try:
-                    from src.engine.attention_calibration import (
-                        compute_sfd_persistence,
+                # Post-ablation harm probe.  Uses the SAME live-extraction
+                # path as the baseline probe above (see _collect_probe_features
+                # _live) so the reported delta isolates the ablation.
+                prog("Re-collecting harm probe features post-ablation...")
+                post_features, post_labels, post_excluded = \
+                    self._collect_probe_features_live(
+                        model, adapter, tokenizer, session_results, prog
                     )
-                    prog("Checking SFD direction persistence post-ablation...")
-                    pre_sfd = getattr(self, '_pre_sfd_cache', None)
-                    if pre_sfd is not None:
-                        sfd_persist = compute_sfd_persistence(
-                            self._pipeline, pre_sfd, progress=prog,
-                        )
-                        results["stage1_sfd_persistence"] = sfd_persist
-                        prog(f"SFD persistence: cosine={sfd_persist['mean_cosine']:.3f}, "
-                             f"survived={sfd_persist['signal_survived']}")
-                    else:
-                        prog("SFD persistence: no pre-ablation cache available. "
-                             "Run an analysis session with SFD enabled first.")
-                except Exception as e:
-                    prog(f"SFD persistence check failed: {e}")
+                post_probe = HarmProbe(regularization=1.0)
+                post_probe.fit(post_features, post_labels)
+                results["stage1_harm_probe"] = post_probe.to_dict()
+                results["stage1_harm_probe"]["n_excluded_prompts"] = post_excluded
+                prog(f"Post-ablation harm probe: holdout={post_probe.holdout_auroc:.4f} "
+                     f"(baseline={baseline_probe.holdout_auroc:.4f})")
 
-            # Restore original weights for subsequent stages
-            prog("Restoring original model weights...")
-            model.load_state_dict(original_state)
-            del original_state
-            prog("Model weights restored.")
+                # Post-ablation KL
+                if kl_baseline is not None:
+                    prog("Computing post-ablation KL...")
+                    kl_post = compute_first_token_kl(
+                        model, tokenizer, neutral_prompts,
+                        baseline_logits=kl_baseline["logits"],
+                        progress=prog,
+                    )
+                    results["stage1_kl"] = kl_post
+                    prog(f"Post-ablation KL: {kl_post.get('kl', '?')}")
+
+                # Post-ablation SAS
+                if params.get("measure_sas", True):
+                    prog("Computing post-ablation SAS...")
+                    sas_post = compute_sas(
+                        model, adapter, tokenizer,
+                        eval_prompts[:30], inst_counts[:30],
+                        signal_layers[:8],
+                        progress=prog,
+                    )
+                    results["stage1_sas"] = sas_post
+
+                # Summary.  "harm_probe_survived" is a scientific claim, so it
+                # is reported as None (no verdict) rather than False when the
+                # holdout is too small to support a rank statistic — the old
+                # 1-vs-1 holdout could only return 0.0 or 1.0.
+                survived = (None if post_probe.holdout_underpowered
+                            else bool(post_probe.holdout_auroc > 0.70))
+                results["stage1_summary"] = {
+                    "baseline_refusal_rate": baseline_gen["refusal_rate"],
+                    "post_refusal_rate": post_gen["refusal_rate"],
+                    "delta": round(baseline_gen["refusal_rate"] - post_gen["refusal_rate"], 4),
+                    "baseline_harm_probe": baseline_probe.holdout_auroc,
+                    "post_harm_probe": post_probe.holdout_auroc,
+                    "harm_probe_survived": survived,
+                    "harm_probe_underpowered": post_probe.holdout_underpowered,
+                    "harm_probe_n_holdout": [post_probe.holdout_n_pos,
+                                             post_probe.holdout_n_neg],
+                    "kl": results.get("stage1_kl", {}).get("kl"),
+                }
+                prog(f"Stage 1 summary: refusal {baseline_gen['refusal_rate']:.0%} → "
+                     f"{post_gen['refusal_rate']:.0%}, "
+                     f"harm probe {baseline_probe.holdout_auroc:.3f} → "
+                     f"{post_probe.holdout_auroc:.3f}"
+                     + (" (holdout UNDERPOWERED — no verdict)"
+                        if post_probe.holdout_underpowered else ""))
+
+                # SFD direction persistence check (on ablated model)
+                if params.get("measure_sfd_persistence", True):
+                    try:
+                        from src.engine.attention_calibration import (
+                            compute_sfd_persistence,
+                        )
+                        prog("Checking SFD direction persistence post-ablation...")
+                        pre_sfd = getattr(self, '_pre_sfd_cache', None)
+                        if pre_sfd is not None:
+                            sfd_persist = compute_sfd_persistence(
+                                self._pipeline, pre_sfd, progress=prog,
+                            )
+                            results["stage1_sfd_persistence"] = sfd_persist
+                            prog(f"SFD persistence: cosine={sfd_persist['mean_cosine']:.3f}, "
+                                 f"survived={sfd_persist['signal_survived']}")
+                        else:
+                            prog("SFD persistence: no pre-ablation cache available. "
+                                 "Run an analysis session with SFD enabled first.")
+                    except ModuleCancelled:
+                        raise
+                    except Exception as e:
+                        prog(f"SFD persistence check failed: {e}")
+            finally:
+                # Restore original weights for subsequent stages. If THIS
+                # fails the shared model really is corrupt, so say so loudly
+                # and let the error propagate rather than continuing.
+                #
+                # CANCELLATION SAFETY: every report on this path goes through
+                # teardown_prog, never prog.  We reach here with the cancel
+                # flag already set, so a prog() call would raise
+                # ModuleCancelled before load_state_dict ran and the shared
+                # model would stay orthogonalized forever.
+                teardown_prog("Restoring original model weights...")
+                try:
+                    model.load_state_dict(original_state)
+                    teardown_prog("Model weights restored.")
+                except Exception as restore_err:
+                    logger.critical(
+                        "[ROUTING-ABLATION] FAILED TO RESTORE MODEL WEIGHTS "
+                        "after abliteration: %s. The loaded model is now "
+                        "permanently orthogonalized — RELOAD IT before "
+                        "trusting any further result.", restore_err)
+                    teardown_prog("CRITICAL: weight restoration FAILED. The "
+                                  "loaded model is permanently orthogonalized. "
+                                  "Reload the model before running anything "
+                                  "else.")
+                    raise
+                finally:
+                    del original_state
 
         # ── Stage 3: QK Routing Correction ─────────────────────────
         if params.get("run_routing_ablation", False):
@@ -831,9 +967,9 @@ class RoutingAblationModule(TASMModule):
                 prog("Running SKOP calibration...")
                 n_cal = params.get("n_calibration_prompts", 30)
                 cal_harm = [r["prompt"] for r in session_results
-                            if r.get("category", "").lower() in HARM_CATEGORIES][:n_cal]
+                            if classify_category(r.get("category")) == "harm"][:n_cal]
                 cal_safe = [r["prompt"] for r in session_results
-                            if r.get("category", "").lower() in SAFE_CATEGORIES][:n_cal]
+                            if classify_category(r.get("category")) == "safe"][:n_cal]
                 cal_prompts = cal_harm + cal_safe
                 cal_labels = ["harm"] * len(cal_harm) + ["safe"] * len(cal_safe)
 
@@ -886,69 +1022,79 @@ class RoutingAblationModule(TASMModule):
                         for (li, hi), s in top_risk
                     ]
 
-                    # Install QK intervention with SKOP-projected directions
+                    # Install QK intervention with SKOP-projected directions.
+                    # HOOK SAFETY (was wrong): qk_intv.remove() used to sit at
+                    # the end of this block with no try/finally, so any failure
+                    # in generation/KL/delta_m/SFD left the query-projection
+                    # hooks installed on the SHARED model for every later
+                    # request. Cleanup is now unconditional.
                     qk_intv = QKRoutingIntervention()
                     qk_intv.install_on_q_proj(
                         model, adapter, projected_dirs, risk_heads
                     )
-
-                    # Post-routing generation
-                    prog(f"Post-routing generation: {len(eval_prompts)} prompts...")
-                    post_routing_gen = self._generate_batch(
-                        model, tokenizer, eval_prompts,
-                        max_new_tokens=params.get("max_new_tokens", 120),
-                        detector=detector, progress=prog, tag="post_routing"
-                    )
-                    results["stage3_generation"] = post_routing_gen
-
-                    # Post-routing KL
-                    if kl_baseline is not None:
-                        prog("Computing post-routing KL...")
-                        kl_routing = compute_first_token_kl(
-                            model, tokenizer, neutral_prompts,
-                            baseline_logits=kl_baseline["logits"],
-                            progress=prog,
+                    try:
+                        # Post-routing generation
+                        prog(f"Post-routing generation: {len(eval_prompts)} prompts...")
+                        post_routing_gen = self._generate_batch(
+                            model, tokenizer, eval_prompts,
+                            max_new_tokens=params.get("max_new_tokens", 120),
+                            detector=detector, progress=prog, tag="post_routing",
+                            should_cancel=should_cancel,
                         )
-                        results["stage3_kl"] = kl_routing
+                        results["stage3_generation"] = post_routing_gen
 
-                    # Focus-to-tail mass shift (delta_m)
-                    if params.get("measure_delta_m", True):
-                        try:
-                            prog("Measuring focus-to-tail mass shift...")
-                            # Forward pass on eval prompts with intervention active
-                            device = next(model.parameters()).device
-                            delta_m_results = {}
-                            for li in range(min(4, calibrator.n_layers)):
-                                focus = calibrator.get_focus_sets_for_layer(li)
-                                if focus:
-                                    delta_m_results[str(li)] = {
-                                        "n_heads_with_focus": len(focus),
-                                    }
-                            results["stage3_delta_m_layers"] = delta_m_results
-                            prog("Delta_m measurement recorded.")
-                        except Exception as e:
-                            prog(f"Delta_m measurement failed: {e}")
-
-                    # SFD persistence after routing ablation
-                    if params.get("measure_sfd_persistence", True):
-                        try:
-                            from src.engine.attention_calibration import (
-                                compute_sfd_persistence,
+                        # Post-routing KL
+                        if kl_baseline is not None:
+                            prog("Computing post-routing KL...")
+                            kl_routing = compute_first_token_kl(
+                                model, tokenizer, neutral_prompts,
+                                baseline_logits=kl_baseline["logits"],
+                                progress=prog,
                             )
-                            pre_sfd = getattr(self, '_pre_sfd_cache', None)
-                            if pre_sfd is not None:
-                                prog("Checking SFD persistence post-routing...")
-                                sfd_persist = compute_sfd_persistence(
-                                    self._pipeline, pre_sfd, progress=prog,
-                                )
-                                results["stage3_sfd_persistence"] = sfd_persist
-                                prog(f"SFD persistence: cosine="
-                                     f"{sfd_persist['mean_cosine']:.3f}")
-                        except Exception as e:
-                            prog(f"SFD persistence check failed: {e}")
+                            results["stage3_kl"] = kl_routing
 
-                    # Clean up hooks
-                    qk_intv.remove()
+                        # Focus-to-tail mass shift (delta_m)
+                        if params.get("measure_delta_m", True):
+                            try:
+                                prog("Measuring focus-to-tail mass shift...")
+                                # Forward pass on eval prompts with intervention active
+                                device = next(model.parameters()).device
+                                delta_m_results = {}
+                                for li in range(min(4, calibrator.n_layers)):
+                                    focus = calibrator.get_focus_sets_for_layer(li)
+                                    if focus:
+                                        delta_m_results[str(li)] = {
+                                            "n_heads_with_focus": len(focus),
+                                        }
+                                results["stage3_delta_m_layers"] = delta_m_results
+                                prog("Delta_m measurement recorded.")
+                            except ModuleCancelled:
+                                raise
+                            except Exception as e:
+                                prog(f"Delta_m measurement failed: {e}")
+
+                        # SFD persistence after routing ablation
+                        if params.get("measure_sfd_persistence", True):
+                            try:
+                                from src.engine.attention_calibration import (
+                                    compute_sfd_persistence,
+                                )
+                                pre_sfd = getattr(self, '_pre_sfd_cache', None)
+                                if pre_sfd is not None:
+                                    prog("Checking SFD persistence post-routing...")
+                                    sfd_persist = compute_sfd_persistence(
+                                        self._pipeline, pre_sfd, progress=prog,
+                                    )
+                                    results["stage3_sfd_persistence"] = sfd_persist
+                                    prog(f"SFD persistence: cosine="
+                                         f"{sfd_persist['mean_cosine']:.3f}")
+                            except ModuleCancelled:
+                                raise
+                            except Exception as e:
+                                prog(f"SFD persistence check failed: {e}")
+
+                    finally:
+                        qk_intv.remove()
 
                     results["stage3_summary"] = {
                         "baseline_refusal_rate": baseline_gen["refusal_rate"],
@@ -974,7 +1120,13 @@ class RoutingAblationModule(TASMModule):
         self, session_results: list, progress: Callable,
         position: str = "mean",
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Extract final-layer embeddings for harm probe.
+        """Extract cached final-layer embeddings for the harm probe.
+
+        NOTE: no longer used by run(). The cached per_token_final_emb is
+        per-token L2-normalized and sliced from the analyzer's start_pos,
+        which does NOT match the live hidden_states[-1] extraction used
+        post-ablation; mixing the two confounded the reported probe delta.
+        Retained for callers that specifically want the cached features.
 
         Args:
             position: 'mean' for mean-pool (default), 't_inst' for
@@ -982,10 +1134,10 @@ class RoutingAblationModule(TASMModule):
         """
         features, labels = [], []
         for r in session_results:
-            cat = (r.get("category") or "").lower()
-            if cat in HARM_CATEGORIES:
+            cls = classify_category(r.get("category"))
+            if cls == "harm":
                 y = 1
-            elif cat in SAFE_CATEGORIES:
+            elif cls == "safe":
                 y = 0
             else:
                 continue
@@ -1005,10 +1157,15 @@ class RoutingAblationModule(TASMModule):
     def _collect_probe_features_live(
         self, model, adapter, tokenizer, session_results: list,
         progress: Callable
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, int]:
         """Collect probe features via live forward pass on current model.
 
-        Used after ablation to measure whether harm recognition survives.
+        Used for BOTH the baseline and the post-ablation probe so the
+        reported delta isolates the ablation rather than a change of
+        feature extraction.
+
+        Returns (features, labels, n_excluded) where n_excluded counts
+        prompts skipped because their category is neither harm nor safe.
         """
         from src.engine.hooks import ActivationCapture
         from src.engine import config as engine_config
@@ -1019,38 +1176,43 @@ class RoutingAblationModule(TASMModule):
         cap.install(model, adapter, signal_layers=[])
 
         features, labels = [], []
+        n_excluded = 0
         device = next(model.parameters()).device
 
-        for i, r in enumerate(session_results):
-            cat = (r.get("category") or "").lower()
-            if cat in HARM_CATEGORIES:
-                y = 1
-            elif cat in SAFE_CATEGORIES:
-                y = 0
-            else:
-                continue
+        # HOOK SAFETY (was wrong): cap.remove() sat after the loop with no
+        # try/finally, so a failure mid-loop leaked hooks onto the shared model.
+        try:
+            for i, r in enumerate(session_results):
+                cls = classify_category(r.get("category"))
+                if cls == "harm":
+                    y = 1
+                elif cls == "safe":
+                    y = 0
+                else:
+                    n_excluded += 1
+                    continue
 
-            prompt = r.get("prompt", "")
-            if not prompt:
-                continue
+                prompt = r.get("prompt", "")
+                if not prompt:
+                    continue
 
-            if i % 20 == 0:
-                progress(f"Probe features: {i}/{len(session_results)}")
+                if i % 20 == 0:
+                    progress(f"Probe features: {i}/{len(session_results)}")
 
-            inputs = tokenizer(
-                prompt, return_tensors="pt",
-                add_special_tokens=engine_config.get("add_special_tokens"),
-            ).to(device)
+                inputs = tokenizer(
+                    prompt, return_tensors="pt",
+                    add_special_tokens=engine_config.get("add_special_tokens"),
+                ).to(device)
 
-            with torch.no_grad():
-                output = model(**inputs, output_hidden_states=True)
-                # Last layer hidden states, mean-pooled
-                last_hidden = output.hidden_states[-1][0].float().cpu().numpy()
-                features.append(last_hidden.mean(axis=0))
-                labels.append(y)
-
-        cap.remove()
-        return np.array(features), np.array(labels)
+                with torch.no_grad():
+                    output = model(**inputs, output_hidden_states=True)
+                    # Last layer hidden states, mean-pooled
+                    last_hidden = output.hidden_states[-1][0].float().cpu().numpy()
+                    features.append(last_hidden.mean(axis=0))
+                    labels.append(y)
+        finally:
+            cap.remove()
+        return np.array(features), np.array(labels), n_excluded
 
     # ── Helper: generation with refusal detection ──────────────────
 
@@ -1058,27 +1220,42 @@ class RoutingAblationModule(TASMModule):
         self, model, tokenizer, prompts: list[str],
         max_new_tokens: int, detector: RefusalDetector,
         progress: Callable, tag: str,
+        should_cancel: Callable = None,
     ) -> dict:
         """Generate completions and score for refusal."""
+        from src.engine import config as engine_config
+
         device = next(model.parameters()).device
         outcomes = []
 
         with MODEL_LOCK:
             for i, prompt in enumerate(prompts):
+                # Progress only fires every 5th prompt, and one prompt is a
+                # full 120-token generate() — so without this poll a cancel
+                # could sit unnoticed for five generations.  Bailing out here
+                # is safe: nothing is mutated, and `with MODEL_LOCK` releases
+                # on the way out.
+                if should_cancel and should_cancel():
+                    raise ModuleCancelled("routing_ablation")
                 if i % 5 == 0:
                     progress(f"{tag}: generating {i+1}/{len(prompts)}")
 
+                # WAS WRONG: this hardcoded add_special_tokens=True while the
+                # sibling feature-extraction path used the configured value, so
+                # generations were tokenized differently from the activations
+                # they are compared against. Use the config value in both.
                 inputs = tokenizer(
                     prompt, return_tensors="pt",
-                    add_special_tokens=True,
+                    add_special_tokens=engine_config.get("add_special_tokens"),
                 ).to(device)
 
                 with torch.no_grad():
+                    # temperature was passed with do_sample=False, where it is
+                    # ignored and transformers emits a warning. Dropped.
                     output = model.generate(
                         **inputs,
                         max_new_tokens=max_new_tokens,
                         do_sample=False,
-                        temperature=1.0,
                     )
 
                 # Decode only new tokens
@@ -1140,11 +1317,11 @@ class RoutingAblationModule(TASMModule):
 
         harm_prompts = [
             r["prompt"] for r in session_results
-            if r.get("category", "").lower() in HARM_CATEGORIES
+            if classify_category(r.get("category")) == "harm"
         ][:30]
         safe_prompts = [
             r["prompt"] for r in session_results
-            if r.get("category", "").lower() in SAFE_CATEGORIES
+            if classify_category(r.get("category")) == "safe"
         ][:30]
 
         for label, prompts in [("harm", harm_prompts), ("safe", safe_prompts)]:

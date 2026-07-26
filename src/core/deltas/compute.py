@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import gc
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -28,6 +29,8 @@ from src.core.types import ProgressCallback, noop_progress
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
     from src.core.adapter.base import ModelAdapter
+
+logger = logging.getLogger("src")
 
 
 def compute_deltas_from_disk(
@@ -102,6 +105,12 @@ def compute_deltas_from_disk(
         return layer_idx in layer_filter
 
     _delta_count = [0]  # mutable counter for closure
+    # Keys present in the base checkpoint but absent from the instruct model
+    # (or vice versa).  Skipping these silently is how a MISMATCHED PAIR ends
+    # up producing a partially-populated store, which surfaces later as a
+    # LayerNotComputedError that blames the layer filter — the wrong cause.
+    _skipped_keys = []
+    _dtype_narrowed = [False]
 
     def _process_file(fpath: Path, keys_to_extract: list[str]) -> None:
         n_keys = len(keys_to_extract)
@@ -109,12 +118,28 @@ def compute_deltas_from_disk(
             available = set(f.keys())
             for ki, key in enumerate(keys_to_extract):
                 if key not in available or key not in inst_sd:
+                    _skipped_keys.append(key)
                     continue
-                base_tensor = f.get_tensor(key).to(dtype=dtype)
+                base_raw = f.get_tensor(key)
                 inst_tensor = inst_sd[key]
-                if inst_tensor.dtype != dtype:
-                    inst_tensor = inst_tensor.to(dtype)
-                delta = inst_tensor - base_tensor
+                if inst_tensor.shape != base_raw.shape:
+                    # Different hidden size / vocab size / head count.
+                    _skipped_keys.append(f"{key}(shape {tuple(base_raw.shape)}"
+                                         f" vs {tuple(inst_tensor.shape)})")
+                    del base_raw
+                    continue
+                # Casting the base tensor to `dtype` BEFORE the subtraction
+                # truncates it.  When the checkpoints ship fp32/fp16 and dtype
+                # is bf16 (8 mantissa bits) that truncation error is of the
+                # same order as the delta itself, so difference first and
+                # narrow after.
+                if base_raw.dtype != dtype or inst_tensor.dtype != dtype:
+                    _dtype_narrowed[0] = True
+                    common = torch.promote_types(base_raw.dtype, inst_tensor.dtype)
+                    delta = (inst_tensor.to(common) - base_raw.to(common)).to(dtype)
+                else:
+                    delta = inst_tensor - base_raw
+                base_tensor = base_raw
                 parsed = adapter.parse_projection_key(key)
                 if parsed is None:
                     del base_tensor, delta
@@ -260,5 +285,33 @@ def compute_deltas_from_disk(
     store.metadata.n_deltas = len(store)
     log("deltas", f"Delta computation complete: {len(store)} deltas, "
                    f"{store.total_bytes() / 1e9:.1f}GB")
+
+    # ── Pair-compatibility report ───────────────────────────────────
+    # Nothing else compares the two checkpoints, so an incompatible pair is
+    # otherwise invisible until a much later, misleading error.
+    if _dtype_narrowed[0]:
+        log("deltas", f"note: checkpoint dtype differs from the requested "
+                      f"{str(dtype).replace('torch.', '')}; deltas were "
+                      f"differenced at the wider dtype and narrowed after")
+    if _skipped_keys:
+        preview = ", ".join(_skipped_keys[:5])
+        more = f" (+{len(_skipped_keys) - 5} more)" if len(_skipped_keys) > 5 else ""
+        logger.warning(
+            "[deltas] %d projection weight(s) present in one checkpoint but "
+            "not the other, or shape-mismatched: %s%s — this usually means "
+            "'%s' and '%s' are not a matched base/instruct pair",
+            len(_skipped_keys), preview, more, base_model_id, instruct_id)
+        log("deltas", f"WARNING: {len(_skipped_keys)} weight(s) skipped — "
+                      f"'{base_model_id}' may not be the base of "
+                      f"'{instruct_id}'")
+
+    expected = len(layer_filter or range(n_layers)) * len(adapter.PROJECTION_ROLES)
+    if len(store) != expected:
+        logger.warning(
+            "[deltas] store holds %d deltas but %d were expected "
+            "(%d layers x %d roles); downstream layer lookups will raise "
+            "LayerNotComputedError for the gaps",
+            len(store), expected,
+            len(layer_filter or range(n_layers)), len(adapter.PROJECTION_ROLES))
 
     return store

@@ -2,12 +2,10 @@
 <html>
 <head>
 <title>Domain Surface Geometry — Probe Ladder — TAGM</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Shared palette + body/error-sink chrome (was a local :root copy). -->
+<link rel="stylesheet" href="/static/css/viz-base.css?v=1">
+<script src="/static/js/common/esc.js?v=1"></script>
 <style>
-:root { --font-desc:13px; --font-legend:12px; --font-table:12px; --bg:#1C2128; --bg2:#262C34; --text:#E8ECEF; --text2:#6B7280; --text3:#5A6068; --border:#444C56; --cyan:#56B4E9; --orange:#E69F00; --green:#009E73; --red:#D55E00; }
-body { background:var(--bg); color:var(--text); font-family:"IBM Plex Mono",monospace; padding:16px; margin:0; font-size:var(--font-legend); }
-#dsErr { color:#D55E00; font-size:var(--font-desc); padding:10px; white-space:pre-wrap; }
-
 /* ── Ladder graph ── */
 .ladder-controls { display:flex; gap:14px; flex-wrap:wrap; align-items:center; padding:10px 12px; background:var(--bg2); border:1px solid var(--border); border-radius:4px; margin-bottom:12px; font-size:11px; }
 .ladder-controls label { color:var(--text2); }
@@ -182,11 +180,10 @@ function ladderColorFor(rightItem, leftItem){
   return CAT_COLORS_LAD[cat] || "#888";
 }
 
-function ladderEscapeText(s, n){
-  s = String(s == null ? "" : s);
-  if (s.length > n) s = s.slice(0, n - 1) + "\u2026";
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
+// Truncate-then-escape. The local implementation escaped only & < > , yet its
+// output is interpolated into data-id="\u2026" / data-left-id="\u2026" attributes, where
+// an unescaped quote breaks out of the attribute. TAGM.escTrunc is quote-safe.
+function ladderEscapeText(s, n){ return TAGM.escTrunc(s, n); }
 
 function ladderRender(){
   var svg = document.getElementById("ladderSvg");

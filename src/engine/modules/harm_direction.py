@@ -30,15 +30,23 @@ import numpy as np
 from dataclasses import dataclass
 from collections import defaultdict
 
-from .base import TASMModule, ModuleParameter
+from .base import TASMModule, ModuleParameter, classify_category
+from src.engine.metrics import (
+    HARM_CATEGORIES,
+    SAFE_CATEGORIES,
+    auroc as _metric_auroc,
+    fit_direction_holdout,
+)
 
 logger = logging.getLogger("tasm")
 
 
 # ── Category sets ───────────────────────────────────────────────
-
-HARM_CATEGORIES = {"harmful", "jailbreak", "adversarial", "unknown"}
-SAFE_CATEGORIES = {"benign", "mild", "safe"}
+# WAS WRONG: this module's private vocabulary treated "unknown" as HARMFUL,
+# silently inflating n_harm with unlabelled prompts. HARM_CATEGORIES /
+# SAFE_CATEGORIES are now re-exported from src.engine.metrics, which excludes
+# "unknown" rather than guessing. n_harm_prompts WILL CHANGE for sessions
+# containing unknown-category prompts.
 
 
 # ── Fitted direction output ─────────────────────────────────────
@@ -53,10 +61,13 @@ class FittedHarmDirection:
     n_safe_tokens: int
     n_harm_prompts: int
     n_safe_prompts: int
-    train_auroc: float
-    holdout_auroc: float
+    train_auroc: float           # IN-SAMPLE, prompt-level
+    holdout_auroc: float         # out-of-fold CV, BOTH classes held out
     heldout_prompts: list
     convergence_ratio: float     # harm_angular_var / safe_angular_var
+    cv_p_value: float = None     # label-permutation null on holdout_auroc
+    underpowered: bool = False
+    n_excluded_prompts: int = 0  # category neither harm nor safe
 
 
 # ── Direction fitting ───────────────────────────────────────────
@@ -69,27 +80,52 @@ class SpectralDirectionFitter:
     per_token_final_emb from the residual stream.
     """
 
-    def __init__(self, session_results, harm_cats, safe_cats):
+    def __init__(self, session_results, harm_cats=None, safe_cats=None):
         self.results = session_results
-        self.harm_cats = {c.lower().strip() for c in harm_cats}
-        self.safe_cats = {c.lower().strip() for c in safe_cats}
+        # Optional explicit overrides layered on the canonical taxonomy.
+        self.harm_cats = ({c.lower().strip() for c in harm_cats}
+                          if harm_cats else None)
+        self.safe_cats = ({c.lower().strip() for c in safe_cats}
+                          if safe_cats else None)
+        self.n_excluded = 0
+
+    def _classify(self, cat):
+        return classify_category(cat, harm_override=self.harm_cats,
+                                 safe_override=self.safe_cats)
 
     def _extract_directions(self):
-        """Extract (direction_vectors, labels, prompt_indices) from
-        session data. Each token with a non-empty SFD direction
-        contributes one vector."""
+        """Extract token- and prompt-level direction vectors from session data.
+
+        Each token with a non-empty SFD direction contributes one unit vector.
+        A prompt-level vector is also produced: the mean of that prompt's unit
+        token directions, re-normalized.
+
+        TOKEN DEPENDENCE (was wrong): the previous code emitted one sample PER
+        TOKEN and then fitted and scored on those samples as if they were
+        i.i.d. Tokens within a prompt are strongly correlated, so the effective
+        sample size was the number of PROMPTS, not the number of tokens, and
+        every AUROC and variance here was correspondingly over-confident.
+        Fitting and scoring now happen on the prompt-level vectors (one row per
+        prompt), which removes the within-prompt dependence outright.
+        """
         vectors = []
         labels = []
         prompt_indices = []
         prompt_categories = []
+        prompt_vectors = []       # one aggregated vector per prompt
+        prompt_labels = []
+        prompt_ids = []
+        self.n_excluded = 0
 
         for i, r in enumerate(self.results):
             cat = (r.get("category") or "").lower().strip()
-            if cat in self.harm_cats:
+            cls = self._classify(cat)
+            if cls == "harm":
                 y = 1
-            elif cat in self.safe_cats:
+            elif cls == "safe":
                 y = 0
             else:
+                self.n_excluded += 1
                 continue
 
             sfd = r.get("sfd", {})
@@ -97,28 +133,56 @@ class SpectralDirectionFitter:
             if not dirs:
                 continue
 
+            this_prompt = []
             for d in dirs:
                 if not d or len(d) == 0:
                     continue
                 v = np.array(d, dtype=np.float32)
                 if np.linalg.norm(v) < 1e-10:
                     continue
-                vectors.append(v / (np.linalg.norm(v) + 1e-10))
+                v = v / (np.linalg.norm(v) + 1e-10)
+                vectors.append(v)
                 labels.append(y)
                 prompt_indices.append(i)
+                this_prompt.append(v)
+
+            if this_prompt:
+                pv = np.mean(this_prompt, axis=0)
+                n = np.linalg.norm(pv)
+                if n > 1e-10:
+                    prompt_vectors.append((pv / n).astype(np.float32))
+                    prompt_labels.append(y)
+                    prompt_ids.append(i)
 
             prompt_categories.append((i, cat, y))
 
+        self.prompt_vectors = prompt_vectors
+        self.prompt_labels = prompt_labels
+        self.prompt_ids = prompt_ids
         return vectors, labels, prompt_indices, prompt_categories
 
     def difference_of_means(self, holdout_frac=0.2, seed=0):
-        """Compute harm direction as mean(harm_dirs) - mean(safe_dirs).
+        """Compute harm direction as mean(harm) - mean(safe), prompt-level.
 
-        Holdout is at the prompt level (not token level) to prevent
-        data leakage from the same prompt appearing in both train
-        and test.
+        BROKEN HOLDOUT (was wrong): the previous version held out ONLY the
+        positive class — ``train_safe = set(safe_prompts)`` put every safe
+        prompt in training, and the "holdout" AUROC then scored those same
+        training safe rows (``safe_scores = X_safe @ v``) against the held-out
+        harm rows as if the safe side had been held out too. Half the
+        comparison was in-sample, which inflates the number.
+
+        Now: both classes are held out, via k-fold CV that refits the
+        direction inside each fold and scores out-of-fold, plus a
+        label-permutation null through the identical pipeline. Rows are
+        one-per-PROMPT (see _extract_directions) so no prompt can appear in
+        both train and test, and correlated within-prompt tokens no longer
+        masquerade as independent samples.
+
+        NUMBERS CHANGE: ``holdout_auroc`` is now an out-of-fold CV AUROC on
+        prompt-level vectors and will differ from — usually be lower than —
+        every previously reported value. ``train_auroc`` is likewise now
+        prompt-level and in-sample.
         """
-        rng = np.random.default_rng(seed)
         vectors, labels, prompt_indices, prompt_cats = \
             self._extract_directions()
 
@@ -132,13 +196,9 @@ class SpectralDirectionFitter:
         labels = np.array(labels, dtype=np.int32)
         prompt_indices = np.array(prompt_indices)
 
-        # Get unique prompts per class for holdout split
-        harm_prompts = sorted(set(
-            i for i, c, y in prompt_cats if y == 1
-        ))
-        safe_prompts = sorted(set(
-            i for i, c, y in prompt_cats if y == 0
-        ))
+        # Get unique prompts per class
+        harm_prompts = sorted(set(i for i, c, y in prompt_cats if y == 1))
+        safe_prompts = sorted(set(i for i, c, y in prompt_cats if y == 0))
 
         if len(harm_prompts) < 2 or len(safe_prompts) < 2:
             raise ValueError(
@@ -146,68 +206,34 @@ class SpectralDirectionFitter:
                 f"{len(harm_prompts)} harm, {len(safe_prompts)} safe."
             )
 
-        # Hold out harm prompts for testing
-        perm = rng.permutation(len(harm_prompts))
-        n_train = max(2, int(round(len(harm_prompts) * (1 - holdout_frac))))
-        train_harm = set(
-            harm_prompts[j] for j in perm[:n_train]
-        )
-        held_harm = set(
-            harm_prompts[j] for j in perm[n_train:]
-        )
-        train_safe = set(safe_prompts)
+        # ── Prompt-level design matrix ──────────────────────────
+        P = np.stack(self.prompt_vectors)
+        py = np.array(self.prompt_labels, dtype=np.int32)
+        P_harm = P[py == 1]
+        P_safe = P[py == 0]
+        if len(P_harm) < 2 or len(P_safe) < 2:
+            raise ValueError(
+                f"Need >=2 prompts per class with usable SFD directions; got "
+                f"{len(P_harm)} harm, {len(P_safe)} safe.")
 
-        # Partition token vectors by prompt membership
-        train_mask = np.array([
-            (labels[i] == 1 and prompt_indices[i] in train_harm) or
-            (labels[i] == 0 and prompt_indices[i] in train_safe)
-            for i in range(len(vectors))
-        ])
-        held_mask = np.array([
-            prompt_indices[i] in held_harm
-            for i in range(len(vectors))
-        ])
-
-        X_train = vectors[train_mask]
-        y_train = labels[train_mask]
-        X_held = vectors[held_mask]
-        y_held = labels[held_mask]
-
-        X_harm = X_train[y_train == 1]
-        X_safe = X_train[y_train == 0]
-
-        if len(X_harm) < 2 or len(X_safe) < 2:
-            raise ValueError("Insufficient tokens after split.")
-
-        # Difference of means
-        v = X_harm.mean(axis=0) - X_safe.mean(axis=0)
+        cv = fit_direction_holdout(P_harm, P_safe, seed=seed)
+        v = np.asarray(cv["direction"], dtype=np.float64)
         norm = np.linalg.norm(v)
         if norm < 1e-10:
             raise ValueError(
                 "Harm direction has near-zero norm; classes may be "
                 "indistinguishable in spectral space."
             )
-        v = v / norm
+        v = (v / norm).astype(np.float32)
 
-        # Train AUROC
-        scores_train = X_train @ v
-        train_auroc = _auroc(scores_train, y_train)
+        train_auroc = cv["train_auroc"]      # in-sample, prompt-level
+        holdout_auroc = cv["cv_auroc"]       # out-of-fold, BOTH classes
 
-        # Holdout AUROC (harm held-out vs all safe)
-        holdout_auroc = 0.5
-        if len(X_held) > 0:
-            safe_scores = X_safe @ v
-            held_scores = X_held @ v
-            all_scores = np.concatenate([held_scores, safe_scores])
-            all_labels = np.concatenate([
-                np.ones(len(held_scores)),
-                np.zeros(len(safe_scores)),
-            ]).astype(int)
-            holdout_auroc = _auroc(all_scores, all_labels)
-
-        # Convergence ratio: angular variance of harm vs safe
-        # This measures whether harm tokens actually converge
-        # (the theoretical prediction)
+        # Convergence ratio: angular variance of harm vs safe. Computed on
+        # TOKEN vectors, which is what the theoretical claim is about; note
+        # that the tokens are not independent, so treat this as descriptive.
+        X_harm = vectors[labels == 1]
+        X_safe = vectors[labels == 0]
         harm_cos = X_harm @ v
         safe_cos = X_safe @ v
         harm_angular_var = float(np.var(harm_cos))
@@ -216,15 +242,17 @@ class SpectralDirectionFitter:
             harm_angular_var / (safe_angular_var + 1e-10)
         )
 
-        # Heldout prompt texts
-        held_prompts = [
-            self.results[i].get("prompt", "")
-            for i in sorted(held_harm)
-        ]
+        # Reserve a nominal harm-prompt holdout list for downstream causal
+        # tests. It no longer plays any role in the AUROC above.
+        rng = np.random.default_rng(seed)
+        perm = rng.permutation(len(harm_prompts))
+        n_train = max(2, int(round(len(harm_prompts) * (1 - holdout_frac))))
+        held_harm = sorted(harm_prompts[j] for j in perm[n_train:])
+        held_prompts = [self.results[i].get("prompt", "") for i in held_harm]
 
         return FittedHarmDirection(
             vector=v.astype(np.float32),
-            method="difference_of_means",
+            method="difference_of_means_prompt_level_cv",
             spectral_dim=int(v.shape[0]),
             n_harm_tokens=int(len(X_harm)),
             n_safe_tokens=int(len(X_safe)),
@@ -234,6 +262,9 @@ class SpectralDirectionFitter:
             holdout_auroc=float(holdout_auroc),
             heldout_prompts=held_prompts,
             convergence_ratio=float(convergence_ratio),
+            cv_p_value=cv["p_value"],
+            underpowered=bool(cv["underpowered"]),
+            n_excluded_prompts=int(self.n_excluded),
         )
 
 
@@ -262,19 +293,24 @@ class HarmDirectionModule(TASMModule):
             name="harm_categories",
             display_name="Harmful Categories",
             description=(
-                "Comma-separated session categories treated as harmful."
+                "Comma-separated session categories treated as harmful. "
+                "Leave EMPTY to use the canonical taxonomy in "
+                "src/engine/metrics.py (recommended). Note that 'unknown' is "
+                "no longer harmful by default — it is excluded."
             ),
             type="str",
-            default="harmful,jailbreak,unknown",
+            default="",
         ),
         ModuleParameter(
             name="safe_categories",
             display_name="Safe Categories",
             description=(
-                "Comma-separated session categories treated as safe."
+                "Comma-separated session categories treated as safe. "
+                "Leave EMPTY to use the canonical taxonomy in "
+                "src/engine/metrics.py (recommended)."
             ),
             type="str",
-            default="benign,mild",
+            default="",
         ),
         ModuleParameter(
             name="holdout_frac",
@@ -318,16 +354,15 @@ class HarmDirectionModule(TASMModule):
                 progress(msg)
             logger.info(f"[HARM_DIR] {msg}")
 
+        # Empty / whitespace-only lists mean "use the canonical taxonomy".
         harm_cats = {
             c.strip() for c in
-            params.get("harm_categories", "harmful,jailbreak,unknown")
-            .split(",")
-        }
+            params.get("harm_categories", "").split(",") if c.strip()
+        } or None
         safe_cats = {
             c.strip() for c in
-            params.get("safe_categories", "benign,mild")
-            .split(",")
-        }
+            params.get("safe_categories", "").split(",") if c.strip()
+        } or None
         holdout_frac = params.get("holdout_frac", 0.2)
         seed = params.get("seed", 42)
 
@@ -344,9 +379,11 @@ class HarmDirectionModule(TASMModule):
         )
 
         prog(f"Direction fitted: dim={fit.spectral_dim}, "
-             f"train AUROC={fit.train_auroc:.3f}, "
-             f"holdout AUROC={fit.holdout_auroc:.3f}, "
-             f"convergence ratio={fit.convergence_ratio:.4f}")
+             f"train AUROC={fit.train_auroc:.3f} (IN-SAMPLE), "
+             f"CV holdout AUROC={fit.holdout_auroc:.3f} "
+             f"(p={fit.cv_p_value}), "
+             f"convergence ratio={fit.convergence_ratio:.4f}"
+             + (" [UNDERPOWERED]" if fit.underpowered else ""))
 
         # ── Project all tokens onto harm direction ──────────────
 
@@ -433,8 +470,8 @@ class HarmDirectionModule(TASMModule):
             reverse=True,
         )[:50]
 
-        prog(f"Complete. Harm direction fitted with "
-             f"AUROC={fit.holdout_auroc:.3f}")
+        prog(f"Complete. Harm direction fitted with out-of-fold CV "
+             f"AUROC={fit.holdout_auroc:.3f} (p={fit.cv_p_value})")
 
         return {
             "direction": {
@@ -445,8 +482,17 @@ class HarmDirectionModule(TASMModule):
                 "n_safe_tokens": fit.n_safe_tokens,
                 "n_harm_prompts": fit.n_harm_prompts,
                 "n_safe_prompts": fit.n_safe_prompts,
+                # Prompts whose category is neither harm nor safe are
+                # EXCLUDED (previously "unknown" was counted as harm).
+                "n_excluded_prompts": fit.n_excluded_prompts,
+                # IN-SAMPLE: direction fitted on the rows it scores.
                 "train_auroc": fit.train_auroc,
+                # Out-of-fold, BOTH classes held out, prompt-level rows.
                 "holdout_auroc": fit.holdout_auroc,
+                "cv_auroc": fit.holdout_auroc,
+                "cv_p_value": fit.cv_p_value,
+                "underpowered": fit.underpowered,
+                "unit_of_analysis": "prompt",
                 "convergence_ratio": fit.convergence_ratio,
             },
             "per_prompt_projections": per_prompt_projections,
@@ -454,8 +500,10 @@ class HarmDirectionModule(TASMModule):
             "token_leaderboard": token_leaderboard,
             "heldout_prompts": fit.heldout_prompts,
             "params": {
-                "harm_categories": sorted(harm_cats),
-                "safe_categories": sorted(safe_cats),
+                "harm_categories": (sorted(harm_cats) if harm_cats
+                                    else sorted(HARM_CATEGORIES)),
+                "safe_categories": (sorted(safe_cats) if safe_cats
+                                    else sorted(SAFE_CATEGORIES)),
                 "holdout_frac": holdout_frac,
                 "seed": seed,
             },
@@ -466,20 +514,10 @@ class HarmDirectionModule(TASMModule):
 # ── Helpers ─────────────────────────────────────────────────────
 
 def _auroc(scores, labels):
-    """Wilcoxon-Mann-Whitney AUROC. No sklearn dependency."""
-    if len(scores) < 4:
-        return 0.5
-    pos = labels == 1
-    neg = labels == 0
-    if pos.sum() == 0 or neg.sum() == 0:
-        return 0.5
-    s_pos = scores[pos]
-    s_neg = scores[neg]
-    n_pos = len(s_pos)
-    n_neg = len(s_neg)
-    # Count concordant pairs
-    concordant = sum(
-        np.sum(s_neg < sp) + 0.5 * np.sum(s_neg == sp)
-        for sp in s_pos
-    )
-    return float(concordant / (n_pos * n_neg))
+    """Wilcoxon-Mann-Whitney AUROC.
+
+    WAS WRONG (as a design): one of five divergent copies. Body now delegates
+    to the single verified implementation in src.engine.metrics. Behaviour is
+    unchanged (same n < 4 guard, same tie handling).
+    """
+    return _metric_auroc(scores, labels)

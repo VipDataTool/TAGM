@@ -89,7 +89,8 @@ state = AppState()
 # THE model lock. Analysis, chat, probe embedding, and every module that
 # runs a forward pass or generate() all acquire this same lock — see
 # src/core/locks.py for the hook-corruption rationale.
-from src.core.locks import MODEL_LOCK as _analysis_lock
+from src.core.locks import MODEL_LOCK
+_analysis_lock = MODEL_LOCK
 _loading_lock = threading.Lock()
 # Job-level guard: at most one analysis job (single or batch) runs at a time.
 # This is distinct from _analysis_lock, which serializes individual inference
@@ -97,12 +98,35 @@ _loading_lock = threading.Lock()
 # contract can't have two jobs in flight at once.
 _job_running = False
 _job_lock = threading.Lock()
+# Cooperative cancellation for the running job.  A batch of a few hundred
+# prompts can run for hours, and before this the only way to stop one was to
+# kill the server — losing the whole session.  Checked between prompts, so a
+# cancel takes effect after the current prompt finishes rather than mid-
+# forward-pass; results already collected are kept (they are complete
+# per-prompt records, unlike a half-finished module analysis).
+_job_cancel = threading.Event()
 
 
 def job_active() -> bool:
     """True while an analysis job (single or batch) is in flight."""
     with _job_lock:
         return _job_running
+
+
+def job_cancelled() -> bool:
+    """True once cancellation has been requested for the running job."""
+    return _job_cancel.is_set()
+
+
+def cancel_analysis_job() -> dict:
+    """Request cancellation of the in-flight analysis job."""
+    with _job_lock:
+        if not _job_running:
+            return {"ok": False, "error": "No analysis is running."}
+    _job_cancel.set()
+    logger.info("[ANALYZE] cancellation requested")
+    return {"ok": True, "cancelling": True,
+            "message": "Cancelling after the current prompt finishes."}
 
 
 # ─── Model registry ─────────────────────────────────────────────
@@ -124,6 +148,13 @@ def api_status_handler():
 
     disk_info = Session.has_session_on_disk() if state.session.n_results == 0 else None
 
+    # One call, not two: get_cache_size() runs SUM(LENGTH(data_blob)) over
+    # the whole results table under the DB RLock that analysis writers also
+    # hold, and this endpoint is polled every ~2s. It was being paid twice
+    # per poll for the same number. (The endpoint itself is thread-pooled
+    # in app.py so the scan never runs on the event loop.)
+    cache_bytes = state.session.get_cache_size()
+
     return {
         "model_loaded": model_loaded,
         "loading": state.loading_state.get("active", False),
@@ -134,12 +165,12 @@ def api_status_handler():
         "session": {
             "n_results": state.session.n_results,
             "categories": state.session.categories,
-            "cache_size_bytes": state.session.get_cache_size(),
+            "cache_size_bytes": cache_bytes,
             "model": state.session.model_name,
         } if state.session else None,
         "session_id": state.session.session_id,
         "n_results": state.session.n_results,
-        "cache_bytes": state.session.get_cache_size(),
+        "cache_bytes": cache_bytes,
         "restorable": disk_info,
         "user_info": state.user_info,
         "inference_class": state.pipeline.inference_class if model_loaded else "instruct",
@@ -175,7 +206,21 @@ def _load_worker(instruct_id: str, base_id: str,
     try:
         if state.pipeline is not None:
             state.progress("loading", "Unloading previous pipeline")
-            state.pipeline.unload()
+            # Teardown under MODEL_LOCK. job_active() (checked by the
+            # caller) only covers analysis jobs — chat generation, probe
+            # embedding, module runs and roundtable turns all hold
+            # MODEL_LOCK around their forwards and would otherwise have
+            # the weights freed underneath them mid-pass.
+            #
+            # locks.py says "never hold it across model load/unload
+            # progress waits", and this respects that: the lock covers
+            # only the swap-and-free (fast, no I/O, no progress loop),
+            # NOT the multi-minute from_pretrained download below, which
+            # runs entirely outside it.
+            with MODEL_LOCK:
+                old_pipeline, state.pipeline = state.pipeline, None
+                old_pipeline.unload()
+            del old_pipeline
 
         state.progress("loading", f"Downloading weights: {instruct_id}")
         state.pipeline = Pipeline(
@@ -403,6 +448,15 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
     if do_harvest:
         from src.engine.ecm_harvest import generate_harvest_response
         for i in range(n_prompts):
+            # Cancellation checkpoint. Between items, not mid-generation:
+            # a single generate() call cannot be safely interrupted.
+            if _job_cancel.is_set():
+                logger.info("[ANALYZE] cancelled during harvest at %d/%d",
+                            i, n_prompts)
+                if progress:
+                    progress("cancelled",
+                             f"Cancelled during harvest at {i}/{n_prompts}")
+                break
             p = work[i]
             try:
                 with _analysis_lock:
@@ -464,7 +518,21 @@ def _analyze_prompt_list(prompts: list[dict], flags: dict, *,
 
     # ── Phase 3: Instruct analysis (all items) ──────────────────
     n = len(work)
+    n_cancelled = 0
     for i, p in enumerate(work):
+        # Cancellation checkpoint, between prompts.  Results collected so far
+        # are kept: each is a complete per-prompt record already persisted by
+        # add_result, so stopping early yields a smaller session, not a
+        # corrupt one.
+        if _job_cancel.is_set():
+            n_cancelled = n - i
+            logger.info("[ANALYZE] cancelled at %d/%d — %d item(s) skipped",
+                        i, n, n_cancelled)
+            if progress:
+                progress("cancelled",
+                         f"Cancelled at {i}/{n} — {n_cancelled} skipped, "
+                         f"{len(results)} kept")
+            break
         if progress:
             progress("analyzing",
                      f"[{i+1}/{n}] {(p.get('prompt') or '')[:50]}...")
@@ -532,39 +600,70 @@ def _start_analysis_job(prompts: list[dict], flags: dict, *,
         if _job_running:
             return {"ok": False, "error": "Analysis already running."}
         _job_running = True
+    # Clear any cancellation left over from a previous job, so a stale cancel
+    # can never abort the run we are about to start.
+    _job_cancel.clear()
 
     def _run():
         global _job_running
         try:
-            results, errors = _analyze_prompt_list(
-                prompts, flags, deconstruct=deconstruct, progress=progress)
-            state.session.save_to_disk()
+            try:
+                results, errors = _analyze_prompt_list(
+                    prompts, flags, deconstruct=deconstruct, progress=progress)
+            except Exception as e:
+                logger.exception("Analysis job failed")
+                if progress is not None:
+                    progress("error", f"Analysis failed: {e}")
+                broker.publish("analyze_done", {
+                    "ok": False,
+                    "n_results": 0,
+                    "n_prompts": n_prompts,
+                    "n_errors": 0,
+                    "error": str(e),
+                })
+                return          # publish-exactly-once: no fallthrough
+            # save_to_disk() is deliberately outside the try above. Every
+            # result is already persisted by add_result inside
+            # _analyze_prompt_list, so a failure here loses nothing — but
+            # when it was inside, it was reported as ok=False/n_results=0,
+            # i.e. a fully successful run announced as a total failure.
+            try:
+                state.session.save_to_disk()
+            except Exception:
+                logger.exception(
+                    "save_to_disk failed after a successful analysis job "
+                    "(results are already persisted per-result)")
             n = len(results)
+            was_cancelled = _job_cancel.is_set()
             if progress is not None:
-                msg = (f"Analysis complete: {n} record(s), {len(errors)} failed"
-                       if errors else f"Analysis complete: {n} record(s)")
-                progress("done", msg)
+                if was_cancelled:
+                    msg = (f"Analysis cancelled: {n} record(s) kept before "
+                           f"stopping")
+                elif errors:
+                    msg = f"Analysis complete: {n} record(s), {len(errors)} failed"
+                else:
+                    msg = f"Analysis complete: {n} record(s)"
+                try:
+                    progress("done", msg)
+                except Exception:
+                    # Never let the console log stop the completion event.
+                    logger.exception("Progress callback failed")
+            # Still exactly one analyze_done, cancelled or not — the client
+            # waits on this event and would hang forever without it.
+            # ok=True: a cancelled run is not a failure, and the records it
+            # did produce are complete and already persisted.
             broker.publish("analyze_done", {
                 "ok": True,
+                "cancelled": was_cancelled,
                 "n_results": n,
                 "n_prompts": n_prompts,
                 "n_errors": len(errors),
                 "error": (errors[0][1] if errors else None),
             })
-        except Exception as e:
-            logger.exception("Analysis job failed")
-            if progress is not None:
-                progress("error", f"Analysis failed: {e}")
-            broker.publish("analyze_done", {
-                "ok": False,
-                "n_results": 0,
-                "n_prompts": n_prompts,
-                "n_errors": 0,
-                "error": str(e),
-            })
         finally:
             with _job_lock:
                 _job_running = False
+            _job_cancel.clear()
 
     threading.Thread(target=_run, daemon=True).start()
     return {"ok": True, "started": True, "n_prompts": n_prompts}
@@ -723,22 +822,50 @@ def api_progress_handler():
 
 
 def api_reset_handler():
-    """POST /api/reset — full reset. Refused while a job is in flight."""
+    """POST /api/reset — full reset. Refused while a job is in flight.
+
+    Blocking: callers on the event loop must run this in a threadpool,
+    since it waits on MODEL_LOCK (see below).
+    """
     if job_active():
         return {"ok": False,
                 "error": "An analysis job is running. Wait for it to "
                          "finish before resetting."}
+
+    # Size of what we're about to drop, for the freed_mb report.
+    freed_bytes = 0
+    try:
+        freed_bytes = state.session.get_cache_size() if state.session else 0
+    except Exception:
+        logger.exception("Reset: could not measure session size")
+
     if state.pipeline is not None:
-        try:
-            state.pipeline.unload()
-        except Exception:
-            pass
+        # Same rationale as _load_worker: job_active() does not cover chat
+        # generation, probe embedding, module runs or roundtable turns —
+        # all of which hold MODEL_LOCK around their forward passes. Freeing
+        # the weights without it tears the model out from under them.
+        # Teardown is fast and does no I/O, so holding the lock here does
+        # not violate locks.py's "never across model load" rule.
+        with MODEL_LOCK:
+            old_pipeline, state.pipeline = state.pipeline, None
+            try:
+                old_pipeline.unload()
+            except Exception:
+                # Was `except Exception: pass` — an unload failure (leaked
+                # CUDA memory, a hung hook removal) left no trace at all.
+                logger.exception("Pipeline unload failed during reset")
+        del old_pipeline
     state.pipeline = None
     state.analyzer = None
     state.session = Session(db=_db)
     state.loading_state = {"active": False, "error": None}
     state.progress("reset", "Pipeline and session reset")
-    return {"ok": True, "message": "Reset complete"}
+    return {
+        "ok": True,
+        "message": "Reset complete",
+        "freed_mb": round(freed_bytes / 1e6, 3),
+        "cache_size_bytes": state.session.get_cache_size(),
+    }
 
 
 def api_session_restore_handler():
@@ -756,10 +883,17 @@ def api_session_restore_handler():
 
 
 def api_session_remove_handler(indices: list[int]):
-    """POST /api/session/remove — remove specific indices."""
+    """POST /api/session/remove — remove specific indices.
+
+    Returns how many rows actually went away ("removed") alongside the
+    remaining count, so the client can tell a no-op (out-of-range or
+    duplicate indices) from a real deletion.
+    """
+    before = state.session.n_results
     state.session.remove_indices(indices)
     state.session.save_to_disk()
-    return {"ok": True, "n_results": state.session.n_results}
+    after = state.session.n_results
+    return {"ok": True, "removed": max(0, before - after), "n_results": after}
 
 
 # ─── Helpers ────────────────────────────────────────────────────

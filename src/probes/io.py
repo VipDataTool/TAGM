@@ -48,6 +48,7 @@ from __future__ import annotations
 import csv
 import re
 import datetime as _dt
+import hashlib
 import json
 import logging
 import os
@@ -264,15 +265,47 @@ def load_probes(csv_path):
 
 # ─── Probe Embedding Cache ────────────────────────────────────
 
+def probe_csv_fingerprint(project_root, probe_file) -> str:
+    """Short content hash of a probe CSV.
+
+    The cache key used to be the FILENAME STEM only, so editing a probe CSV in
+    place silently reused the embeddings of the previous contents.  Hashing the
+    bytes makes an edit produce a different cache file.
+    """
+    path = os.path.join(project_root, probe_file)
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:12]
+    except OSError:
+        # Unreadable: fall back to a marker that never matches a real hash, so
+        # we recompute rather than reuse something unrelated.
+        return "nofile"
+
+
 def probe_cache_path(project_root, probe_file, model_id, layer_frac=0.50,
                      projected=False):
-    """Build the cache file path for pre-computed probe embeddings."""
+    """Build the cache file path for pre-computed probe embeddings.
+
+    The key covers everything that changes the embeddings: CSV contents, model,
+    capture depth, projection, and the two tokenization/pooling flags.
+    """
+    # Imported lazily, matching the rest of this module: src.engine.config
+    # pulls in engine state that must not be imported at probe-IO import time.
+    from src.engine import config as engine_config
+
     cache_dir = os.path.join(project_root, PROBE_CACHE_DIR)
     safe_model = model_id.replace("/", "__").replace("\\", "__")
-    stem = os.path.splitext(probe_file)[0]
+    stem = os.path.splitext(os.path.basename(probe_file))[0]
     layer_tag = str(int(layer_frac * 100))
     proj_tag = "_proj" if projected else ""
-    return os.path.join(cache_dir, f"{stem}__{safe_model}__L{layer_tag}{proj_tag}.json")
+    content_tag = probe_csv_fingerprint(project_root, probe_file)
+    tok_tag = "{}{}".format(
+        int(bool(engine_config.get("add_special_tokens"))),
+        int(bool(engine_config.get("include_first_token"))),
+    )
+    return os.path.join(
+        cache_dir,
+        f"{stem}__{safe_model}__L{layer_tag}{proj_tag}__c{content_tag}__t{tok_tag}.json")
 
 
 def load_probe_cache(cache_path):
@@ -281,6 +314,8 @@ def load_probe_cache(cache_path):
     Validates that embeddings don't contain NaN (can happen if cache
     was generated with a dtype that caused overflow, e.g. fp16 on CPU).
     """
+    from src.engine import config as engine_config
+
     if not os.path.exists(cache_path):
         return None
     try:
@@ -293,6 +328,22 @@ def load_probe_cache(cache_path):
         if data.get("pool_version") != 2:
             logger.warning(f"[DOMAIN] Probe cache uses the pre-v2 pooling "
                            f"scheme — invalidating: {cache_path}")
+            os.remove(cache_path)
+            return None
+        # The two tokenization flags were WRITTEN into the cache but never read
+        # back, so flipping either one silently reused embeddings produced
+        # under the other scheme.  They are part of the filename now; this is
+        # the belt-and-braces check for pre-existing caches.
+        want_special = bool(engine_config.get("add_special_tokens"))
+        want_first = bool(engine_config.get("include_first_token"))
+        if (data.get("add_special_tokens") != want_special
+                or data.get("include_first_token") != want_first):
+            logger.warning(
+                f"[DOMAIN] Probe cache tokenization mismatch "
+                f"(cached add_special={data.get('add_special_tokens')}, "
+                f"include_first={data.get('include_first_token')}; "
+                f"config wants {want_special}/{want_first}) — invalidating: "
+                f"{cache_path}")
             os.remove(cache_path)
             return None
         # Validate: check all embeddings for NaN
@@ -378,16 +429,34 @@ def embed_and_cache_probes(model, tokenizer, adapter, project_root, probe_file,
         handle = target_module.register_forward_hook(hook_fn)
         try:
             for i, probe in enumerate(probes):
+                # Clear between probes.  `captured` was created once outside
+                # the loop, so if a forward ever failed to fire the hook this
+                # probe silently inherited the PREVIOUS probe's embedding.
+                captured.clear()
                 inputs = tokenizer(probe["text"], return_tensors="pt",
                                    add_special_tokens=add_special)
                 device = next(model.parameters()).device
                 inputs = {k: v.to(device) for k, v in inputs.items()}
                 with torch.no_grad():
                     model(**inputs)
+                if "h" not in captured:
+                    raise RuntimeError(
+                        f"probe {i} ({probe.get('text', '')[:40]!r}): forward "
+                        f"pass did not fire the capture hook")
                 h = captured["h"][0]
+                # Promote BEFORE the reduction: averaging in bf16 (8 mantissa
+                # bits) and casting afterwards loses precision the .float()
+                # cannot recover.
                 if h.shape[0] > start_pos:
-                    emb = h[start_pos:].mean(dim=0).float()
+                    emb = h[start_pos:].float().mean(dim=0)
                 else:
+                    # Degenerate: the sequence is shorter than start_pos, so
+                    # there is nothing to pool.  h[0] is the very token
+                    # start_pos exists to skip, so flag it rather than pretend.
+                    logger.warning(
+                        "[DOMAIN] probe %d is shorter than start_pos=%d; "
+                        "falling back to position 0 (the token start_pos "
+                        "skips)", i, start_pos)
                     emb = h[0].float()
                 if delta_matrix is not None:
                     emb = torch.matmul(emb.cpu(), delta_matrix.float().cpu().T)

@@ -200,8 +200,11 @@ def test_density_parity():
         layers[li] = SFDLayerCache(
             V_k=V_k, S=S, erank=float(np.exp(H)), spectral_entropy=H,
             norm_entropy=H / np.log(k), log_volume=float(np.sum(np.log(S))),
-            stable_rank=float(np.sum(S**2) / S[0]**2),
-            frob_norm=float(np.sqrt(np.sum(S**2))),
+            # Renamed from stable_rank/frob_norm: these derive from the
+            # TRUNCATED top-k spectrum, so they are not the exact quantities
+            # INVARIANTS.md section 5 describes (see the note on SFDLayerCache).
+            trunc_stable_rank=float(np.sum(S**2) / S[0]**2),
+            trunc_frob_norm=float(np.sqrt(np.sum(S**2))),
         )
     cache = {"layers": layers, "mean_erank": float(np.mean(
         [c.erank for c in layers.values()]))}
