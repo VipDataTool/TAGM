@@ -224,8 +224,19 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
     if not raw and not norm:
         return _empty_plot("No amplitude trajectory data")
 
-    fig = _new_fig(_FIGSIZE_WIDE)
-    ax = fig.subplots()
+    # Raw and normalized go in SEPARATE STACKED PANELS sharing the x-axis,
+    # never on twinned y-axes. Twin axes have independent scales, so the eye
+    # compares a raw curve against a normalized one and reads a relationship
+    # that is an artifact of two arbitrary autoscales. Within a panel both
+    # series share one axis, so attn-vs-mlp IS a valid visual comparison —
+    # which is the comparison this plot exists to support.
+    have_both = bool(raw and norm)
+    fig = _new_fig((_FIGSIZE_WIDE[0], _FIGSIZE_WIDE[1] * (1.7 if have_both else 1.0)))
+    if have_both:
+        axes = fig.subplots(2, 1, sharex=True)
+        ax_norm, ax_raw = axes[0], axes[1]
+    else:
+        ax_norm = ax_raw = fig.subplots()
 
     # The trajectory interleaves the two sublayer types:
     #     index = 2*layer + {0: attn, 1: mlp}
@@ -235,50 +246,34 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
     series = norm or raw
     n = len(series)
     interleaved = n >= 4 and n % 2 == 0 and not labels
-    handles = []
 
-    if interleaved:
-        layers = list(range(n // 2))
-        if norm:
-            handles += ax.plot(layers, norm[0::2], color=_BLUE, linewidth=1.6,
-                               marker="o", markersize=3, label="attn (normalized)")
-            handles += ax.plot(layers, norm[1::2], color=_GREEN, linewidth=1.6,
-                               marker="s", markersize=3, label="mlp (normalized)")
-        if raw:
-            ax2 = ax.twinx()
-            handles += ax2.plot(layers, raw[0::2], color=_ORANGE, linewidth=1.0,
-                                linestyle="--", alpha=0.7, label="attn (raw)")
-            handles += ax2.plot(layers, raw[1::2], color=_RED, linewidth=1.0,
-                                linestyle=":", alpha=0.7, label="mlp (raw)")
-            ax2.set_ylabel("Raw amplitude", color=_ORANGE)
-            ax2.tick_params(axis="y", colors=_ORANGE)
-        ax.set_xlabel("Layer")
-    else:
-        x = list(range(n))
-        if norm:
-            handles += ax.plot(x, norm, color=_BLUE, label="Normalized",
-                               linewidth=1.5)
-        if raw:
-            ax2 = ax.twinx()
-            handles += ax2.plot(x, raw, color=_ORANGE, label="Raw",
-                                linewidth=1.0, linestyle="--", alpha=0.7)
-            ax2.set_ylabel("Raw amplitude", color=_ORANGE)
-            ax2.tick_params(axis="y", colors=_ORANGE)
-        if labels and len(labels) == len(x):
-            # Show every Nth label to avoid clutter
-            step = max(1, len(labels) // 16)
-            ax.set_xticks(x[::step])
-            ax.set_xticklabels(labels[::step], rotation=45, ha="right", fontsize=7)
-        ax.set_xlabel("Sublayer index")
+    def _draw(ax, data, ylabel):
+        """One panel. attn and mlp share this axis, so they are comparable."""
+        if interleaved:
+            xs = list(range(len(data) // 2))
+            ax.plot(xs, data[0::2], color=_BLUE, linewidth=1.6,
+                    marker="o", markersize=3, label="attn")
+            ax.plot(xs, data[1::2], color=_GREEN, linewidth=1.6,
+                    marker="s", markersize=3, label="mlp")
+        else:
+            ax.plot(list(range(len(data))), data, color=_BLUE, linewidth=1.5,
+                    label="amplitude")
+        ax.set_ylabel(ylabel)
+        ax.legend(loc="upper left", fontsize=8)
 
-    ax.set_ylabel("Frobenius-normalized amplitude", color=_BLUE)
-    ax.set_title("Amplitude trajectory across sublayers")
-    # Collect handles from BOTH axes. ax.legend() alone only sees the primary
-    # axis, so the twinx series was silently missing from the legend even
-    # though it was given a label.
-    if handles:
-        ax.legend(handles, [h.get_label() for h in handles], loc="upper left",
-                  fontsize=8)
+    if norm:
+        _draw(ax_norm, norm, "Frobenius-normalized")
+    if raw:
+        _draw(ax_raw, raw, "Raw")
+
+    bottom = ax_raw if raw else ax_norm
+    if not interleaved and labels and len(labels) == n:
+        step = max(1, len(labels) // 16)
+        bottom.set_xticks(list(range(n))[::step])
+        bottom.set_xticklabels(labels[::step], rotation=45, ha="right", fontsize=7)
+    bottom.set_xlabel("Layer" if interleaved else "Sublayer index")
+
+    ax_norm.set_title("Amplitude trajectory across sublayers")
     fig.tight_layout()
     return _render(fig)
 
