@@ -145,12 +145,29 @@ except Exception as e:
 # HTML routes
 # ═══════════════════════════════════════════════════════════════
 
+# HTML documents are served with `no-store`, NOT the `no-cache` used for
+# /static above.
+#
+# Revalidating the static assets is pointless if the DOCUMENT that references
+# them is itself stale: a cached index.html keeps requesting the old set of
+# <script> tags, so a newly added or renamed file is never fetched and the app
+# boots against a half-updated frontend. That is the real
+# "blank-page-until-hard-refresh" bug — the earlier fix covered /static and
+# missed the page pointing at it.
+#
+# index.html is a few KB and is fetched once per page load, so never caching it
+# costs nothing and removes a whole class of stale-frontend confusion.
+_NO_STORE = {"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     index = _static_dir / "index.html"
     if index.exists():
-        return HTMLResponse(index.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>TAGM</h1><p>No frontend found.</p>")
+        return HTMLResponse(index.read_text(encoding="utf-8"),
+                            headers=_NO_STORE)
+    return HTMLResponse("<h1>TAGM</h1><p>No frontend found.</p>",
+                        headers=_NO_STORE)
 
 @app.get("/favicon.svg")
 async def favicon():
@@ -168,7 +185,11 @@ for _viz in ("chat", "roundtable", "domain_surface_viz",
         async def handler():
             p = _static_dir / f"{name}.html"
             if p.exists():
-                return HTMLResponse(p.read_text(encoding="utf-8"))
+                # Same no-store reasoning as the root route: these popouts
+                # each load their own script set, so a stale document means
+                # stale JS references.
+                return HTMLResponse(p.read_text(encoding="utf-8"),
+                                    headers=_NO_STORE)
             raise HTTPException(status_code=404)
         return handler
     app.get(f"/{_viz}", include_in_schema=False)(_make_viz_route(_viz))
