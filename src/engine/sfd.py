@@ -32,11 +32,12 @@ class SFDLayerCache:
     log_volume: float
     # NOTE the `trunc_` prefix.  These are computed from the TRUNCATED top-k
     # spectrum returned by torch.svd_lowrank, not from the exact tensor.
-    # INVARIANTS.md section 5 requires that frob_norm and stable_rank be exact
-    # and that only eff_rank derive from the truncation, so these are NOT the
-    # quantities that invariant describes.  They are named accordingly rather
-    # than silently mislabelled.  (core/deltas/spectral.py does honour the
-    # invariant and is the place to get exact values.)
+    # The rule this codebase holds to: frob_norm and stable_rank must be
+    # EXACT, computed from the full tensor; only eff_rank may derive from a
+    # truncated spectrum.  These fields therefore are NOT those quantities,
+    # and are named accordingly rather than silently mislabelled.
+    # core/deltas/spectral.py computes the exact values and is where to get
+    # them.
     trunc_stable_rank: float
     trunc_frob_norm: float
 

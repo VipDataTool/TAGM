@@ -51,7 +51,7 @@ Displacement channel:
   collapse is the hypothesized jailbreak signature — requires a second
   forward pass per token and is not implemented in this runtime path.
   The SignalSource contract accommodates it: a DisplacementSignal would
-  observe the two logit sets and emit (negative) KL. See RESEARCH_LEDGER.
+  observe the two logit sets and emit (negative) KL.
 
 Integration mirrors v2: set generate() temperature to 1.0 and pass the
 processor via logits_processor. DensitySignal installs forward hooks on

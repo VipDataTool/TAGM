@@ -99,6 +99,11 @@ CREATE TABLE IF NOT EXISTS results (
     full_capture_enabled INTEGER DEFAULT 0,
     family_index    INTEGER,
     rung_index      INTEGER,
+    role            TEXT,
+    inst_top1       TEXT,
+    inst_top1_p     REAL,
+    base_top1       TEXT,
+    base_top1_p     REAL,
     data_blob       BLOB NOT NULL,
     created_at      REAL DEFAULT (strftime('%s','now')),
     UNIQUE(session_id, idx)
@@ -176,6 +181,24 @@ def _extract_scalars(d: dict) -> dict:
     sfd = d.get("sfd") or {}
     rd = d.get("rank_displacement") or {}
 
+    def _rank1(key):
+        """(token, probability) of the rank-1 entry, or (None, None).
+
+        Only rank 1 is promoted to a column. The full top-k list stays in the
+        blob, where renderTopK() reads it from a full record; duplicating the
+        whole list here would store the same data twice.
+        """
+        lst = d.get(key)
+        if not lst:
+            return None, None
+        first = lst[0]
+        if not isinstance(first, (list, tuple)) or len(first) < 2:
+            return None, None
+        return str(first[0]), _safe_float(first[1])
+
+    inst_tok, inst_p = _rank1("instruct_topk")
+    base_tok, base_p = _rank1("base_topk")
+
     return {
         "prompt": d.get("prompt", ""),
         "category": d.get("category", ""),
@@ -201,6 +224,14 @@ def _extract_scalars(d: dict) -> dict:
         # Ladder identity — present only on deconstructed prompts, else None.
         "family_index": d.get("family_index"),
         "rung_index": d.get("rung_index"),
+        # Set by app.py on the analyze path, stored in the blob, and until now
+        # never projected back out — which is why the Role column read "--" on
+        # every row regardless of what was captured.
+        "role": d.get("role") or "",
+        "inst_top1": inst_tok,
+        "inst_top1_p": inst_p,
+        "base_top1": base_tok,
+        "base_top1_p": base_p,
     }
 
 
@@ -293,6 +324,8 @@ class ResultsList:
                 scalars["delta_scale"],
                 scalars["full_capture_enabled"],
                 scalars["family_index"], scalars["rung_index"],
+                scalars["role"], scalars["inst_top1"], scalars["inst_top1_p"],
+                scalars["base_top1"], scalars["base_top1_p"],
                 blob, self._session_id, idx,
             ),
         )
@@ -367,8 +400,10 @@ class ResultsList:
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
                 delta_scale, full_capture_enabled,
                 family_index, rung_index,
+                role, inst_top1, inst_top1_p, base_top1, base_top1_p,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                       ?,?,?,?,?,?)""",
             (
                 self._session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -382,6 +417,8 @@ class ResultsList:
                 scalars["delta_scale"],
                 scalars["full_capture_enabled"],
                 scalars["family_index"], scalars["rung_index"],
+                scalars["role"], scalars["inst_top1"], scalars["inst_top1_p"],
+                scalars["base_top1"], scalars["base_top1_p"],
                 blob,
             ),
         )
@@ -519,6 +556,11 @@ class Database:
             "full_capture_enabled": "INTEGER DEFAULT 0",
             "family_index": "INTEGER",
             "rung_index": "INTEGER",
+            "role": "TEXT",
+            "inst_top1": "TEXT",
+            "inst_top1_p": "REAL",
+            "base_top1": "TEXT",
+            "base_top1_p": "REAL",
         }
         # Get existing column names
         cursor = self._conn.execute("PRAGMA table_info(results)")
@@ -683,8 +725,10 @@ class Database:
                 sfd_density_mean, rd_mean_tau, rd_mean_overlap,
                 delta_scale, full_capture_enabled,
                 family_index, rung_index,
+                role, inst_top1, inst_top1_p, base_top1, base_top1_p,
                 data_blob)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                       ?,?,?,?,?,?)""",
             (
                 session_id, idx,
                 scalars["prompt"], scalars["category"], scalars["seq_len"],
@@ -698,6 +742,8 @@ class Database:
                 scalars["delta_scale"],
                 scalars["full_capture_enabled"],
                 scalars["family_index"], scalars["rung_index"],
+                scalars["role"], scalars["inst_top1"], scalars["inst_top1_p"],
+                scalars["base_top1"], scalars["base_top1_p"],
                 blob,
             ),
         )
@@ -740,7 +786,8 @@ class Database:
                       ltp_mean_m, ltp_mean_v, ltp_max_prc, ltp_n_directional,
                       sfd_density_mean, rd_mean_tau, rd_mean_overlap,
                       delta_scale, full_capture_enabled,
-                      family_index, rung_index
+                      family_index, rung_index,
+                      role, inst_top1, inst_top1_p, base_top1, base_top1_p
                FROM results
                WHERE session_id = ?
                ORDER BY idx""",
@@ -760,6 +807,11 @@ class Database:
                 "full_capture_enabled": bool(r[21]),
                 "family_index": r[22],
                 "rung_index": r[23],
+                "role": r[24],
+                # Rank-1 only. The grid shows exactly these; the record card
+                # fetches a full record and reads the whole list from the blob.
+                "inst_top1": r[25], "inst_top1_p": r[26],
+                "base_top1": r[27], "base_top1_p": r[28],
             }
             # Nested structures the dashboard expects
             if r[13] is not None:

@@ -202,7 +202,7 @@ def test_density_parity():
             norm_entropy=H / np.log(k), log_volume=float(np.sum(np.log(S))),
             # Renamed from stable_rank/frob_norm: these derive from the
             # TRUNCATED top-k spectrum, so they are not the exact quantities
-            # INVARIANTS.md section 5 describes (see the note on SFDLayerCache).
+            # required (see the note on SFDLayerCache in src/engine/sfd.py).
             trunc_stable_rank=float(np.sum(S**2) / S[0]**2),
             trunc_frob_norm=float(np.sqrt(np.sum(S**2))),
         )

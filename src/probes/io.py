@@ -401,9 +401,9 @@ def embed_and_cache_probes(model, tokenizer, adapter, project_root, probe_file,
     n_layers = adapter.n_layers(model)
     target_layer = max(0, min(n_layers - 1, int(layer_frac * n_layers)))
 
-    # Tokenization + pooling follow the SAME invariants as prompt analysis
-    # (see INVARIANTS.md): the configured add_special_tokens flag, and the
-    # include_first_token setting for pooling. Previously this path
+    # Tokenization + pooling follow the SAME rules as prompt analysis: the
+    # configured add_special_tokens flag, and the include_first_token setting
+    # for pooling. Previously this path
     # tokenized with specials unconditionally and always dropped position 0
     # — skipping BOS on Llama but discarding the first CONTENT token on
     # Qwen, where many probes are 1–3 token vocabulary terms.

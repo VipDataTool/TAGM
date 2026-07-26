@@ -1209,73 +1209,211 @@ function renderTokenTable(r){
   for(let i=0;i<r.tokens.length;i++){const a=r.signed_attr[i],s=r.per_token_stress?r.per_token_stress[i]:0,ap=mx>0?(Math.abs(a)/mx*100):0,ac=a<0?'var(--red)':'var(--green)',sp=ms>0?(s/ms*100):0;rows+=`<tr><td>${escHtml(r.tokens[i])}</td><td style="color:${ac}">${a>=0?'+':''}${a.toFixed(4)}</td><td><span class="token-bar" style="width:${ap}%;background:${ac}"></span></td><td>${s.toFixed(4)}</td><td><span class="token-bar" style="width:${sp}%;background:var(--blue)"></span></td></tr>`}
   return`<div class="feature"><div class="feature-header" onclick="toggleFeature(this)"><div class="feature-title">Per-Token Attribution Table</div><p class="feature-desc">Raw numeric values for each token's signed attribution and focused stress score. The colored bars show relative magnitude within this prompt — useful for identifying exactly which tokens drive the model's alignment response. Sort mentally by bar length to find the dominant tokens.</p><div class="feature-legend">🔑 Attr = signed contribution (green = reinforces, red = opposes) · Stress = correction pressure at signal layers · Bar width = relative magnitude within this prompt</div></div><div class="feature-body" style="padding:10px"><table class="data-table"><tr><th>Token</th><th>Attr</th><th></th><th>Stress</th><th></th></tr>${rows}</table></div></div>`
 }
-var _dtPage=1,_dtPageSize=25,_dtSorted=[];
-
-// ─── Data Table: column definitions ─────────────────────────────
-// Column labels and tooltips are DERIVED from TAGM.FIELDS (see
-// static/js/common/fields.js) via `field`, so the grid, the hover text and
-// the Field Glossary cannot drift apart the way the old hardcoded glossary
-// did. Only two things live here: which registry field a column shows, and
-// how it is drawn.
-//   col      internal key used by getVal/heatBg (unchanged from before)
-//   field    registry key supplying label, tooltip, units and caveat
-//   label    OPTIONAL header override — used only for DERIVED columns that
-//            show a projection of a field rather than the field itself
-//            (e.g. InstTop1 = rank-1 entry of instruct_topk). `derived`
-//            documents that projection in the tooltip.
-const DT_COLS=[
-  {col:'_cb',fmt:'cb',w:32},
-  {col:'_index',field:'_index',fmt:null,w:32},
-  {col:'family_index',field:'family_index',fmt:'i',w:40},
-  {col:'rung_index',field:'rung_index',fmt:'i',w:44},
-  {col:'prompt',field:'prompt',fmt:'s',w:400},
-  {col:'category',field:'category',fmt:'cat',w:52},
-  {col:'role',field:'role',fmt:'s',w:42},
-  {col:'seq_len',field:'seq_len',fmt:'i',w:36},
-  {col:'stress_score',field:'stress_score',fmt:'f3',hue:200,w:60},
-  {col:'net_correction',field:'net_correction',fmt:'f5',hue:160,w:72},
-  {col:'entropy',field:'entropy',fmt:'f4',hue:40,w:58},
-  {col:'middle_share',field:'middle_share',fmt:'pct',hue:280,w:52},
-  {col:'interior_cv',field:'interior_cv',fmt:'f4',w:54},
-  {col:'top2_share',field:'top2_share',fmt:'pct',w:52},
-  {col:'kl_divergence',field:'kl_divergence',fmt:'f4',w:52},
-  {col:'n_negative_tokens',field:'n_negative_tokens',fmt:'i',w:34},
-  {col:'_inst_top1',field:'instruct_topk',fmt:'s',w:70,label:'InstTop1',
-   derived:'rank-1 token of instruct_topk.'},
-  {col:'_inst_prob',field:'instruct_topk',fmt:'pct3',w:50,label:'InstP',
-   derived:'probability of the rank-1 instruct_topk entry.'},
-  {col:'_base_top1',field:'base_topk',fmt:'s',w:70,label:'BaseTop1',
-   derived:'rank-1 token of base_topk.'},
-  {col:'_base_prob',field:'base_topk',fmt:'pct3',w:50,label:'BaseP',
-   derived:'probability of the rank-1 base_topk entry.'},
-  {col:'_ltp_max_prc',field:'ltp.max_prc',fmt:'pct_pp',w:56},
-  {col:'_ltp_n_dir',field:'ltp.n_directional',fmt:'i',w:40},
-  {col:'_ltp_M',field:'ltp.mean_M',fmt:'f6',w:68},
-  {col:'_sfd_density',field:'sfd.density_mean',fmt:'f4',hue:120,w:56},
-  {col:'_rank_tau',field:'rank_displacement.mean_tau',fmt:'f3',hue:60,w:48},
-  {col:'_rank_overlap',field:'rank_displacement.mean_overlap',fmt:'pct',w:48},
-];
-function _dtField(c){return (window.TAGM&&TAGM.field&&c.field)?TAGM.field(c.field):null}
-function dtColLabel(c){const f=_dtField(c);return c.label||(f?f.label:(c.field||c.col))}
-function dtColTip(c){
-  const f=_dtField(c);
-  let t=f&&TAGM.fieldTooltip?TAGM.fieldTooltip(c.field):(c.field||c.col);
-  if(c.derived) t='Column "'+dtColLabel(c)+'" shows the '+c.derived+'\n\n'+t;
-  return t;
+var _dtPage=1,_dtPageSize=25,_dtSorted=[],_dtTotal=0;
+// Column value accessor. Hoisted to module scope so the sort comparator can
+// use it too; _renderDataTablePage keeps a local alias so its many call
+// sites are untouched.
+function getValFor(r,key){
+  if(key==='_cb') return r._srcIdx;
+  if(key==='_index') return r._srcIdx+1;
+  // Two shapes reach this table. A FULL record (/api/session/results) carries
+  // the whole instruct_topk/base_topk lists; a SLIM dashboard row carries only
+  // the rank-1 entry, flattened into inst_top1/inst_top1_p by the SQL
+  // projection. Prefer the list when present, fall back to the flat column —
+  // which is what stops these four reading '--' on every dashboard row.
+  if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:(r.inst_top1??null);
+  if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:(r.inst_top1_p??null);
+  if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:(r.base_top1??null);
+  if(key==='_base_prob') return r.base_topk&&r.base_topk[0]?r.base_topk[0][1]:(r.base_top1_p??null);
+  if(key==='_ltp_M') return r.ltp?r.ltp.mean_M:null;
+  if(key==='_ltp_max_prc') return r.ltp?r.ltp.max_prc:null;
+  if(key==='_ltp_n_dir') return r.ltp?r.ltp.n_directional:null;
+  if(key==='_sfd_density') return r.sfd?r.sfd.density_mean:null;
+  if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
+  if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
+  return r[key];
 }
-// A caveat on the registry entry earns a ° marker on the header, so the user
-// knows there is something to hover for.
-function dtColHasCaveat(c){const f=_dtField(c);return !!(f&&f.caveat)}
+
+// Column definitions: [key, label, format, heatHue, defaultWidth]
+// Hoisted to module scope UNCHANGED so the Field Glossary can enumerate the
+// same columns the grid renders. Still a plain literal — labels, formats,
+// hues and widths are declared here and nowhere else.
+const DT_COLS=[
+  ['_cb','','cb',null,32],
+  ['_index','#',null,null,32],
+  ['family_index','Fam','i',null,40],
+  ['rung_index','Rung','i',null,44],
+  ['prompt','Prompt','s',null,520],
+  ['category','Cat','cat',null,52],
+  ['role','Role','s',null,42],
+  ['seq_len','Tok','i',null,36],
+  ['stress_score','Stress','f3',200,60],
+  ['net_correction','Net','f5',160,72],
+  ['entropy','Ent','f4',40,58],
+  ['middle_share','Int%','pct',280,52],
+  ['interior_cv','IntCV','f4',null,54],
+  ['top2_share','Bnd%','pct',null,52],
+  ['kl_divergence','KL','f4',null,52],
+  ['n_negative_tokens','Neg','i',null,34],
+  ['_inst_top1','InstTop1','s',null,70],
+  ['_inst_prob','InstP','pct3',null,50],
+  ['_base_top1','BaseTop1','s',null,70],
+  ['_base_prob','BaseP','pct3',null,50],
+  ['_ltp_max_prc','MaxPRC','pct_pp',null,56],
+  ['_ltp_n_dir','N_dir','i',null,40],
+  ['_ltp_M','M','f6',null,68],
+  ['_sfd_density','Dens','f4',120,56],
+  ['_rank_tau','Tau','f3',60,48],
+];
+
+// ─── Data grid: field metadata ──────────────────────────────────
+// Maps a grid column key onto its entry in TAGM.FIELDS (static/js/common/
+// fields.js). Kept as a separate lookup rather than folded into the column
+// array, so the column array stays a plain literal and the registry is only
+// ever consulted for TEXT — labels, widths, formats and heat hues continue to
+// come from DT_COLS alone.
+var _DT_FIELD_KEY={
+  _index:'_index', _inst_top1:'instruct_topk', _inst_prob:'instruct_topk',
+  _base_top1:'base_topk', _base_prob:'base_topk',
+  _ltp_max_prc:'ltp.max_prc', _ltp_n_dir:'ltp.n_directional', _ltp_M:'ltp.mean_M',
+  _sfd_density:'sfd.density_mean',
+  _rank_tau:'rank_displacement.mean_tau',
+  _rank_overlap:'rank_displacement.mean_overlap',
+};
+// The four *_top1/*_prob columns are PROJECTIONS of a top-k list, so say so
+// rather than letting the shared entry imply the column holds the whole list.
+var _DT_DERIVED={
+  _inst_top1:'rank-1 token of instruct_topk',
+  _inst_prob:'probability of the rank-1 instruct_topk entry',
+  _base_top1:'rank-1 token of base_topk',
+  _base_prob:'probability of the rank-1 base_topk entry',
+};
+function _dtFieldFor(key){
+  if(!window.TAGM||!TAGM.field) return null;
+  return TAGM.field(_DT_FIELD_KEY[key]||key);
+}
+function dtColTip(key,label){
+  const f=_dtFieldFor(key);
+  let t=f&&TAGM.fieldTooltip?TAGM.fieldTooltip(_DT_FIELD_KEY[key]||key):label;
+  if(_DT_DERIVED[key]) t='Shows the '+_DT_DERIVED[key]+'.\n\n'+t;
+  return t+'\n\nClick to sort, again to reverse, again to clear.';
+}
+function dtColHasCaveat(key){const f=_dtFieldFor(key);return !!(f&&f.caveat)}
+
+// ─── Field Glossary ─────────────────────────────────────────────
+// Rendered from the SAME registry the header tooltips read, so the card and
+// the grid cannot drift apart the way the old hand-written HTML block did
+// (it still described columns that had been renamed).
+// Scope is the columns the grid actually shows; TAGM.FIELDS covers the whole
+// record if more are ever surfaced.
+function renderFieldGlossary(filterText){
+  const box=$('glossaryEntries'); if(!box) return;
+  if(!window.TAGM||!TAGM.field){
+    box.innerHTML='<div class="gls-warn">Field registry not loaded.</div>';return;
+  }
+  const term=(filterText||'').trim().toLowerCase();
+  const seen=new Set(); const groups=new Map(); let shown=0;
+  for(const c of DT_COLS){
+    const key=c[0], label=c[1];
+    if(key==='_cb') continue;
+    const rk=_DT_FIELD_KEY[key]||key;
+    if(seen.has(rk+'|'+label)) continue;
+    seen.add(rk+'|'+label);
+    const f=TAGM.field(rk); if(!f) continue;
+    const hay=(label+' '+f.key+' '+(f.desc||'')+' '+(f.caveat||'')).toLowerCase();
+    if(term&&!hay.includes(term)) continue;
+    const g=f.group||'other';
+    if(!groups.has(g)) groups.set(g,[]);
+    groups.get(g).push({label,f,derived:_DT_DERIVED[key]});
+    shown++;
+  }
+  const order=(TAGM.FIELD_GROUPS||[]).filter(g=>groups.has(g));
+  for(const g of groups.keys()) if(!order.includes(g)) order.push(g);
+  let h='';
+  for(const g of order){
+    const glabel=(TAGM.FIELD_GROUP_LABELS&&TAGM.FIELD_GROUP_LABELS[g])||g;
+    const color=(TAGM.FIELD_GROUP_COLORS&&TAGM.FIELD_GROUP_COLORS[g])||'var(--text-2)';
+    h+=`<div class="gls-group"><div class="gls-group-title" style="color:${escHtml(color)}">${escHtml(glabel)}</div>`;
+    for(const e of groups.get(g)){
+      h+=`<div class="gls-entry${e.f.caveat?' gls-has-caveat':''}">
+        <div class="gls-head"><span class="gls-label">${escHtml(e.label)}</span>
+        <span class="gls-key">${escHtml(e.f.key)}</span>
+        ${e.f.units?`<span class="gls-key">${escHtml(e.f.units)}</span>`:''}</div>
+        ${e.derived?`<div class="gls-desc"><em>Shows the ${escHtml(e.derived)}.</em></div>`:''}
+        ${e.f.desc?`<div class="gls-desc">${escHtml(e.f.desc)}</div>`:''}
+        ${e.f.caveat?`<div class="gls-caveat">\u26a0 ${escHtml(e.f.caveat)}</div>`:''}
+      </div>`;
+    }
+    h+='</div>';
+  }
+  box.innerHTML=h||`<div class="gls-warn">No fields match \u201c${escHtml(term)}\u201d</div>`;
+  const n=$('glossaryCount'); if(n) n.textContent=shown+' of '+(DT_COLS.length-1)+' columns';
+}
+function glossaryFilter(v){renderFieldGlossary(v)}
+
+// Sort/filter state. _dtSortKey null == record order, the original behaviour
+// and still the default.
+var _dtSortKey=null,_dtSortDir=1,_dtFilter='';
+
+// Text columns a filter term is matched against. Deliberately NOT every
+// column: matching a typed term against float columns turns "0.1" into a
+// scattershot of unrelated hits.
+var _DT_FILTER_KEYS=['prompt','category','role'];
+
+function _dtMatches(r,term){
+  if(!term) return true;
+  for(const k of _DT_FILTER_KEYS){
+    const v=r[k];
+    if(v!=null&&String(v).toLowerCase().includes(term)) return true;
+  }
+  return false;
+}
+
+// Null/undefined always sink to the bottom, in BOTH directions. Letting them
+// flip to the top on a descending sort buries the rows you asked to see.
+function _dtCompare(a,b,key,dir){
+  const av=getValFor(a,key),bv=getValFor(b,key);
+  const an=av==null||av===''||(typeof av==='number'&&isNaN(av));
+  const bn=bv==null||bv===''||(typeof bv==='number'&&isNaN(bv));
+  if(an&&bn) return a._srcIdx-b._srcIdx;
+  if(an) return 1;
+  if(bn) return -1;
+  if(typeof av==='number'&&typeof bv==='number'){
+    if(av!==bv) return (av-bv)*dir;
+  }else{
+    const c=String(av).localeCompare(String(bv),undefined,{numeric:true,sensitivity:'base'});
+    if(c!==0) return c*dir;
+  }
+  return a._srcIdx-b._srcIdx;   // stable tie-break on record order
+}
+
+function dtSortBy(key){
+  if(key==='_cb') return;
+  if(_dtSortKey===key){
+    // 3rd click clears the sort and returns to record order.
+    if(_dtSortDir===1){_dtSortDir=-1}else{_dtSortKey=null;_dtSortDir=1}
+  }else{_dtSortKey=key;_dtSortDir=1}
+  _dtPage=1;
+  renderDataTable();
+}
+
+function dtSetFilter(v){
+  _dtFilter=(v||'').trim().toLowerCase();
+  _dtPage=1;
+  renderDataTable();
+  const el=$('dtFilterInput');
+  if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+}
 
 function renderDataTable(){
   var source=dashResults.length?dashResults:sessionResults;
   if(!source.length){$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:var(--font-table)">No data yet.</p>';return}
 
-  _dtSorted=[...source].map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i})).sort((a,b)=>a._srcIdx-b._srcIdx);
-  // The session changed under us: indices are reassigned on remove/rerun, so
-  // both the expanded-row set and the full-record cache are keyed on a stale
-  // identity and must go.
-  _dtOpenDetails.clear();_dtFullCache={};_dtCacheOrder=[];
+  _dtTotal=source.length;
+  _dtSorted=[...source]
+    .map((r,i)=>({...r,_srcIdx:r._index!=null?r._index:i}))
+    .filter(r=>_dtMatches(r,_dtFilter))
+    .sort((a,b)=>_dtSortKey==null?a._srcIdx-b._srcIdx:_dtCompare(a,b,_dtSortKey,_dtSortDir));
 
   _dtPage=Math.min(_dtPage,Math.ceil(_dtSorted.length/_dtPageSize)||1);
   _renderDataTablePage();
@@ -1288,7 +1426,7 @@ function _renderDataTablePage(){
   const pageData=sorted.slice(start,start+_dtPageSize);
 
   const cols=DT_COLS;
-  _dtColCount=cols.length;
+
 
   // Compute ranges for heatmap columns (across ALL data, not just page)
   const ranges={};
@@ -1319,21 +1457,7 @@ function _renderDataTablePage(){
     return val;
   }
 
-  function getVal(r,key){
-    if(key==='_cb') return r._srcIdx;
-    if(key==='_index') return r._srcIdx+1;
-    if(key==='_inst_top1') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][0]:null;
-    if(key==='_inst_prob') return r.instruct_topk&&r.instruct_topk[0]?r.instruct_topk[0][1]:null;
-    if(key==='_base_top1') return r.base_topk&&r.base_topk[0]?r.base_topk[0][0]:null;
-    if(key==='_base_prob') return r.base_topk&&r.base_topk[0]?r.base_topk[0][1]:null;
-    if(key==='_ltp_M') return r.ltp?r.ltp.mean_M:null;
-    if(key==='_ltp_max_prc') return r.ltp?r.ltp.max_prc:null;
-    if(key==='_ltp_n_dir') return r.ltp?r.ltp.n_directional:null;
-    if(key==='_sfd_density') return r.sfd?r.sfd.density_mean:null;
-    if(key==='_rank_tau') return r.rank_displacement?r.rank_displacement.mean_tau:null;
-    if(key==='_rank_overlap') return r.rank_displacement?r.rank_displacement.mean_overlap:null;
-    return r[key];
-  }
+  const getVal=getValFor;
 
   // ─── Toolbar ──────────────────────────────────────────────────
   let h=`<div class="dt-toolbar">
@@ -1344,39 +1468,56 @@ function _renderDataTablePage(){
     <button class="btn btn-secondary btn-sm" id="dtViewBtn" onclick="dtViewSelected()" disabled>View Selected</button>
     <button class="btn btn-secondary btn-sm" id="dtRerunBtn" onclick="dtRerunSelected()" disabled>Rerun Selected</button>
     <button class="btn btn-danger btn-sm" id="dtRemoveBtn" onclick="dtRemoveSelected()" disabled>Remove Selected</button>
-    <span style="margin-left:auto;color:var(--text-1);font-size:11px">${sorted.length} records · page ${_dtPage}/${totalPages}${_cacheBytes>0?' · '+fmtSize(_cacheBytes)+' cached':''}</span>
+    <input type="text" id="dtFilterInput" class="dt-filter" placeholder="Filter prompt / category / role\u2026"
+           value="${escHtml(_dtFilter)}" autocomplete="off" oninput="dtSetFilter(this.value)">
+    ${_dtFilter?`<button class="btn btn-secondary btn-sm" onclick="dtSetFilter('')">Clear</button>`:''}
+    <span style="margin-left:auto;color:var(--text-1);font-size:11px">${_dtFilter?`${sorted.length} of ${_dtTotal} match · `:`${sorted.length} records · `}page ${_dtPage}/${totalPages}${_cacheBytes>0?' · '+fmtSize(_cacheBytes)+' cached':''}</span>
   </div>`;
 
   // ─── Table ────────────────────────────────────────────────────
   h+=`<div class="dt-wrap"><div class="dt-scroll" id="dtScroll"><table class="dt-grid" id="dtGridTable"><thead><tr>`;
 
   for(let ci=0;ci<cols.length;ci++){
-    const c=cols[ci];
-    const isCheckbox = c.col==='_cb';
-    const cls = isCheckbox ? ' class="dt-cb"' : '';
-    const mark = dtColHasCaveat(c) ? '<sup class="dt-caveat-mark">°</sup>' : '';
+    const[key,label,format,,w]=cols[ci];
+    const isCheckbox = key==='_cb';
+    const active = _dtSortKey===key;
+    const cls = isCheckbox ? ' class="dt-cb"' : (active?' class="dt-sorted"':'');
+    // The caret reserves its width even when inactive, so turning sorting on
+    // and off does not shift every header label sideways.
+    const caret = isCheckbox ? ''
+      : `<span class="dt-caret${active?' dt-caret-on':''}">${active?(_dtSortDir===1?'\u25b2':'\u25bc'):'\u25c6'}</span>`;
+    // stopPropagation on the resize grip: without it, finishing a drag counts
+    // as a click on the <th> and silently re-sorts the table.
+    // A caveat on the registry entry earns a degree marker, so it is visible
+    // that there is something to hover for rather than hidden in a tooltip.
+    const mark = (!isCheckbox&&dtColHasCaveat(key)) ? '<sup class="dt-caveat-mark">\u00b0</sup>' : '';
     const content = isCheckbox
       ? ''
-      : `${escHtml(dtColLabel(c))}${mark}<div class="dt-resize" data-col="${ci}" onmousedown="dtStartResize(event,${ci})"></div>`;
-    const tip = isCheckbox ? '' : ` title="${escHtml(dtColTip(c))}"`;
-    h+=`<th${cls} style="min-width:${c.w}px;width:${c.w}px"${tip}>${content}</th>`;
+      : `${label}${mark}${caret}<div class="dt-resize" data-col="${ci}" onmousedown="dtStartResize(event,${ci})" onclick="event.stopPropagation()"></div>`;
+    const sortAttr = isCheckbox ? ''
+      : ` onclick="dtSortBy('${key}')" title="${escHtml(dtColTip(key,label))}"`;
+    h+=`<th${cls} style="min-width:${w}px;width:${w}px"${sortAttr}>${content}</th>`;
   }
   h+=`</tr></thead><tbody>`;
 
+  if(!pageData.length){
+    h+=`<tr><td colspan="${cols.length}" class="dt-empty">No records match \u201c${escHtml(_dtFilter)}\u201d</td></tr>`;
+  }
+
   for(const r of pageData){
     const srcIdx = r._srcIdx;
-    // Row click expands the per-record ledger; dtRowClick ignores clicks that
-    // landed on the checkbox so selection is unaffected.
-    h+=`<tr class="dt-row" data-idx="${srcIdx}" id="dtRow_${srcIdx}" onclick="dtRowClick(event,${srcIdx})">`;
-    for(const c of cols){
-      const key=c.col,format=c.fmt;
+    h+=`<tr data-idx="${srcIdx}" id="dtRow_${srcIdx}">`;
+    for(const[key,label,format,hue,w]of cols){
       const val=getVal(r,key);
       if(key==='_cb'){
         h+=`<td class="dt-cb"><input type="checkbox" data-idx="${srcIdx}" onchange="dtUpdateSelection()"></td>`;
       } else if(key==='prompt'){
-        h+=`<td class="dt-cell-prompt" title="${escHtml(r.prompt)}">${fmt(val,format)}</td>`;
+        // Not fmt(): its 's' format hard-truncates at 120 chars, which would
+        // clip the text before the CSS line-clamp ever saw it. Full prompt
+        // goes in, CSS decides how much is shown, title carries the rest.
+        h+=`<td class="dt-cell-prompt" title="${escHtml(r.prompt||'')}">${escHtml(r.prompt||'')}</td>`;
       } else {
-        const style=heatBg(val||0,key,c.hue);
+        const style=heatBg(val||0,key,hue);
         h+=`<td style="${style}">${fmt(val,format)}</td>`;
       }
     }
@@ -1402,117 +1543,11 @@ function _renderDataTablePage(){
   }
 
   $('dataTableContainer').innerHTML=h;
-  _dtRestoreDetails();
 }
 function dtGoPage(p){
   var totalPages=Math.ceil(_dtSorted.length/_dtPageSize)||1;
   _dtPage=Math.max(1,Math.min(totalPages,p));
   _renderDataTablePage();
-}
-
-// ─── Data Table: per-record ledger (expandable row detail) ──────
-// Rendering lives in static/js/data_ledger.js; this half owns only the DOM
-// plumbing (which rows are open, and where the full record comes from).
-var _dtOpenDetails=new Set();   // srcIdx values currently expanded
-var _dtFullCache={};            // srcIdx -> full serialized record
-var _dtColCount=0;              // colspan for the inserted detail <tr>
-
-function _dtRowRecord(idx){
-  for(const r of _dtSorted) if(r._srcIdx===idx) return r;
-  return null;
-}
-// A slim record is the /api/dashboard SQL projection: scalars only, no
-// per-token arrays. Detecting it by a key the projection never sets.
-function _dtIsSlim(r){return !r||!Object.prototype.hasOwnProperty.call(r,'per_token_stress')}
-
-// Exposed for data_ledger.js's Copy JSON button: always the most complete
-// record we hold for that row.
-window._dtRecordFor=function(idx){return _dtFullCache[idx]||_dtRowRecord(idx)};
-
-async function _dtResolveRecord(idx){
-  if(_dtFullCache[idx]) return _dtFullCache[idx];
-  const row=_dtRowRecord(idx);
-  if(!_dtIsSlim(row)){_dtCacheRecord(idx,row);return row}
-  // The table's preferred source is the slim dashboard projection, but the
-  // ledger promises every stored field — so fetch the full record rather
-  // than silently showing a partial one.
-  const cached=(sessionResults||[]).find(r=>r._index===idx);
-  if(!_dtIsSlim(cached)){_dtCacheRecord(idx,cached);return cached}
-  try{
-    // Fetch EXACTLY ONE record. This previously requested per_page=50 to
-    // display a single row, then kept only the match and dropped the other
-    // 49 — so expanding a second row on the same page refetched all of them.
-    // Full records carry per-token arrays, heatmaps and per-position tables:
-    // ~230 KB at 128 tokens and ~3.6 MB at 2048, so the old call transferred
-    // up to ~180 MB per click. That is precisely the cost the slim
-    // /api/dashboard projection and the lazy table exist to avoid.
-    // page is 1-based and offset = (page-1)*per_page, so per_page=1 with
-    // page=idx+1 addresses row idx directly.
-    const resp=await fetch(`/api/session/results?page=${idx+1}&per_page=1`);
-    const data=await resp.json();
-    if(data.ok&&data.results&&data.results.length){
-      const m=data.results.find(r=>r._index===idx)||data.results[0];
-      if(m){_dtCacheRecord(idx,m);return m}
-    }
-  }catch(e){log('Detail load: '+e.message,'error')}
-  return row;
-}
-
-// Bounded LRU. A full record can be several MB, so an unbounded cache turns
-// "expand a lot of rows" into an out-of-memory condition.
-var _DT_CACHE_MAX=8, _dtCacheOrder=[];
-function _dtCacheRecord(idx,rec){
-  if(!_dtFullCache[idx]) _dtCacheOrder.push(idx);
-  _dtFullCache[idx]=rec;
-  while(_dtCacheOrder.length>_DT_CACHE_MAX){
-    const drop=_dtCacheOrder.shift();
-    if(drop!==idx) delete _dtFullCache[drop];
-  }
-}
-
-function dtRowClick(ev,idx){
-  // Selection checkboxes, buttons and links keep their own behaviour: a click
-  // on them must not also toggle the panel.
-  if(ev&&ev.target&&ev.target.closest&&ev.target.closest('input,button,a,label,select,textarea,summary,details')) return;
-  dtToggleDetail(idx);
-}
-
-async function dtToggleDetail(idx){
-  const open=document.getElementById('dtDetail_'+idx);
-  const row=document.getElementById('dtRow_'+idx);
-  if(open){
-    open.parentNode.removeChild(open);
-    _dtOpenDetails.delete(idx);
-    if(row) row.classList.remove('dt-expanded');
-    return;
-  }
-  if(!row) return;
-  _dtOpenDetails.add(idx);
-  row.classList.add('dt-expanded');
-  const tr=document.createElement('tr');
-  tr.className='dt-detail-row';
-  tr.id='dtDetail_'+idx;
-  const td=document.createElement('td');
-  td.className='dt-detail-cell';
-  td.colSpan=_dtColCount||1;
-  td.innerHTML='<div class="ldg-loading">Loading record…</div>';
-  tr.appendChild(td);
-  row.parentNode.insertBefore(tr,row.nextSibling);
-  const rec=await _dtResolveRecord(idx);
-  // The user may have collapsed it again while the fetch was in flight.
-  if(!document.body.contains(td)) return;
-  td.innerHTML=(window.TAGM&&TAGM.ledger)
-    ? TAGM.ledger.renderDetail(rec,idx)
-    : '<div class="ldg-warn">static/js/data_ledger.js failed to load.</div>';
-}
-
-// Re-open panels after a page re-render. Rows absent from the current page
-// stay in the set so paging back restores them.
-function _dtRestoreDetails(){
-  if(!_dtOpenDetails.size) return;
-  Array.from(_dtOpenDetails).forEach(function(idx){
-    if(document.getElementById('dtRow_'+idx)&&!document.getElementById('dtDetail_'+idx)) dtToggleDetail(idx);
-  });
 }
 
 // ─── Data Table: Selection ──────────────────────────────────────
@@ -1725,9 +1760,6 @@ function dtStartResize(e,colIndex){
     // Also resize corresponding body cells for consistency
     const rows=table.querySelectorAll('tbody tr');
     rows.forEach(tr=>{
-      // Expanded-detail rows hold a single colspan cell; sizing it to one
-      // column's width would crush the panel.
-      if(tr.classList.contains('dt-detail-row')) return;
       const td=tr.children[colIndex];
       if(td){td.style.width=newW+'px';td.style.minWidth=newW+'px'}
     });
@@ -5161,3 +5193,12 @@ function renderMIResults(r) {
   };
 })();
 
+// Glossary is static content derived from the registry, so it is rendered once
+// at startup rather than on every grid re-render. main.js loads at the end of
+// <body>, so the container normally already exists; the readyState guard is
+// for the case where it does not.
+(function(){
+  function go(){ try{ renderFieldGlossary(''); }catch(e){ console.error('glossary:',e); } }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',go);
+  else go();
+})();

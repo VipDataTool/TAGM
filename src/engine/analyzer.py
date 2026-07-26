@@ -162,8 +162,9 @@ class Analyzer:
         # instruct model: app_core catches per-prompt exceptions and carries
         # on, so subsequent chat generations, probe embeddings and module runs
         # would then execute with live capture hooks holding activation
-        # tensors.  That is exactly the interference INVARIANTS.md section 3
-        # cites as the reason for the model lock.
+        # tensors.  That is exactly the interference MODEL_LOCK exists to
+        # prevent: all model access is serialized through it precisely so one
+        # caller cannot leave the shared model in a modified state.
         self._capture.install(
             self.instruct_model, self.adapter,
             signal_layers=self.signal_layers,

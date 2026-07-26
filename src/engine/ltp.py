@@ -153,7 +153,7 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
         # hidden_size accumulate visible rounding error in bf16.
         #
         # A `* 0.5` factor used to be applied here.  It was inherited from TASM
-        # with no derivation in this codebase or in INVARIANTS.md, and it
+        # with no derivation anywhere in this codebase, and it
         # scaled every LTP magnitude to half the value the definition implies.
         # Removed: LTP magnitudes are now the projection of the actual weight
         # delta, so they are 2x their previously reported values.
