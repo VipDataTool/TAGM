@@ -285,7 +285,8 @@ def benjamini_hochberg(p_values: List[float], fdr: float = 0.05) -> dict:
     Returns {"threshold": float|None, "n_significant": int, "fdr": float}.
     `threshold` is the largest p that survives; compare each raw p against it.
 
-    aggregate_batch runs 16 metrics x 4 target categories plus a pooled pass,
+    aggregate_batch runs len(ALL_METRICS_REGISTRY) metrics x 4 target
+    categories plus a pooled pass,
     so raw p-values there are not directly interpretable.
     """
     ps = sorted(p for p in p_values if p is not None)
@@ -354,9 +355,22 @@ def _attr_val(r, key):
 ALL_METRICS_REGISTRY = [
     # ASM
     ("stress_score",   lambda r: getattr(r, 'stress_score', None)),
+    # LENGTH-SENSITIVE. entropy is normalized by log(seq_len), which only
+    # corrects the uniform case: under a fixed per-token law its expectation
+    # still drifts with n (0.83 -> 0.90 from n=10 to n=160), and under a
+    # fixed-sparsity law it drifts the other way (0.52 -> 0.37). The sign of
+    # the bias depends on the underlying sparsity, so no fixed rescaling
+    # repairs it. interior_cv drifts likewise (0.88 -> 1.23). Both produce
+    # ~30% false-positive rates when the two groups differ in typical length.
+    # Retained because they are established outputs, but ALWAYS read them
+    # against length_correlations before treating a difference as behavioural.
     ("entropy",        lambda r: _attr_val(r, 'entropy')),
     ("top2_share",     lambda r: _attr_val(r, 'top2_share')),
-    ("middle_share",   lambda r: _attr_val(r, 'middle_share')),
+    # middle_share is EXACTLY 1 - top2_share (attr_dist sums to 1 and the two
+    # partition it), verified to 10 decimal places. Including both double-
+    # counted a single degree of freedom in the Benjamini-Hochberg n_tests
+    # and in the MI module's PCA. Dropped from cross-prompt comparison; the
+    # field is still computed, stored and displayed.
     ("interior_cv",    lambda r: _attr_val(r, 'interior_cv')),
     ("net_correction", lambda r: _attr_val(r, 'net_correction')),
     # KL
@@ -364,7 +378,12 @@ ALL_METRICS_REGISTRY = [
     # LTP (ltp_mean_L excluded: constant 1.0, zero variance)
     ("ltp_mean_M",     lambda r: _get_ltp_val_generic(r, 'mean_M')),
     ("ltp_mean_V",     lambda r: _get_ltp_val_generic(r, 'mean_V')),
-    ("ltp_n_dir",      lambda r: _get_ltp_val_generic(r, 'n_directional')),
+    # RATE, not the raw count. n_directional is extensive (it grows linearly
+    # with sequence length), so comparing it across prompts of differing
+    # length produced a spurious effect of |d| ~ 3.7 that excluded zero in
+    # 100% of null replications. directional_frac is the length-invariant form.
+    ("ltp_directional_frac",
+     lambda r: _get_ltp_val_generic(r, 'directional_frac')),
     # SFD
     ("sfd_density_mean",  lambda r: _get_sfd_val_generic(r, 'density_mean')),
     # Rank displacement
@@ -380,10 +399,20 @@ ALL_METRICS_REGISTRY = [
 def length_correlations(results: list) -> dict:
     """Compute Pearson r between each metric and seq_len.
 
-    This is a diagnostic: it validates that length-invariant metrics
-    are actually indifferent to sequence length.  Any significant
-    correlation after the formula fixes indicates genuine behavioral
-    signal, not a measurement defect.
+    A diagnostic: every metric in ALL_METRICS_REGISTRY is intended to be
+    INTENSIVE (a mean or rate), so a strong correlation with seq_len is
+    evidence of either genuine length-related behaviour or a residual
+    measurement defect.
+
+    Do NOT read a correlation here as automatically meaning "genuine
+    behavioral signal" — the previous wording of this docstring said exactly
+    that, and it was wrong.  An EXTENSIVE metric (a sum, a count, or a max
+    over token positions) correlates with length BY CONSTRUCTION, and no
+    amount of downstream statistics can separate that from behaviour.
+    `n_directional` was such a metric and was replaced here by
+    `directional_frac` for precisely this reason.
+
+    Before adding a metric to the registry, check it is intensive.
 
     Returns:
         dict mapping stat_key -> {"r": float, "r_sq": float, "n": int}
@@ -414,6 +443,69 @@ def length_correlations(results: list) -> dict:
         }
 
     return out
+
+
+def _length_confound(results: list, idx_a: list, idx_b: list,
+                     stat_key: str) -> dict:
+    """Flag a separability result that prompt length could explain.
+
+    Several metrics are not length-invariant even though they look like pure
+    shape statistics.  `entropy` is divided by log(seq_len), which only
+    corrects the uniform case: with a fixed per-token law its expectation
+    still climbs (0.84 at n=10 to 0.90 at n=160), and `interior_cv` climbs
+    harder (0.87 to 1.23).  Under a null where the two groups differ ONLY in
+    prompt length, they report a significant effect in 55% and 28% of
+    replications respectively against a nominal 5%.
+
+    Rescaling cannot fix this — under a fixed-sparsity law the bias runs the
+    other way, so the sign depends on the data.  What CAN be done is refuse to
+    report the comparison silently: this returns the group length difference
+    and the metric's own correlation with length, so a reader can see when
+    "harmful differs from benign" might just be "harmful prompts are longer".
+    """
+    la = np.array([float(results[i].seq_len) for i in idx_a])
+    lb = np.array([float(results[i].seq_len) for i in idx_b])
+    if len(la) < 2 or len(lb) < 2:
+        return {"checked": False}
+
+    pooled = np.sqrt((la.var(ddof=1) + lb.var(ddof=1)) / 2)
+    len_d = float((lb.mean() - la.mean()) / pooled) if pooled > 0 else 0.0
+
+    # Correlation of this metric with length, across both groups pooled.
+    extractor = dict(ALL_METRICS_REGISTRY).get(stat_key)
+    r = None
+    if extractor is not None:
+        xs, ys = [], []
+        for i in list(idx_a) + list(idx_b):
+            v = extractor(results[i])
+            if v is None:
+                continue
+            v = float(v)
+            if math.isnan(v) or math.isinf(v):
+                continue
+            xs.append(float(results[i].seq_len))
+            ys.append(v)
+        if len(xs) >= 3 and np.std(xs) > 0 and np.std(ys) > 0:
+            r = _safe_float(np.corrcoef(xs, ys)[0, 1])
+
+    # Fire on the LENGTH DIFFERENCE alone.  Requiring a strong metric-length
+    # correlation as well was too strict and missed the very case this exists
+    # for: with benign ~40 tokens and harmful ~90, entropy false-positives in
+    # 55% of null replications while its pooled r is only ~0.28, because
+    # mixing two groups at different lengths dilutes the within-sample
+    # correlation. Once the groups are separated in length by this much, no
+    # metric comparison between them can cleanly attribute a difference to
+    # behaviour rather than length; r is reported as supporting evidence, not
+    # as a precondition.
+    suspect = bool(abs(len_d) > 0.8)
+    return {
+        "checked": True,
+        "length_effect_size": len_d,
+        "metric_length_r": r,
+        "mean_len_a": float(la.mean()),
+        "mean_len_b": float(lb.mean()),
+        "suspect": suspect,
+    }
 
 
 def aggregate_batch(results: list) -> dict:
@@ -475,12 +567,15 @@ def aggregate_batch(results: list) -> dict:
                       and not (math.isnan(float(v)) or math.isinf(float(v)))]
 
             if b_vals and t_vals:
-                separability[pair_key][stat_key] = {
+                entry = {
                     "effect_size": bootstrap_effect_size(b_vals, t_vals),
                     "threshold": best_threshold(b_vals, t_vals),
                     "benign_mean": float(np.mean(b_vals)),
                     "target_mean": float(np.mean(t_vals)),
                 }
+                entry["length_confound"] = _length_confound(
+                    results, benign_idx, target_idx, stat_key)
+                separability[pair_key][stat_key] = entry
 
     # ── Legacy flat separability (benign-ish vs harmful-ish pooled) ──
     harmful_cats_all = {"harmful", "jailbreak", "adversarial"}
@@ -522,7 +617,7 @@ def aggregate_batch(results: list) -> dict:
     len_corr = length_correlations(results)
 
     # ── Multiple-comparison correction ────────────────────────────
-    # 16 metrics x 4 target categories, plus a pooled pass, all reported from
+    # ~14 metrics x 4 target categories, plus a pooled pass, all reported from
     # the same session.  Without this the raw threshold p-values are not
     # interpretable: at FDR 0.05 you expect ~3 "hits" from noise alone.
     all_ps = []

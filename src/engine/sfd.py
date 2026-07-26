@@ -348,7 +348,14 @@ def compute_rank_displacement(instruct_cf, base_cf, k=None):
             instruct_disp_profiles.append([0.0] * k)
             base_disp_profiles.append([0.0] * k)
             overlaps.append(0.0)
-            taus.append(0.0)
+            # A position with no candidates on one side has NO defined tau.
+            # This branch previously appended a literal 0.0, which the
+            # aggregation below counted as a real measurement — diluting
+            # mean_tau toward zero and overstating n_comparable, i.e. exactly
+            # the defect the other branch was fixed for. None keeps the list
+            # position-indexed while excluding it from the mean.
+            taus.append(None)
+            n_tau_undefined += 1
             continue
 
         # Keyed by surface string; distinct token ids can decode+strip to

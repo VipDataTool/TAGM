@@ -400,6 +400,18 @@ class Analyzer:
 
         avg_attr = torch.stack(layer_attrs).mean(dim=0).float().numpy()
         result.signed_attr = avg_attr
+        # EXTENSIVE: a sum over token positions.  Unlike n_directional this
+        # does not shift the MEAN with length (the per-token terms are
+        # roughly zero-centred, so the sum stays near zero) — but its SD grows
+        # as sqrt(seq_len).  Measured: SD 4.4 at 20 tokens, 12.6 at 160.
+        #
+        # That is heteroscedasticity, not a spurious effect: it inflates the
+        # pooled SD that Cohen's d divides by, so it costs power and violates
+        # the equal-variance assumption whenever the two groups differ in
+        # average length.  The sum IS the definition of "net" correction, so
+        # it is left as-is rather than silently redefined — but treat
+        # net_correction comparisons between groups of different typical
+        # length with suspicion, and check length_correlations first.
         result.net_correction = float(avg_attr.sum())
         result.n_negative_tokens = int(sum(1 for a in avg_attr if a < 0))
         result.has_negative_tokens = result.n_negative_tokens > 0
@@ -444,6 +456,17 @@ class Analyzer:
                 continue
             h = self._capture.activations[key]
 
+            # Accumulate this layer separately so it can be averaged over the
+            # roles that ACTUALLY contributed.  Summing over roles and then
+            # dividing only by the layer count meant a layer holding 2 of 3
+            # deltas contributed 2/3 the magnitude of a complete one — the
+            # same aggregation asymmetry as the amplitude trajectory — and a
+            # layer with NO usable deltas still incremented n_layers, silently
+            # deflating the score in proportion to how many deltas were
+            # missing.  Values are now per-role, i.e. ~1/3 of previously
+            # stored scores when all three roles are present.
+            layer_total = torch.zeros(seq_len, device=self.device)
+            n_roles = 0
             for role in ("q", "k", "v"):
                 dw = self.delta_store.get_or_none(layer_idx, role)
                 if dw is None:
@@ -451,7 +474,11 @@ class Analyzer:
                 fnorm = self.delta_store.frob_norm(layer_idx, role)
                 if dw.shape[1] == h.shape[2] and fnorm > 0:
                     projected = torch.matmul(h[0, :seq_len].float(), dw.float().T)
-                    per_token_total += projected.norm(dim=-1) / fnorm
+                    layer_total += projected.norm(dim=-1) / fnorm
+                    n_roles += 1
+            if n_roles == 0:
+                continue
+            per_token_total += layer_total / n_roles
             n_layers += 1
 
         if n_layers > 0:
@@ -484,6 +511,7 @@ class Analyzer:
 
                 raw_sum = 0.0
                 norm_sum = 0.0
+                n_roles = 0
                 # Device-matched for the same reason as in _extract_stress_score.
                 per_tok = torch.zeros(seq_len, device=self.device)
 
@@ -499,6 +527,28 @@ class Analyzer:
                         raw_sum += pn.mean().item()
                         norm_sum += (pn / fnorm).mean().item()
                         per_tok += pn / fnorm
+                        n_roles += 1
+
+                # MEAN over roles, not sum.  attn aggregates 3 roles (q,k,v)
+                # and mlp only 2 (gate,up), so summing made the two sublayer
+                # types differ by a constant ~3/2 factor that had nothing to
+                # do with the model.  Interleaved on one axis (index =
+                # 2*layer + {0:attn, 1:mlp}) that produced a period-2 sawtooth
+                # roughly 6x larger than the real layer-to-layer variation,
+                # burying the depth trend the trajectory exists to show.
+                #
+                # Worse, the factor is multiplicative, so it did NOT cancel in
+                # comparative.plot_difference_from_benign — that subtraction is
+                # index-wise, so the artifact modulated the difference and made
+                # attention sublayers look ~1.5x more discriminative than MLP
+                # sublayers purely from role count.
+                #
+                # Dividing makes the two types genuinely comparable. Values are
+                # now attn/3 and mlp/2 relative to previously stored sessions.
+                if n_roles:
+                    raw_sum /= n_roles
+                    norm_sum /= n_roles
+                    per_tok = per_tok / n_roles
 
                 raw_traj.append(raw_sum)
                 norm_traj.append(norm_sum)

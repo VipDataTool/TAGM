@@ -31,7 +31,11 @@ class LTPResult:
     mean_V: float = 0.0
     mean_L: float = 0.0
     max_prc: float = 0.0
+    # n_directional is a COUNT and therefore scales with sequence length; it
+    # must not be compared across prompts of differing length.  Use
+    # directional_frac (the same quantity as a rate) for that.
     n_directional: int = 0
+    directional_frac: float = 0.0
     prc_per_token: List[float] = field(default_factory=list)
     semantic_trajectory: Optional[np.ndarray] = None
     tension_trajectory: Optional[np.ndarray] = None
@@ -168,6 +172,7 @@ def ltp_result_to_dict(ltp: LTPResult) -> dict:
         "mean_L": ltp.mean_L,
         "max_prc": ltp.max_prc,
         "n_directional": ltp.n_directional,
+        "directional_frac": ltp.directional_frac,
         "n_layers_used": len(ltp.monitored_layers),
         "tension_magnitudes": ltp.tension_magnitudes,
         "prc_per_token": ltp.prc_per_token,

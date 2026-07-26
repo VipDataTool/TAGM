@@ -226,24 +226,59 @@ def _plot_amplitude_trajectory(r: dict) -> bytes:
 
     fig = _new_fig(_FIGSIZE_WIDE)
     ax = fig.subplots()
-    x = list(range(len(norm or raw)))
-    if norm:
-        ax.plot(x, norm, color=_BLUE, label="Normalized", linewidth=1.5)
-    if raw:
-        ax2 = ax.twinx()
-        ax2.plot(x, raw, color=_ORANGE, label="Raw", linewidth=1.0,
-                  linestyle="--", alpha=0.7)
-        ax2.set_ylabel("Raw amplitude", color=_ORANGE)
-        ax2.tick_params(axis="y", colors=_ORANGE)
-    if labels and len(labels) == len(x):
-        # Show every Nth label to avoid clutter
-        step = max(1, len(labels) // 16)
-        ax.set_xticks(x[::step])
-        ax.set_xticklabels(labels[::step], rotation=45, ha="right", fontsize=7)
+
+    # The trajectory interleaves the two sublayer types:
+    #     index = 2*layer + {0: attn, 1: mlp}
+    # Plotting them as ONE series put alternating quantities on a shared axis
+    # and produced a period-2 sawtooth that buried the actual depth trend.
+    # Split by parity and plot against layer number instead.
+    series = norm or raw
+    n = len(series)
+    interleaved = n >= 4 and n % 2 == 0 and not labels
+    handles = []
+
+    if interleaved:
+        layers = list(range(n // 2))
+        if norm:
+            handles += ax.plot(layers, norm[0::2], color=_BLUE, linewidth=1.6,
+                               marker="o", markersize=3, label="attn (normalized)")
+            handles += ax.plot(layers, norm[1::2], color=_GREEN, linewidth=1.6,
+                               marker="s", markersize=3, label="mlp (normalized)")
+        if raw:
+            ax2 = ax.twinx()
+            handles += ax2.plot(layers, raw[0::2], color=_ORANGE, linewidth=1.0,
+                                linestyle="--", alpha=0.7, label="attn (raw)")
+            handles += ax2.plot(layers, raw[1::2], color=_RED, linewidth=1.0,
+                                linestyle=":", alpha=0.7, label="mlp (raw)")
+            ax2.set_ylabel("Raw amplitude", color=_ORANGE)
+            ax2.tick_params(axis="y", colors=_ORANGE)
+        ax.set_xlabel("Layer")
+    else:
+        x = list(range(n))
+        if norm:
+            handles += ax.plot(x, norm, color=_BLUE, label="Normalized",
+                               linewidth=1.5)
+        if raw:
+            ax2 = ax.twinx()
+            handles += ax2.plot(x, raw, color=_ORANGE, label="Raw",
+                                linewidth=1.0, linestyle="--", alpha=0.7)
+            ax2.set_ylabel("Raw amplitude", color=_ORANGE)
+            ax2.tick_params(axis="y", colors=_ORANGE)
+        if labels and len(labels) == len(x):
+            # Show every Nth label to avoid clutter
+            step = max(1, len(labels) // 16)
+            ax.set_xticks(x[::step])
+            ax.set_xticklabels(labels[::step], rotation=45, ha="right", fontsize=7)
+        ax.set_xlabel("Sublayer index")
+
     ax.set_ylabel("Frobenius-normalized amplitude", color=_BLUE)
     ax.set_title("Amplitude trajectory across sublayers")
-    if norm:
-        ax.legend(loc="upper left")
+    # Collect handles from BOTH axes. ax.legend() alone only sees the primary
+    # axis, so the twinx series was silently missing from the legend even
+    # though it was given a label.
+    if handles:
+        ax.legend(handles, [h.get_label() for h in handles], loc="upper left",
+                  fontsize=8)
     fig.tight_layout()
     return _render(fig)
 

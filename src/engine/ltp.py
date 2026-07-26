@@ -282,6 +282,8 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
     result.n_layers_monitored = len(monitored)
 
     # PRC (Peak Rank Concentration)
+    # NOTE: 0.02 is an arbitrary cutoff with no derivation in this codebase.
+    # It only affects the *_directional outputs below, not prc itself.
     PRC_THRESHOLD = 0.02
     prc_values = []
     for profile in result.profiles:
@@ -294,6 +296,19 @@ def compute_ltp(analyzer: "Analyzer", logits, tokens, input_ids,
     result.prc_per_token = prc_values
     result.max_prc = max(prc_values) if prc_values else 0.0
     result.n_directional = sum(1 for p in prc_values if p > PRC_THRESHOLD)
+    # EXTENSIVE vs INTENSIVE.  n_directional is a COUNT of token positions, so
+    # it grows linearly with sequence length.  Comparing it across prompts of
+    # different lengths — which is exactly what the separability statistics do
+    # — manufactures effects out of length alone: under a null where both
+    # groups have identical per-token behaviour and differ only in prompt
+    # length (benign ~40 tokens, harmful ~90), it reports |d| ~ 3.7 and
+    # excludes zero in 100% of replications.
+    #
+    # directional_frac is the same quantity as a RATE, which is
+    # length-invariant and is what the cross-prompt statistics consume.
+    # n_directional is kept for display and backward compatibility.
+    result.directional_frac = (
+        result.n_directional / len(prc_values) if prc_values else 0.0)
 
     # Dual trajectory
     _compute_dual_trajectory(result, activations, monitored, seq_len, hidden_size)

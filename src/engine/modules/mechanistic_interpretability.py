@@ -28,7 +28,11 @@ METRIC_KEYS = [
     "stress_score", "net_correction", "entropy",
     "top2_share", "middle_share", "interior_cv", "kl_divergence",
 ]
-LTP_KEYS = ["ltp_mean_M", "ltp_n_directional"]
+# directional_frac, not the raw n_directional count: the count scales
+# linearly with sequence length, so as a classifier FEATURE it lets the model
+# separate classes on prompt length alone. _residualize_length only protects
+# the residualized pass; the headline raw AUROC was unguarded.
+LTP_KEYS = ["ltp_mean_M", "ltp_directional_frac"]
 SFD_KEYS = ["sfd_density_mean"]
 RD_KEYS = ["rank_displacement_mean_tau"]
 
