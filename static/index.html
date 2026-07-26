@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="/static/css/main.css?v=ecm12">
+<link rel="stylesheet" href="/static/css/main.css?v=ledger1">
 </head>
 <body>
 <div class="header">
@@ -125,43 +125,13 @@
   <div class="tab-panel active" id="panel-data" style="padding:8px 16px;min-width:0">
     <div class="card" style="margin-bottom:10px">
       <div class="card-header"><h3 style="font-size:13px">Field Glossary</h3></div>
-      <div class="card-body collapsed" style="padding:12px 16px;font-size:12px;line-height:1.7;color:var(--text-1)">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
-          <div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:8px">Core ASM</div>
-            <div><strong style="color:var(--text-0)">#</strong> — Record index (chronological order)</div>
-            <div><strong style="color:var(--text-0)">Prompt</strong> — Input text analyzed</div>
-            <div><strong style="color:var(--text-0)">Cat</strong> — Category label (benign, mild, harmful, jailbreak, etc.)</div>
-            <div><strong style="color:var(--text-0)">Role</strong> — Source role (user prompt or model response)</div>
-            <div><strong style="color:var(--text-0)">Tok</strong> — Token count (sequence length)</div>
-            <div><strong style="color:var(--text-0)">Stress</strong> — Alignment stress score. Total correction pressure across discriminative middle layers. Higher = model working harder to maintain alignment</div>
-            <div><strong style="color:var(--text-0)">Net</strong> — Net correction. Signed sum of per-token attribution. Positive = net reinforcement of alignment direction</div>
-            <div><strong style="color:var(--text-0)">Ent</strong> — Entropy of the correction distribution. High = correction spread evenly across tokens. Low = concentrated on a few tokens</div>
-            <div><strong style="color:var(--text-0)">Int%</strong> — Interior share. Fraction of correction attributed to interior (non-boundary) tokens. Higher values indicate the model is responding to semantic framing</div>
-            <div><strong style="color:var(--text-0)">IntCV</strong> — Interior coefficient of variation. How unevenly correction is distributed among interior tokens. High = a few interior tokens dominate</div>
-            <div><strong style="color:var(--text-0)">Bnd%</strong> — Boundary share. Fraction of correction at first and last tokens. Complement of Int%</div>
-            <div><strong style="color:var(--text-0)">KL</strong> — KL divergence between instruct and base model next-token distributions. Higher = alignment training changed the output more at this prompt</div>
-            <div><strong style="color:var(--text-0)">Neg</strong> — Count of tokens with negative attribution (pushing against the alignment correction)</div>
-          </div>
-          <div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:8px">Model Predictions</div>
-            <div><strong style="color:var(--text-0)">InstTop1</strong> — Most likely next token predicted by the instruct (aligned) model</div>
-            <div><strong style="color:var(--text-0)">InstP</strong> — Probability the instruct model assigns to its top prediction</div>
-            <div><strong style="color:var(--text-0)">BaseTop1</strong> — Most likely next token predicted by the base (unaligned) model</div>
-            <div><strong style="color:var(--text-0)">BaseP</strong> — Probability the base model assigns to its top prediction</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Lateral Tension Profile (LTP)</div>
-            <div><strong style="color:var(--text-0)">M</strong> — Mean lateral tension magnitude across all tokens. How much the alignment correction displaces probability mass toward alternative tokens</div>
-            <div><strong style="color:var(--text-0)">MaxPRC</strong> — Maximum probability reallocation at any single token (in percentage points)</div>
-            <div><strong style="color:var(--text-0)">N_dir</strong> — Number of tokens with directional (non-flat) tension profiles</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Spectral Field Density (SFD)</div>
-            <div><strong style="color:var(--text-0)">Dens</strong> — QK routing density. How many dimensions of the attention routing subspace each token engages on average</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Rank Displacement</div>
-            <div><strong style="color:var(--text-0)">Tau</strong> — Kendall tau correlation between base and instruct alternative token orderings. 1.0 = identical ranking, lower = RLHF reordered the priority structure</div>
-            <div><strong style="color:var(--text-0)">Ovlp</strong> — Overlap. Fraction of top-k alternative tokens shared between base and instruct models</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:12px">Entropic Cascade Mitigation (ECM)</div>
-            <div><strong style="color:var(--text-0)">ecm</strong> — Detector replay over the extracted per-token traces (stress always; KL when its checkbox is on; density when SFD collection is enabled in Configuration). Reports, per channel, where the cascade detector would have fired and how hard (σ-excess), with index-aligned per-token signals. Replay only — analysis mode never actuates. Detector parameters come from the ECM settings in Configuration</div>
-          </div>
+      <div class="card-body collapsed" style="padding:12px 16px">
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input type="text" id="glossaryFilterInput" placeholder="Filter fields \u2014 name, description or caveat\u2026"
+                 oninput="glossaryFilter(this.value)" autocomplete="off" style="margin-bottom:0">
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('glossaryFilterInput').value='';glossaryFilter('')">Clear</button>
         </div>
+        <div id="glossaryEntries"></div>
       </div>
     </div>
     <div id="dataTableContainer"><p style="color:var(--text-3);font-size:11px">No data yet.</p></div>
@@ -368,9 +338,11 @@
 
 <!-- Shared helpers (plain scripts attaching to window.TAGM) must load first. -->
 <script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/fields.js?v=1"></script>
 <script src="/static/js/common/api.js?v=1"></script>
 <script src="/static/js/common/download.js?v=1"></script>
-<script src="/static/js/main.js?v=ecm12"></script>
+<script src="/static/js/data_ledger.js?v=1"></script>
+<script src="/static/js/main.js?v=ledger2"></script>
 <script src="/static/js/ecm_module_ui.js?v=ecm12"></script>
 <script src="/static/js/syco_module_ui.js?v=syco1"></script>
 </body>

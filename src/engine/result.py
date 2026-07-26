@@ -174,6 +174,13 @@ def ltp_result_to_dict(ltp: LTPResult) -> dict:
         "n_directional": ltp.n_directional,
         "directional_frac": ltp.directional_frac,
         "n_layers_used": len(ltp.monitored_layers),
+        # Effective sample size behind mean_M / mean_V / mean_L. These were
+        # computed and then dropped on the floor — set in ltp.py but never
+        # serialized, so the whole point of adding them (making it visible
+        # when the summary means average over fewer layers than were
+        # requested) never reached the DB or the UI.
+        "n_layers_computed": ltp.n_layers_computed,
+        "n_layers_monitored": ltp.n_layers_monitored,
         "tension_magnitudes": ltp.tension_magnitudes,
         "prc_per_token": ltp.prc_per_token,
         "offset_magnitude": {str(k): v for k, v in ltp.offset_magnitude.items()},

@@ -224,3 +224,100 @@ details.mod-adv summary:hover{color:var(--text-1)}
 .terrain-menu label{font-family:var(--mono);font-size:var(--font-legend);color:var(--text-1);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;display:block}
 .terrain-menu .tm-desc{font-size:var(--font-legend);color:var(--text-3);margin-top:1px}
 .terrain-menu .tm-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border)}
+/* ─── Data-tab ledger: glossary + per-record detail ───────────────
+.dt-row{cursor:pointer}
+.dt-grid tr.dt-expanded td{background:rgba(88,166,255,0.06)}
+/* Superscript marker on any header whose registry entry carries a caveat. */
+/* The grid makes every first-child cell sticky-left and nowrap; the detail
+   cell is a colspan cell and must opt out of all of it. Selectors are written
+   at .dt-grid specificity so they win without !important on the sticky rules. */
+  padding:0;white-space:normal;border-right:none}
+/* .dt-grid is width:max-content, so an unconstrained panel would widen the
+   whole grid. Pin the panel to the viewport instead. */
+  width:min(1200px,calc(100vw - 400px));box-sizing:border-box;overflow-x:hidden}
+/* attribution_unavailable is set: these six are dataclass defaults, not
+   measurements. Muted so they cannot be misread as observed zeros. */
+/* Sparklines: inline SVG, no library. */
+/* Undefined positions (e.g. per_position_tau nulls) are GAPS, never zeros. */
+/* Glossary card */
+.gls-count{font-family:var(--mono);font-size:11px;color:var(--text-3);margin-left:auto}
+.gls-toolbar{display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.gls-toolbar input{margin-bottom:0;flex:1}
+.gls-group{margin-bottom:12px}
+.gls-entry{padding:5px 0 5px 8px;border-left:2px solid var(--border);margin-bottom:4px}
+.gls-entry.gls-has-caveat{border-left-color:var(--orange)}
+.gls-head{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.gls-label{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
+.gls-key{font-family:var(--mono);font-size:10px;color:var(--text-3)}
+.gls-desc{font-size:12px;line-height:1.5;color:var(--text-1);margin-top:2px}
+.gls-caveat{font-size:11px;line-height:1.5;color:var(--orange);margin-top:3px}
+
+/* ── Data ledger (Data tab: expandable per-record detail + glossary) ─── */
+.dt-row{cursor:pointer}
+.dt-caveat-mark,.ldg-caveat-mark{color:var(--orange);font-size:9px;margin-left:1px}
+.dt-detail-row>td{padding:0;border-top:none}
+.dt-detail-cell{background:var(--bg-0);border-bottom:1px solid var(--border);padding:0}
+.ldg-detail{padding:12px 14px;font-size:12px;color:var(--text-1)}
+.ldg-loading{padding:14px;color:var(--text-3);font-family:var(--mono);font-size:11px}
+.ldg-bar{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.ldg-bar-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-0)}
+.ldg-bar-prompt{color:var(--text-2);font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ldg-banner{background:rgba(230,159,0,.10);border:1px solid var(--orange);border-radius:4px;padding:8px 10px;margin-bottom:12px}
+.ldg-banner-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.5px}
+.ldg-banner-msg{color:var(--text-0);margin-top:3px}
+.ldg-banner-note{color:var(--text-2);font-size:11px;margin-top:3px}
+.ldg-group{margin-bottom:14px}
+.ldg-group-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-1);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:6px}
+.ldg-group-n{color:var(--text-3);font-weight:400;margin-left:6px}
+.ldg-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 20px}
+.ldg-field-head{display:flex;align-items:baseline;gap:6px}
+.ldg-label{font-family:var(--mono);font-size:11px;color:var(--text-2);min-width:120px}
+.ldg-value{color:var(--text-0);font-family:var(--mono);font-size:11px;word-break:break-word}
+.ldg-units{color:var(--text-3);font-size:10px}
+.ldg-path{color:var(--text-3);font-size:10px;font-family:var(--mono)}
+.ldg-na{color:var(--text-3)}
+.ldg-str{color:var(--text-1)}
+.ldg-bool{color:var(--cyan)}
+.ldg-mono{font-family:var(--mono)}
+.ldg-mono-row{font-family:var(--mono);font-size:10px;color:var(--text-2)}
+.ldg-caveat{color:var(--orange);font-size:10px;line-height:1.45;margin-top:2px}
+.ldg-tag{font-size:9px;padding:1px 5px;border-radius:7px;border:1px solid var(--border);color:var(--text-2);font-family:var(--mono)}
+.ldg-tag-ext{border-color:var(--red);color:var(--red)}
+.ldg-tag-len{border-color:var(--orange);color:var(--orange)}
+.ldg-tag-mute{opacity:.45}
+.ldg-spark-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ldg-spark{background:var(--bg-1);border:1px solid var(--border);border-radius:2px}
+.ldg-spark-line{fill:none;stroke:var(--blue);stroke-width:1.2}
+.ldg-spark-dot{fill:var(--blue)}
+.ldg-spark-gap{fill:var(--text-3);opacity:.35}
+.ldg-spark-cap{font-family:var(--mono);font-size:10px;color:var(--text-3)}
+.ldg-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 12px}
+.ldg-kv-cell{display:flex;gap:6px;font-family:var(--mono);font-size:10px}
+.ldg-kv-k{color:var(--text-3)}
+.ldg-kv-v{color:var(--text-1)}
+.ldg-topk{display:flex;gap:18px;flex-wrap:wrap}
+.ldg-topk-title{font-family:var(--mono);font-size:10px;color:var(--text-2);margin-bottom:2px}
+.ldg-topk-tbl,.ldg-tbl{border-collapse:collapse;font-family:var(--mono);font-size:10px}
+.ldg-topk-tbl td,.ldg-tbl td,.ldg-tbl th{padding:1px 8px 1px 0;color:var(--text-1);text-align:left}
+.ldg-tbl th{color:var(--text-3);font-weight:500}
+.ldg-tok{color:var(--text-0)}
+.ldg-chips{display:flex;gap:4px;flex-wrap:wrap}
+.ldg-chip{font-family:var(--mono);font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;color:var(--text-2)}
+.ldg-scrollbox{max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:3px;padding:6px;background:var(--bg-1)}
+.ldg-pre{font-family:var(--mono);font-size:10px;color:var(--text-2);white-space:pre-wrap;margin:0}
+.ldg-subblock{margin-top:6px}
+.ldg-subblock-title{font-family:var(--mono);font-size:10px;color:var(--text-2);margin-bottom:3px}
+.ldg-matrix-head,.ldg-dictarr-row,.ldg-perpos,.ldg-pos{font-family:var(--mono);font-size:10px;color:var(--text-2)}
+.ldg-matrix-sub{color:var(--text-3);font-size:10px}
+.ldg-more{color:var(--text-3);font-size:10px;font-style:italic}
+.ldg-warn,.ldg-warn-inline{color:var(--red);font-size:11px;font-family:var(--mono)}
+.ldg-details summary{cursor:pointer;color:var(--text-2);font-family:var(--mono);font-size:10px}
+#glossaryEntries .ldg-group{margin-bottom:12px}
+.ldg-field{min-width:0}
+.ldg-wide{grid-column:1/-1}
+/* Fields that are dataclass DEFAULTS, not measurements, when
+   attribution_unavailable is set. Muted so they cannot be misread as zeros. */
+.ldg-muted{opacity:.42}
+.ldg-ok{color:var(--green)}
+.ldg-bad{color:var(--red)}
+.ldg-dictarr{font-family:var(--mono);font-size:10px;color:var(--text-2)}
