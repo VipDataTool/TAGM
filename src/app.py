@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import os
+import re as _re
 import shutil
 import tempfile
 import time
@@ -159,13 +160,32 @@ except Exception as e:
 # costs nothing and removes a whole class of stale-frontend confusion.
 _NO_STORE = {"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache"}
 
+# Every /static/... asset URL inside a served HTML page is rewritten to
+# carry the asset file's mtime as a cache-buster (?v=<mtime>).  Editing any
+# JS/CSS file therefore changes its URL on the next page load, which
+# defeats browser memory/disk caches and any proxy cache without anyone
+# hand-bumping version strings in index.html.
+_ASSET_RE = _re.compile(r'(/static/[^"\'?]+)(?:\?[^"\']*)?')
+
+def _stamped_html(path: Path) -> HTMLResponse:
+    html = path.read_text(encoding="utf-8")
+
+    def _stamp(m):
+        rel = m.group(1)[len("/static/"):]
+        try:
+            v = int((_static_dir / rel).stat().st_mtime)
+        except OSError:
+            return m.group(1)
+        return f"{m.group(1)}?v={v}"
+
+    return HTMLResponse(_ASSET_RE.sub(_stamp, html), headers=_NO_STORE)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
     index = _static_dir / "index.html"
     if index.exists():
-        return HTMLResponse(index.read_text(encoding="utf-8"),
-                            headers=_NO_STORE)
+        return _stamped_html(index)
     return HTMLResponse("<h1>TAGM</h1><p>No frontend found.</p>",
                         headers=_NO_STORE)
 
@@ -187,9 +207,9 @@ for _viz in ("chat", "roundtable", "domain_surface_viz",
             if p.exists():
                 # Same no-store reasoning as the root route: these popouts
                 # each load their own script set, so a stale document means
-                # stale JS references.
-                return HTMLResponse(p.read_text(encoding="utf-8"),
-                                    headers=_NO_STORE)
+                # stale JS references.  _stamped_html also rewrites any
+                # /static asset URLs with mtime cache-busters.
+                return _stamped_html(p)
             raise HTTPException(status_code=404)
         return handler
     app.get(f"/{_viz}", include_in_schema=False)(_make_viz_route(_viz))

@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<link rel="stylesheet" href="/static/css/main.css?v=ecm12">
+<link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
 <div class="header">
@@ -342,12 +342,13 @@
 </div>
 
 <!-- Shared helpers (plain scripts attaching to window.TAGM) must load first. -->
-<script src="/static/js/common/esc.js?v=1"></script>
-<script src="/static/js/common/fields.js?v=1"></script>
-<script src="/static/js/common/api.js?v=1"></script>
-<script src="/static/js/common/download.js?v=1"></script>
-<script src="/static/js/main.js?v=grid1"></script>
-<script src="/static/js/ecm_module_ui.js?v=ecm12"></script>
-<script src="/static/js/syco_module_ui.js?v=syco1"></script>
+<!-- Cache-busting ?v=<mtime> stamps are injected server-side by _stamped_html in src/app.py — do not add manual version strings here. -->
+<script src="/static/js/common/esc.js"></script>
+<script src="/static/js/common/fields.js"></script>
+<script src="/static/js/common/api.js"></script>
+<script src="/static/js/common/download.js"></script>
+<script src="/static/js/main.js"></script>
+<script src="/static/js/ecm_module_ui.js"></script>
+<script src="/static/js/syco_module_ui.js"></script>
 </body>
 </html>
