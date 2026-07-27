@@ -23,7 +23,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 
 from src.core.pipeline import Pipeline
-from src.core.db import get_db, migrate_json_to_db
+from src.core.db import get_db, migrate_json_to_db, seed_default_models
 from src.engine.analyzer import Analyzer
 from src.engine.result import result_to_dict
 from src.engine import config as engine_config
@@ -47,6 +47,10 @@ _db = get_db()
 _migration_summary = migrate_json_to_db(_db, _PROJECT_ROOT)
 if any(v for v in _migration_summary.values()):
     logger.info(f"[app_core] Migration summary: {_migration_summary}")
+# After migration, so an imported legacy registry counts as the user's own
+_n_seeded = seed_default_models(_db)
+if _n_seeded:
+    logger.info(f"[app_core] Seeded {_n_seeded} default model pairs")
 
 
 # ─── Global state ───────────────────────────────────────────────

@@ -257,7 +257,7 @@ function _handleModuleStatusEvent(evt) {
         logBtn.className = 'btn btn-sm';
         logBtn.style.cssText = 'border:1px solid var(--border);color:var(--text-2);background:transparent;cursor:pointer';
         logBtn.textContent = 'Download Log';
-        logBtn.onclick = function(e2) { e2.stopPropagation(); window.open('/api/modules/' + name + '/download_log', '_blank'); };
+        logBtn.onclick = function(e2) { e2.stopPropagation(); window.location.href = '/api/modules/' + name + '/download_log'; };
         if (btn && btn.parentNode) btn.parentNode.insertBefore(logBtn, btn.nextSibling);
       }
     }
@@ -1144,6 +1144,46 @@ async function exportSession(){
   }catch(e){log('Export error: '+e.message,'error');_busy=false}
 }
 
+// ─── Popout helpers ─────────────────────────────────────────────
+// Every popout asks window.open for a separate window. Embedded
+// browsers (VS Code simple browser, the Claude Code preview pane) and
+// popup-blocking configs return null instead, and each caller's
+// `if(!w)return` made its button a silent no-op. These helpers fall
+// back to same-tab navigation: the standalone pages carry a Dashboard
+// back button (common/backlink.js), and init re-fetches the grid on
+// return, so the round trip is lossless.
+function openPopoutUrl(url,pw,ph){
+  const left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  const w=window.open(url,'_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
+  if(!w)location.assign(url);
+}
+// Popup path writes a standalone document (cloning this page's styles);
+// the fallback stashes the identical payload in sessionStorage for
+// /static/popout.html to render after a same-tab navigation.
+function openPopoutHtml(title,bodyHtml,opts){
+  opts=opts||{};
+  const pw=opts.width||1060,ph=opts.height||820;
+  const css=opts.css||'',scripts=opts.scripts||'';
+  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(s=>s.outerHTML).join('\n');
+  const left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
+  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
+  if(w){
+    const scriptBlock=scripts?`<script>${scripts}<\/script>`:'';
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+      ${styles}
+      <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}${css}</style>
+      </head><body>${bodyHtml}${scriptBlock}</body></html>`);
+    w.document.close();
+    return;
+  }
+  try{
+    sessionStorage.setItem('tagm_popout',JSON.stringify({title,styles,css,html:bodyHtml,scripts}));
+  }catch(e){log('Popout too large for same-tab view: '+e.message,'error');return}
+  location.assign('/static/popout.html');
+}
+
 // ─── Visualization Pop-out Store ─────────────────────────────────
 const _vizStore={};
 function _plotHtml(plotKey,title,desc){
@@ -1153,23 +1193,9 @@ function storeViz(key,title,html,scripts){_vizStore[key]={title:title,html:html,
 function popoutViz(key){
   const entry=_vizStore[key];
   if(!entry){console.warn('No viz stored for',key);return}
-  const pw=1060,ph=820;
-  const left=Math.round((screen.width-pw)/2);
-  const top=Math.round((screen.height-ph)/2);
-  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
-  if(!w) return;
-  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
-    .map(s=>s.outerHTML).join('\n');
-  const scriptBlock=entry.scripts?`<script>${entry.scripts}<\/script>`:'';
-  w.document.write(`<!DOCTYPE html><html><head><title>${entry.title} — TAGM</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    ${styles}
-    <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
-    .feature{max-width:960px;margin:0 auto 16px auto}
-    .plot-container img{max-width:100%;height:auto}
-    </style>
-    </head><body>${entry.html}${scriptBlock}</body></html>`);
-  w.document.close();
+  openPopoutHtml(`${entry.title} — TAGM`,entry.html,{width:1060,height:820,
+    scripts:entry.scripts||'',
+    css:'.feature{max-width:960px;margin:0 auto 16px auto}.plot-container img{max-width:100%;height:auto}'});
 }
 function vizLabel(storeKey,title,desc,borderColor){
   const bc=borderColor?`border-left:3px solid ${borderColor};`:'';
@@ -1180,21 +1206,8 @@ function vizLabel(storeKey,title,desc,borderColor){
 function popoutRecord(rid){
   const el=document.getElementById(rid);
   if(!el) return;
-  const pw=1000,ph=800;
-  const left=Math.round((screen.width-pw)/2);
-  const top=Math.round((screen.height-ph)/2);
-  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
-  if(!w) return;
-  // Grab stylesheets from parent
-  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
-    .map(s=>s.outerHTML).join('\n');
-  w.document.write(`<!DOCTYPE html><html><head><title>TAGM Record</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    ${styles}
-    <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
-    .card{max-width:960px;margin:0 auto}</style>
-    </head><body>${el.outerHTML}</body></html>`);
-  w.document.close();
+  openPopoutHtml('TAGM Record',el.outerHTML,{width:1000,height:800,
+    css:'.card{max-width:960px;margin:0 auto}'});
 }
 
 function renderTopK(r){
@@ -1657,8 +1670,6 @@ async function dtViewSelected(){
     if(!results.length){log('No results found for selected indices','error');return}
 
     // Build card HTML for each selected result
-    const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]'))
-      .map(s=>s.outerHTML).join('\n');
     let cardsHtml='';
     for(const r of results){
       const plotKeys=r._plot_keys||[];
@@ -1666,20 +1677,9 @@ async function dtViewSelected(){
       cardsHtml+=_buildRecordCardHtml(r,plotKeys,idx);
     }
 
-    // Open popout
-    const pw=1060,ph=850;
-    const left=Math.round((screen.width-pw)/2);
-    const top=Math.round((screen.height-ph)/2);
-    const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);
-    if(!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>TAGM — ${results.length} Record${results.length>1?'s':''}</title>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-      ${styles}
-      <style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}
-      .card{max-width:960px;margin:0 auto 16px auto}
-      .plot-container img{max-width:100%;height:auto}
-      </style></head><body>${cardsHtml}</body></html>`);
-    w.document.close();
+    openPopoutHtml(`TAGM — ${results.length} Record${results.length>1?'s':''}`,cardsHtml,
+      {width:1060,height:850,
+       css:'.card{max-width:960px;margin:0 auto 16px auto}.plot-container img{max-width:100%;height:auto}'});
   }catch(e){log('View error: '+e.message,'error');console.error(e)}
 }
 
@@ -2321,7 +2321,10 @@ function playChime() {
       _promptTotal=st.session.n_results;
       if(st.session.cache_size_bytes)_cacheBytes=st.session.cache_size_bytes;
       updateSessionBadge();
-      renderDataTable();
+      // A bare renderDataTable() here paints "No data yet." — it renders from
+      // dashResults, which starts empty on every page load. Fetch rows first,
+      // same path as the Refresh Session button.
+      await refreshSession();
       $('dashBtn').disabled=false;
       $('exportBtn').disabled=false;
       log('Session restored: '+st.session.n_results+' results'+(st.session.model?' ('+st.session.model+')':''),'done');
@@ -2371,11 +2374,8 @@ function renderCandidateGraphSection(r){
 }
 function popoutCandidateGraph(uid){
   const el=document.getElementById(uid);if(!el)return;
-  const pw=1000,ph=850,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  const w=window.open('','_blank',`width=${pw},height=${ph},left=${left},top=${top},scrollbars=yes`);if(!w)return;
-  const styles=Array.from(document.querySelectorAll('style,link[rel="stylesheet"]')).map(s=>s.outerHTML).join('\n');
-  w.document.write(`<!DOCTYPE html><html><head><title>TAGM — Candidate Graph</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">${styles}<style>body{background:var(--bg-0);color:var(--text-1);font-family:var(--sans);padding:20px;margin:0}.feature-body.collapsed{display:block!important}</style></head><body><div style="max-width:960px;margin:0 auto">${el.outerHTML}</div></body></html>`);
-  w.document.close();
+  openPopoutHtml('TAGM — Candidate Graph',`<div style="max-width:960px;margin:0 auto">${el.outerHTML}</div>`,
+    {width:1000,height:850,css:'.feature-body.collapsed{display:block!important}'});
 }
 
 function _computeGraphsChunked(results){
@@ -2719,11 +2719,11 @@ function renderModuleCard(m) {
   // Probe Generator: diagnostic popout, available without requiring a fresh run.
   // Operates on whatever probe set is on disk (active set by default).
   if (m.name === 'probe_generator') {
-    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();window.open(\'/template_maker\',\'_blank\',\'width=1280,height=900,scrollbars=yes\')" title="Design an n-axis probe lattice template">✎ Template Maker</button>';
+    h += '<button class="btn btn-sm btn-popout" style="margin-left:auto" onclick="event.stopPropagation();openPopoutUrl(\'/template_maker\',1280,900)" title="Design an n-axis probe lattice template">✎ Template Maker</button>';
     h += '<button class="btn btn-sm btn-popout" onclick="event.stopPropagation();popoutProbeDiagnostic()" title="Inspect lattice properties of the active probe set">↗ Probe Diagnostics</button>';
   }
   if (m.name === 'token_pair_coupling') {
-    h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
+    h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="event.stopPropagation();window.location.href=\'/api/modules/token_pair_coupling/export_cache\'">Export Cache</button>';
     h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="event.stopPropagation();confirmResetTokenPairCache()">Reset Cache</button>';
   }
   h += '<div class="mod-progress" id="mod-progress-' + m.name + '"></div>';
@@ -3119,10 +3119,7 @@ function renderModelDialogueResults(r) {
 }
 
 function popoutChat() {
-  var pw = 640, ph = 720;
-  var left = Math.round((screen.width - pw) / 2);
-  var top = Math.round((screen.height - ph) / 2);
-  window.open('/chat', '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
+  openPopoutUrl('/chat', 640, 720);
 }
 
 // ─── Roundtable LMA Results Renderer ──────────────────────────
@@ -3158,10 +3155,7 @@ function renderRoundtableLMAResults(r) {
 }
 
 function popoutRoundtable() {
-  var pw = 960, ph = 760;
-  var left = Math.round((screen.width - pw) / 2);
-  var top = Math.round((screen.height - ph) / 2);
-  window.open('/roundtable', '_blank', 'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top + ',scrollbars=yes');
+  openPopoutUrl('/roundtable', 960, 760);
 }
 
 // ─── Arditi Benchmarks Results Renderer ────────────────────────
@@ -3201,7 +3195,7 @@ function renderTokenPairResults(r) {
 
   // Cache management buttons
   h += '<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">';
-  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="window.open(\'/api/modules/token_pair_coupling/export_cache\',\'_blank\')">Export Cache</button>';
+  h += '<button class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-2);background:transparent" onclick="window.location.href=\'/api/modules/token_pair_coupling/export_cache\'">Export Cache</button>';
   h += '<button class="btn btn-sm" style="border:1px solid var(--red);color:var(--red);background:transparent" onclick="confirmResetTokenPairCache()">Reset Cache</button>';
   h += '<span style="flex:1"></span>';
   h += '<span style="font-size:11px;color:var(--text-3)">Cache persists across sessions and resets</span>';
@@ -3889,8 +3883,7 @@ function renderDsProbeTable() {
 
 function popoutDomainSurface(){
   if(!_dsSurfaceData||!_dsSurfaceData.ladder)return;
-  var pw=1100,ph=780,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/domain_surface_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+  openPopoutUrl('/domain_surface_viz',1100,780);
 }
 
 // ─── Probe Generator Results Renderer ──────────────────────────
@@ -4000,15 +3993,13 @@ function renderProbeGeneratorResults(r) {
 }
 
 function popoutCorrectionPrism(){
-  var pw=1200,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
-  window.open('/correction_prism_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+  openPopoutUrl('/correction_prism_viz',1200,900);
 }
 
 function popoutProbeDiagnostic(file){
-  var pw=1100,ph=900,left=Math.round((screen.width-pw)/2),top=Math.round((screen.height-ph)/2);
   var url = '/probe_diagnostic_viz';
   if (file) url += '?file=' + encodeURIComponent(file);
-  window.open(url,'_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+  openPopoutUrl(url,1100,900);
 }
 
 async function embedActiveProbes(filename){
@@ -4824,10 +4815,7 @@ function renderCFTResults(r) {
 
 
 function _cftLaunchFromModule() {
-  var pw=1200, ph=800;
-  var left=Math.round((screen.width-pw)/2);
-  var top=Math.round((screen.height-ph)/2);
-  window.open('/correction_field_topology_viz','_blank','width='+pw+',height='+ph+',left='+left+',top='+top+',scrollbars=yes');
+  openPopoutUrl('/correction_field_topology_viz',1200,800);
 }
 
 // ─── MI Instrumentation Results Renderer ────────────────────────

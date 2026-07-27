@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TAGM Record</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{background:#111;color:#ccc;font-family:sans-serif;padding:20px;margin:0}
+#popoutBody{padding-top:26px}
+.popout-empty{font-family:monospace;font-size:12px;padding:40px;text-align:center}
+</style>
+</head>
+<body>
+<div id="popoutBody"><p class="popout-empty">Nothing to show — this page renders content handed off by the
+dashboard (View Selected, record popouts). Open it from there.</p></div>
+<script src="/static/js/common/backlink.js"></script>
+<script>
+/* Same-tab stand-in for the document.write() popout windows.
+ *
+ * main.js openPopoutHtml() stashes {title, styles, css, html, scripts}
+ * in sessionStorage under 'tagm_popout' and navigates here when
+ * window.open() is refused (embedded browsers, popup blockers).
+ * `styles` is the dashboard's own <style>/<link> markup, cloned so the
+ * record cards render identically to the popup-window version; `css` is
+ * the per-popout extra style block; `scripts` is the optional viz
+ * script text that document.write() used to execute.
+ *
+ * The payload stays in sessionStorage (not removed on load) so browser
+ * back/forward re-renders instead of landing on the empty-state text.
+ */
+(function(){
+  var raw;
+  try { raw = sessionStorage.getItem('tagm_popout'); } catch (e) { return; }
+  if (!raw) return;
+  var p;
+  try { p = JSON.parse(raw); } catch (e) { return; }
+
+  if (p.title) document.title = p.title;
+  if (p.styles) {
+    var head = document.head;
+    var holder = document.createElement('div');
+    holder.innerHTML = p.styles;
+    // <style> nodes adopt via appendChild; <link> nodes need re-creation
+    // to fire their fetch reliably from a parsed fragment.
+    Array.prototype.slice.call(holder.children).forEach(function (n) {
+      head.appendChild(n);
+    });
+  }
+  if (p.css) {
+    var st = document.createElement('style');
+    st.textContent = p.css;
+    document.head.appendChild(st);
+  }
+  document.getElementById('popoutBody').innerHTML = p.html || '';
+  if (p.scripts) {
+    var sc = document.createElement('script');
+    sc.textContent = p.scripts;
+    document.body.appendChild(sc);
+  }
+})();
+</script>
+</body>
+</html>

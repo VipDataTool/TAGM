@@ -1,0 +1,41 @@
+{
+ "n_records": 96,
+ "cascade_by_category": {
+  "ambiguous": {
+   "mean": 0.0028368639363145856,
+   "ci_lo": 1.5853118633864585e-05,
+   "ci_hi": 0.008213025816885084,
+   "n_prompts": 6
+  },
+  "benign": {
+   "mean": 0.005024068729606702,
+   "ci_lo": 0.0,
+   "ci_hi": 0.011654390487292166,
+   "n_prompts": 6
+  },
+  "harmful": {
+   "mean": 0.0,
+   "ci_lo": 0.0,
+   "ci_hi": 0.0,
+   "n_prompts": 6
+  },
+  "no_path": {
+   "mean": 0.008162599247247467,
+   "ci_lo": 0.00012868536750786972,
+   "ci_hi": 0.020892304686529806,
+   "n_prompts": 6
+  }
+ },
+ "diversity": {
+  "baseline": {
+   "mean_unique": 1.9583333333333333,
+   "n_collapsed": 1,
+   "n_prompts": 24
+  },
+  "ecm": {
+   "mean_unique": 2.0,
+   "n_collapsed": 0,
+   "n_prompts": 24
+  }
+ }
+}

@@ -934,6 +934,72 @@ class Database:
         return row[0] or 0
 
 
+# ── Default model registry ──────────────────────────────────────
+
+# One entry per supported pair, matching the two adapter families
+# (core/adapter/qwen2.py, core/adapter/llama3.py). ram_gb is total
+# system RAM for base + instruct resident together, since delta
+# computation holds both.
+DEFAULT_MODEL_PAIRS = [
+    {"id": "qwen2.5-0.5b", "name": "Qwen 2.5 0.5B",
+     "base": "Qwen/Qwen2.5-0.5B", "instruct": "Qwen/Qwen2.5-0.5B-Instruct",
+     "ram_gb": 4, "notes": "Lightweight, fast. Good for pipeline validation."},
+    {"id": "qwen2.5-1.5b", "name": "Qwen 2.5 1.5B",
+     "base": "Qwen/Qwen2.5-1.5B", "instruct": "Qwen/Qwen2.5-1.5B-Instruct",
+     "ram_gb": 8, "notes": "Mid-range. Stronger alignment signal than 0.5B."},
+    {"id": "qwen2.5-3b", "name": "Qwen 2.5 3B",
+     "base": "Qwen/Qwen2.5-3B", "instruct": "Qwen/Qwen2.5-3B-Instruct",
+     "ram_gb": 12, "notes": "Requires 16GB+ RAM."},
+    {"id": "qwen2.5-7b", "name": "Qwen 2.5 7B",
+     "base": "Qwen/Qwen2.5-7B", "instruct": "Qwen/Qwen2.5-7B-Instruct",
+     "ram_gb": 24, "notes": "Requires 32GB RAM or GPU."},
+    {"id": "llama3.2-1b", "name": "Llama 3.2 1B",
+     "base": "meta-llama/Llama-3.2-1B", "instruct": "meta-llama/Llama-3.2-1B-Instruct",
+     "ram_gb": 6, "notes": "Gated repo: accept the Meta license on HF and set HF_TOKEN."},
+    {"id": "llama3.2-3b", "name": "Llama 3.2 3B",
+     "base": "meta-llama/Llama-3.2-3B", "instruct": "meta-llama/Llama-3.2-3B-Instruct",
+     "ram_gb": 12, "notes": "Gated repo: accept the Meta license on HF and set HF_TOKEN."},
+    {"id": "llama3.1-8b", "name": "Llama 3.1 8B",
+     "base": "meta-llama/Llama-3.1-8B", "instruct": "meta-llama/Llama-3.1-8B-Instruct",
+     "ram_gb": 24, "notes": "Gated repo: accept the Meta license on HF and set HF_TOKEN. "
+                            "Requires 32GB RAM or GPU."},
+]
+
+
+def seed_default_models(db: Database) -> int:
+    """Insert any DEFAULT_MODEL_PAIRS missing from the registry. Once.
+
+    Closes the fresh-install gap: the registry lives in the database, so a
+    new machine started with an empty one and the Model Pair dropdown was
+    blank until pairs were re-added by hand (or a legacy models.json
+    happened to be present for migration).
+
+    Two guards, in order:
+
+    * Ids already registered are never touched — a user's edits to a
+      default entry (or their replacement of it) survive. Only missing
+      ids are inserted.
+    * A ``default_models_seeded`` flag in the config store marks the
+      seeding as done, so this runs once per database. Without the flag,
+      every startup would re-check and quietly resurrect any default the
+      user later removes — there is no delete API today, but this is the
+      layer that would silently fight one.
+
+    Call after ``migrate_json_to_db`` so an imported registry counts as
+    the user's own. Returns the number of pairs inserted.
+    """
+    if db.get_config("system").get("default_models_seeded"):
+        return 0
+    existing = {m["id"] for m in db.list_models()}
+    inserted = 0
+    for pair in DEFAULT_MODEL_PAIRS:
+        if pair["id"] not in existing:
+            db.upsert_model(**pair)
+            inserted += 1
+    db.set_config_key("system", "default_models_seeded", True)
+    return inserted
+
+
 # ── Migration ───────────────────────────────────────────────────
 
 def migrate_json_to_db(db: Database, project_root: Path) -> dict:

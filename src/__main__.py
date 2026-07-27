@@ -86,6 +86,11 @@ def main(argv: list[str] | None = None) -> None:
         access_log=args.access_log,
         reload=args.reload,
         timeout_keep_alive=300,
+        # Cap the graceful-shutdown wait. The frontend holds a never-ending
+        # SSE stream (/api/events), so uvicorn's default of waiting for all
+        # connections to drain means Ctrl-C hangs until every browser tab
+        # is closed — which reads as Ctrl-C not working at all.
+        timeout_graceful_shutdown=3,
     )
 
 

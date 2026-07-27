@@ -1,32 +1,19 @@
-tasm/__pycache__/app.cpython-311.pyc
-tasm/engine/__pycache__/analyzer.cpython-311.pyc
-tasm/engine/__pycache__/ltp.cpython-311.pyc
-tasm/engine/__pycache__/model_manager.cpython-311.pyc
-tasm/tasm.log
-tasm/engine/__pycache__/baselines.cpython-311.pyc
-tasm/engine/__pycache__/ltp.cpython-311.pyc
-tasm/__pycache__/app.cpython-311.pyc
-*.log
-tasm/tasm.log
-tagm/tasm.log
-*.pyc
-tagm/*_log.json
-tagm/datasets/current/results.json
-tagm/datasets/current/results.json
-*.zip
-tagm/datasets/current/module_domain_surface.json
-tagm/datasets/current/module_correction_prism.json
-tagm/datasets/current/module_correction_field_topology.json
-*.json*
-*.md
-*.ipynb
-*.zip
-*.json
-*.jsonl
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
-/benchmark_out/*.*
-/ablation_v2_out/*.*
-/devnotes/*.*
-/misc/*.*
-/stable/*.*
-datasets/current/module_correction_field_topology.json
+# TAGM runtime artifacts
+tagm.log
+module_*_log.json
+probe_cache/
+datasets/
+*.migrated
+requirements.lock.txt
+
+# OS
+.DS_Store
+
+# Local Claude Code tooling
+.claude/
