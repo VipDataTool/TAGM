@@ -1457,7 +1457,11 @@ function _renderDataTablePage(){
     return val;
   }
 
-  const getVal=getValFor;
+  // MUST stay a function DECLARATION, not `const getVal = getValFor`.
+  // The heatmap-range loop above calls getVal ~25 lines before this point;
+  // a declaration hoists, a const binding does not and throws a TDZ error
+  // ("Cannot access uninitialized variable") on every single render.
+  function getVal(r,key){return getValFor(r,key)}
 
   // ─── Toolbar ──────────────────────────────────────────────────
   let h=`<div class="dt-toolbar">
