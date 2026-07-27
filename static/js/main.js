@@ -717,7 +717,7 @@ async function restoreSessionFromDisk(){
 }
 
 async function clearPlotCache(){
-  if(!confirm('Delete all cached plot images? Data (CSV, JSON, metrics) will be kept.')) return;
+  if(!(await TAGM.confirm('Delete all cached plot images? Data (CSV, JSON, metrics) will be kept.'))) return;
   try{
     const r=await(await fetch('/api/session/clear_plots',{method:'POST'})).json();
     if(r.ok){_cacheBytes=r.cache_size_bytes||0;updateSessionBadge();if($('cfgCacheSize'))$('cfgCacheSize').textContent=_cacheBytes>0?fmtSize(_cacheBytes)+' total':'No data cached';log(`Plot cache cleared: ${r.freed_mb||0}MB freed`,'done')}
@@ -726,7 +726,7 @@ async function clearPlotCache(){
 }
 
 async function clearAllSessionData(){
-  if(!confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.')) return;
+  if(!(await TAGM.confirm('Delete ALL session data? This includes CSV, JSON, plots, and aggregate stats. Export first if needed.'))) return;
   try{
     const r=await(await fetch('/api/session/clear_all',{method:'POST'})).json();
     if(r.ok){sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;updateSessionBadge();$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';if($('cfgCacheSize'))$('cfgCacheSize').textContent='No data cached';log(`Session data cleared: ${r.freed_mb||0}MB freed`,'done')}
@@ -781,7 +781,7 @@ async function loadModel(){
   const btn=$('loadModelBtn');setLoading(btn,true);clearLog();log('Starting model load...');setStatus('loading','LOADING');
   const fd=new FormData();
   if(sel.value==='custom'){
-    const b=prompt('Base model HF ID:');const i=prompt('Instruct model HF ID:');
+    const b=await TAGM.prompt('Base model HF ID:');const i=await TAGM.prompt('Instruct model HF ID:');
     if(!b||!i){setLoading(btn,false);return}
     fd.append('base_id',b);fd.append('instruct_id',i);
   } else fd.append('pair_id',sel.value);
@@ -833,7 +833,7 @@ async function setInferenceModel(cls){
 }
 
 async function resetAll(){
-  if(!confirm('Clear session and unload model?'))return;clearLog();setStatus('loading','RESETTING');
+  if(!(await TAGM.confirm('Clear session and unload model?')))return;clearLog();setStatus('loading','RESETTING');
   try{const r=await(await fetch('/api/reset',{method:'POST'})).json();if(r.ok){modelLoaded=false;sessionResults=[];dashResults=[];_promptTotal=0;_cacheBytes=0;setStatus('idle','NO MODEL');$('analyzeBtn').disabled=true;$('batchBtn').disabled=true;$('dataTableContainer').innerHTML='<p style="color:var(--text-3);font-size:11px">No data yet.</p>';updateSessionBadge();log(r.message,'done')}}catch(e){log('Reset error: '+e.message,'error')}
 }
 
@@ -1601,7 +1601,7 @@ function dtToggleAll(checked){
 async function dtRemoveSelected(){
   const indices=dtGetSelectedIndices();
   if(!indices.length) return;
-  if(!confirm(`Remove ${indices.length} result(s) from the session? This cannot be undone.`)) return;
+  if(!(await TAGM.confirm(`Remove ${indices.length} result(s) from the session? This cannot be undone.`))) return;
   try{
     const r=await(await fetch('/api/session/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})})).json();
     if(r.ok){
@@ -1952,7 +1952,7 @@ async function _advApplyChanges(){
     var m = ENGINE_PARAM_META[k];
     msg += '  '+m.label+': '+_engineConfig[k]+' → '+_enginePending[k]+'\n';
   }
-  if(!confirm(msg)) return;
+  if(!(await TAGM.confirm(msg))) return;
 
   try{
     // 1. Apply config changes
@@ -1989,7 +1989,7 @@ async function _advApplyChanges(){
 }
 
 async function resetAdvancedParams(){
-  if(!confirm('Reset all advanced parameters to defaults?\n\nThis will reset the application (unload model, clear session).')) return;
+  if(!(await TAGM.confirm('Reset all advanced parameters to defaults?\n\nThis will reset the application (unload model, clear session).'))) return;
   try{
     var r = await(await fetch('/api/engine_config/reset',{method:'POST'})).json();
     if(r.ok){
@@ -2120,7 +2120,7 @@ async function confirmInitHep() {
 }
 
 async function deactivateHep() {
-  if (!confirm('Deactivate High-Efficiency Pipeline?\n\nThis will reset the pipeline and return to standard memory mode.')) return;
+  if (!(await TAGM.confirm('Deactivate High-Efficiency Pipeline?\n\nThis will reset the pipeline and return to standard memory mode.'))) return;
   try {
     var r = await(await fetch('/api/hep/deactivate', {method: 'POST'})).json();
     if (r.ok) {

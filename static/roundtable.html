@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="/static/js/common/esc.js?v=1"></script>
+<script src="/static/js/common/dialogs.js?v=1"></script>
 <script src="/static/js/common/api.js?v=1"></script>
 <script src="/static/js/common/download.js?v=1"></script>
 <style>
@@ -513,7 +514,7 @@ async function loadTemplate(input) {
   if (!file) return;
   var text = await file.text();
   var topic = document.getElementById('topicDisplay').textContent;
-  if (!topic || topic === '(not set)') topic = prompt('Discussion topic:', 'Roundtable discussion');
+  if (!topic || topic === '(not set)') topic = await TAGM.prompt('Discussion topic:', 'Roundtable discussion');
   if (!topic) return;
   addMsg('system', 'Running template: ' + file.name);
   setStatus('Running batch pipeline…');

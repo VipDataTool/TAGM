@@ -541,9 +541,13 @@ class ModuleRunner:
                     except Exception as e:
                         logger.warning(f"[MODULES] Failed to save results: {e}")
 
-                # Always save standalone log to project root
-                log_path = self._project_root / f"module_{name}_log.json"
+                # Always save a standalone log. Runtime output, so it goes
+                # under ~/.tagm with the rest of the persistent data — not
+                # the repo root, where it dirtied the checkout.
+                log_dir = Path.home() / ".tagm" / "module_logs"
+                log_path = log_dir / f"module_{name}_log.json"
                 try:
+                    log_dir.mkdir(parents=True, exist_ok=True)
                     with open(log_path, "w") as f:
                         json.dump(results, f, indent=1, default=str)
                     state.log_path = str(log_path)
