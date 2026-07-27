@@ -11,7 +11,8 @@ import json
 import logging
 import math
 import os
-import re as _re
+import shutil
+import tempfile
 import time
 import threading
 from pathlib import Path
@@ -22,6 +23,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import iterate_in_threadpool
 
 from src.core.pipeline import Pipeline
 from src.engine.analyzer import Analyzer
@@ -36,6 +38,7 @@ from src.engine.app_core import (
     api_load_model_handler,
     api_analyze_handler,
     api_analyze_batch_handler,
+    cancel_analysis_job,
     api_session_results_handler,
     api_dashboard_handler,
     api_results_detail_handler,
@@ -48,10 +51,18 @@ from src.engine.app_core import (
     _form_bool,
     _analysis_lock,
 )
-from src.engine.modules import ModuleRunner
-from src.core.cache import Cache, safe_filename
+from src.core.cache import Cache
 from src.core.locks import MODEL_LOCK
 from src.service.events import broker
+
+# API routers. Each owns a slice of the surface that used to live here;
+# routes, methods and response shapes are unchanged by the split.
+from src.api import ecm_config as _ecm_config_api
+from src.api import hep as _hep_api
+from src.api import modules as _modules_api
+from src.api import probes as _probes_api
+from src.api import roundtable as _roundtable_api
+from src.api._state import module_runner as _module_runner
 
 logger = logging.getLogger("src")
 
@@ -68,7 +79,8 @@ logging.basicConfig(
 )
 
 # ─── Additional global state ────────────────────────────────────
-_module_runner = ModuleRunner(event_hook=broker.publish)
+# _module_runner now lives in src/api/_state.py so the routers can share
+# the one instance without importing this module (which would be circular).
 _cache = Cache()
 
 # When a model loads, propagate the pipeline to modules that need it
@@ -76,6 +88,17 @@ state.on_model_loaded(_module_runner.set_pipeline)
 
 # ─── App ────────────────────────────────────────────────────────
 app = FastAPI(title="TAGM", version="2.0.0")
+
+# ─── Routers ────────────────────────────────────────────────────
+# Mounted before the static mount / catch-all HTML routes below so route
+# resolution order is unchanged from when these were defined inline.
+# Literal-path routers first (probes owns two literal
+# /api/modules/probe_generator/* paths), then the parameterised ones.
+app.include_router(_hep_api.router)
+app.include_router(_ecm_config_api.router)
+app.include_router(_probes_api.router)
+app.include_router(_modules_api.router)
+app.include_router(_roundtable_api.router)
 
 # Static files
 #
@@ -100,29 +123,6 @@ if _static_dir.exists():
     app.mount("/static", RevalidatedStaticFiles(directory=str(_static_dir)),
               name="static")
 
-# HTML pages are served with `Cache-Control: no-store` (always refetched —
-# they're small) and every /static/... asset URL inside them is rewritten
-# to carry the asset file's mtime as a cache-buster (?v=<mtime>).  Editing
-# any JS/CSS file therefore changes its URL on the next page load, which
-# defeats browser memory/disk caches and any proxy cache without anyone
-# hand-bumping version strings in index.html.
-_ASSET_RE = _re.compile(r'(/static/[^"\'?]+)(?:\?[^"\']*)?')
-
-def _stamped_html(path: Path) -> HTMLResponse:
-    html = path.read_text(encoding="utf-8")
-
-    def _stamp(m):
-        rel = m.group(1)[len("/static/"):]
-        try:
-            v = int((_static_dir / rel).stat().st_mtime)
-        except OSError:
-            return m.group(1)
-        return f"{m.group(1)}?v={v}"
-
-    resp = HTMLResponse(_ASSET_RE.sub(_stamp, html))
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
-
 # ─── Restore HEP state from DB ────────────────────────────────
 # If HEP was active when the server last ran, re-enable it so
 # cached mmap delta files are found on the next model load.
@@ -145,12 +145,29 @@ except Exception as e:
 # HTML routes
 # ═══════════════════════════════════════════════════════════════
 
+# HTML documents are served with `no-store`, NOT the `no-cache` used for
+# /static above.
+#
+# Revalidating the static assets is pointless if the DOCUMENT that references
+# them is itself stale: a cached index.html keeps requesting the old set of
+# <script> tags, so a newly added or renamed file is never fetched and the app
+# boots against a half-updated frontend. That is the real
+# "blank-page-until-hard-refresh" bug — the earlier fix covered /static and
+# missed the page pointing at it.
+#
+# index.html is a few KB and is fetched once per page load, so never caching it
+# costs nothing and removes a whole class of stale-frontend confusion.
+_NO_STORE = {"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     index = _static_dir / "index.html"
     if index.exists():
-        return _stamped_html(index)
-    return HTMLResponse("<h1>TAGM</h1><p>No frontend found.</p>")
+        return HTMLResponse(index.read_text(encoding="utf-8"),
+                            headers=_NO_STORE)
+    return HTMLResponse("<h1>TAGM</h1><p>No frontend found.</p>",
+                        headers=_NO_STORE)
 
 @app.get("/favicon.svg")
 async def favicon():
@@ -168,7 +185,11 @@ for _viz in ("chat", "roundtable", "domain_surface_viz",
         async def handler():
             p = _static_dir / f"{name}.html"
             if p.exists():
-                return _stamped_html(p)
+                # Same no-store reasoning as the root route: these popouts
+                # each load their own script set, so a stale document means
+                # stale JS references.
+                return HTMLResponse(p.read_text(encoding="utf-8"),
+                                    headers=_NO_STORE)
             raise HTTPException(status_code=404)
         return handler
     app.get(f"/{_viz}", include_in_schema=False)(_make_viz_route(_viz))
@@ -189,7 +210,11 @@ async def events(request: Request):
 
 @app.get("/api/status")
 async def get_status():
-    return api_status_handler()
+    # Thread-pooled: the handler reads session.get_cache_size(), a
+    # SUM(LENGTH(blob)) table scan taken under the DB's RLock, which
+    # analysis writers also hold. On a ~2s poll that stalled the event
+    # loop for as long as a write was in flight.
+    return await run_in_threadpool(api_status_handler)
 
 @app.get("/api/config")
 async def get_config():
@@ -209,7 +234,11 @@ async def add_model(id: str = Form(...), name: str = Form(...),
                     base: str = Form(...), instruct: str = Form(...)):
     id_clean = id.strip().lower().replace(" ", "-")
     if not id_clean or not base.strip() or not instruct.strip():
-        return JSONResponse(status_code=400, content={"error": "All fields required."})
+        # ok:false added so the failure shape matches every other endpoint;
+        # the frontend reads `error`, which is unchanged.
+        return JSONResponse(status_code=400,
+                            content={"ok": False,
+                                     "error": "All fields required."})
     from src.core.db import get_db
     get_db().upsert_model(id_clean, name.strip(), base.strip(), instruct.strip())
     return {"ok": True}
@@ -247,108 +276,12 @@ async def set_inference_model(request: Request):
 
 @app.post("/api/reset")
 async def reset():
-    return api_reset_handler()
+    # Thread-pooled: api_reset_handler now takes MODEL_LOCK to tear the
+    # pipeline down safely, and that lock can be held by an in-flight
+    # chat generation — blocking on it from the event loop would freeze
+    # every other request.
+    return await run_in_threadpool(api_reset_handler)
 
-
-# ═══════════════════════════════════════════════════════════════
-# High-Efficiency Pipeline (HEP)
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/hep/status")
-async def hep_status():
-    """Return HEP state, disk/memory usage, and mmap info."""
-    from src.engine import config as engine_config
-    from src.core.cache import system_resources, hf_cache_size
-    from pathlib import Path
-
-    res = system_resources()
-    mmap_dir = Path.home() / ".tagm" / "cache" / "deltas"
-    mmap_files = list(mmap_dir.glob("*.tagm")) if mmap_dir.exists() else []
-    mmap_size = sum(f.stat().st_size for f in mmap_files)
-
-    return {
-        "active": bool(engine_config.get("hep_active")),
-        "delta_backend": engine_config.get("delta_backend"),
-        "mmap_file": str(mmap_files[0]) if mmap_files else None,
-        "mmap_size_bytes": mmap_size,
-        "evict_base_cache": bool(engine_config.get("hep_evict_base_cache")),
-        **res,
-    }
-
-@app.post("/api/hep/initialize")
-async def init_hep(request: Request):
-    """Initialize the High-Efficiency Pipeline.
-
-    Clears HF cache, removes old mmap files, resets pipeline,
-    configures delta_backend to mmap.
-    """
-    from src.engine import config as engine_config
-    from src.core.cache import clear_hf_cache, system_resources
-    from src.core.db import get_db
-    import gc
-
-    # Reset pipeline first
-    api_reset_handler()
-    gc.collect()
-
-    # Clear HF cache to free disk — but keep existing mmap delta files,
-    # they're expensive to recompute and valid for cache reuse.
-    hf_result = clear_hf_cache()
-
-    # Configure HEP
-    engine_config.update({
-        "delta_backend": "mmap",
-        "hep_active": True,
-        "hep_evict_base_cache": True,
-    })
-
-    # Persist HEP state to DB so it survives restarts
-    get_db().set_config("hep", {
-        "active": True,
-        "delta_backend": "mmap",
-        "evict_base_cache": True,
-    })
-
-    res = system_resources()
-    total_freed = hf_result["bytes_freed"]
-
-    state.progress("ready", f"HEP initialized: freed {total_freed / 1e9:.1f} GB")
-    broker.publish("progress", {
-        "stage": "ready",
-        "message": f"High-Efficiency Pipeline active. Freed {total_freed / 1e9:.1f} GB.",
-    })
-
-    return {
-        "ok": True,
-        "hf_freed": hf_result,
-        "disk_free": res["disk_free"],
-        "ram_available": res["ram_available"],
-    }
-
-@app.post("/api/hep/deactivate")
-async def deactivate_hep():
-    """Deactivate HEP and return to standard memory mode."""
-    from src.engine import config as engine_config
-    from src.core.cache import clear_mmap_deltas
-    from src.core.db import get_db
-
-    api_reset_handler()
-    clear_mmap_deltas()
-    engine_config.update({
-        "delta_backend": "memory",
-        "hep_active": False,
-        "hep_evict_base_cache": False,
-    })
-
-    # Persist deactivation
-    get_db().set_config("hep", {
-        "active": False,
-        "delta_backend": "memory",
-        "evict_base_cache": False,
-    })
-
-    state.progress("ready", "High-Efficiency Pipeline deactivated")
-    return {"ok": True}
 
 @app.post("/api/analyze")
 async def analyze(request: Request):
@@ -357,6 +290,18 @@ async def analyze(request: Request):
 @app.post("/api/analyze_batch")
 async def analyze_batch(request: Request):
     return await api_analyze_batch_handler(request)
+
+@app.post("/api/analyze/cancel")
+async def analyze_cancel():
+    """Request cancellation of the running analysis job.
+
+    Cooperative: takes effect after the current prompt finishes, since a
+    forward pass cannot be safely interrupted. Prompts already analyzed are
+    kept — each is a complete, already-persisted record. The job still emits
+    exactly one analyze_done (with cancelled=True), so a waiting client is
+    never left hanging.
+    """
+    return cancel_analysis_job()
 
 @app.get("/api/session/results")
 async def session_results(page: int = 1, per_page: int = 10):
@@ -401,11 +346,16 @@ async def restore():
 
 @app.post("/api/session/clear_plots")
 async def clear_plots():
-    return {"ok": True, "message": "No server-side plot cache.", "freed_mb": 0}
+    # Must report cache_size_bytes even though it deletes nothing: the client
+    # reads it into the session-size badge (main.js), so omitting it made
+    # "clear plot cache" blank out a number it had not changed.
+    size = await run_in_threadpool(state.session.get_cache_size)
+    return {"ok": True, "message": "No server-side plot cache.",
+            "freed_mb": 0, "cache_size_bytes": size}
 
 @app.post("/api/session/clear_all")
 async def clear_all():
-    return api_reset_handler()
+    return await run_in_threadpool(api_reset_handler)
 
 @app.post("/api/session/remove")
 async def session_remove(request: Request):
@@ -420,36 +370,50 @@ async def session_rerun(request: Request):
     if not indices or state.analyzer is None:
         return {"ok": False, "error": "No indices or no model loaded."}
     options = body.get("options", {})
-    rerun_results = []
-    for idx in indices:
-        if idx >= len(state.session.results):
-            continue
-        old = state.session.results[idx]
-        try:
-            with _analysis_lock:
-                result = state.analyzer.analyze_prompt(
-                    old["prompt"], category=old.get("category", ""),
-                    compute_ltp=options.get("compute_ltp", False),
-                    compute_sfd=options.get("compute_sfd", False),
-                )
-                rd = result_to_dict(result)
-                if options.get("compute_ecm"):
-                    from src.engine.ecm_analysis import attach_ecm_analysis
-                    attach_ecm_analysis(rd)
-                rd["_index"] = idx
-                rd["_plot_keys"] = _plot_keys_for_result(rd)
-                # Preserve deconstruction-ladder identity: the rerun result
-                # has no family/rung fields, and dropping them from the blob
-                # made the detail view disagree with the dashboard columns.
-                for kf in ("family_index", "rung_index"):
-                    if old.get(kf) is not None:
-                        rd[kf] = old[kf]
-                state.session.results[idx] = rd
-                rerun_results.append(rd)
-        except Exception as e:
-            logger.exception(f"Rerun {idx} failed")
-    state.session.save_to_disk()
-    return {"ok": True, "n_rerun": len(rerun_results)}
+
+    def _rerun() -> tuple[int, int]:
+        n_ok = 0
+        n_err = 0
+        for idx in indices:
+            if idx >= len(state.session.results):
+                continue
+            old = state.session.results[idx]
+            try:
+                with _analysis_lock:
+                    result = state.analyzer.analyze_prompt(
+                        old["prompt"], category=old.get("category", ""),
+                        compute_ltp=options.get("compute_ltp", False),
+                        compute_sfd=options.get("compute_sfd", False),
+                    )
+                    rd = result_to_dict(result)
+                    if options.get("compute_ecm"):
+                        from src.engine.ecm_analysis import attach_ecm_analysis
+                        attach_ecm_analysis(rd)
+                    rd["_index"] = idx
+                    rd["_plot_keys"] = _plot_keys_for_result(rd)
+                    # Preserve deconstruction-ladder identity: the rerun result
+                    # has no family/rung fields, and dropping them from the blob
+                    # made the detail view disagree with the dashboard columns.
+                    for kf in ("family_index", "rung_index"):
+                        if old.get(kf) is not None:
+                            rd[kf] = old[kf]
+                    state.session.results[idx] = rd
+                    n_ok += 1
+            except Exception:
+                # Previously counted as neither success nor failure: the
+                # response reported ok/n_rerun only, so a run where every
+                # index blew up looked identical to a partial success.
+                logger.exception(f"Rerun {idx} failed")
+                n_err += 1
+        state.session.save_to_disk()
+        return n_ok, n_err
+
+    # analyze_prompt is a blocking forward pass; every other analysis path
+    # already goes through run_in_threadpool, this one did not and stalled
+    # the event loop for the whole rerun.
+    n_rerun, n_errors = await run_in_threadpool(_rerun)
+    return {"ok": True, "n_rerun": n_rerun, "n_errors": n_errors,
+            "n_results": state.session.n_results}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -490,836 +454,42 @@ async def add_prompt(prompt: str = Form(...), category: str = Form("")):
 
 
 # ═══════════════════════════════════════════════════════════════
-# Engine config
-# ═══════════════════════════════════════════════════════════════
-
-_ECM_CONFIG_FILE = _PACKAGE_DIR.parent / "ecm_config.json"
-_ECM_KEYS = {"ecm_active", "ecm_n_scales", "ecm_gain", "ecm_floor",
-             "ecm_deadband", "ecm_agreement", "ecm_no_repeat_ngram",
-             "ecm_replay_warmup",
-             # v4 (multi-channel) — load is key-presence guarded, so
-             # pre-v4 config files lacking these simply keep defaults.
-             "ecm_version", "ecm_channels", "ecm_entropy_weight",
-             "ecm_density_weight", "ecm_fusion", "ecm_harvest_tokens",
-             # Response Harvest generation params — persisted alongside ECM
-             # config so temp/top-p/seed survive restart (load is key-presence
-             # guarded, so older config files lacking these keep defaults).
-             "harvest_temperature", "harvest_top_p", "harvest_seed",
-             "harvest_seed_ecm"}
-_ECM_CONFIG_VERSION = 2
-
-def _load_ecm_config():
-    """Load persisted ECM settings from disk into engine_config.
-
-    Version-aware: v1 files (no _ecm_version field) predate the σ-unit
-    signal, so their ecm_gain values are in raw nats and would massively
-    over-tighten under v2 semantics. Drop gain from v1 files and keep
-    the rest; the file is rewritten as v2 on the next save.
-    """
-    if _ECM_CONFIG_FILE.exists():
-        try:
-            saved = json.loads(_ECM_CONFIG_FILE.read_text())
-            version = saved.get("_ecm_version", 1)
-            keys = _ECM_KEYS if version >= 2 else (_ECM_KEYS - {"ecm_gain"})
-            engine_config.update({k: v for k, v in saved.items() if k in keys})
-            if version < 2:
-                logger.info("[ECM] v1 config detected — ecm_gain reset to "
-                            "v2 default (signal units changed to σ)")
-            logger.info(f"[ECM] Loaded config from {_ECM_CONFIG_FILE.name}")
-        except Exception as e:
-            logger.warning(f"[ECM] Failed to load config: {e}")
-
-def _save_ecm_config():
-    """Persist current ECM settings to disk."""
-    try:
-        vals = {k: engine_config.get(k) for k in _ECM_KEYS}
-        vals["_ecm_version"] = _ECM_CONFIG_VERSION
-        _ECM_CONFIG_FILE.write_text(json.dumps(vals, indent=1))
-    except Exception as e:
-        logger.warning(f"[ECM] Failed to save config: {e}")
-
-# Load persisted ECM config at import time
-_load_ecm_config()
-
-@app.get("/api/engine_config")
-async def get_engine_config():
-    return {"ok": True, "config": engine_config.as_dict(), "defaults": dict(engine_config.DEFAULTS)}
-
-@app.post("/api/engine_config")
-async def set_engine_config(request: Request):
-    body = await request.json()
-    engine_config.update(body)
-    # Persist ECM keys if any were changed
-    if _ECM_KEYS & body.keys():
-        _save_ecm_config()
-    return {"ok": True, "config": engine_config.as_dict()}
-
-@app.post("/api/engine_config/reset")
-async def reset_engine_config():
-    engine_config.reset()
-    if _ECM_CONFIG_FILE.exists():
-        _ECM_CONFIG_FILE.unlink()
-    return {"ok": True, "config": engine_config.as_dict()}
-
-
-# ═══════════════════════════════════════════════════════════════
-# Modules (analysis modules)
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/modules")
-async def list_modules():
-    return {"ok": True, "modules": _module_runner.list_modules()}
-
-@app.post("/api/modules/upload_template")
-async def upload_template(file: UploadFile = File(...)):
-    templates_dir = _PACKAGE_DIR / "templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-    content = await file.read()
-    # Client-supplied filenames are untrusted: sanitize so a crafted name
-    # ("../../...") cannot write outside templates_dir (the server binds
-    # 0.0.0.0 by default).
-    filename = safe_filename(file.filename or "template.csv")
-    dest = templates_dir / filename
-    with open(dest, "wb") as f:
-        f.write(content)
-    # Return a path the module machinery can resolve from project root —
-    # the bare filename resolved against root pointed at nothing.
-    rel = os.path.relpath(dest, _PACKAGE_DIR.parent)
-    return {"ok": True, "filename": rel}
-
-@app.get("/api/health")
-async def health():
-    """Liveness probe. The port only opens after Python finishes
-    importing this module (torch, transformers, sklearn — a 10-30s
-    wall on cold starts), so anything that answers here is fully up.
-    start.sh polls this to print an unambiguous READY banner."""
-    return {"ok": True}
-
-@app.get("/api/templates")
-async def api_list_templates():
-    from src.probes.io import list_templates
-    root = str(_PACKAGE_DIR.parent)
-    return {"ok": True, "templates": list_templates(root)}
-
-@app.get("/api/templates/{name}")
-async def api_get_template(name: str):
-    from src.probes.io import load_template_raw, parse_template_echo
-    root = str(_PACKAGE_DIR.parent)
-    try:
-        csv_text, axes, path = load_template_raw(root, os.path.basename(name))
-    except FileNotFoundError:
-        return {"ok": False, "error": f"Template not found: {name}"}
-    try:
-        parsed = parse_template_echo(root, os.path.basename(name))
-    except Exception as e:
-        parsed = {"error": str(e)}
-    return {"ok": True, "name": os.path.basename(path), "csv": csv_text,
-            "axes": axes, "parsed": parsed,
-            "path": os.path.relpath(path, root)}
-
-@app.post("/api/templates/save")
-async def api_save_template(request: Request):
-    from src.probes.io import save_template, parse_template_echo
-    root = str(_PACKAGE_DIR.parent)
-    try:
-        body = await request.json()
-    except Exception:
-        return {"ok": False, "error": "Invalid JSON body."}
-    name = body.get("name") or ""
-    csv_text = body.get("csv") or ""
-    axes = body.get("axes")
-    if not csv_text.strip():
-        return {"ok": False, "error": "Empty template."}
-    try:
-        rel = save_template(root, name, csv_text, axes)
-    except ValueError as e:
-        return {"ok": False, "error": str(e)}
-    # The guarantee: immediately re-read through the production parsers
-    # and echo back what the machinery will see.
-    try:
-        parsed = parse_template_echo(root, os.path.basename(rel))
-    except Exception as e:
-        return {"ok": False, "error": f"Saved, but the parser rejects it: {e}",
-                "path": rel}
-    return {"ok": True, "path": rel, "parsed": parsed}
-
-@app.post("/api/modules/{module_name}/run")
-async def run_module(module_name: str, request: Request):
-    body = {}
-    ct = request.headers.get("content-type", "")
-    if ct.startswith("application/json"):
-        try:
-            body = await request.json()
-        except Exception:
-            body = {}
-    params = body.get("params") or {}
-    result = _module_runner.run_module(
-        name=module_name,
-        session_results=state.session.results,
-        params=params,
-        session_dir=state.session.session_dir if hasattr(state.session, 'session_dir') else None,
-    )
-    if not result.get("ok"):
-        return {"ok": False, "error": result.get("error", "Module failed to start.")}
-    return result
-
-@app.get("/api/modules/{module_name}/status")
-async def module_status(module_name: str):
-    return _module_runner.get_status(module_name)
-
-@app.get("/api/modules/{module_name}/results")
-async def module_results(module_name: str):
-    results = _module_runner.get_results(module_name)
-    if results is None:
-        raise HTTPException(status_code=404, detail=f"No results for '{module_name}'.")
-    return {"ok": True, "results": results}
-
-@app.post("/api/modules/{module_name}/reset")
-async def reset_module(module_name: str):
-    return _module_runner.reset_module(module_name)
-
-@app.get("/api/modules/{module_name}/download_log")
-async def download_module_log(module_name: str):
-    log_path = _module_runner.get_log_path(module_name)
-    if not log_path or not Path(log_path).exists():
-        raise HTTPException(status_code=404, detail="No log file.")
-    return FileResponse(log_path, media_type="application/json")
-
-
-# ─── Token Pair Coupling — cache management ─────────────────────
-
-@app.get("/api/modules/token_pair_coupling/cache_status")
-async def token_pair_cache_status():
-    mod = _module_runner.get_module("token_pair_coupling")
-    if mod is None:
-        return {"ok": False, "error": "Module not found."}
-    return {"ok": True, **mod._get_cache_summary()}
-
-@app.post("/api/modules/token_pair_coupling/reset_cache")
-async def token_pair_reset_cache():
-    from src.engine.modules.token_pair_coupling import TokenPairCoupling
-    result = TokenPairCoupling.reset_cache()
-    # Clear the in-memory cache reference on the live instance
-    mod = _module_runner.get_module("token_pair_coupling")
-    if mod is not None:
-        mod._cache = None
-    return {"ok": True, **result}
-
-@app.get("/api/modules/token_pair_coupling/export_cache")
-async def token_pair_export_cache():
-    cache_path = Path.home() / ".tagm" / "token_pair_cache.json"
-    if not cache_path.exists():
-        raise HTTPException(status_code=404, detail="No cache file.")
-    return FileResponse(
-        str(cache_path), media_type="application/json",
-        filename="token_pair_cache.json")
-
-
-# ═══════════════════════════════════════════════════════════════
-# Roundtable LMA
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/roundtable/participants")
-async def rt_list_participants():
-    from src.engine.modules.roundtable_lma import list_participants
-    return {"ok": True, "participants": list_participants()}
-
-@app.post("/api/roundtable/participants")
-async def rt_upsert_participant(request: Request):
-    from src.engine.modules.roundtable_lma import upsert_participant
-    return {"ok": True, "participant": upsert_participant(await request.json())}
-
-@app.delete("/api/roundtable/participants/{pid}")
-async def rt_remove_participant(pid: str):
-    from src.engine.modules.roundtable_lma import remove_participant
-    return {"ok": remove_participant(pid)}
-
-@app.post("/api/roundtable/participants/reset")
-async def rt_reset_participants():
-    from src.engine.modules.roundtable_lma import reset_to_defaults
-    return {"ok": True, "participants": reset_to_defaults()}
-
-@app.post("/api/roundtable/topic")
-async def rt_set_topic(request: Request):
-    from src.engine.modules.roundtable_lma import update_default_topic
-    d = await request.json()
-    return {"ok": True, "topic": update_default_topic(d.get("topic", ""))}
-
-@app.get("/api/roundtable/methods")
-async def rt_list_methods():
-    mod = _module_runner.get_module("roundtable_lma")
-    if not mod: return {"ok": False}
-    return {"ok": True, "methods": mod.list_methods(), "tools": mod.list_tools()}
-
-@app.post("/api/roundtable/interactive/start")
-async def rt_start(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return {"ok": True, "session": _interactive_manager.start(d.get("topic",""), d.get("gen_config",{}))}
-
-@app.get("/api/roundtable/interactive/session")
-async def rt_session():
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    s = _interactive_manager.get_session()
-    return {"ok": s is not None, "session": s}
-
-@app.post("/api/roundtable/interactive/send")
-async def rt_send(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return _interactive_manager.send_user_message(d.get("message",""))
-
-@app.post("/api/roundtable/interactive/apply_persona")
-async def rt_apply_persona(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return await run_in_threadpool(_interactive_manager.apply_persona,
-        participant_id=d.get("participant_id"), inline_seed=d.get("seed"))
-
-@app.post("/api/roundtable/interactive/apply_method")
-async def rt_apply_method(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return await run_in_threadpool(_interactive_manager.apply_method,
-        method_name=d.get("method","synthesize"), system_prompt=d.get("system_prompt"))
-
-@app.post("/api/roundtable/interactive/new_stage")
-async def rt_new_stage(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return _interactive_manager.new_stage(d.get("stage_type","PANEL"), d.get("label",""))
-
-@app.post("/api/roundtable/interactive/config")
-async def rt_config(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    return _interactive_manager.update_config(await request.json())
-
-@app.post("/api/roundtable/interactive/apply_tool")
-async def rt_apply_tool(request: Request):
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    d = await request.json()
-    return await run_in_threadpool(_interactive_manager.apply_tool,
-        tool_name=d.get("tool","export_json"), params=d.get("params",{}))
-
-@app.get("/api/roundtable/interactive/export")
-async def rt_export():
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    e = _interactive_manager.export()
-    return {"ok": e is not None, "export": e}
-
-@app.post("/api/roundtable/interactive/reset")
-async def rt_reset():
-    from src.engine.modules.roundtable_lma import _interactive_manager
-    return _interactive_manager.reset()
-
-@app.post("/api/roundtable/batch")
-async def rt_batch(request: Request):
-    """Run a batch pipeline from CSV template text."""
-    mod = _module_runner.get_module("roundtable_lma")
-    if not mod: return {"ok": False, "error": "Module not found."}
-    if state.pipeline is None or not state.pipeline.loaded:
-        return {"ok": False, "error": "No model loaded."}
-    data = await request.json()
-    try:
-        result = await run_in_threadpool(mod._run_batch, data.get("template_csv",""),
-                                          data, lambda m: None)
-        return {"ok": True, "result": result}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-# ═══════════════════════════════════════════════════════════════
-# Probe sets
-# ═══════════════════════════════════════════════════════════════
-
-_probe_apply_state = {"active": False, "error": None, "progress": None, "result": None}
-_pg_embed_state = {"active": False, "error": None, "progress": None, "result": None}
-
-@app.post("/api/probe_set/apply")
-async def probe_apply(request: Request):
-    form = await request.form()
-    file = form.get("file")
-    if file is None:
-        return {"ok": False, "error": "No file uploaded."}
-    if state.pipeline is None or not state.pipeline.loaded:
-        return {"ok": False, "error": "No model loaded."}
-
-    # Save the CSV to project root. Sanitize the client-supplied name —
-    # path traversal otherwise writes anywhere the server can.
-    _project_root = _PACKAGE_DIR.parent
-    filename = safe_filename(file.filename or "probes.csv")
-    dest = _project_root / filename
-    content = await file.read()
-    with open(dest, "wb") as f:
-        f.write(content)
-
-    # Start background embedding
-    _probe_apply_state["active"] = True
-    _probe_apply_state["error"] = None
-    _probe_apply_state["progress"] = "Starting probe embedding..."
-    _probe_apply_state["result"] = None
-
-    def _embed_worker():
-        try:
-            from src.probes.io import embed_and_activate_probe_set
-
-            def _progress(msg):
-                _probe_apply_state["progress"] = msg
-
-            result = embed_and_activate_probe_set(
-                state.pipeline, str(_project_root), filename,
-                progress=_progress)
-
-            if not result.get("applied"):
-                _probe_apply_state["error"] = result.get(
-                    "error", "Probe apply failed")
-                return
-
-            _probe_apply_state["result"] = {
-                "filename": result["filename"],
-                "n_probes": result["n_probes"],
-                "n_subjects": result["n_subjects"],
-                "n_levels": result["n_levels"],
-                "layer_L50": result["depths"][0] if result["depths"] else 50,
-                "layer_L75": (result["depths"][-1]
-                              if len(result["depths"]) > 1
-                              else result["depths"][0] if result["depths"] else 50),
-            }
-            state.progress(
-                "done",
-                f"Probe set applied: {result['filename']} "
-                f"({result['n_probes']} probes)")
-
-        except Exception as e:
-            logger.exception("Probe apply failed")
-            _probe_apply_state["error"] = str(e)
-        finally:
-            _probe_apply_state["active"] = False
-            broker.publish("probe_status", {
-                "active": False,
-                "error": _probe_apply_state.get("error"),
-                "result": _probe_apply_state.get("result"),
-            })
-
-    import threading
-    threading.Thread(target=_embed_worker, daemon=True).start()
-    return {"ok": True}
-
-@app.get("/api/probe_set/apply_status")
-async def probe_apply_status():
-    return {"ok": True, **_probe_apply_state}
-
-@app.get("/api/probe_set/status")
-async def probe_status():
-    _project_root = _PACKAGE_DIR.parent
-    from src.probes.io import get_active_probe_set, load_probes
-
-    active = get_active_probe_set(str(_project_root))
-    if active is None:
-        return {"ok": True, "active": None}
-
-    csv_path = _project_root / active.probe_file
-    n_probes = active.n_probes
-    n_subjects = 0
-
-    if csv_path.exists():
-        try:
-            probes = load_probes(str(csv_path))
-            # Re-derive from the live CSV — the active-record's count is
-            # what was on disk at apply time; if the file has changed we
-            # show the current count (and if it differs, the user can see
-            # the drift in the status line).
-            n_probes = len(probes)
-            n_subjects = len(set(p["subject"] for p in probes))
-        except Exception:
-            pass
-
-    # Cache presence: check that the exact cache file the active record
-    # points at actually exists on disk. This is a tighter check than
-    # "any matching stem" — it confirms the binding is fulfilled.
-    cached = False
-    if not active.is_legacy() and active.depths:
-        try:
-            cache_path = active.cache_path(
-                str(_project_root), active.subject_layer_frac())
-            cached = os.path.exists(cache_path)
-        except Exception:
-            cached = False
-
-    payload = {
-        "ok": True,
-        "active": True,
-        # Core fields (kept for any older client code that still reads them).
-        "filename": active.probe_file,
-        "n_probes": n_probes,
-        "n_subjects": n_subjects,
-        "cached": cached,
-        # Rich record for the new status line.
-        "model_id": active.model_id,
-        "depths": list(active.depths),
-        "projected": active.projected,
-        "applied_at": active.applied_at,
-        "legacy": active.is_legacy(),
-    }
-
-    # If the active record was applied for a model other than the one
-    # currently loaded, surface that as a structured warning the UI can
-    # render alongside the green ✓.
-    pipe = state.pipeline
-    if pipe is not None and getattr(pipe, "loaded", False):
-        payload["loaded_model_id"] = pipe.instruct_model_id
-        if (active.model_id and
-                active.model_id != pipe.instruct_model_id):
-            payload["stale_for_loaded_model"] = True
-        elif active.is_legacy():
-            payload["stale_for_loaded_model"] = True
-        else:
-            payload["stale_for_loaded_model"] = False
-    else:
-        payload["loaded_model_id"] = None
-        payload["stale_for_loaded_model"] = active.is_legacy()
-
-    return payload
-
-@app.post("/api/probe_set/clear_caches")
-async def probe_clear_caches():
-    _project_root = _PACKAGE_DIR.parent
-    cache_dir = _project_root / "probe_cache"
-    cleared = 0
-    if cache_dir.exists():
-        import shutil
-        for f in cache_dir.iterdir():
-            if f.is_dir():
-                shutil.rmtree(f, ignore_errors=True)
-            else:
-                f.unlink()
-            cleared += 1
-    return {"ok": True, "message": f"Cleared {cleared} cache entries."}
-
-
-# ═══════════════════════════════════════════════════════════════
-# Probe Generator: explicit embed action
-# ═══════════════════════════════════════════════════════════════
-#
-# Runs against a probe CSV the user has already generated (or any CSV
-# in the project root). Decoupled from generation; user inspects via
-# Probe Diagnostic popout, then triggers this when ready to embed.
-# Background-thread + polling pattern, identical to /api/probe_set/apply.
-
-@app.post("/api/modules/probe_generator/embed_active")
-async def pg_embed_active(request: Request):
-    """Embed and activate a probe CSV that already exists in project root."""
-    body = await request.json()
-    filename = (body.get("filename") or "").strip()
-    if not filename:
-        return {"ok": False, "error": "No filename provided."}
-    if state.pipeline is None or not state.pipeline.loaded:
-        return {"ok": False, "error": "No model loaded."}
-
-    _project_root = _PACKAGE_DIR.parent
-    csv_path = _project_root / filename
-    if not csv_path.exists():
-        return {"ok": False, "error": f"Probe file not found: {filename}"}
-
-    if _pg_embed_state["active"]:
-        return {"ok": False, "error": "Embed already in progress."}
-
-    _pg_embed_state["active"] = True
-    _pg_embed_state["error"] = None
-    _pg_embed_state["progress"] = "Starting probe embedding..."
-    _pg_embed_state["result"] = None
-
-    def _embed_worker():
-        try:
-            from src.probes.io import embed_and_activate_probe_set
-
-            def _progress(msg):
-                _pg_embed_state["progress"] = msg
-
-            result = embed_and_activate_probe_set(
-                state.pipeline, str(_project_root), filename,
-                progress=_progress)
-
-            if not result.get("applied"):
-                _pg_embed_state["error"] = result.get("error", "Embed failed")
-                return
-
-            _pg_embed_state["result"] = result
-            state.progress(
-                "done",
-                f"Probe set applied: {result['filename']} "
-                f"({result['n_probes']} probes)")
-
-        except Exception as e:
-            logger.exception("PG embed failed")
-            _pg_embed_state["error"] = str(e)
-        finally:
-            _pg_embed_state["active"] = False
-            broker.publish("pg_embed_status", {
-                "active": False,
-                "error": _pg_embed_state.get("error"),
-                "result": _pg_embed_state.get("result"),
-            })
-
-    import threading
-    threading.Thread(target=_embed_worker, daemon=True).start()
-    return {"ok": True}
-
-
-@app.get("/api/modules/probe_generator/embed_active_status")
-async def pg_embed_active_status():
-    return {"ok": True, **_pg_embed_state}
-
-
-# ═══════════════════════════════════════════════════════════════
-# Probe Diagnostic
-# ═══════════════════════════════════════════════════════════════
-#
-# Reads from disk (active probe set or named file). Independent of
-# any module's last-run output. Returns lattice properties: cell
-# coverage, sample terms per cell, cross-class/cross-level
-# collisions. Embedding-tier metrics added when probe cache exists
-# for the active model.
-
-@app.get("/api/probe_diagnostic")
-async def probe_diagnostic(file: Optional[str] = None):
-    """Compute lattice properties of a probe set on disk.
-
-    Query params:
-        file: optional CSV filename. If omitted, uses the active
-              probe set from probe_config.json.
-    """
-    from src.probes.io import (
-        get_active_probe, get_active_probe_set, load_probes,
-        detect_level_cols, parse_meta, probe_cache_path, load_probe_cache)
-    from collections import Counter, defaultdict
-
-    _project_root = str(_PACKAGE_DIR.parent)
-
-    filename = file or get_active_probe(_project_root)
-    if not filename:
-        return {"ok": False, "error": "No active probe set."}
-
-    csv_path = os.path.join(_project_root, filename)
-    if not os.path.exists(csv_path):
-        return {"ok": False, "error": f"Probe file not found: {filename}"}
-
-    probes = load_probes(csv_path)
-    if not probes:
-        return {"ok": False, "error": "No probes loaded from CSV."}
-
-    level_cols, level_names = detect_level_cols(csv_path)
-    meta = parse_meta(csv_path)
-
-    subjects = sorted(set(p["subject"] for p in probes))
-    n_levels = len(level_names) if level_names else max(
-        (p["level"] for p in probes), default=-1) + 1
-
-    # ── Cell coverage: (subject, level) → list of probe texts ──
-    cells = defaultdict(list)
-    for p in probes:
-        cells[(p["subject"], p["level"])].append(p["text"])
-
-    cell_grid = []
-    for s in subjects:
-        row = []
-        for l in range(n_levels):
-            terms = cells.get((s, l), [])
-            row.append({"count": len(terms), "sample": terms[:8]})
-        cell_grid.append(row)
-
-    counts_flat = [c["count"] for row in cell_grid for c in row]
-    n_populated = sum(1 for c in counts_flat if c > 0)
-    n_empty = sum(1 for c in counts_flat if c == 0)
-
-    # ── Cross-class collisions: term appears in multiple subjects ──
-    term_subjects = defaultdict(set)
-    term_levels_per_subject = defaultdict(lambda: defaultdict(set))
-    for p in probes:
-        term_subjects[p["text"]].add(p["subject"])
-        term_levels_per_subject[p["subject"]][p["text"]].add(p["level"])
-
-    # ── In-cell duplicates: same term twice in the same cell ──
-    # Invisible to both collision checks below, but inflates counts and
-    # drags intra-cell spread toward zero (a duplicate's pairwise
-    # similarity with itself is 1.0).
-    _seen = Counter()
-    for p in probes:
-        _seen[(p["subject"], p["level"], p["text"])] += 1
-    in_cell_duplicates = []
-    for (s_, l_, t_), n_ in _seen.items():
-        if n_ > 1:
-            in_cell_duplicates.append({
-                "term": t_, "subject": s_, "level": l_,
-                "level_name": (level_names[l_] if l_ < len(level_names)
-                               else str(l_)),
-                "count": n_,
-            })
-    in_cell_duplicates.sort(key=lambda r: (-r["count"], r["subject"], r["term"]))
-
-    cross_class = []
-    for term, subjs in term_subjects.items():
-        if len(subjs) > 1:
-            cross_class.append({
-                "term": term,
-                "subjects": sorted(subjs),
-            })
-    cross_class.sort(key=lambda r: (-len(r["subjects"]), r["term"]))
-
-    # ── Cross-level collisions: term appears in multiple levels of same subject ──
-    cross_level = []
-    for s, term_lvls in term_levels_per_subject.items():
-        for term, lvls in term_lvls.items():
-            if len(lvls) > 1:
-                cross_level.append({
-                    "term": term,
-                    "subject": s,
-                    "levels": sorted(lvls),
-                    "level_names": [level_names[l] for l in sorted(lvls)
-                                    if l < len(level_names)],
-                })
-    cross_level.sort(key=lambda r: (-len(r["levels"]), r["subject"], r["term"]))
-
-    # ── Embedding tier (best-effort): load cache for active model if present ──
-    embedding_tier = None
-    if state.pipeline is not None and state.pipeline.loaded:
-        model_id = state.pipeline.instruct_model_id
-
-        # When diagnosing the ACTIVE set, the probe_config record knows
-        # the exact depths it was embedded at — use the resolver rather
-        # than guessing, so config drift after apply can't point us at
-        # a missing or stale cache. The guess chain (CSV meta → engine
-        # config → 0.50) remains only for arbitrary ?file= sets that
-        # were never applied.
-        active = get_active_probe_set(_project_root)
-        if active is not None and active.probe_file == filename:
-            frac = active.subject_layer_frac()
-            cache_path = active.cache_path(_project_root, frac)
-        else:
-            if "layer_low" in meta:
-                try:
-                    frac = max(0.0, min(1.0, float(meta["layer_low"])))
-                except Exception:
-                    frac = 0.50
-            else:
-                try:
-                    from src.engine import config as engine_config
-                    frac = max(0.0, min(1.0, float(engine_config.get(
-                        "domain_embedding_layer_frac") or 0.50)))
-                except Exception:
-                    frac = 0.50
-            cache_path = probe_cache_path(_project_root, filename, model_id,
-                                          frac, projected=False)
-        cache = load_probe_cache(cache_path)
-        if cache and cache.get("embeddings"):
-            import numpy as np
-            embs = np.array(cache["embeddings"], dtype=np.float32)
-            # Index alignment: cache embeddings parallel the load_probes() order
-            if len(embs) == len(probes):
-                # Group embeddings by cell
-                cell_embs = defaultdict(list)
-                for i, p in enumerate(probes):
-                    cell_embs[(p["subject"], p["level"])].append(embs[i])
-
-                # Intra-cell cosine spread: 1 - mean pairwise cosine similarity
-                # within each cell
-                intra_grid = []
-                centroids = {}
-                for s in subjects:
-                    row = []
-                    for l in range(n_levels):
-                        vecs = cell_embs.get((s, l), [])
-                        if len(vecs) >= 2:
-                            M = np.stack(vecs)
-                            sims = M @ M.T
-                            n = sims.shape[0]
-                            mask = ~np.eye(n, dtype=bool)
-                            mean_sim = float(sims[mask].mean())
-                            spread = 1.0 - mean_sim
-                            cent = M.mean(axis=0)
-                            cent_norm = np.linalg.norm(cent)
-                            if cent_norm > 1e-12:
-                                centroids[(s, l)] = cent / cent_norm
-                            row.append(round(spread, 4))
-                        elif len(vecs) == 1:
-                            centroids[(s, l)] = vecs[0]
-                            row.append(None)
-                        else:
-                            row.append(None)
-                    intra_grid.append(row)
-
-                # Inter-cell separation: mean cosine distance between centroids
-                cell_keys = list(centroids.keys())
-                if len(cell_keys) >= 2:
-                    C = np.stack([centroids[k] for k in cell_keys])
-                    cs = C @ C.T
-                    n = cs.shape[0]
-                    mask = ~np.eye(n, dtype=bool)
-                    inter_mean = 1.0 - float(cs[mask].mean())
-                    inter_min = 1.0 - float(cs[mask].max())  # tightest pair
-                    # Name the offending pair — the number alone isn't
-                    # actionable.
-                    _masked = np.where(mask, cs, -np.inf)
-                    _i, _j = np.unravel_index(int(np.argmax(_masked)),
-                                              _masked.shape)
-                    def _cell_label(k):
-                        s_, l_ = k
-                        ln = (level_names[l_] if l_ < len(level_names)
-                              else str(l_))
-                        return f"{s_} \u00d7 {ln}"
-                    tightest_pair = [_cell_label(cell_keys[_i]),
-                                     _cell_label(cell_keys[_j])]
-                else:
-                    inter_mean = None
-                    inter_min = None
-                    tightest_pair = None
-
-                embedding_tier = {
-                    "model_id": model_id,
-                    "layer_frac": frac,
-                    "intra_cell_spread": intra_grid,
-                    "inter_cell_mean_distance": (
-                        round(inter_mean, 4) if inter_mean is not None else None),
-                    "inter_cell_min_distance": (
-                        round(inter_min, 4) if inter_min is not None else None),
-                    "tightest_pair": tightest_pair,
-                    "n_cells_with_centroid": len(cell_keys),
-                }
-
-    return {
-        "ok": True,
-        "filename": filename,
-        "n_probes": len(probes),
-        "n_subjects": len(subjects),
-        "n_levels": n_levels,
-        "subjects": subjects,
-        "level_names": level_names,
-        "cell_grid": cell_grid,
-        "summary": {
-            "populated_cells": n_populated,
-            "empty_cells": n_empty,
-            "min_count": min(counts_flat) if counts_flat else 0,
-            "max_count": max(counts_flat) if counts_flat else 0,
-            "mean_count": (round(sum(counts_flat) / len(counts_flat), 1)
-                           if counts_flat else 0),
-        },
-        "cross_class_collisions": cross_class,
-        "cross_level_collisions": cross_level,
-        "in_cell_duplicates": in_cell_duplicates,
-        "embedding_tier": embedding_tier,
-    }
-
-
-# ═══════════════════════════════════════════════════════════════
 # Export
 # ═══════════════════════════════════════════════════════════════
 
-_export_ready = False
-_export_path: Optional[Path] = None
+# Export job state. Mirrors the _pg_embed_state pattern: one dict, one
+# lock, one "already running" flag. The previous globals (_export_ready /
+# _export_path) were written from a daemon thread with no synchronisation
+# and no guard, so overlapping exports raced on the same file, and every
+# export left a zip behind in Path.cwd() forever.
+_export_lock = threading.Lock()
+_export_state: dict[str, Any] = {
+    "active": False,
+    "ready": False,
+    "path": None,   # Optional[Path]
+    "dir": None,    # Optional[Path] — private tempdir holding `path`
+}
+
+
+def _discard_previous_export():
+    """Delete the artifact from the last export, if any. Caller holds the lock."""
+    old_path = _export_state.get("path")
+    old_dir = _export_state.get("dir")
+    _export_state["ready"] = False
+    _export_state["path"] = None
+    _export_state["dir"] = None
+    try:
+        if old_path is not None and Path(old_path).exists():
+            Path(old_path).unlink()
+        if old_dir is not None and Path(old_dir).exists():
+            shutil.rmtree(old_dir, ignore_errors=True)
+    except OSError:
+        logger.warning(f"Could not clean up previous export at {old_path}",
+                       exc_info=True)
+
 
 @app.post("/api/export")
 async def export_session(request: Request):
-    global _export_ready, _export_path
     from src.service.export import export_session_split
 
     if not state.session.results:
@@ -1333,90 +503,60 @@ async def export_session(request: Request):
     emb_precision = int(opts.get("embeddingPrecision", 12))
     emb_precision = max(4, min(emb_precision, 17))  # sane bounds
 
+    with _export_lock:
+        if _export_state["active"]:
+            return {"ok": False, "error": "Export already in progress."}
+        _discard_previous_export()
+        _export_state["active"] = True
+        # Private temp dir, not Path.cwd(): the server's working directory
+        # is the repo, so exports were dropped into the source tree and
+        # never removed.
+        export_dir = Path(tempfile.mkdtemp(prefix="tagm_export_"))
+        _export_state["dir"] = export_dir
+
     def _do_export():
-        global _export_ready, _export_path
         try:
             state.progress("exporting", "Preparing export...")
-            p = Path.cwd() / f"session_{state.session.session_id}.zip"
+            p = export_dir / f"session_{state.session.session_id}.zip"
             mod_results = _module_runner.collect_results(skip={"comparative_analysis"})
             export_session_split(state.session, p,
                                  float_precision=emb_precision,
                                  module_results=mod_results)
-            _export_path = p
-            _export_ready = True
+            with _export_lock:
+                _export_state["path"] = p
+                _export_state["ready"] = True
             state.progress("done", f"Export ready: {p.name}")
             broker.publish("export_ready", {"filename": p.name})
         except Exception as e:
-            # Without this, _export_ready stays False forever and the UI
-            # waits on an event that never comes. export_error has been in
-            # the broker's SNAPSHOT_TYPES all along — now something
-            # actually publishes it.
+            # Without this, "ready" stays False forever and the UI waits on
+            # an event that never comes. export_error has been in the
+            # broker's SNAPSHOT_TYPES all along — now something actually
+            # publishes it.
             logger.exception("Export failed")
             state.progress("error", f"Export failed: {e}")
             broker.publish("export_error", {"error": str(e)})
+        finally:
+            with _export_lock:
+                _export_state["active"] = False
 
-    _export_ready = False
-    import threading
     threading.Thread(target=_do_export, daemon=True).start()
     return {"ok": True, "ready": False}
 
 @app.get("/api/export/download")
 async def export_download():
-    if not _export_ready or _export_path is None or not _export_path.exists():
+    with _export_lock:
+        ready = _export_state["ready"]
+        path = _export_state["path"]
+    if not ready or path is None or not Path(path).exists():
         raise HTTPException(status_code=404, detail="No export available.")
-    media = "application/zip" if _export_path.suffix == ".zip" else "application/gzip"
-    return FileResponse(str(_export_path), media_type=media,
-                        filename=_export_path.name)
+    path = Path(path)
+    media = "application/zip" if path.suffix == ".zip" else "application/gzip"
+    return FileResponse(str(path), media_type=media, filename=path.name)
 
 
 # ═══════════════════════════════════════════════════════════════
 # Plots (server-side matplotlib)
 # ═══════════════════════════════════════════════════════════════
-
-# Batch comparative plot dispatch table
-_BATCH_PLOT_DISPATCH = {
-    "exp_trajectory_overlay": "plot_trajectory_overlay",
-    "exp_difference_from_benign": "plot_difference_from_benign",
-    "exp_metric_scatters": "plot_metric_scatters",
-    "exp_behavioral_comparison": "plot_behavioral_comparison",
-    "exp_ltp_category_comparison": "plot_ltp_category_comparison",
-    "exp_ltp_m_vs_stress": "plot_ltp_m_vs_stress",
-    "exp_ltp_profile_shapes": "plot_ltp_profile_shape_distribution",
-    "exp_sfd_category_comparison": "plot_sfd_category_comparison",
-    "exp_sfd_vs_asm": "plot_sfd_vs_asm",
-    "exp_rank_displacement": "plot_rank_displacement_by_category",
-    "key_scatters": "plot_key_scatters",
-    "discriminative_sublayers": "plot_discriminative_sublayers",
-    "proof1_summary": "plot_proof1_summary",
-}
-
-def _render_batch_plot(plot_key: str, results: list) -> bytes | None:
-    """Render a batch comparative plot. Returns PNG bytes or None."""
-    import base64
-
-    # Aggregate-based plots (need SimpleNamespace for statistics extractors)
-    if plot_key in ("batch_summary", "separability"):
-        from types import SimpleNamespace
-        from src.engine.statistics import aggregate_batch
-        from src.engine.visualizations import plot_batch_summary, plot_separability
-        ns_results = [SimpleNamespace(**r) for r in results]
-        agg = aggregate_batch(ns_results)
-        if plot_key == "batch_summary":
-            b64 = plot_batch_summary(agg)
-        else:
-            b64 = plot_separability(agg)
-        return base64.b64decode(b64) if b64 else None
-
-    # Comparative plots (use raw dicts — functions use r.get() style)
-    func_name = _BATCH_PLOT_DISPATCH.get(plot_key)
-    if func_name:
-        import src.engine.comparative as comp
-        func = getattr(comp, func_name, None)
-        if func:
-            b64 = func(results)
-            return base64.b64decode(b64) if b64 else None
-
-    return None
 
 @app.get("/api/plots/{plot_key}")
 async def get_plot(plot_key: str):
@@ -1424,14 +564,13 @@ async def get_plot(plot_key: str):
     if not state.session.results:
         raise HTTPException(status_code=404, detail="No data in session.")
     try:
-        # Try batch plot first
-        img = await run_in_threadpool(_render_batch_plot, plot_key, state.session.results)
-        if img is not None:
-            return StreamingResponse(_io.BytesIO(img), media_type="image/png")
-
-        # Fall back to per-prompt plot (first result)
-        from src.service.plots import render_plot
-        img = await run_in_threadpool(render_plot, plot_key, state.session.results[0])
+        # One registry lookup — service.plots knows which keys are batch
+        # plots and which are per-prompt, so the old "try batch, fall back
+        # to per-prompt" chain (which silently rendered result[0] when a
+        # batch plot legitimately produced no image) is gone.
+        from src.service.plots import render_session_plot
+        img = await run_in_threadpool(render_session_plot, plot_key,
+                                      state.session.results)
         if img is not None:
             return StreamingResponse(_io.BytesIO(img), media_type="image/png")
 
@@ -1463,14 +602,13 @@ async def get_individual_plot(index: int, plot_key: str):
 # ═══════════════════════════════════════════════════════════════
 
 def _load_chat_config():
-    """Load chat config from module settings or fall back to engine defaults."""
-    config_path = _PACKAGE_DIR.parent / "chat_config.json"
-    if config_path.exists():
-        try:
-            return json.loads(config_path.read_text())
-        except Exception:
-            pass
-    return {
+    """Load chat config from disk, layered over the engine defaults.
+
+    Persisted keys win; missing keys fall back to defaults, so a config
+    file written before a new setting existed (e.g. context_window)
+    still yields a complete config.
+    """
+    cfg = {
         "temperature": engine_config.get("chat_temperature"),
         "top_p": engine_config.get("chat_top_p"),
         "max_tokens": engine_config.get("chat_max_tokens"),
@@ -1478,7 +616,24 @@ def _load_chat_config():
         "analyze_responses": False,
         "compute_ltp": True,
         "compute_sfd": True,
+        # Number of prior turns the client replays into `messages`.
+        "context_window": 10,
     }
+    config_path = _PACKAGE_DIR.parent / "chat_config.json"
+    if config_path.exists():
+        try:
+            saved = json.loads(config_path.read_text())
+        except Exception as e:
+            # Silently discarding the file meant a corrupt chat_config.json
+            # reverted every persisted setting with no indication why.
+            logger.warning(f"[chat] Ignoring unreadable chat_config.json: {e}")
+        else:
+            if isinstance(saved, dict):
+                cfg.update(saved)
+            else:
+                logger.warning(
+                    "[chat] chat_config.json is not a JSON object — ignored")
+    return cfg
 
 @app.get("/api/chat/config")
 async def get_chat_config():
@@ -1533,17 +688,24 @@ async def chat(request: Request):
         import json as _json
 
         done_result = None
-        client_gone = False
 
-        # Phase 1: stream tokens from generation
-        for sse_line in generate_chat_response_streaming(
+        # Phase 1: stream tokens from generation.
+        #
+        # generate_chat_response_streaming is a *synchronous* generator: it
+        # blocks on the TextIteratorStreamer queue and on thread.join().
+        # Iterating it directly from this coroutine pinned the event loop
+        # for the entire generation, freezing every other request (status
+        # polls, the SSE broker, analyze_done). iterate_in_threadpool drives
+        # it on a worker thread and hands chunks back asynchronously.
+        sync_stream = generate_chat_response_streaming(
             state.pipeline, messages,
             max_tokens=max_tokens,
             temperature=float(cfg.get("temperature",
                               engine_config.get("chat_temperature"))),
             top_p=float(cfg.get("top_p", engine_config.get("chat_top_p"))),
             analyzer=state.analyzer,
-        ):
+        )
+        async for sse_line in iterate_in_threadpool(sync_stream):
             # Capture the done event for analysis
             if sse_line.startswith("data: "):
                 try:
@@ -1552,15 +714,11 @@ async def chat(request: Request):
                         done_result = evt
                 except Exception:
                     pass
-
-            # If client disconnected, drain silently instead of yielding
-            if client_gone:
-                continue
-            try:
-                yield sse_line
-            except Exception:
-                client_gone = True
-                continue
+            # No client-disconnect branch here: a disconnect closes this
+            # async generator, which raises GeneratorExit (a BaseException)
+            # at the yield. The old `except Exception` around the yield
+            # could never catch it, so the drain logic was dead code.
+            yield sse_line
 
         # Phase 2: run analysis (after generation completes)
         if done_result and done_result.get("ok"):
@@ -1586,8 +744,7 @@ async def chat(request: Request):
                             compute_ltp, compute_sfd, "user",
                             ecm_active=ecm_was_active,
                             full_analysis=full_analysis)
-                        if not client_gone:
-                            yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
+                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'prompt'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat prompt analysis failed: {e}")
 
@@ -1603,8 +760,7 @@ async def chat(request: Request):
                             ecm_active=ecm_was_active,
                             ecm_summary=ecm_summary,
                             full_analysis=full_analysis)
-                        if not client_gone:
-                            yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
+                        yield f"data: {_json.dumps({'type': 'analyzed', 'target': 'response'})}\n\n"
                     except Exception as e:
                         logger.warning(f"Chat response analysis failed: {e}")
 
