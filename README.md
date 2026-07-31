@@ -628,4 +628,4 @@ Predecessor work by the author: TASM, and the ClownCar.AI / alice.ipynb
 Language Model Array (Ostrander, 2024), credited in the Roundtable
 module.
 
-#### This project contains AI-generated content.
+#### This project contains AI-generated code and documentation.
