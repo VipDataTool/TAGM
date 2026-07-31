@@ -569,3 +569,63 @@ break TAGM's own metrics — they're part of the honesty budget:
 - `ecm_ablation_v2.py`, `ecm_ab_report.py`, `ecm_coupling.py`,
   `test_ecm_v4.py` — ECM ablation studies, A/B reporting, and
   channel-coupling analysis.
+
+## References
+
+Work this project directly implements or extends:
+
+- Arditi, A., Obeso, O., Syed, A., Paleka, D., Panickssery, N.,
+  Gurnee, W., & Nanda, N. (2024). *Refusal in Language Models Is
+  Mediated by a Single Direction.* arXiv:2406.11717.
+  — The `arditi_benchmarks` module replicates the difference-of-means
+  direction fitting, directional ablation, and activation-addition
+  experiments, and `routing_ablation` tests the SFD harm direction
+  against it.
+- Turner, A., Thiergart, L., Leech, G., Udell, D., Mini, U., &
+  MacDiarmid, M. (2023). *Activation Addition: Steering Language
+  Models Without Optimization.* arXiv:2308.10248.
+  — Basis of the steering/addition arm of the benchmark experiments.
+- Zou, A., et al. (2023). *Representation Engineering: A Top-Down
+  Approach to AI Transparency.* arXiv:2310.01405.
+  — Difference-of-means concept directions, as used in
+  `concept_atoms` and `harm_direction`.
+- Sharma, M., et al. (2023). *Towards Understanding Sycophancy in
+  Language Models.* arXiv:2310.13548.
+  — Framing for the `syco_signature` module's divergence test.
+
+Conceptual foundations:
+
+- Vaswani, A., et al. (2017). *Attention Is All You Need.*
+  arXiv:1706.03762. — The architecture under measurement.
+- Elhage, N., et al. (2021). *A Mathematical Framework for
+  Transformer Circuits.* Anthropic.
+  https://transformer-circuits.pub/2021/framework/index.html
+  — Residual-stream and QK/OV-circuit framing used throughout the
+  hook and attribution design.
+- nostalgebraist (2020). *Interpreting GPT: The Logit Lens.*
+  LessWrong. — Reading intermediate states through the unembedding,
+  as in the counterfactual extraction.
+- Ilharco, G., et al. (2022). *Editing Models with Task Arithmetic.*
+  arXiv:2212.04089. — Weight differences between checkpoints as
+  meaningful directions; the premise of delta metrology.
+- Hu, E., et al. (2021). *LoRA: Low-Rank Adaptation of Large Language
+  Models.* arXiv:2106.09685. — Low effective rank of fine-tuning
+  updates, which the delta spectral profiles measure directly.
+- Belrose, N., et al. (2023). *LEACE: Perfect Linear Concept Erasure
+  in Closed Form.* arXiv:2306.03819. — Related concept-erasure
+  formalism for the ablation machinery.
+- Ouyang, L., et al. (2022). *Training Language Models to Follow
+  Instructions with Human Feedback.* arXiv:2203.02155.
+  — The training process whose weight-space footprint TAGM measures.
+
+Models:
+
+- Grattafiori, A., et al. (2024). *The Llama 3 Herd of Models.*
+  arXiv:2407.21783.
+- Qwen Team (2024). *Qwen2.5 Technical Report.* arXiv:2412.15115.
+
+Predecessor work by the author: TASM, and the ClownCar.AI / alice.ipynb
+Language Model Array (Ostrander, 2024), credited in the Roundtable
+module.
+
+#### This project contains AI-generated content.
